@@ -1,0 +1,38 @@
+# CI (execution plan, workstream F): rebuild a scratch database from the migrations + seeds and run the whole suite
+# on every push and pull request, with the same script as local runs (tests/run_local.sh).
+# No Supabase secrets: it uses a throwaway Postgres container, never the live project.
+name: database tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  run_local:
+    name: run_local.sh
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17.6          # the live project runs 17.6
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGTZ: UTC                       # same session time zone as the live project
+    steps:
+      - uses: actions/checkout@v4
+      - name: Postgres client
+        run: |
+          command -v psql || { sudo apt-get update && sudo apt-get install -y postgresql-client; }
+          psql --version
+          psql -d postgres -Atc 'select version()'
+      - name: tests/run_local.sh
+        run: bash tests/run_local.sh

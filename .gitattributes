@@ -1,0 +1,5 @@
+# LF everywhere, so tests/run_local.sh and the SQL run the same on Windows checkouts and on Linux CI.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
