@@ -3,3 +3,8 @@ node_modules/
 .env.*
 supabase/.branches/
 supabase/.temp/
+local-stack/bin/
+local-stack/run/
+web/dist/
+test-results/
+playwright-report/

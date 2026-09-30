@@ -31,3 +31,19 @@ create table if not exists auth.users (
   phone_confirmed_at  timestamptz,
   created_at          timestamptz not null default now()
 );
+
+-- Minimal stand-in for Supabase Storage (buckets, objects, foldername), so the evidence-bucket policies in migration 16
+-- are created and tested locally. Only the columns the policies read.
+create schema if not exists storage;
+grant usage on schema storage to anon, authenticated, service_role;
+create table if not exists storage.buckets (id text primary key, name text not null, public boolean not null default false);
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets(id), name text not null,
+  owner uuid default auth.uid(), created_at timestamptz not null default now()
+);
+alter table storage.objects enable row level security;
+grant select, insert on storage.objects to authenticated;
+create or replace function storage.foldername(name text) returns text[]
+language sql immutable as $$
+  select (string_to_array(name, '/'))[1 : greatest(array_length(string_to_array(name, '/'), 1) - 1, 0)]
+$$;

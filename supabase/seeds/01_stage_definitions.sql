@@ -6,7 +6,8 @@ insert into public.stage_definitions
   (stage_type, code, label, is_first, is_gate, splits_forward, aggregates, allows_exceed_input, yield_alarm, is_processing, sort_order, form_schema, handoff_checks)
 values
 ('procurement', 'P', 'Procurement (farm-gate)', true, false, false, false, false, false, false, 10,
- '[{"key":"gross_kg","label":"Gross weight","unit":"kg","type":"number","required":true},
+ '[{"key":"farmer_id","label":"Farmer","type":"farmer","required":true,"column":true},
+   {"key":"gross_kg","label":"Gross weight","unit":"kg","type":"number","required":true},
    {"key":"bags","label":"Bags","type":"integer","required":true},
    {"key":"tare_kg_per_bag","label":"Tare per bag","unit":"kg","type":"number","required":true},
    {"key":"moisture_pct","label":"Moisture (3 readings)","unit":"%","type":"number[3]","required":true},
@@ -24,7 +25,7 @@ values
  '["Weighed quantity recorded","Source declared","Crop declared","Moisture baseline recorded","Date recorded"]'),
 
 ('village_batch', 'VB', 'Village Batch (aggregate farmer lots)', false, false, false, true, false, false, false, 30,
- '[{"key":"source_footprint_ids","label":"Farmer lots in this batch","type":"footprint[]","required":true},
+ '[{"key":"source_footprint_ids","label":"Farmer lots in this batch","type":"footprint[]","required":true,"sets_prev":true},
    {"key":"village","label":"Village","type":"text","required":true}]',
  '["All source lots verified","Batch total equals sum of sources","Village named"]'),
 
@@ -49,7 +50,7 @@ values
    {"key":"grade_c_kg","label":"Grade C","unit":"kg","type":"number","required":true},
    {"key":"reject_kg","label":"Reject","unit":"kg","type":"number","required":true},
    {"key":"loss_kg","label":"Loss","unit":"kg","type":"number","required":true},
-   {"key":"split_into_grades","label":"Split into grade lots","type":"boolean","required":false}]',
+   {"key":"split_into_grades","label":"Split into grade lots","type":"boolean","required":false,"column":true}]',
  '["A + B + C + reject + loss = input","Split decision recorded","Grade quantities forwarded"]'),
 
 ('drying', 'D', 'Drying', false, false, false, false, false, false, true, 70,

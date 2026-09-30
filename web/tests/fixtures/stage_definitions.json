@@ -1,0 +1,755 @@
+[
+    {
+        "code": "P",
+        "label": "Procurement (farm-gate)",
+        "is_gate": false,
+        "is_first": true,
+        "aggregates": false,
+        "sort_order": 10,
+        "stage_type": "procurement",
+        "form_schema": [
+            {
+                "key": "farmer_id",
+                "type": "farmer",
+                "label": "Farmer",
+                "column": true,
+                "required": true
+            },
+            {
+                "key": "gross_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Gross weight",
+                "required": true
+            },
+            {
+                "key": "bags",
+                "type": "integer",
+                "label": "Bags",
+                "required": true
+            },
+            {
+                "key": "tare_kg_per_bag",
+                "type": "number",
+                "unit": "kg",
+                "label": "Tare per bag",
+                "required": true
+            },
+            {
+                "key": "moisture_pct",
+                "type": "number[3]",
+                "unit": "%",
+                "label": "Moisture (3 readings)",
+                "required": true
+            },
+            {
+                "key": "photo",
+                "type": "attachment",
+                "label": "Photo evidence",
+                "required": false
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": false,
+        "handoff_checks": [
+            "Farmer is active and named",
+            "Gross, bags and tare recorded",
+            "Three moisture readings recorded",
+            "Net quantity reviewed"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "LI",
+        "label": "Lot Inward (pre-aggregated lot)",
+        "is_gate": false,
+        "is_first": true,
+        "aggregates": false,
+        "sort_order": 20,
+        "stage_type": "lot_inward",
+        "form_schema": [
+            {
+                "key": "declared_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Declared quantity",
+                "required": true
+            },
+            {
+                "key": "weighed_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Actual weighed",
+                "required": true
+            },
+            {
+                "key": "source_type",
+                "type": "select",
+                "label": "Source type",
+                "options": [
+                    "farmer_group",
+                    "fpo",
+                    "trader",
+                    "own_farm"
+                ],
+                "required": true
+            },
+            {
+                "key": "source_name",
+                "type": "text",
+                "label": "Source name",
+                "required": true
+            },
+            {
+                "key": "crop_declared",
+                "type": "text",
+                "label": "Crop declared",
+                "required": true
+            },
+            {
+                "key": "moisture_pct",
+                "type": "number",
+                "unit": "%",
+                "label": "Moisture baseline",
+                "required": true
+            },
+            {
+                "key": "condition",
+                "type": "text",
+                "label": "Condition",
+                "required": false
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": false,
+        "handoff_checks": [
+            "Weighed quantity recorded",
+            "Source declared",
+            "Crop declared",
+            "Moisture baseline recorded",
+            "Date recorded"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "VB",
+        "label": "Village Batch (aggregate farmer lots)",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": true,
+        "sort_order": 30,
+        "stage_type": "village_batch",
+        "form_schema": [
+            {
+                "key": "source_footprint_ids",
+                "type": "footprint[]",
+                "label": "Farmer lots in this batch",
+                "required": true,
+                "sets_prev": true
+            },
+            {
+                "key": "village",
+                "type": "text",
+                "label": "Village",
+                "required": true
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": false,
+        "handoff_checks": [
+            "All source lots verified",
+            "Batch total equals sum of sources",
+            "Village named"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "M",
+        "label": "Milling",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 40,
+        "stage_type": "milling",
+        "form_schema": [
+            {
+                "key": "input_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Paddy in",
+                "required": true
+            },
+            {
+                "key": "rice_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Rice out",
+                "required": true
+            },
+            {
+                "key": "bran_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Bran",
+                "required": true
+            },
+            {
+                "key": "loss_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Loss",
+                "required": true
+            }
+        ],
+        "yield_alarm": true,
+        "is_processing": true,
+        "handoff_checks": [
+            "Input = rice + bran + loss",
+            "Yield reviewed",
+            "Rice quantity forwarded"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "S",
+        "label": "Sorting",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 50,
+        "stage_type": "sorting",
+        "form_schema": [
+            {
+                "key": "input_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Input",
+                "required": true
+            },
+            {
+                "key": "reject_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Reject",
+                "required": true
+            },
+            {
+                "key": "reject_reasons",
+                "type": "breakdown",
+                "label": "Reject reasons",
+                "required": false
+            },
+            {
+                "key": "loss_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Loss",
+                "required": true
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": true,
+        "handoff_checks": [
+            "Clean output derived = input - reject - loss",
+            "Reject reasons recorded",
+            "Clean quantity forwarded"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "G",
+        "label": "Grading",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 60,
+        "stage_type": "grading",
+        "form_schema": [
+            {
+                "key": "input_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Input",
+                "required": true
+            },
+            {
+                "key": "grade_a_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Grade A",
+                "required": true
+            },
+            {
+                "key": "grade_b_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Grade B",
+                "required": true
+            },
+            {
+                "key": "grade_c_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Grade C",
+                "required": true
+            },
+            {
+                "key": "reject_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Reject",
+                "required": true
+            },
+            {
+                "key": "loss_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Loss",
+                "required": true
+            },
+            {
+                "key": "split_into_grades",
+                "type": "boolean",
+                "label": "Split into grade lots",
+                "column": true,
+                "required": false
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": true,
+        "handoff_checks": [
+            "A + B + C + reject + loss = input",
+            "Split decision recorded",
+            "Grade quantities forwarded"
+        ],
+        "splits_forward": true,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "D",
+        "label": "Drying",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 70,
+        "stage_type": "drying",
+        "form_schema": [
+            {
+                "key": "input_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Input",
+                "required": true
+            },
+            {
+                "key": "moisture_in_pct",
+                "type": "number",
+                "unit": "%",
+                "label": "Moisture in",
+                "required": true
+            },
+            {
+                "key": "moisture_out_pct",
+                "type": "number",
+                "unit": "%",
+                "label": "Moisture out",
+                "required": true
+            },
+            {
+                "key": "output_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Output",
+                "required": true
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": true,
+        "handoff_checks": [
+            "Moisture in and out recorded",
+            "Water removed reconciled",
+            "Output forwarded"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "PP",
+        "label": "Popping (makhana)",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 80,
+        "stage_type": "popping",
+        "form_schema": [
+            {
+                "key": "input_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Input",
+                "required": true
+            },
+            {
+                "key": "output_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Output",
+                "required": true
+            },
+            {
+                "key": "pop_rate_pct",
+                "type": "number",
+                "unit": "%",
+                "label": "Pop rate",
+                "required": true
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": true,
+        "handoff_checks": [
+            "Pop rate recorded",
+            "Output forwarded"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "C",
+        "label": "Cleaning",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 90,
+        "stage_type": "cleaning",
+        "form_schema": [
+            {
+                "key": "input_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Input",
+                "required": true
+            },
+            {
+                "key": "foreign_matter_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Foreign matter removed",
+                "required": true
+            },
+            {
+                "key": "loss_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Loss",
+                "required": true
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": true,
+        "handoff_checks": [
+            "Foreign matter recorded separately from loss",
+            "Output forwarded"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "B",
+        "label": "Blanching",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 100,
+        "stage_type": "blanching",
+        "form_schema": [
+            {
+                "key": "input_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Input",
+                "required": true
+            },
+            {
+                "key": "output_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Output",
+                "required": true
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": true,
+        "handoff_checks": [
+            "Water uptake recorded",
+            "Output forwarded"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": true
+    },
+    {
+        "code": "CS",
+        "label": "Cold Storage",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 110,
+        "stage_type": "cold_storage",
+        "form_schema": [
+            {
+                "key": "stored_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Quantity stored",
+                "required": true
+            },
+            {
+                "key": "retrieved_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Quantity retrieved",
+                "required": true
+            },
+            {
+                "key": "stored_on",
+                "type": "date",
+                "label": "Stored on",
+                "required": true
+            },
+            {
+                "key": "retrieved_on",
+                "type": "date",
+                "label": "Retrieved on",
+                "required": true
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": true,
+        "handoff_checks": [
+            "Retrieved quantity recorded",
+            "Spoilage reconciled",
+            "Retrieved quantity forwarded"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "PK",
+        "label": "Packing",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 120,
+        "stage_type": "packing",
+        "form_schema": [
+            {
+                "key": "input_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Input",
+                "required": true
+            },
+            {
+                "key": "packets",
+                "type": "packets[]",
+                "label": "Packets",
+                "required": true
+            },
+            {
+                "key": "wastage_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Wastage",
+                "required": true
+            },
+            {
+                "key": "batch_code",
+                "type": "text",
+                "label": "Batch code (QR link)",
+                "required": true
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": true,
+        "handoff_checks": [
+            "Batch code assigned",
+            "Σ packets + wastage = input",
+            "Packed quantity forwarded"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "QC",
+        "label": "Quality Control",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 130,
+        "stage_type": "qc",
+        "form_schema": [
+            {
+                "key": "qty_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Lot quantity",
+                "required": true
+            },
+            {
+                "key": "sample_qty_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Sample drawn",
+                "required": true
+            },
+            {
+                "key": "readings",
+                "type": "readings",
+                "label": "Readings per crop parameter",
+                "required": true
+            },
+            {
+                "key": "lab_ref",
+                "type": "text",
+                "label": "Lab reference",
+                "required": false
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": false,
+        "handoff_checks": [
+            "All crop parameters read",
+            "Both verdicts derived",
+            "Sample deducted; forwarding quantity reviewed"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "CM",
+        "label": "Commercial Clearance",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 140,
+        "stage_type": "commercial",
+        "form_schema": [
+            {
+                "key": "buyer",
+                "type": "text",
+                "label": "Buyer",
+                "required": true
+            },
+            {
+                "key": "market",
+                "type": "select",
+                "label": "Market",
+                "options": [
+                    "domestic",
+                    "export"
+                ],
+                "required": true
+            },
+            {
+                "key": "qty_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Quantity to this buyer",
+                "required": true
+            },
+            {
+                "key": "price_per_kg",
+                "type": "number",
+                "unit": "INR/kg",
+                "label": "Price",
+                "required": false
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": false,
+        "handoff_checks": [
+            "Buyer and market recorded",
+            "Export sale backed by export PASS or override",
+            "Allocation within available"
+        ],
+        "splits_forward": true,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "SH",
+        "label": "Shipment",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 150,
+        "stage_type": "shipment",
+        "form_schema": [
+            {
+                "key": "shipped_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Shipped",
+                "required": true
+            },
+            {
+                "key": "transit_loss_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Transit loss",
+                "required": false
+            },
+            {
+                "key": "vehicle_or_container",
+                "type": "text",
+                "label": "Vehicle / container",
+                "required": true
+            },
+            {
+                "key": "dispatch_date",
+                "type": "date",
+                "label": "Dispatch date",
+                "required": true
+            },
+            {
+                "key": "destination",
+                "type": "text",
+                "label": "Destination",
+                "required": true
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": false,
+        "handoff_checks": [
+            "Dispatch recorded",
+            "Transit loss carried to forwarding quantity",
+            "Documents attached"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    },
+    {
+        "code": "QR",
+        "label": "QR Activation (seal)",
+        "is_gate": true,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 160,
+        "stage_type": "qr_activation",
+        "form_schema": [
+        ],
+        "yield_alarm": false,
+        "is_processing": false,
+        "handoff_checks": [
+            "Every stage behind verified",
+            "QC verdict present",
+            "No open flags",
+            "Final quantity recorded"
+        ],
+        "splits_forward": false,
+        "allows_exceed_input": false
+    }
+]

@@ -12,7 +12,8 @@ begin
   perform t.ok((select event from public.ledger order by seq desc limit 1) = 'create', 'ledger: event = create');
   perform t.verify(fp, t.u('06'));
   perform t.ok((select event from public.ledger order by seq desc limit 1) = 'verify', 'ledger: verification writes a verify block');
-  perform t.ok((select count(*) from public.ledger where event = 'scope_activate') = 3, 'ledger: the 3 seeded scope activations were ledgered');
+  perform t.ok((select count(*) from public.ledger where event = 'scope_activate') = (select count(*) from public.scopes where status = 'active'),
+    'ledger: every seeded scope activation was ledgered');
 
   -- chain integrity
   select * into bad from app.verify_ledger();

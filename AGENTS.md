@@ -25,10 +25,21 @@ Phase 0 (this database foundation) is done and tested. Do not weaken it to make 
 - Any schema or rule change = a new migration file + a test in `tests/` + `tests/run_local.sh` green. Never edit an applied migration.
 - **Run `tests/run_local.sh` before every `db push`.** A migration that passes on Supabase can still break a rule the suite covers (migration 7 did).
 - To change a function's settings (search_path, security) use `alter function … set …`. Never re-paste a function body from memory: retyped bodies drift (migration 7 dropped two gate checks and added a wrong one).
+- **Every new `app` function is closed by hand:** end the migration with `revoke execute on function app.x(...) from public, anon, authenticated;`
+  and grant it by name only if it is API. Postgres grants EXECUTE to everyone by default and `app` is exposed over REST.
+  Add API functions to the allowlist in `tests/08_api_surface.sql`; that test fails the build on anything left open.
 - Do not claim something works without running it. Paste the relevant `run_local.sh` output in your summary.
 - When a test fails, first decide whether the rule or the test is wrong. Rules trace to the PRD sections named in the SQL comments.
 - Keep `docs/VERIFICATION_LOG.md` honest: what ran, what did not.
 - Stage-specific field names are in `supabase/seeds/01_stage_definitions.sql` (`form_schema.key`). Payload keys must match exactly.
+- **Offline maths (`web/src/engine/offlinePreview.ts`) mirrors `app.reconcile` for Procurement and Lot Inward ONLY.** Any change
+  to those two rules in SQL must change the mirror and `web/tests/phase3.test.ts` in the same commit. Do not add other stages:
+  offline saves of every other stage are checked by the server at sync (decision D10).
+- **Every visible string goes through `t()`** with an English key in `i18n.en.ts` and Hindi in `i18n.hi.ts`. A new stage,
+  field, option or hand-off check in `stage_definitions` needs its Hindi (`stage.* field.* opt.* check.*`); refresh
+  `web/tests/fixtures/stage_definitions.json` — the unit test fails on any gap.
+- Web e2e: run the whole suite (`npx playwright test`, files in name order) plus `npx playwright test -c playwright.prod.config.ts`
+  for the service worker and the public-page budget. Every stage page must pass `expectNoSideScroll` on a phone.
 
 ## Stack (PRD §10)
 

@@ -354,3 +354,113 @@ first ran on a local copy built like live (migrations 1–10 + seeds, UTC sessio
   `footprints_actor_guard`. The row now checks the six triggers by name; re-run: 12/13 OK (only `auth.uid mapping`).
 - `tests/remote_t1_rollback.sql`: `REMOTE T1 PASSED — sealed GV-354EC8D11C05, …, nothing left behind`.
 - `tests/remote_api_check.ps1`: `OK … HTTP 200, null`.
+
+## 2026-10-01 — Claude: independent re-run, security fix (migration 14), Phase 0 close-out tooling
+
+Environment: Claude's sandbox, PostgreSQL 16.13, UTC sessions. Plus a local stack built from the real servers:
+Supabase Auth v2.197.0 + PostgREST v12.2.3 + the 14 migrations, behind one URL (`local-stack/up.sh`).
+
+- Independent re-run of Antigravity's migrations 9–13 and tests before any change: `ALL TESTS PASSED`, checks per file
+  02 = 51, 03 = 9, 04 = 26, 05 = 39, 06 = 19, 07 = 24 (168), T1 self-test 25, concurrency 6 — identical to the log above.
+- **Security finding:** with `app` exposed to PostgREST, every function in it was executable by anon (default EXECUTE to
+  PUBLIC). Proven on the local stack: anonymous `POST /rest/v1/rpc/ledger_append` wrote block 15 `seal`
+  `{"forged": "by anonymous caller"}`. 60 app functions were executable by anon.
+- Fix: `20261001000100_api_surface.sql` revokes EXECUTE from public/anon/authenticated on all `app` functions, closes
+  default privileges, grants back only the named API and RLS helpers. `tests/08_api_surface.sql` (7 checks) enforces the
+  allowlist. Negative control without migration 14: the allowlist check FAILS and lists ~100 role/function pairs.
+- `tests/remote_ledger_audit.sql`: every block must have a counterpart; proven to flag a forged block (rolled back).
+- Seeds 03 (manager emails, plus-addresses of grainvedas@gmail.com) and 04 (Lot Inward scope + operator 313).
+  Tests 03, 04 and `remote_smoke.sql` now expect 4 scopes / 10 client users.
+- `run_local.sh` after all changes: `ALL TESTS PASSED`, 206 ok lines (168 + 7 + 25 + 6).
+- Local stack, real logins: `scripts/create_demo_logins.mjs` → 13/13 created and linked by migration 9;
+  `tests/remote_rls.mjs --t1` → **85 passed, 0 failed** (sign-in, current_role, scope/farmer visibility per role,
+  refused writes, closed API, T1 as 305 → 306 → 307 with seal and anonymous journey, ledger intact);
+  `tests/remote_smoke.sql` → 14/14 OK; ledger audit → NO ORPHAN BLOCKS.
+- NOT run: anything against the live project (Antigravity, see docs/RUNSHEET_2026-10-01_security_and_phase0.md);
+  the new CI `stack` job (first run is its proof).
+
+## 2026-10-01 — Phase 1 (Claude): backend B1–B7, corrections, web app — built and tested locally, NOT pushed
+
+SQL suite (`tests/run_local.sh`, PostgreSQL 16, UTC): `ALL TESTS PASSED`, 266 ok lines
+(files 02–11 + T1 self-test 25 + concurrency 6). New: 09 Phase 1 backend (49), 10 corrections (6), 11 scope read-back (5).
+
+- Migration 15 (`validation_preview_chain_limits`): the save trigger and `app.preview_reconcile` now run ONE function,
+  `app.check_new_footprint`, extracted mechanically (script) from migration 4's trigger body. Test: for procurement and
+  milling the saved qty_in, qty_out, computed and warnings equal the preview; the preview writes no record, ledger block
+  or footprint code. `app.check_chain` returns every chain problem. Crop limits are copied into the scope at activation
+  and frozen; QC judges against the copy (a crop edit mid-season leaves active scopes' verdicts unchanged).
+- Postgres cannot revoke the default PUBLIC execute per schema, so migration 14's default-privileges line is a no-op;
+  every later migration closes its own functions explicitly. `tests/08_api_surface.sql` caught migration 15's first
+  draft leaving 8 functions open — the backstop works.
+- Migration 16 (`phase1_api`): `stage_form`, `my_context`, `footprint_detail`, farmer submit / send-back / verify,
+  `import_farmers` (all rows or none, row-numbered errors, +91 normalisation, duplicate phones), unique phone per client,
+  evidence bucket + storage policies (tested locally against a Storage stand-in in the shim), `register_attachment`.
+- Migration 17 (`corrections`): gap found — any user who could SEE a pending record could rewrite its figures (e.g. the
+  next stage before verifying). Now only its creator or a manager; `app.preview_correction`.
+- Migration 18 (`scope_read_by_client`): BUG found by the Playwright wizard test — a Client Manager could not create a
+  draft scope from the app (INSERT … RETURNING failed the id-based SELECT policy). Negative control: test 11 fails
+  without migration 18 with `new row violates row-level security policy for table "scopes"`.
+- Edge Function `create-user`: `tests/remote_create_user.mjs` on the local stack 11/11 (401 unsigned, 201 manager →
+  operator with slot + sign-in with temp password, 409 duplicate with no leftover row, 403 CM → State Manager,
+  403 other client, 403 operator, 201 SM → CM, 400 bad phone).
+- Local stack after all migrations: `remote_rls.mjs --t1` 85/85, ledger audit NO ORPHAN BLOCKS (127 blocks).
+- Web app: `tsc` clean, `vite build` OK, `vitest` 24/24 (all 16 stage definitions render through the generic engine;
+  payload building; chain assembly; Excel parsing; error wording).
+- Playwright (Chromium, Pixel 7 viewport) against the local stack, two consecutive runs, 7/7 each:
+  T1 from the UI (305 → 306 → 307, seal, public page) · Lot Inward → QC export FAIL → Client Manager override → seal ·
+  scope wizard (draft → create a person for a stage → activate) · farmer create/submit → State Manager verify → Farmer ID ·
+  Excel import (bad file names rows 3 and 4 and imports nothing; clean file imports 2) · role rules in the UI ·
+  correct a pending record, flag it, manager resolves. Two UI bugs found and fixed on the way (wizard returned to the
+  chain step after the first save; client picker could override the user's choice while loading).
+- NOT run: anything on the live project; photo upload (no Storage in the local stack); SMS/OTP; the web app on a real
+  phone; the CI jobs (first run is their proof).
+
+## 2026-10-01 — Phase 2 (local stack, rebuilt from zero)
+
+- Migration 19 (`grade_split`) and 20 (`village_batch`) + seed 05. SQL suite `ALL TESTS PASSED`, 287 checks (files 00–12
+  + concurrency). Test 12: T4 procurement → shipment → seal; T2 grading split into A/B/C, QC on A, seal; Village Batch
+  of two farmer lots, seal refused while a source has an open flag. Negative control: test 12 fails without migration 20
+  (flag on the second batch source ignored at seal).
+- Local stack: `remote_rls.mjs --t1` 95/95, `remote_create_user.mjs` 11/11, ledger audit NO ORPHAN BLOCKS (272 blocks),
+  smoke 12/14 on the stack only because the e2e runs add scopes and farmers (GOT 9 scopes, 8 farmers); 14/14 expected live.
+- Web: `tsc` clean, `vite build` OK (public 148 KB gzip, signed-in chunk 81 KB gzip), `vitest` 28/28.
+- Playwright (Pixel 7), all specs, two consecutive runs, 10/10 each: T1 · 6 Phase 1 flows · T4 (7 people, two buyers,
+  12 labels with batch code, public page) · T2 (grade split) · Village Batch (public page names both farmers).
+- BUG found by e2e and fixed: on a phone, a long tab label ("New Village Batch (aggregate farmer lots) record") and the
+  farmer picker buttons could not wrap, so the page became wider than the screen and Chrome zoomed it out; taps near
+  the bottom edge then missed (the 4th hand-off tick box). Buttons now wrap; `expectNoSideScroll` guards every stage page.
+- Test fix: the Lot Inward spec still expected the old public-page wording; updated to the current text.
+- NOT run: anything on the live project; photos into real Storage; the web app on a real phone; CI.
+
+## 2026-10-01 — Phase 3 "field-ready" (local stack, rebuilt from zero)
+
+- Migration 21 (`phase3_ops`). SQL suite `ALL TESTS PASSED`, 307 checks (files 00–13 + concurrency). Test 13:
+  ledger check records a clean chain; only the service role can run it; nobody can write a fake result; operators do not
+  see results; a payload_hash altered with the guard bypassed (superuser, session_replication_role) is caught at that
+  block. Offline: 10 saves with client_ref get consecutive codes in capture order; a retried client_ref is refused
+  (`footprints_client_ref_key`), one lot remains. Trace: operator and other-client user refused; Client View gets both
+  farmer lots, the batch and QC; farmers, ledger blocks, QC verdict and recorder named. Performance on a 500-lot scope:
+  incoming list 154 ms, pipeline summary 2 ms, season read under RLS 143 ms (budget 1 s).
+- pg_cron is not available in the sandbox Postgres: the migration's schedule branch logged its notice and skipped.
+  The scheduled branch is NOT tested here; the smoke row that checks it was tested against a stand-in `cron.job` table
+  (OK when the job exists, NOT SCHEDULED when not).
+- Edge Function `ledger-check` on the stack: 401 without / with a wrong token, 200 on an intact chain, 200 with the
+  evidence re-hash (0 files: no Storage in the local stack, so the re-hash itself is NOT exercised), 500 naming the
+  block after a real tamper through psql, 200 again after restoring it (`tests/remote_ledger_check.mjs --tamper-local`).
+- Stack: `remote_rls.mjs --t1` PASSED, `remote_create_user.mjs` PASSED, ledger audit NO ORPHAN BLOCKS (455 blocks).
+- Web: `tsc` clean; `vitest` 38/38 (new: Hindi has every English key with the same placeholders, and every stage name,
+  field, option and hand-off check of all 16 stages; stage-specific meanings kept; English untouched; offline maths equal
+  the server's rules for Procurement and Lot Inward incl. refusals; CSV quoting and formula-injection guard).
+- Playwright (Pixel 7), all specs, two consecutive runs, 14/14 each. New: airplane mode — 10 farm-gate lots captured
+  offline, synced by themselves when the network returned, consecutive codes in capture order, each saved quantity equal
+  to the one reviewed offline · a milling save made offline and refused at sync stays "needs attention" with the
+  database's reason, reopens with the typed values, is fixed and saved · dashboards for Client Manager and Client View
+  (stage dots, season CSV with rows, sealed lot → journey with 7 steps → CSV with the QR code and no farmer phones) ·
+  Hindi on operator screens and back to English.
+- Production build (`playwright.prod.config.ts`), two runs, 2/2 each: public verify page on throttled 3G (150 ms RTT,
+  1.6 Mbps) visible in ~1.65 s with 160 KB transferred (budgets 3 s, 200 KB) · after one online sign-in the app opens
+  with the network off (service worker), records a lot offline and syncs it.
+- BUGS found by these tests and fixed: the offline badge made the top bar wider than a phone screen (page zoomed out,
+  taps missed) — the bar now wraps; the badge said "0 to send" next to "1 need attention".
+- NOT run: anything on the live project; pg_cron scheduling; evidence re-hash against real Storage; the app on real
+  low-end phones (device lab); Lighthouse; penetration test; Hindi review by operators.

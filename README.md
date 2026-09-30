@@ -89,3 +89,32 @@ the whole chain and mints the QR; `app.public_lot_journey(qr_code)` is what the 
 - [x] Applied to the Supabase dev project `zogkrhgzatplarimbmxk`: migrations 1–8 + seeds; `tests/remote_t1_rollback.sql` passes; `app` schema exposed (`tests/remote_api_check.ps1` OK); smoke 12/13 (auth mapping pending)
 - [ ] Auth flows (phone OTP, email) — not yet
 - [ ] CI running `run_local.sh` — not yet
+
+
+## Phase 1: the web app (`web/`)
+
+```bash
+# against the local stack (Linux/macOS/CI)
+PGHOST=127.0.0.1 PGPORT=5432 PGUSER=postgres local-stack/up.sh
+ENV_FILE=.env.stack node scripts/create_demo_logins.mjs
+cd web && npm ci && npx vite --mode stack          # http://127.0.0.1:5173
+npx vitest run                                      # component tests
+npx playwright test                                 # end-to-end in a real browser
+
+# against the live development project (Windows): reads NEXT_PUBLIC_* from ../.env.local
+cd web && npm ci && npm run dev
+```
+
+Every stage screen is the same component (`web/src/engine/StagePage.tsx`) driven by `stage_definitions`; the review
+step asks the database (`app.preview_reconcile`) what the save will store, so review, save and verification cannot
+disagree. See `docs/RUNSHEET_phase1.md` for deployment.
+
+## Phase 2 and 3 (processing, seal, field-ready)
+
+- Run-sheets for the live project: `docs/RUNSHEET_phase2.md`, `docs/RUNSHEET_phase3.md`. Results: `docs/VERIFICATION_LOG.md`.
+- Offline: saves made without a network go to an outbox on the phone (IndexedDB) and are sent in capture order;
+  `footprints.client_ref` makes a retried sync idempotent. The app opens offline after one online sign-in (`web/public/sw.js`).
+- Hindi: `web/src/lib/i18n.hi.ts` (screen strings + stage/field/check labels by key).
+- Dashboards and exports: `/dashboard/<scope>` (stage dots, sealed lots, flags, season CSV) and `/trace/<record>` (journey CSV / PDF).
+- Tamper evidence: nightly `app.run_ledger_check()` (pg_cron) and the `ledger-check` Edge Function for an uptime monitor.
+

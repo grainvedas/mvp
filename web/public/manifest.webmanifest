@@ -1,0 +1,9 @@
+{
+  "name": "GrainVeda Traceability",
+  "short_name": "GrainVeda",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ea",
+  "theme_color": "#2f5d34",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

@@ -36,7 +36,7 @@ where false;  -- documented, not asserted: incoming_records filters by the calle
 select t.as_user(t.u('09'));
 select t.ok((select count(*) from public.footprints) = 1, 'scope isolation: sorting op sees exactly the scope-02 procurement lot');
 select t.ok((select count(*) from app.incoming_records(t.scope('02'), 'sorting')) = 1, 'incoming: sorting op sees p2 as incoming (pending, yellow)');
-select t.ok((select count(*) from public.scopes) = 1, 'scope isolation: sorting op sees one scope');
+select t.ok((select count(*) from public.scopes) = 2, 'scope isolation: sorting op sees its two scopes (sorting in 402, packing in 405)');
 select t.fails($q$ insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload)
    select t.scope('02'), '00000000-0000-4000-8000-000000000201', 'grading', p2, t.u('09'), '{}' from fx $q$,
    'may not create', 'isMyStage: sorting op cannot create at grading');
@@ -60,8 +60,8 @@ select t.ok((select count(*) from public.footprints where lot_closed) = (select 
 
 -- Client manager: full client access, may activate a scope and override QC
 select t.as_user(t.u('03'));
-select t.ok((select count(*) from public.scopes) = 3, 'client_manager: sees the client''s 3 scopes');
-select t.ok((select count(*) from public.app_users) = 9, 'client_manager: sees the client''s 9 users (self, client_view, 7 operators)');
+select t.ok((select count(*) from public.scopes) = 6, 'client_manager: sees the client''s 6 scopes (seeds 02, 04, 05)');
+select t.ok((select count(*) from public.app_users) = 12, 'client_manager: sees the client''s 12 users (self, client_view, 10 operators)');
 
 -- State manager: sees UP clients (both), not Assam
 select t.as_user(t.u('02'));
