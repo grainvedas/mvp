@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build --mode staging",
+    "build": "vite build --mode staging",
+    "build:ci": "tsc -b && vite build --mode staging",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
