@@ -6,6 +6,7 @@ supabase/.temp/
 local-stack/bin/
 local-stack/run/
 web/dist/
+/dist/
 test-results/
 playwright-report/
 backups/

@@ -37,7 +37,9 @@ Numbered G1 to G7 (go-live), so they are not mistaken for the PRD's own decision
 
 | # | Date | Reported by | Where | What happened / what was expected | Class | Owner | Status | Closed by (test) |
 |---|---|---|---|---|---|---|---|---|
-| | | | | | | | | |
+| 1 | 2026-10-03 | Claude | `web/vite.config.ts`, `web/src/lib/supabase.ts` | Since commits 5d05103 and b1f9b6f a build with no project configured no longer stops. `npm run build:production` without `.env.production` builds against the project written in the source (`zogkrhgzatplarimbmxk`, the one `.env.local` names: staging), and the app can no longer say "not connected to a database". Expected: the build stops, as `docs/DEPLOY.md` "What the build guarantees" still says. The Vercel deploy does not need it: it builds `--mode staging` | | | Open | |
+| 2 | 2026-10-03 | Claude | `vercel.json` at the repo root, `scripts/build.mjs` | Not read by Vercel (Root Directory is `web`). Its build command, run by hand from the root, adds `"grainveda-mvp": "file:.."` to `web/package.json` and its lockfile (seen in a fresh clone). Expected: one Vercel config, `web/vercel.json` | | | Open | |
+| 3 | 2026-10-03 | Claude | `.github/workflows/database-tests.yml` | CI has not passed since 5d05103. Its last step looks for `NO ORPHAN BLOCKS`; the ledger audit now prints `NO FINDINGS`. `docs/ci/database-tests.yml` was updated, the workflow that runs was not | | | Open | |
 
 ## Known at hand-over: limits that were accepted, and what to do about each
 
@@ -93,6 +95,8 @@ part of the suite. Lines 13 to 15 are things the app could not do at all. Number
 | 16 | "Correct this record" at any stage but the first showed the waiting list instead of the form | Phase 1 | Shows the form | `e2e/phase4.spec.ts` |
 | 17 | On Hindi screens the record page, the status words (pending, verified, pass…) and the app's own messages ("No connection…") were English | Phase 3 | Translated; a test scans the operator screens for text that bypasses the dictionary | `tests/phase4.test.tsx`, `e2e/phase3.spec.ts` Hindi |
 | 18 | Grey text and the GI badge were below the contrast needed (Lighthouse accessibility 96) | Phase 1 | 100 on the verify page and the sign-in page | `release-evidence/lighthouse.json` |
+| 19 | **No deploy to Vercel got as far as the build** (five in a row). `web/vercel.json` carried a `$comment`; Vercel refuses any property outside its schema | 2026-10-03, the first Vercel deploy | The note is in `docs/DEPLOY.md`; the file holds accepted properties only | `tests/phase4.test.tsx` "hosting config" |
+| 20 | `npm ci` in `web/` failed on Linux ("Cannot find module @rollup/rollup-linux-x64-gnu"; the same install runs on Vercel). A `package.json` added at the repo root named `web` as a workspace, so npm ignored `web/package-lock.json` and used a root lockfile written on Windows | 2026-10-03, commit 5ffc656 | `web` installs from its own lockfile; the root lockfile is gone | same, and the CI step "web — install, typecheck, component tests" |
 
 Hardening in the same phase that was **not** a demonstrated fault: the service worker's plain copy of the app shell for
 hosts that redirect `/index.html` (the old worker passed the same test); sign-out with no network while the token is

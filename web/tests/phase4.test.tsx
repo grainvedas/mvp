@@ -2,7 +2,7 @@
 // filter, the crash screen, the password rule, the journey export of withdrawn / replacement records.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { en } from '../src/lib/i18n.en';
 import { Widget } from '../src/engine/widgets';
@@ -189,5 +189,24 @@ describe('journey export', () => {
     const rows = traceRows({ footprint_id: '1', generated_at: 'now', steps: [step] });
     expect(rows[0][TRACE_HEADER.indexOf('withdrawn')]).toBe('');
     expect(rows[0][TRACE_HEADER.indexOf('replaces')]).toBe('');
+  });
+});
+
+describe('hosting config', () => {
+  // Vercel checks vercel.json against its schema before the build starts and refuses the deploy on any other property.
+  // JSON has no comments, so notes on this file live in docs/DEPLOY.md. Check a new property against
+  // https://openapi.vercel.sh/vercel.json before adding it here.
+  it('vercel.json holds only properties Vercel accepts', () => {
+    const accepted = ['$schema', 'framework', 'installCommand', 'buildCommand', 'outputDirectory', 'rewrites', 'headers'];
+    const config = JSON.parse(readFileSync(join(__dirname, '..', 'vercel.json'), 'utf8'));
+    expect(Object.keys(config).filter((k) => !accepted.includes(k))).toEqual([]);
+  });
+  // A package.json above web/ that names it as a workspace makes npm ignore web/package-lock.json: `npm ci` in web/ then
+  // installs from the lockfile above, which was written on Windows and held no Linux build of rollup.
+  it('web installs from its own lockfile, which holds the Linux build of rollup', () => {
+    const above = join(__dirname, '..', '..', 'package.json');
+    expect(existsSync(above) ? JSON.parse(readFileSync(above, 'utf8')).workspaces : undefined).toBeUndefined();
+    const lock = JSON.parse(readFileSync(join(__dirname, '..', 'package-lock.json'), 'utf8'));
+    expect(Object.keys(lock.packages)).toContain('node_modules/@rollup/rollup-linux-x64-gnu');
   });
 });

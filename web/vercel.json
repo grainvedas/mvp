@@ -1,5 +1,4 @@
 {
-  "$comment": "Vercel (alternative to Cloudflare; the free Hobby plan is for non-commercial use only). Root directory: web. Vercel does not read dist/_headers, so the headers are repeated here; connect-src allows any Supabase project because this file cannot read the build's environment.",
   "buildCommand": "npx vite build --mode staging",
   "outputDirectory": "dist",
   "rewrites": [{ "source": "/((?!assets/|sw\\.js|manifest\\.webmanifest|icon\\.svg|asset-manifest\\.json).*)", "destination": "/index.html" }],

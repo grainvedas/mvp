@@ -2,9 +2,6 @@
   "name": "grainveda-mvp",
   "version": "0.4.0",
   "private": true,
-  "workspaces": [
-    "web"
-  ],
   "scripts": {
     "build": "npm --prefix web run build",
     "build:production": "npm --prefix web run build:production",

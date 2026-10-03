@@ -53,6 +53,12 @@ this project.
 Not verified from here (no Cloudflare account): that Cloudflare applies `_headers` to the single-page fallback
 responses exactly as the local stand-in does. Step B3 of the run-sheet checks it with one command on the real address.
 
+On Vercel the project's Root Directory is `web` and the config is `web/vercel.json`; a `vercel.json` at the repo root
+is not read. Vercel does not read `dist/_headers`, so the same headers are repeated in that file; its `connect-src`
+allows any Supabase project because the file cannot read the build's environment. The file may hold only properties of
+Vercel's schema and no comment: any other property fails the deploy before the build starts (`tests/phase4.test.tsx`
+"hosting config"). `web` installs from `web/package-lock.json`: no `package.json` above it may name it as a workspace.
+
 ## Production, step by step
 
 Do staging first (`docs/RUNSHEET_phase4.md` parts A and B). Production is part C of the same run-sheet; this is the
