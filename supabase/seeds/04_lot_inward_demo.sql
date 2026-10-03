@@ -1,6 +1,15 @@
 -- GrainVeda MVP · seed 04: a Lot Inward scope so the second entry point can be tested end to end (execution plan §7).
 -- Lot Inward → QC → QR, same client and crop as the other demo scopes, its own geography. Idempotent.
 
+-- Never on production: this file creates demo people, farmers and scopes (migration 23 marks the production project).
+do $$ begin
+  if to_regprocedure('app.environment()') is not null then
+    if app.environment() = 'production' then
+      raise exception 'demo seed refused: this is the PRODUCTION project (use supabase/seeds/production/)';
+    end if;
+  end if;
+end $$;
+
 insert into public.app_users (id, auth_uid, role, display_name, phone, state_ids, client_id) values
   ('00000000-0000-4000-8000-000000000313', '00000000-0000-4000-8000-000000000313', 'operator', 'Lot Inward Operator',
    '+910000000013', '{}', '00000000-0000-4000-8000-000000000201')

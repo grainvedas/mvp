@@ -39,7 +39,7 @@ function SlotCard({ slot }: { slot: Slot }) {
   const inc = useAsync(() => first ? Promise.resolve([]) : rpc<unknown[]>('incoming_records', { p_scope: slot.scope_id, p_stage: slot.stage_type }),
     [slot.scope_id, slot.stage_type]);
   return (
-    <Link className="card tile" to={`/work/${slot.scope_id}/${slot.stage_type}`} data-testid={`slot-${slot.stage_type}`}>
+    <Link className="card tile" to={`/work/${slot.scope_id}/${slot.stage_type}`} data-testid={`slot-${slot.stage_type}`} data-scope={slot.scope_id}>
       <strong>{t(`stage.${slot.stage_type}`, undefined, slot.stage_label)}</strong>
       <div className="muted small">{slot.scope_label}</div>
       <div className="small">{slot.client_name}</div>

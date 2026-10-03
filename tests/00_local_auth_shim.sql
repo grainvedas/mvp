@@ -29,6 +29,7 @@ create table if not exists auth.users (
   phone               text unique,
   email_confirmed_at  timestamptz,
   phone_confirmed_at  timestamptz,
+  raw_app_meta_data   jsonb not null default '{}'::jsonb,   -- set only by the service role (migration 23 reads grainveda_login)
   created_at          timestamptz not null default now()
 );
 

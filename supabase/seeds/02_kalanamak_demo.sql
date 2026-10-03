@@ -2,6 +2,15 @@
 -- Fixed UUIDs so tests and docs can reference them. auth_uid values are placeholders: in Supabase, create the
 -- auth users and update app_users.auth_uid to match (see README). Idempotent.
 
+-- Never on production: this file creates demo people, farmers and scopes (migration 23 marks the production project).
+do $$ begin
+  if to_regprocedure('app.environment()') is not null then
+    if app.environment() = 'production' then
+      raise exception 'demo seed refused: this is the PRODUCTION project (use supabase/seeds/production/)';
+    end if;
+  end if;
+end $$;
+
 insert into public.states (id, name, code) values
   ('00000000-0000-4000-8000-000000000001', 'Uttar Pradesh', 'UP'),
   ('00000000-0000-4000-8000-000000000002', 'Assam', 'AS')

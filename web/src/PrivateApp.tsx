@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { SignIn } from './auth/SignIn';
+import { MustSetPassword } from './auth/SetPassword';
 import { useI18n } from './lib/i18n';
 import { Layout } from './shell/Layout';
 import { ErrorBox, Loading } from './shell/ui';
@@ -11,18 +12,23 @@ import { FarmerForm, FarmerList } from './pages/farmers/Farmers';
 import { FarmerImport } from './pages/farmers/FarmerImport';
 import { ScopeList, ScopeWizard } from './pages/scopes/Scopes';
 import { Clients, Crops, OpenFlags, States, Users } from './pages/admin/Admin';
+import { Health } from './pages/admin/Health';
+import { Account } from './pages/Account';
 import { Labels } from './pages/public/Labels';
 import { ScopeDashboard } from './pages/dashboard/ScopeDashboard';
 import { LotTrace } from './pages/trace/LotTrace';
 import { Outbox } from './offline/OutboxPage';
 
 function Private() {
-  const { session, ctx, loading, error, signOut } = useAuth();
+  const { session, ctx, loading, error, signOut, refresh } = useAuth();
   const { t } = useI18n();
   if (loading) return <main><Loading /></main>;
   if (!session) return <SignIn />;
-  if (error) return <main><ErrorBox error={error} /></main>;
+  // e.g. the very first start after signing in, with the network gone: nothing is kept on the phone yet
+  if (error) return <main><ErrorBox error={error} onRetry={() => void refresh()} /></main>;
   if (!ctx?.user) return <main><div className="card"><p>{t('signin.no_role')}</p><button onClick={() => void signOut()}>{t('nav.signout')}</button></div></main>;
+  // A login made by a manager still has the temporary password the manager saw: own password first.
+  if (session.user.user_metadata?.must_change_password === true) return <MustSetPassword />;
   return (
     <Routes>
       <Route element={<Layout />}>
@@ -45,13 +51,13 @@ function Private() {
         <Route path="dashboard/:scopeId" element={<ScopeDashboard />} />
         <Route path="trace/:id" element={<LotTrace />} />
         <Route path="outbox" element={<Outbox />} />
+        <Route path="account" element={<Account />} />
+        <Route path="health" element={<Health />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );
 }
-
-
 
 export default function PrivateApp() {
   return <AuthProvider><Private /></AuthProvider>;

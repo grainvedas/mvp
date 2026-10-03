@@ -3,12 +3,24 @@ import type { AppError } from '../lib/errors';
 import { useI18n } from '../lib/i18n';
 import { humanise } from '../lib/format';
 
+/**
+ * The app's own messages are shown in the reader's language. What the database says in refusing something (a rule,
+ * with its numbers) is shown in its own words, which are English.
+ */
+export function errorText(error: AppError, t: (key: string) => string): string {
+  if (error.kind === 'network') return t('error.network');
+  if (error.kind === 'session') return t('error.session');
+  if (error.kind === 'duplicate') return t('error.duplicate');
+  if (error.message === 'Not allowed for your role or stage.') return t('error.not_allowed');
+  return error.message;
+}
+
 export function ErrorBox({ error, onRetry }: { error: AppError | null | undefined; onRetry?: () => void }) {
   const { t } = useI18n();
   if (!error) return null;
   return (
     <div className="alert error" role="alert">
-      {error.message}
+      {errorText(error, t)}
       {onRetry && <> <button className="secondary" onClick={onRetry} style={{ marginLeft: 8 }}>{t('common.retry')}</button></>}
     </div>
   );
@@ -19,8 +31,10 @@ export function Loading() {
   return <p className="muted" aria-live="polite">{t('common.loading')}</p>;
 }
 
+/** A status word (pending, verified, pass…). Without a label of its own it is shown in the reader's language. */
 export function Badge({ value, label }: { value: string; label?: string }) {
-  return <span className={`badge ${value}`}>{label ?? humanise(value)}</span>;
+  const { t } = useI18n();
+  return <span className={`badge ${value}`}>{label ?? t(`badge.${value}`, undefined, humanise(value))}</span>;
 }
 
 export function Field({ label, hint, children, htmlFor }: { label: string; hint?: string; children: ReactNode; htmlFor?: string }) {

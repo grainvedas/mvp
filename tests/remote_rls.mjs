@@ -7,10 +7,12 @@
 //   node tests/remote_rls.mjs --t1     also runs T1 through the API as three different people:
 //                                      procure -> QC verifies -> QC records -> QR verifies -> QR seals -> public journey.
 //                                      This leaves ONE sealed demo lot in the development project, on purpose.
-import { supabaseConfig, client, signIn, readDemoLogins } from '../scripts/lib/env.mjs';
+import { supabaseConfig, client, signIn, readDemoLogins, assertNotProduction, environmentOf } from '../scripts/lib/env.mjs';
 import { DEMO_USERS, appUserId, demoUser } from '../scripts/lib/demo-users.mjs';
 
 const cfg = supabaseConfig({ needService: true });
+await assertNotProduction(cfg, 'the permission test with demo logins');
+console.log(`project: ${new URL(cfg.url).host} (${await environmentOf(cfg)})`);          // read by scripts/release_gate.mjs
 const passwords = readDemoLogins();
 const svc = client(cfg, { key: cfg.service });
 const svcApp = client(cfg, { key: cfg.service, profile: 'app' });
@@ -81,6 +83,52 @@ if (sessions['312']) {
   const inc = await o.app.rpc('incoming_records', { p_scope: '00000000-0000-4000-8000-000000000401', p_stage: 'qc' });
   ok(inc.ok && inc.data.length === 0, '312 other-client operator gets 0 incoming records for a Prasaadam scope', d(inc));
 }
+// ---- Phase 4 (migration 25): the ledger follows the thumb rule; blocks without a scope stay with the admin --------
+for (const u of DEMO_USERS.filter((x) => x.role === 'operator')) {
+  const s = sessions[u.key]; if (!s) continue;
+  const [led, fps] = await Promise.all([s.pub.get('ledger', 'select=seq,footprint_id'), s.pub.get('footprints', 'select=id')]);
+  const mine = new Set((fps.data ?? []).map((f) => f.id));
+  const stray = (led.data ?? []).filter((b) => !b.footprint_id || !mine.has(b.footprint_id));
+  ok(led.ok && fps.ok && stray.length === 0, `${u.key} operator reads only ledger blocks of records it can see (${(led.data ?? []).length} blocks)`,
+     `${stray.length} block(s) of records it cannot see, e.g. seq ${stray[0]?.seq}`);
+}
+if (sessions['303']) {
+  const n = await sessions['303'].pub.count('ledger', 'scope_id=is.null', 'seq');
+  ok(n === 0, '303 client manager reads no ledger block without a scope (farmers, users)', `got ${typeof n === 'number' ? n : d(n)}`);
+}
+if (sessions['301']) {
+  const n = await sessions['301'].pub.count('ledger', 'limit=1', 'seq');
+  ok(n === 1, '301 admin reads the ledger', `got ${typeof n === 'number' ? n : d(n)}`);
+}
+
+// ---- Phase 4: things only a manager, or nobody, may do (nothing is changed by these calls) -------------------
+if (sessions['306']) {
+  const q = sessions['306'];
+  const nowhere = '00000000-0000-4000-8000-00000000ffff';
+  const w = await q.app.rpc('withdraw_footprint', { p_fp: nowhere, p_reason: 'x' });
+  ok(!w.ok, 'an operator cannot call withdraw_footprint', d(w));
+  const c = await q.app.rpc('check_ledger_now');
+  ok(!c.ok, 'an operator cannot run the ledger check', d(c));
+  const e = await q.pub.get('client_errors', 'select=id&limit=1');
+  ok(refused(e), 'an operator cannot read the field error log', d(e));
+  const r = await q.app.rpc('reset_login_allowed', { p_target: appUserId('305') });
+  ok(r.ok && r.data === false, 'an operator may reset nobody\'s password', d(r));
+  const m = await q.pub.insert('app_meta', { key: 'environment', value: 'production' });
+  ok(!m.ok, 'nobody can mark the project as production through the API', d(m));
+}
+if (sessions['303']) {
+  const cm = sessions['303'];
+  const slot = await cm.pub.get('slot_assignments', 'select=id,stage_type&limit=1');
+  if (slot.ok && slot.data.length) {
+    const upd = await cm.pub.update('slot_assignments', `id=eq.${slot.data[0].id}`, { stage_type: slot.data[0].stage_type });
+    ok(!upd.ok, 'a stage assignment cannot be rewritten, only given or removed', d(upd));
+  }
+  const rs = await cm.app.rpc('reset_login_allowed', { p_target: appUserId('302') });
+  ok(rs.ok && rs.data === false, 'a Client Manager may not reset the State Manager\'s password', d(rs));
+  const er = await cm.pub.get('client_errors', 'select=id&limit=1');
+  ok(refused(er), 'a Client Manager cannot read the field error log', d(er));
+}
+
 const anonPub = client(cfg, { key: cfg.anon });
 const anonFarmers = await anonPub.get('farmers', 'select=id');
 ok(refused(anonFarmers), 'anonymous visitor cannot list farmers', d(anonFarmers));
@@ -144,14 +192,23 @@ if (process.argv.includes('--t1')) {
     ok(verdict.ok && verdict.data[0]?.export_verdict === 'pass', 'T1 QC export verdict PASS derived', d(verdict));
     const v2 = await R.app.rpc('verify_footprint', { p_fp: qc?.id });
     ok(v2.ok, 'T1 QR operator (307) verifies the QC record', d(v2));
-    const a = await R.pub.insert('footprints', { scope_id: scope, client_id: clientId, stage_type: 'qr_activation',
-      prev_footprint_id: qc?.id, created_by: appUserId('307'), payload: {} });
-    const qr = a.data?.[0];
-    ok(a.ok, 'T1 QR activation record created by 307', d(a));
-    const wrongSeal = await Q.app.rpc('seal_lot', { p_qr_fp: qr?.id });
+    // Phase 4: what the API refuses on a real lot (migrations 22 and 24)
+    const forged = await P.pub.update('footprints', `id=eq.${proc?.id}`, { qty_out: 999 });
+    ok(!forged.ok, 'T1 the procurement operator cannot rewrite his lot\'s quantity through the API', d(forged));
+    const voided = await P.pub.update('footprints', `id=eq.${proc?.id}`, { status: 'superseded' });
+    ok(!voided.ok, 'T1 nor withdraw it himself', d(voided));
+    const backdated = await Q.pub.update('footprints', `id=eq.${qc?.id}`, { created_at: '2020-01-01T00:00:00Z' });
+    ok(!backdated.ok, 'T1 the QC technician cannot back-date his record', d(backdated));
+    const verdictRewrite = await Q.pub.update('qc_verdicts', `footprint_id=eq.${qc?.id}`, { export_verdict: 'fail' });
+    ok(refused(verdictRewrite), 'T1 nor rewrite the derived verdict', d(verdictRewrite));
+    const wrongSeal = await Q.app.rpc('seal_source', { p_source: qc?.id });
     ok(!wrongSeal.ok, 'T1 QC technician cannot seal', d(wrongSeal));
-    const seal = await R.app.rpc('seal_lot', { p_qr_fp: qr?.id });
-    ok(seal.ok && /^GV-/.test(seal.data?.qr_code ?? ''), `T1 sealed by 307: ${seal.data?.qr_code ?? '?'}`, d(seal));
+    const leftBehind = await svc.get('footprints', `prev_footprint_id=eq.${qc?.id}&select=id`);
+    ok(leftBehind.ok && leftBehind.data.length === 0, 'T1 the refused seal left no QR record behind', d(leftBehind));
+    const seal = await R.app.rpc('seal_source', { p_source: qc?.id });
+    ok(seal.ok && /^GV-/.test(seal.data?.qr_code ?? ''), `T1 sealed by 307 in one call: ${seal.data?.qr_code ?? '?'}`, d(seal));
+    const pLedger = await P.pub.get('ledger', `footprint_id=in.(${qc?.id},${seal.data?.footprint_id})&select=seq`);
+    ok(pLedger.ok && pLedger.data.length === 0, 'T1 the procurement operator cannot read the lab or seal blocks of his own lot', d(pLedger));
     const anonApp = client(cfg, { key: cfg.anon, profile: 'app' });
     const j = await anonApp.rpc('public_lot_journey', { p_qr_code: seal.data?.qr_code });
     ok(j.ok && j.data?.journey?.length === 3 && j.data.journey[0].farmer?.name === 'Sita Devi',

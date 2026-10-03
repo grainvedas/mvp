@@ -100,7 +100,7 @@ values
 
 ('commercial', 'CM', 'Commercial Clearance', false, false, true, false, false, false, false, 140,
  '[{"key":"buyer","label":"Buyer","type":"text","required":true},
-   {"key":"market","label":"Market","type":"select","options":["domestic","export"],"required":true},
+   {"key":"market","label":"Market","type":"select","options":["domestic","export"],"required":true,"gate":"market_verdict"},
    {"key":"qty_kg","label":"Quantity to this buyer","unit":"kg","type":"number","required":true},
    {"key":"price_per_kg","label":"Price","unit":"INR/kg","type":"number","required":false}]',
  '["Buyer and market recorded","Export sale backed by export PASS or override","Allocation within available"]'),
@@ -110,7 +110,8 @@ values
    {"key":"transit_loss_kg","label":"Transit loss","unit":"kg","type":"number","required":false},
    {"key":"vehicle_or_container","label":"Vehicle / container","type":"text","required":true},
    {"key":"dispatch_date","label":"Dispatch date","type":"date","required":true},
-   {"key":"destination","label":"Destination","type":"text","required":true}]',
+   {"key":"destination","label":"Destination","type":"text","required":true},
+   {"key":"documents","label":"Documents (photo or PDF)","type":"attachment","accept":"document","required":false}]',
  '["Dispatch recorded","Transit loss carried to forwarding quantity","Documents attached"]'),
 
 ('qr_activation', 'QR', 'QR Activation (seal)', false, true, false, false, false, false, false, 160,

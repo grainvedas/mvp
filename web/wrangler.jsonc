@@ -1,0 +1,18 @@
+// Cloudflare (Workers static assets): the built app is a folder of files, served from Cloudflare's edge.
+// Build first, with the mode of the system the build is for, then deploy the same way:
+//   staging      npm run build                (vite build --mode staging, reads ../.env.local)        npx wrangler deploy
+//   production   npm run build:production     (vite build --mode production, needs ../.env.production) npx wrangler deploy --env production
+// dist/_headers (written by the build) carries the security headers and cache rules.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "grainveda-staging",
+  "compatibility_date": "2026-09-15",
+  "assets": {
+    "directory": "./dist",
+    // every path that is not a file answers with the app: /verify/GV-…, /work/…, /records/…
+    "not_found_handling": "single-page-application"
+  },
+  "env": {
+    "production": { "name": "grainveda" }
+  }
+}

@@ -8,8 +8,10 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { kg, dateTime, humanise, num, shortHash } from '../../lib/format';
-import { isManager, type FootprintDetail } from '../../lib/types';
+import { isManager, type Footprint, type FootprintDetail, type Withdrawal } from '../../lib/types';
 import { Badge, ErrorBox, Loading, Field } from '../../shell/ui';
+import { uploadEvidence } from '../../engine/evidence';
+import { EVIDENCE_ACCEPT } from '../../engine/widgets';
 
 export function RecordDetail() {
   const { id = '' } = useParams();
@@ -17,45 +19,55 @@ export function RecordDetail() {
   const { ctx } = useAuth();
   const me = ctx!.user!;
   const d = useAsync(() => rpc<FootprintDetail>('footprint_detail', { p_fp: id }), [id]);
-  if (d.loading) return <Loading />;
-  if (d.error || !d.data) return <ErrorBox error={d.error} onRetry={d.reload} />;
+  // Keep the page on screen while it refreshes after an action (a flag raised, a file attached): only the first load
+  // of a record shows "Loading", so the panel just used keeps its message and the page does not jump.
+  if (d.data?.footprint.id !== id) return d.loading ? <Loading /> : <ErrorBox error={d.error} onRetry={d.reload} />;
+  if (d.error) return <ErrorBox error={d.error} onRetry={d.reload} />;
   const r = d.data, f = r.footprint;
-  const canCorrect = f.status === 'pending' && (f.created_by === me.id || isManager(me.role));
+  const mine = f.status === 'pending' && (f.created_by === me.id || isManager(me.role));
+  // Records whose save derived something elsewhere (a verdict, a batch, grade lots) are not edited in place (migration 22)
+  const frozen = f.stage_type === 'qc' || f.stage_type === 'village_batch' || f.is_grade_lot || f.split_into_grades;
+  const canCorrect = mine && !frozen;
   return (
     <div>
-      <p className="muted small"><Link to={`/work/${f.scope_id}/${f.stage_type}`}>{r.stage_label}</Link></p>
+      <p className="muted small"><Link to={`/work/${f.scope_id}/${f.stage_type}`}>{t(`stage.${f.stage_type}`, undefined, r.stage_label)}</Link></p>
       <h1 className="mono">{t('record.title', { code: f.footprint_code })}</h1>
       <div className="card">
-        <div className="row"><Badge value={f.status} />{f.lot_closed && <Badge value="closed" label="Lot closed" />}{f.grade && <Badge value="verified" label={`Grade ${f.grade}`} />}</div>
+        <div className="row"><Badge value={f.status} />{f.lot_closed && <Badge value="closed" label={t('record.lot_closed')} />}{f.grade && <Badge value="verified" label={t('record.grade', { grade: f.grade })} />}</div>
         <dl className="kv" style={{ marginTop: 12 }}>
-          <dt>Stage</dt><dd>{r.stage_label}</dd>
-          {r.farmer && <><dt>Farmer</dt><dd>{r.farmer.name} <span className="mono">{r.farmer.farmer_code}</span> · {r.farmer.village}</dd></>}
-          {r.prev && <><dt>Came from</dt><dd><Link className="mono" to={`/records/${r.prev.id}`}>{r.prev.footprint_code}</Link> ({humanise(r.prev.stage_type)})</dd></>}
-          <dt>Quantity in</dt><dd>{kg(f.qty_in)}</dd>
-          <dt>Quantity out</dt><dd className="big">{kg(f.qty_out)}</dd>
-          <dt>Still available</dt><dd>{kg(r.available_kg)}</dd>
-          {Object.entries(f.computed ?? {}).map(([k, v]) => <Kv key={k} k={humanise(k)} v={typeof v === 'object' ? JSON.stringify(v) : num(v as number, 3)} />)}
-          <dt>Recorded</dt><dd>{dateTime(f.created_at)} · {r.created_by_name ?? '—'}</dd>
-          <dt>Verified</dt><dd>{f.verified_at ? `${dateTime(f.verified_at)} · ${r.verified_by_name ?? '—'}` : '—'}</dd>
-          <dt>Market verdict</dt><dd>domestic <Badge value={r.market_verdict.domestic} /> · export <Badge value={r.market_verdict.export} />{r.market_verdict.overridden && <> <Badge value="pending" label="overridden" /></>}</dd>
+          <dt>{t('record.stage')}</dt><dd>{t(`stage.${f.stage_type}`, undefined, r.stage_label)}</dd>
+          {r.farmer && <><dt>{t('record.farmer')}</dt><dd>{r.farmer.name} <span className="mono">{r.farmer.farmer_code}</span> · {r.farmer.village}</dd></>}
+          {r.prev && <><dt>{t('record.came_from')}</dt><dd><Link className="mono" to={`/records/${r.prev.id}`}>{r.prev.footprint_code}</Link> ({t(`stage.${r.prev.stage_type}`, undefined, humanise(r.prev.stage_type))})</dd></>}
+          <dt>{t('record.qty_in')}</dt><dd>{kg(f.qty_in)}</dd>
+          <dt>{t('record.qty_out')}</dt><dd className="big">{kg(f.qty_out)}</dd>
+          <dt>{t('record.available')}</dt><dd>{kg(r.available_kg)}</dd>
+          {Object.entries(f.computed ?? {}).map(([k, v]) => <Kv key={k} k={t(`computed.${k}`, undefined, humanise(k))} v={typeof v === 'object' ? JSON.stringify(v) : num(v as number, 3)} />)}
+          <dt>{t('record.recorded')}</dt><dd>{dateTime(f.created_at)} · {r.created_by_name ?? '—'}</dd>
+          <dt>{t('record.verified')}</dt><dd>{f.verified_at ? `${dateTime(f.verified_at)} · ${r.verified_by_name ?? '—'}` : '—'}</dd>
+          <dt>{t('record.market_verdict')}</dt><dd>{t('record.market_domestic')} <Badge value={r.market_verdict.domestic} /> · {t('record.market_export')} <Badge value={r.market_verdict.export} />{r.market_verdict.overridden && <> <Badge value="pending" label={t('record.overridden')} /></>}</dd>
         </dl>
         {f.warnings?.length > 0 && <div className="alert warn">{f.warnings.join(' · ')}</div>}
-        <details><summary>Entered values</summary><pre className="small mono">{JSON.stringify(f.payload, null, 2)}</pre></details>
+        <details><summary>{t('record.entered')}</summary><pre className="small mono">{JSON.stringify(f.payload, null, 2)}</pre></details>
         <div className="row">
           {canCorrect && <Link className="btn secondary" to={`/work/${f.scope_id}/${f.stage_type}?edit=${f.id}`}>{t('record.edit_pending')}</Link>}
           {me.role !== 'operator' && <Link className="btn secondary" to={`/trace/${f.id}`} data-testid="trace-link">{t('record.trace')}</Link>}
         </div>
+        {mine && frozen && <p className="hint">{t('record.fix_by_withdraw')}</p>}
       </div>
+      <WithdrawalInfo f={f} canRecord={me.role !== 'client_view'} />
+      {isManager(me.role) && (f.status === 'pending' || f.status === 'verified') && !r.seal && <WithdrawPanel f={f} onDone={d.reload} />}
       {r.qc && <QcPanel detail={r} onChange={d.reload} canOverride={isManager(me.role)} />}
       {r.seal && <SealPanel code={r.seal.qr_code} hash={r.seal.ledger_hash} batch={r.seal.batch_codes} />}
+      {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && <FinishSeal f={f} onDone={d.reload} />}
       {r.attachments.length > 0 && <Attachments detail={r} />}
-      <Flags detail={r} onChange={d.reload} canResolve={isManager(me.role)} canRaise={me.role !== 'client_view'} />
+      {me.role !== 'client_view' && f.status !== 'superseded' && <AddEvidence f={f} onDone={d.reload} />}
+      <Flags detail={r} onChange={d.reload} canResolve={isManager(me.role)} canRaise />
       <div className="card">
         <h2>{t('record.ledger')}</h2>
         <div className="table-wrap"><table>
-          <thead><tr><th>#</th><th>Event</th><th>By</th><th>When</th><th>Hash</th></tr></thead>
+          <thead><tr><th>#</th><th>{t('record.ledger_event')}</th><th>{t('record.ledger_by')}</th><th>{t('record.ledger_when')}</th><th>{t('record.ledger_hash')}</th></tr></thead>
           <tbody>{r.ledger.map((l) => (
-            <tr key={l.seq}><td className="num">{l.seq}</td><td>{humanise(l.event)}</td><td>{l.actor_name ?? '—'}</td><td>{dateTime(l.created_at)}</td>
+            <tr key={l.seq}><td className="num">{l.seq}</td><td>{t(`event.${l.event}`, undefined, humanise(l.event))}</td><td>{l.actor_name ?? '—'}</td><td>{dateTime(l.created_at)}</td>
               <td className="mono small" title={l.hash}>{shortHash(l.hash)}</td></tr>
           ))}</tbody>
         </table></div>
@@ -65,6 +77,60 @@ export function RecordDetail() {
 }
 
 function Kv({ k, v }: { k: string; v: string }) { return <><dt>{k}</dt><dd>{v}</dd></>; }
+
+/** A withdrawn record shows why, and what replaced it; a replacement shows what it replaces. */
+function WithdrawalInfo({ f, canRecord }: { f: Footprint; canRecord: boolean }) {
+  const { t } = useI18n();
+  const info = useAsync(async () => {
+    const w = f.status === 'superseded'
+      ? await q(supabase.from('withdrawals').select('*').eq('footprint_id', f.id).maybeSingle()) as unknown as Withdrawal | null : null;
+    const by = f.status === 'superseded'
+      ? await q(supabase.from('footprints').select('id,footprint_code,status').eq('supersedes_id', f.id).neq('status', 'superseded')) as unknown as { id: string; footprint_code: string }[] : [];
+    const old = f.supersedes_id
+      ? await q(supabase.from('footprints').select('id,footprint_code').eq('id', f.supersedes_id).maybeSingle()) as unknown as { id: string; footprint_code: string } | null : null;
+    return { w, by, old };
+  }, [f.id, f.status, f.supersedes_id]);
+  if (!info.data || (f.status !== 'superseded' && !info.data.old)) return null;
+  const { w, by, old } = info.data;
+  return (
+    <div className="card" data-testid="withdrawal-info">
+      {f.status === 'superseded' && (
+        <div className="alert warn">
+          <strong>{t('record.withdrawn')}</strong>{w && <> · {dateTime(w.withdrawn_at)} · “{w.reason}”</>}
+          {by.length > 0
+            ? <div>{t('record.replaced_by')} <Link className="mono" to={`/records/${by[0].id}`}>{by[0].footprint_code}</Link></div>
+            : canRecord && <div><Link className="btn secondary" to={`/work/${f.scope_id}/${f.stage_type}?replaces=${f.id}`} data-testid="record-replacement">{t('record.record_replacement')}</Link></div>}
+        </div>
+      )}
+      {old && <p>{t('record.replaces')} <Link className="mono" to={`/records/${old.id}`}>{old.footprint_code}</Link></p>}
+    </div>
+  );
+}
+
+/** Managers only (the database decides): withdraw a wrong record with a reason. Nothing is deleted. */
+function WithdrawPanel({ f, onDone }: { f: Footprint; onDone: () => void }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const act = useAction();
+  const go = () => act.run(async () => { await rpc('withdraw_footprint', { p_fp: f.id, p_reason: reason }); setOpen(false); onDone(); });
+  return (
+    <div className="card">
+      <h2>{t('record.withdraw_title')}</h2>
+      <p className="muted small">{t('record.withdraw_hint')}</p>
+      {!open ? <button className="secondary" onClick={() => setOpen(true)} data-testid="withdraw-open">{t('record.withdraw')}</button> : (
+        <div className="stack">
+          <Field label={t('record.withdraw_reason')} htmlFor="wd-reason"><textarea id="wd-reason" value={reason} onChange={(e) => setReason(e.target.value)} rows={2} /></Field>
+          <ErrorBox error={act.error} />
+          <div className="row">
+            <button className="danger" disabled={!reason.trim() || act.busy} onClick={go}>{t('record.withdraw_confirm')}</button>
+            <button className="secondary" onClick={() => setOpen(false)}>{t('common.cancel')}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function QcPanel({ detail, onChange, canOverride }: { detail: FootprintDetail; onChange: () => void; canOverride: boolean }) {
   const { t } = useI18n();
@@ -79,14 +145,14 @@ function QcPanel({ detail, onChange, canOverride }: { detail: FootprintDetail; o
   });
   return (
     <div className="card">
-      <h2>Quality control</h2>
-      <p>Domestic <Badge value={qc.domestic_verdict} /> · Export <Badge value={qc.export_verdict} /> <span className="muted small">(derived from the readings; nobody sets them by hand)</span></p>
+      <h2>{t('record.qc_title')}</h2>
+      <p>{t('record.domestic')} <Badge value={qc.domestic_verdict} /> · {t('record.export')} <Badge value={qc.export_verdict} /> <span className="muted small">{t('record.derived')}</span></p>
       <div className="table-wrap"><table>
-        <thead><tr><th>Parameter</th><th>Reading</th><th>Domestic</th><th>Export</th></tr></thead>
-        <tbody>{qc.judged.map((j) => <tr key={j.param}><td>{humanise(j.param)}</td><td className="num">{num(j.value)}</td>
+        <thead><tr><th>{t('record.param')}</th><th>{t('record.reading')}</th><th>{t('record.domestic')}</th><th>{t('record.export')}</th></tr></thead>
+        <tbody>{qc.judged.map((j) => <tr key={j.param}><td>{t(`qp.${j.param}`, undefined, humanise(j.param))}</td><td className="num">{num(j.value)}</td>
           <td><Badge value={j.domestic} /></td><td><Badge value={j.export} /></td></tr>)}</tbody>
       </table></div>
-      {qc.override && <div className="alert warn">Override: {String(qc.override.market)} · “{String(qc.override.reason)}” · {dateTime(String(qc.override.at))}</div>}
+      {qc.override && <div className="alert warn">{t('record.override_done', { market: t(`opt.${String(qc.override.market)}`, undefined, String(qc.override.market)), reason: String(qc.override.reason), at: dateTime(String(qc.override.at)) })}</div>}
       {canOverride && !qc.override && qc.export_verdict === 'fail' && (
         <div className="stack">
           <h3>{t('record.override')}</h3>
@@ -99,18 +165,32 @@ function QcPanel({ detail, onChange, canOverride }: { detail: FootprintDetail; o
   );
 }
 
+/** A QR record whose seal was refused at the gate (saved by the two-step path used before migration 24). */
+function FinishSeal({ f, onDone }: { f: Footprint; onDone: () => void }) {
+  const { t } = useI18n();
+  const act = useAction();
+  return (
+    <div className="card" data-testid="finish-seal">
+      <p>{t('record.finish_seal_hint')}</p>
+      <ErrorBox error={act.error} />
+      <button className="gold" disabled={act.busy} onClick={() => void act.run(async () => { await rpc('seal_lot', { p_qr_fp: f.id }); onDone(); })}>{t('engine.seal_button')}</button>
+    </div>
+  );
+}
+
 function SealPanel({ code, hash, batch }: { code: string; hash: string; batch: string[] }) {
+  const { t } = useI18n();
   const [img, setImg] = useState('');
   useEffect(() => { void QRCode.toDataURL(`${window.location.origin}/verify/${code}`, { margin: 1, width: 360 }).then(setImg); }, [code]);
   return (
     <div className="card">
-      <h2>Sealed</h2>
+      <h2>{t('record.sealed')}</h2>
       <div className="qr">{img && <img src={img} alt={`QR code ${code}`} />}<div>
         <p className="big mono">{code}</p>
-        <p className="small">Ledger hash <span className="mono">{shortHash(hash)}</span></p>
-        {batch.length > 0 && <p className="small">Batch codes: {batch.join(', ')}</p>}
-        <div className="row"><Link className="btn" to={`/labels/${code}`}>Print labels</Link>
-        <Link className="btn secondary" to={`/verify/${code}`}>Public verify page</Link></div>
+        <p className="small">{t('record.seal_hash')} <span className="mono">{shortHash(hash)}</span></p>
+        {batch.length > 0 && <p className="small">{t('record.batch_codes', { codes: batch.join(', ') })}</p>}
+        <div className="row"><Link className="btn" to={`/labels/${code}`}>{t('labels.print')}</Link>
+        <Link className="btn secondary" to={`/verify/${code}`}>{t('engine.public_page')}</Link></div>
       </div></div>
     </div>
   );
@@ -140,12 +220,41 @@ function Attachments({ detail }: { detail: FootprintDetail }) {
     <div className="card">
       <h2>{t('record.evidence')}</h2>
       <ul>{detail.attachments.map((a) => (
-        <li key={a.id}>{urls[a.id] ? <a href={urls[a.id]} target="_blank" rel="noreferrer">{humanise(a.kind)}</a> : humanise(a.kind)}
+        <li key={a.id}>{urls[a.id] ? <a href={urls[a.id]} target="_blank" rel="noreferrer">{t(`record.kind_${a.kind}`, undefined, humanise(a.kind))}</a> : t(`record.kind_${a.kind}`, undefined, humanise(a.kind))}
           {' '}<span className="mono small" title={a.sha256}>sha256 {shortHash(a.sha256)}</span> · {dateTime(a.created_at)}
           {' '}{check[a.id] === 'ok' && <Badge value="verified" label={t('record.hash_ok')} />}
           {check[a.id] === 'bad' && <Badge value="fail" label={t('record.hash_bad')} />}
           {check[a.id] === 'missing' && <Badge value="pending" label={t('record.hash_missing')} />}</li>
       ))}</ul>
+    </div>
+  );
+}
+
+/**
+ * A photo or document added after the record was saved: shipment papers, a weighbridge slip, or the photo that did not
+ * upload on a weak signal. The database decides who may (anyone who can see the record); the fingerprint is ledgered.
+ */
+function AddEvidence({ f, onDone }: { f: Footprint; onDone: () => void }) {
+  const { t } = useI18n();
+  const [file, setFile] = useState<File | null>(null);
+  const [done, setDone] = useState(false);
+  const [round, setRound] = useState(0);
+  const act = useAction();
+  const attach = () => act.run(async () => {
+    setDone(false);
+    await uploadEvidence(f, file!);
+    setFile(null); setRound((n) => n + 1); setDone(true); onDone();
+  });
+  return (
+    <div className="card">
+      <h2>{t('record.add_evidence')}</h2>
+      <div className="row">
+        <input key={round} aria-label={t('record.add_evidence')} type="file" accept={EVIDENCE_ACCEPT} style={{ flex: '1 1 220px', width: 'auto' }}
+          onChange={(e) => { setFile(e.target.files?.[0] ?? null); setDone(false); }} data-testid="evidence-file" />
+        <button className="secondary" disabled={!file || act.busy} onClick={attach} data-testid="evidence-attach">{t('record.attach')}</button>
+      </div>
+      <ErrorBox error={act.error} />
+      {done && <div className="alert ok" data-testid="evidence-attached">{t('record.attached')}</div>}
     </div>
   );
 }
@@ -163,7 +272,7 @@ function Flags({ detail, onChange, canResolve, canRaise }: { detail: FootprintDe
   return (
     <div className="card">
       <h2>{t('record.flags')}</h2>
-      {detail.flags.length === 0 && <p className="muted">No flags.</p>}
+      {detail.flags.length === 0 && <p className="muted">{t('record.no_flags')}</p>}
       <ul>{detail.flags.map((f) => (
         <li key={f.id} className="row"><Badge value={f.status} /> {f.text} <span className="muted small">— {f.raised_by_name ?? '—'}, {dateTime(f.created_at)}</span>
           {canResolve && f.status === 'open' && <><button className="secondary" onClick={() => setStatus(f.id, 'resolved')}>{t('record.resolve')}</button>

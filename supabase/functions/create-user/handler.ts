@@ -45,8 +45,10 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   if (req.method !== 'POST') return json(405, { error: 'POST only' });
 
   const url = (env.SUPABASE_URL ?? '').replace(/\/+$/, '');
-  const anon = env.SUPABASE_ANON_KEY ?? '';
-  const service = env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  // Supabase injects SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY (the legacy keys). When the project moves to the new
+  // API keys, set SB_PUBLISHABLE_KEY and SB_SECRET_KEY with `supabase secrets set`; they take precedence.
+  const anon = env.SB_PUBLISHABLE_KEY ?? env.SUPABASE_ANON_KEY ?? '';
+  const service = env.SB_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY ?? '';
   if (!url || !anon || !service) return json(500, { error: 'function is not configured' });
 
   const auth = req.headers.get('authorization') ?? '';
@@ -104,7 +106,11 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   const password = tempPassword();
   const cred = email ? { email, password, email_confirm: true } : { phone: phone!.replace('+', ''), password, phone_confirm: true };
   const a = await fetch(`${url}/auth/v1/admin/users`, {
-    method: 'POST', headers: asService, body: JSON.stringify({ ...cred, user_metadata: { display_name: displayName } }),
+    method: 'POST', headers: asService,
+    // app_metadata.grainveda_login: only a login made here (service role) can be linked to a user row (migration 23).
+    // user_metadata.must_change_password: the app asks for an own password at first sign-in (the creator knows this one).
+    body: JSON.stringify({ ...cred, app_metadata: { grainveda_login: true },
+      user_metadata: { display_name: displayName, must_change_password: true } }),
   });
   const login = await a.json().catch(() => null) as { id?: string } | null;
   if (!a.ok || !login?.id) {

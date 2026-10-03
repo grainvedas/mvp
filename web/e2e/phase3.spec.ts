@@ -169,7 +169,20 @@ test('Hindi: operator screens switch language; English stays as the database sen
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('ख़रीद (फ़ार्म-गेट)');
   await expect(page.getByText(/^कुल वज़न/)).toBeVisible();
   await expect(page.getByPlaceholder('नाम, किसान आईडी, फ़ोन या गाँव')).toBeVisible();
+  // The record page too: its labels, the status word and the ledger's event names (they come from the database in English).
+  await page.getByRole('tab', { name: 'इस चरण के रिकॉर्ड' }).click();
+  await page.locator('tbody tr').first().getByRole('link').click();
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('रिकॉर्ड');
+  const card = page.locator('.card').first();
+  for (const word of ['चरण', 'आई मात्रा', 'निकली मात्रा', 'अभी उपलब्ध', 'दर्ज', 'भरे गए मान']) await expect(card).toContainText(word);
+  await expect(card.locator('.badge').first()).toHaveText(/^(बाकी|सत्यापित|बंद)$/);
+  await expect(page.locator('th', { hasText: 'घटना' })).toBeVisible();
+  await expect(page.locator('td', { hasText: 'दर्ज किया' }).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'ख़रीद (फ़ार्म-गेट)' })).toBeVisible();   // the way back to the stage, in Hindi too
+  await expect(page.getByText('Quantity in')).toHaveCount(0);
   await page.getByLabel('Language').selectOption('en');
+  await expect(card).toContainText('Quantity in');
+  await page.goBack();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Procurement (farm-gate)');
   await signOut(page);
 });

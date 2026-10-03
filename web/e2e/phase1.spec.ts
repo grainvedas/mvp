@@ -114,7 +114,7 @@ test('Farmer: operator registers and submits; State Manager verifies and a Farme
   await page.getByRole('tab', { name: 'Ready to verify' }).click();
   const row = page.getByTestId('farmer-row').filter({ hasText: `Kalawati ${u}` });
   await row.getByRole('button', { name: 'Verify and issue Farmer ID' }).click();
-  await page.getByRole('tab', { name: 'Active' }).click();
+  await page.getByRole('tab', { name: 'Active', exact: true }).click();
   await expect(page.getByTestId('farmer-row').filter({ hasText: `Kalawati ${u}` })).toContainText(/PRSDM-F-\d{4}/);
 });
 

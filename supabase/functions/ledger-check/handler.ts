@@ -27,7 +27,8 @@ async function sha256Hex(buf: ArrayBuffer): Promise<string> {
 }
 
 export async function handle(req: Request, env: Env): Promise<Response> {
-  const url = env.SUPABASE_URL, key = env.SUPABASE_SERVICE_ROLE_KEY, token = env.LEDGER_CHECK_TOKEN;
+  // SB_SECRET_KEY: the new-style secret key, set by hand once the legacy service_role key is retired (it takes precedence)
+  const url = env.SUPABASE_URL, key = env.SB_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY, token = env.LEDGER_CHECK_TOKEN;
   if (!url || !key || !token) return json(500, { ok: false, problem: 'function not configured (SUPABASE_URL, service key, LEDGER_CHECK_TOKEN)' });
   if (!sameSecret(req.headers.get('x-check-token') ?? '', token)) return json(401, { ok: false, problem: 'bad token' });
 

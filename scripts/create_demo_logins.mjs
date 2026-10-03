@@ -8,11 +8,12 @@
 // - Idempotent: an existing login is reused; its password is kept unless --reset.
 import { writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { supabaseConfig, client, readDemoLogins, DEMO_LOGINS_FILE } from './lib/env.mjs';
+import { supabaseConfig, client, readDemoLogins, DEMO_LOGINS_FILE, assertNotProduction } from './lib/env.mjs';
 import { DEMO_USERS, appUserId } from './lib/demo-users.mjs';
 
 const reset = process.argv.includes('--reset');
 const cfg = supabaseConfig({ needService: true });
+await assertNotProduction(cfg, 'creating demo logins');
 const admin = (method, path, body) =>
   fetch(`${cfg.url}/auth/v1/admin${path}`, {
     method,
@@ -44,7 +45,8 @@ for (const u of DEMO_USERS) {
     const pw = newPassword();
     const body = u.email ? { email: u.email, password: pw, email_confirm: true }
                          : { phone: digits(u.phone), password: pw, phone_confirm: true };
-    const r = await admin('POST', '/users', { ...body, user_metadata: { display_name: u.name } });
+    // app_metadata.grainveda_login: since migration 23 only a login made by the service role links to a user row
+    const r = await admin('POST', '/users', { ...body, app_metadata: { grainveda_login: true }, user_metadata: { display_name: u.name } });
     if (!r.ok) { results.push({ ...u, action: `CREATE FAILED ${r.status} ${r.data?.msg ?? r.data?.message ?? ''}` }); continue; }
     login = r.data; passwords[u.key] = pw; action = 'created';
   } else if (reset || !passwords[u.key]) {

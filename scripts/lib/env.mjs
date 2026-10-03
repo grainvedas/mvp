@@ -97,3 +97,20 @@ export function readDemoLogins() {
   }
   return out;
 }
+
+/** 'production' | 'staging' (migration 23). A project without the function yet is not production. */
+export async function environmentOf(cfg) {
+  const r = await fetch(`${cfg.url}/rest/v1/rpc/environment`, {
+    method: 'POST', headers: { apikey: cfg.anon, Authorization: `Bearer ${cfg.anon}`, 'Content-Type': 'application/json', 'Content-Profile': 'app' }, body: '{}' });
+  if (!r.ok) return 'staging';
+  return (await r.json().catch(() => 'staging')) === 'production' ? 'production' : 'staging';
+}
+
+/** Demo data and destructive tests must never touch the production project. */
+export async function assertNotProduction(cfg, what) {
+  if ((await environmentOf(cfg)) === 'production') {
+    console.error(`REFUSED: ${what} on the PRODUCTION project (${cfg.url}). This script is for staging and the local stack.`);
+    process.exit(3);
+  }
+}
+

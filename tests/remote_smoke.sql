@@ -1,9 +1,14 @@
 -- READ-ONLY smoke check for a Supabase project after `db push` + seeds. Safe on production: no writes.
 -- Run: psql "$SUPABASE_DB_URL" -f tests/remote_smoke.sql   (or paste into Dashboard → SQL Editor)
--- Every row must say OK (16 rows).
+-- Every row must start with OK (21 rows). The same file serves staging (demo seed expected) and production (demo
+-- seed forbidden): the 'environment' row says which one it found, from app.environment() (migration 23).
 -- API exposure of the `app` schema is not checked here: hosted Supabase keeps that setting in PostgREST's config, which
 -- SQL cannot read. Prove it with tests/remote_api_check.ps1 (REST call with the public key).
 
+with env as (
+  select case when to_regprocedure('app.environment()') is null then 'unknown'
+              else (xpath('/row/e/text()', query_to_xml('select app.environment() as e', false, true, '')))[1]::text end as e
+)
 select 'extensions'            as check_, case when count(*) = 2 then 'OK' else 'MISSING' end as result
   from pg_extension where extname in ('pgcrypto','uuid-ossp')
 union all
@@ -32,9 +37,18 @@ select 'ledger chain intact',    case when not exists (select 1 from app.verify_
 union all
 select 'seed: Kalanamak crop',   case when exists (select 1 from public.crops where code = 'KNM') then 'OK' else 'NOT SEEDED' end
 union all
-select 'seed: 6 active scopes',  case when count(*) = 6 then 'OK' else 'GOT ' || count(*) end from public.scopes where status = 'active'
+select 'environment',            case (select e from env) when 'production' then 'OK production' when 'staging' then 'OK staging (practice system)'
+                                      else 'MISSING app.environment() (push migration 23)' end
 union all
-select 'seed: 5 active farmers', case when count(*) = 5 then 'OK' else 'GOT ' || count(*) end from public.farmers where status = 'active'
+select 'demo data',              case when (select e from env) = 'production'
+                                      then case when not exists (select 1 from public.app_users where id::text like '00000000-0000-4000-8000-0000000003%')
+                                                 and not exists (select 1 from public.scopes where id::text like '00000000-0000-4000-8000-0000000004%')
+                                                then 'OK production: no demo people or scopes'
+                                                else 'DEMO DATA ON PRODUCTION: stop' end
+                                      else case when (select count(*) from public.scopes where status = 'active' and id::text like '00000000-0000-4000-8000-0000000004%') = 6
+                                                 and (select count(*) from public.farmers where status = 'active') >= 5
+                                                then 'OK staging: 6 demo scopes, 5+ active farmers'
+                                                else 'NOT SEEDED (run seeds 02–05)' end end
 union all
 select 'api surface closed',     case when not has_function_privilege('anon', 'app.ledger_append(uuid, uuid, public.ledger_event, uuid, jsonb)', 'execute')
                                         and not has_function_privilege('authenticated', 'app.ledger_append(uuid, uuid, public.ledger_event, uuid, jsonb)', 'execute')
@@ -51,6 +65,42 @@ select 'phase 3 objects',        case when to_regclass('public.ledger_checks') i
                                         and to_regprocedure('app.lot_trace(uuid)') is not null
                                         and to_regprocedure('app.run_ledger_check(text)') is not null
                                       then 'OK' else 'MISSING (push migration 21)' end
+union all
+select 'phase 4 objects',        case when to_regclass('public.withdrawals') is not null and to_regclass('public.client_errors') is not null
+                                        and to_regclass('public.app_meta') is not null
+                                        and to_regprocedure('app.withdraw_footprint(uuid, text)') is not null
+                                        and to_regprocedure('app.lot_markets(uuid)') is not null
+                                        and to_regprocedure('app.reset_login_allowed(uuid)') is not null
+                                        and to_regprocedure('app.check_ledger_now()') is not null
+                                        and to_regprocedure('app.seal_source(uuid)') is not null
+                                        and to_regprocedure('app.record_missing_evidence_blocks()') is not null
+                                      then 'OK' else 'MISSING (push migrations 22–27)' end
+union all
+select 'phase 4 triggers',       case when (select count(*) from pg_trigger where not tgisinternal and tgname in
+                                         ('footprints_a0_api_insert', 'footprints_a0_api_update', 'footprints_c0_insert_rules', 'footprints_c0_update_rules',
+                                          'footprints_z1_split_on_save', 'scopes_a0_state_guard', 'farmers_z0_change_guard', 'farmers_ledger', 'flags_guard',
+                                          'flags_ledger', 'attachments_guard', 'attachments_ledger', 'slots_guard', 'slots_ledger', 'app_users_ledger',
+                                          'scopes_z0_slots_at_activation')) = 16
+                                      then 'OK' else 'MISSING (push migrations 22–27)' end
+union all
+select 'ledger read by stage',   case when exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'ledger'
+                                                    and policyname = 'ledger_read' and qual like '%can_see_footprint%')
+                                      then 'OK' else 'OPEN: operators can read every block of their scope (push migration 25)' end
+union all
+select 'direct writes closed',   case when not has_table_privilege('authenticated', 'public.attachments', 'update')
+                                        and not has_table_privilege('authenticated', 'public.qc_verdicts', 'insert')
+                                        and not has_table_privilege('authenticated', 'public.withdrawals', 'insert')
+                                        and not has_table_privilege('authenticated', 'public.client_errors', 'insert')
+                                        and not has_table_privilege('authenticated', 'public.ledger', 'insert')
+                                      then 'OK' else 'OPEN (push migrations 22–23)' end
+union all
+select 'evidence in the ledger', case when not exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid
+                                                        where t.typname = 'ledger_event' and e.enumlabel = 'evidence')
+                                      then 'MISSING (push migration 26)'
+                                      when exists (select 1 from public.attachments a where not exists
+                                                    (select 1 from public.ledger l where l.event::text = 'evidence' and l.payload->>'attachment_id' = a.id::text))
+                                      then 'CATCH-UP NEEDED: select app.record_missing_evidence_blocks();'
+                                      else 'OK' end
 union all
 select 'nightly ledger check',   case when to_regclass('cron.job') is null then 'NO pg_cron: see RUNSHEET_phase3 step 5'
                                       when (xpath('/row/n/text()', query_to_xml(

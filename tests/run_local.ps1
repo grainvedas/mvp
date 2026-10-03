@@ -34,6 +34,34 @@ foreach ($f in Get-ChildItem tests/*.sql | Where-Object { $_.Name -match '^[0-9]
 # Self-test of the live-project T1 check on this fresh build, so it is proven here before it runs remotely.
 Write-Output 'test     tests/remote_t1_rollback.sql (local self-test)'
 if (-not (Invoke-Psql 'tests/remote_t1_rollback.sql')) { $fail = $true; Write-Output 'FAILED   tests/remote_t1_rollback.sql' }
+# Production build: every migration + stage definitions + the production seed on a second scratch database. No demo
+# data may be in it, and the demo seed must refuse to run on it.
+Write-Output 'test     production build (no demo data; the demo seed must refuse)'
+$pdb = "${db}_prod"
+function Invoke-PsqlOn($database, $file) {
+  & "$bin\psql.exe" -v ON_ERROR_STOP=1 -q -d $database -f $file
+  return $LASTEXITCODE -eq 0
+}
+& "$bin\dropdb.exe" --if-exists $pdb
+& "$bin\createdb.exe" $pdb
+$prodOk = Invoke-PsqlOn $pdb 'tests/00_local_auth_shim.sql'
+foreach ($f in Get-ChildItem supabase/migrations/*.sql | Sort-Object Name) {
+  if ($prodOk) { $prodOk = Invoke-PsqlOn $pdb $f.FullName }
+}
+foreach ($f in 'supabase/seeds/01_stage_definitions.sql', 'supabase/seeds/production/10_reference.sql', 'tests/01_helpers.sql', 'tests/production_seed_check.sql') {
+  if ($prodOk) { $prodOk = Invoke-PsqlOn $pdb $f }
+}
+if (-not $prodOk) { $fail = $true; Write-Output 'FAILED   production build' }
+else {
+  $ErrorActionPreference = 'Continue'       # psql writes the expected refusal to stderr
+  $demoOut = (& "$bin\psql.exe" -v ON_ERROR_STOP=1 -q -d $pdb -f 'supabase/seeds/02_kalanamak_demo.sql' 2>&1 | Out-String)
+  $demoExit = $LASTEXITCODE
+  $ErrorActionPreference = 'Stop'
+  if ($demoExit -eq 0) { $fail = $true; Write-Output 'FAILED   the demo seed ran on a production build' }
+  elseif ($demoOut -match 'demo seed refused') { Write-Output 'ok   production: the demo seed refuses to run' }
+  else { $fail = $true; Write-Output 'FAILED   the demo seed failed for another reason'; Write-Output $demoOut }
+}
+& "$bin\dropdb.exe" --if-exists $pdb
 # Four sessions at once: ledger appends and Farmer IDs under concurrency. Last, because it commits into the scratch DB.
 Write-Output 'test     tests/concurrency (4 parallel sessions)'
 if (-not (Invoke-Psql 'tests/concurrency/setup.sql')) { $fail = $true }

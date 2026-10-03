@@ -39,6 +39,9 @@ select t.fails(format($q$ update public.app_users set email = ' VEDA.Admin@grain
 -- ---------------------------------------------------------------------------
 -- Migration 9: linking (as Supabase Auth would write auth.users, no JWT)
 -- ---------------------------------------------------------------------------
+-- The logins below stand for logins made by the service role (create-user, bootstrap, demo script): since migration 23
+-- only those carry app_metadata.grainveda_login and can claim a row. A public sign-up is tested at the end.
+alter table auth.users alter column raw_app_meta_data set default '{"grainveda_login": true}';
 insert into auth.users (id, email) values ('10000000-0000-4000-8000-000000000001', 'veda.admin@grainveda.test');
 select t.ok((select auth_uid from public.app_users where id = t.u('01')) = t.u('01'), 'link: an unconfirmed email does not link');
 update auth.users set email_confirmed_at = now() where id = '10000000-0000-4000-8000-000000000001';
@@ -78,5 +81,21 @@ delete from auth.users where id = '10000000-0000-4000-8000-000000000002';
 insert into auth.users (id, phone, phone_confirmed_at) values ('10000000-0000-4000-8000-000000000007', '910000000005', now());
 select t.ok((select auth_uid from public.app_users where id = t.u('05')) = '10000000-0000-4000-8000-000000000007',
             'link: after its login is deleted, the row links to the next confirmed login');
+
+-- ---------------------------------------------------------------------------
+-- Migration 23: a public sign-up can never claim a user row
+-- ---------------------------------------------------------------------------
+update public.app_users set email = 'ghost.manager@grainveda.test' where id = t.u('02');      -- State Manager row with no login yet
+insert into auth.users (id, email, email_confirmed_at, raw_app_meta_data)
+values ('10000000-0000-4000-8000-000000000008', 'ghost.manager@grainveda.test', now(), '{"provider":"email","providers":["email"]}');
+select t.ok((select auth_uid from public.app_users where id = t.u('02')) = t.u('02'),
+            'link: a public sign-up with a user''s e-mail does not become that user, even confirmed (before: it did)');
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-4000-8000-000000000008","role":"authenticated"}', true);
+select t.ok(app.current_role() is null, 'link: that sign-up has no role at all');
+select t.as_service();
+insert into auth.users (id, phone, phone_confirmed_at, raw_app_meta_data)
+values ('10000000-0000-4000-8000-000000000009', '910000000009', now(), '{"grainveda_login": true}');
+select t.ok((select auth_uid from public.app_users where id = t.u('09')) = '10000000-0000-4000-8000-000000000009',
+            'link: a login made by the service role still links');
 
 rollback;

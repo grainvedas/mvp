@@ -74,13 +74,16 @@ begin
   insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload, split_into_grades)
   values (s, c, 'grading', so, t.u('10'), '{"input_kg":170,"grade_a_kg":100,"grade_b_kg":50,"grade_c_kg":15,"reject_kg":3,"loss_kg":2}', true)
   returning id into g;
-  perform t.as_user(t.u('06'));
-  perform t.fails(format($q$ select app.split_grades(%L) $q$, g), 'may not create', 'T2 only the grading operator splits');
-  perform t.as_user(t.u('10'));
+  -- migration 24: the grade lots are made by the save itself; split_grades now answers with them
+  perform t.ok((select count(*) from public.footprints where prev_footprint_id = g and is_grade_lot) = 3,
+               'T2 saving the split run creates its three grade lots in the same transaction');
   select array_agg(x order by x.grade) into lots from app.split_grades(g) x;
   perform t.ok(array_length(lots, 1) = 3 and lots[1].grade = 'A' and lots[1].qty_out = 100 and lots[3].qty_out = 15,
-               'T2 split_grades creates A 100 / B 50 / C 15 kg from the run''s own figures');
-  perform t.fails(format($q$ select app.split_grades(%L) $q$, g), 'already has grade lots', 'T2 a run is split once');
+               'T2 the lots are A 100 / B 50 / C 15 kg, from the run''s own figures');
+  perform t.as_user(t.u('06'));
+  perform t.ok((select count(*) from app.split_grades(g)) = 3, 'T2 the next stage asking for the lots gets the same three');
+  perform t.as_user(t.u('10'));
+  perform t.ok((select count(*) from public.footprints where prev_footprint_id = g and is_grade_lot) = 3, 'T2 a run is split once: asking again creates nothing');
   perform t.as_user(t.u('06'));
   perform app.verify_footprint(lots[1].id);
   perform t.ok((select status from public.footprints where id = g) = 'verified'

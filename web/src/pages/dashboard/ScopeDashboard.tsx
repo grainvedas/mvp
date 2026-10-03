@@ -1,6 +1,7 @@
 // F13 pipeline view per scope (Client Manager, State Manager, Admin) and the Client View portal: the chain as stage
 // dots with quantities, sealed lots with their public page and journey export, the flag/query log, and the season
-// summary as CSV (F14). Everything is read through RLS: a Client View user sees only their own client's scopes.
+// summary as CSV (F14), and what happened per day (PRD §9 "per-scope activity metrics", from the ledger).
+// Everything is read through RLS: a Client View user sees only their own client's scopes.
 import { Link, useParams } from 'react-router-dom';
 import { rpc, q } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
@@ -16,6 +17,7 @@ interface SealRow { qr_code: string; sealed_at: string; batch_codes: string[]; f
   footprints: { footprint_code: string; qty_out: number; scope_id: string } }
 interface FlagRow { id: string; text: string; status: string; created_at: string; footprint_id: string;
   footprints: { footprint_code: string; stage_type: string; scope_id: string } }
+interface ActivityRow { day: string; saved: number; verified: number; sealed: number; supervisory: number }
 interface SeasonRow { footprint_code: string; stage_type: string; status: string; qty_in: number; qty_out: number; grade: string | null;
   lot_closed: boolean; warnings: string[]; created_at: string; verified_at: string | null; farmer_id: string | null; payload: Record<string, unknown> }
 
@@ -47,6 +49,7 @@ export function ScopeDashboard() {
   const flags = useAsync(async () => (await q(supabase.from('flags')
     .select('id,text,status,created_at,footprint_id,footprints!inner(footprint_code,stage_type,scope_id)')
     .eq('footprints.scope_id', scopeId).order('created_at', { ascending: false }))) as unknown as FlagRow[], [scopeId]);
+  const activity = useAsync(() => rpc<ActivityRow[]>('scope_activity', { p_scope: scopeId, p_days: 14 }), [scopeId]);
   const exp = useAction();
 
   const exportSeason = () => exp.run(async () => {
@@ -96,6 +99,19 @@ export function ScopeDashboard() {
               <td><Link className="mono" to={`/records/${s.footprint_id}`}>{s.footprints.footprint_code}</Link>{s.batch_codes.length > 0 && <div className="small muted">{s.batch_codes.join(', ')}</div>}</td>
               <td className="num">{kg(s.footprints.qty_out)}</td><td>{date(s.sealed_at)}</td>
               <td><Link to={`/trace/${s.footprint_id}`}>{t('dash.journey')}</Link> · <Link to={`/verify/${s.qr_code}`}>{t('dash.public')}</Link></td></tr>
+          ))}</tbody>
+        </table></div>}
+      </div>
+
+      <div className="card">
+        <h2>{t('dash.activity')}</h2>
+        {activity.loading ? <Loading /> : <ErrorBox error={activity.error} onRetry={activity.reload} />}
+        {activity.data?.length === 0 && <Empty />}
+        {!!activity.data?.length && <div className="table-wrap"><table data-testid="activity">
+          <thead><tr><th>{t('dash.day')}</th><th>{t('dash.saved')}</th><th>{t('dash.verified')}</th><th>{t('dash.sealed_n')}</th><th>{t('dash.supervisory')}</th></tr></thead>
+          <tbody>{activity.data.map((a) => (
+            <tr key={a.day}><td>{date(a.day)}</td><td className="num">{a.saved}</td><td className="num">{a.verified}</td>
+              <td className="num">{a.sealed}</td><td className="num">{a.supervisory}</td></tr>
           ))}</tbody>
         </table></div>}
       </div>

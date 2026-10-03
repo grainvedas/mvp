@@ -76,6 +76,9 @@ test('T4: procure → QC → mill → pack → two buyers → ship → seal → 
   await page.getByRole('button', { name: '+ packet size' }).click();
   await page.getByLabel('Packets 2').fill('58'); await page.getByLabel('Size (kg) 2').fill('0.5');
   await page.getByLabel(/^Wastage/).fill('1');
+  // PRD §12 T4 "batch code mandatory": without it there is nothing to review or save
+  await expect(page.locator('.alert.info', { hasText: 'Batch code' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review' })).toBeDisabled();
   await page.getByLabel(/Batch code/).fill(batch);
   await expect(page.getByTestId('preview-ok')).toContainText('129 kg');
   const pk = await reviewAndSave(page, /PRSDM-KNM-KH26-PK-\d{4}/); await signOut(page);
@@ -117,8 +120,8 @@ test('T4: procure → QC → mill → pack → two buyers → ship → seal → 
   await expect(pub).toContainText('Sealed with this QR code');
 });
 
-test('T2: sort → grade with split → three grade lots → QC one → seal', async ({ page }) => {
-  test.setTimeout(150_000);
+test('T2: sort → grade with split → three grade lots downstream, run hidden → two lots tested and sealed independently', async ({ page }) => {
+  test.setTimeout(240_000);
   await signIn(page, P.proc); const p = await procure(page, 'Gorakhpur', /Mohan Lal/, '180', '1', '2'); await signOut(page);
   await signIn(page, P.sort);
   await open(page, 'sorting', 'Gorakhpur');
@@ -133,34 +136,52 @@ test('T2: sort → grade with split → three grade lots → QC one → seal', a
   await open(page, 'grading', 'Gorakhpur');
   await verifyIncoming(page, s);
   await page.getByRole('button', { name: /Record Grading/ }).click();
-  await page.getByLabel(/^Grade A/).fill('100'); await page.getByLabel(/^Grade B/).fill('50'); await page.getByLabel(/^Grade C/).fill('15');
+  // PRD §12 T2 "A + B + C + reject + loss = input enforced": 100 + 50 + 25 + 3 + 2 = 180 ≠ 170 is refused by the database
+  await page.getByLabel(/^Grade A/).fill('100'); await page.getByLabel(/^Grade B/).fill('50'); await page.getByLabel(/^Grade C/).fill('25');
   await page.getByLabel(/^Reject/).fill('3'); await page.getByLabel(/^Loss/).fill('2');
+  await expect(page.getByTestId('preview-error')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Review' })).toBeDisabled();
+  await page.getByLabel(/^Grade C/).fill('15');
   await page.getByLabel(/Split into grade lots/).check();
-  await reviewAndSave(page, /PRSDM-KNM-KH26-G-\d{4}/);
+  const run = await reviewAndSave(page, /PRSDM-KNM-KH26-G-\d{4}/);
   const lots = page.getByTestId('grade-lots');
   await expect(lots).toContainText(/-A \(100 kg\)/); await expect(lots).toContainText(/-B \(50 kg\)/); await expect(lots).toContainText(/-C \(15 kg\)/);
   const lotCodes = (await lots.textContent())!.match(/PRSDM-KNM-KH26-G-\d{4}-[ABC]/g)!;
   expect(lotCodes).toHaveLength(3);
-  const gradeA = lotCodes.find((c) => c.endsWith('-A'))!;
+  const gradeA = lotCodes.find((c) => c.endsWith('-A'))!, gradeB = lotCodes.find((c) => c.endsWith('-B'))!;
   await signOut(page);
 
+  // The three grade lots appear downstream; the run they came from does not (PRD §12 T2 "parent hidden")
   await signIn(page, P.qc);
   await open(page, 'qc', 'Gorakhpur');
   for (const c of lotCodes) await expect(page.getByTestId('incoming-row').filter({ hasText: c })).toBeVisible();
-  const q = await (async () => {
-    await verifyIncoming(page, gradeA);
+  await expect(page.getByTestId('incoming-row').filter({ hasText: new RegExp(`${run}(?!-)`) })).toHaveCount(0);
+  const test1 = async (lot: string, kg: string) => {
+    await verifyIncoming(page, lot);
     await page.getByRole('button', { name: /Record Quality Control/ }).click();
-    await expect(page.getByLabel(/Lot quantity/)).toHaveValue('100');
+    await expect(page.getByLabel(/Lot quantity/)).toHaveValue(kg);
     await page.getByLabel(/Sample drawn/).fill('0.5'); await page.getByLabel(/^Moisture \(%\)/).fill('12.4');
     await page.getByLabel(/^Broken grains/).fill('2'); await page.getByLabel(/^Foreign matter/).fill('0.2');
     return reviewAndSave(page, /PRSDM-KNM-KH26-QC-\d{4}/);
-  })();
+  };
+  const qA = await test1(gradeA, '100');
+  await page.goto('/');
+  await open(page, 'qc', 'Gorakhpur');
+  const qB = await test1(gradeB, '50');
   await signOut(page);
+
+  // Each grade lot seals on its own (grade C is left unsealed)
   await signIn(page, P.qr);
-  const code = await seal(page, 'Gorakhpur', q);
-  await page.goto(`/verify/${code}`);
+  const codeA = await seal(page, 'Gorakhpur', qA);
+  await page.goto('/');
+  const codeB = await seal(page, 'Gorakhpur', qB);
+  expect(codeA).not.toBe(codeB);
+  await page.goto(`/verify/${codeA}`);
   await expect(page.getByTestId('public-journey')).toContainText('Graded');
   await expect(page.getByTestId('public-journey')).toContainText('Grade A');
+  await page.goto(`/verify/${codeB}`);
+  await expect(page.getByTestId('public-journey')).toContainText('Grade B');
+  await expect(page.getByTestId('public-journey')).not.toContainText('Grade A');
 });
 
 test('Village Batch: two farmer lots verified, batched, tested, sealed; public page names both farmers', async ({ page }) => {

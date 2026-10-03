@@ -9,5 +9,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: { baseURL: 'http://127.0.0.1:4173', trace: 'retain-on-failure', screenshot: 'only-on-failure', ...devices['Pixel 7'] },
-  webServer: { command: 'npx vite build --mode stack && npx vite preview --mode stack', url: 'http://127.0.0.1:4173', reuseExistingServer: false, timeout: 180_000 },
+  // scripts/serve-dist.mjs behaves like the production host: it sends dist/_headers (so the Content-Security-Policy is
+  // enforced), answers every route with the app, and redirects /index.html to /.
+  webServer: { command: 'npx vite build --mode stack && node scripts/serve-dist.mjs', url: 'http://127.0.0.1:4173', reuseExistingServer: false, timeout: 180_000 },
 });

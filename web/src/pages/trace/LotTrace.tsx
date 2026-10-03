@@ -17,6 +17,8 @@ export interface TraceStep {
   created_at: string; created_by: string | null; verified_at: string | null; verified_by: string | null;
   qc: { domestic: string; export: string; readings: Record<string, number>; override: Record<string, unknown> | null } | null;
   seal: { qr_code: string; sealed_at: string; ledger_hash: string; batch_codes: string[] } | null;
+  withdrawn?: { reason: string; by: string | null; at: string } | null;                                  // migration 23
+  replaces?: { code: string; qty_out_kg: number; reason: string | null; by: string | null; at: string | null } | null;
   flags: { text: string; status: string; at: string }[];
   evidence: { kind: string; sha256: string; at: string }[];
   ledger: { seq: number; event: string; hash: string; prev_hash: string; at: string }[];
@@ -25,7 +27,8 @@ export interface Trace { footprint_id: string; generated_at: string; steps: Trac
 
 export const TRACE_HEADER = ['step', 'code', 'stage', 'status', 'farmer_id', 'farmer', 'village', 'qty_in_kg', 'qty_out_kg', 'grade',
   'recorded_by', 'recorded_at', 'verified_by', 'verified_at', 'qc_domestic', 'qc_export', 'qc_readings', 'qc_override',
-  'qr_code', 'batch_codes', 'flags', 'evidence_sha256', 'ledger_blocks', 'last_block_hash', 'warnings', 'entered_values'];
+  'qr_code', 'batch_codes', 'flags', 'evidence_sha256', 'ledger_blocks', 'last_block_hash', 'warnings', 'entered_values',
+  'withdrawn', 'replaces'];
 
 export function traceRows(tr: Trace) {
   return tr.steps.map((s, i) => [
@@ -35,6 +38,8 @@ export function traceRows(tr: Trace) {
     s.seal?.qr_code, s.seal?.batch_codes.join(' '), s.flags.map((f) => `${f.status}: ${f.text}`).join(' | '),
     s.evidence.map((e) => `${e.kind}:${e.sha256}`).join(' '), s.ledger.map((l) => `${l.seq}:${l.event}`).join(' '),
     s.ledger.at(-1)?.hash, s.warnings.join(' | '), JSON.stringify(s.payload),
+    s.withdrawn ? `${s.withdrawn.at} · ${s.withdrawn.by ?? ''}: ${s.withdrawn.reason}` : '',
+    s.replaces ? `${s.replaces.code} (${s.replaces.qty_out_kg} kg) withdrawn by ${s.replaces.by ?? ''}: ${s.replaces.reason ?? ''}` : '',
   ]);
 }
 
@@ -69,6 +74,8 @@ export function LotTrace() {
               {s.qc && <><dt>QC</dt><dd>domestic <Badge value={s.qc.domestic} /> · export <Badge value={s.qc.export} />
                 {' '}<span className="small">{Object.entries(s.qc.readings ?? {}).map(([k, v]) => `${humanise(k)} ${v}`).join(' · ')}</span>
                 {s.qc.override && <> · <Badge value="pending" label="override" /> “{String(s.qc.override.reason ?? '')}”</>}</dd></>}
+              {s.withdrawn && <><dt>{t('record.withdrawn')}</dt><dd>{dateTime(s.withdrawn.at)} · {s.withdrawn.by ?? '—'} · “{s.withdrawn.reason}”</dd></>}
+              {s.replaces && <><dt>{t('record.replaces')}</dt><dd><span className="mono">{s.replaces.code}</span> ({kg(s.replaces.qty_out_kg)}) · {s.replaces.by ?? '—'} · “{s.replaces.reason ?? ''}”</dd></>}
               {s.seal && <><dt>{t('trace.seal')}</dt><dd className="mono">{s.seal.qr_code} {s.seal.batch_codes.length > 0 && `· ${s.seal.batch_codes.join(', ')}`}</dd></>}
               {s.flags.length > 0 && <><dt>{t('record.flags')}</dt><dd>{s.flags.map((f, i) => <div key={i}><Badge value={f.status} /> {f.text}</div>)}</dd></>}
               {s.evidence.length > 0 && <><dt>{t('trace.evidence')}</dt><dd>{s.evidence.map((e, i) => <div key={i} className="small">{humanise(e.kind)} <span className="mono" title={e.sha256}>sha256 {shortHash(e.sha256)}</span></div>)}</dd></>}

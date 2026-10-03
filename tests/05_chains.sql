@@ -76,16 +76,18 @@ begin
   insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload, split_into_grades)
   values (t.scope('02'), '00000000-0000-4000-8000-000000000201', 'grading', s, t.u('10'),
           '{"input_kg":170,"grade_a_kg":100,"grade_b_kg":50,"grade_c_kg":15,"reject_kg":3,"loss_kg":2}', true) returning id into g;
-  -- grade lots coupled to the run
-  insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload, is_grade_lot, grade)
-  values (t.scope('02'), '00000000-0000-4000-8000-000000000201', 'grading', g, t.u('10'), '{"qty_kg":100}', true, 'A') returning id into ga;
-  insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload, is_grade_lot, grade)
-  values (t.scope('02'), '00000000-0000-4000-8000-000000000201', 'grading', g, t.u('10'), '{"qty_kg":50}', true, 'B') returning id into gb;
+  -- grade lots coupled to the run. Since migration 24 the save of a split run makes them itself, in the same
+  -- transaction (before: three separate inserts here, and in the app a second request that could fail).
+  select id into ga from public.footprints where prev_footprint_id = g and is_grade_lot and grade = 'A';
+  select id into gb from public.footprints where prev_footprint_id = g and is_grade_lot and grade = 'B';
+  select id into gc from public.footprints where prev_footprint_id = g and is_grade_lot and grade = 'C';
+  perform t.ok(ga is not null and gb is not null and gc is not null
+               and (select array_agg(qty_out order by grade) from public.footprints where prev_footprint_id = g and is_grade_lot) = array[100, 50, 15]::numeric[]
+               and (select bool_and(created_by = t.u('10')) from public.footprints where prev_footprint_id = g and is_grade_lot),
+               'T2: saving the split run creates grade lots A 100 / B 50 / C 15 kg, in the grader''s name');
   perform t.fails(format($q$ insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload, is_grade_lot, grade)
      values (t.scope('02'), '00000000-0000-4000-8000-000000000201', 'grading', %L, t.u('10'), '{"qty_kg":20}', true, 'C') $q$, g),
      'exceeds available', 'T2: grade lots cannot exceed the run''s A+B+C (165)');
-  insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload, is_grade_lot, grade)
-  values (t.scope('02'), '00000000-0000-4000-8000-000000000201', 'grading', g, t.u('10'), '{"qty_kg":15}', true, 'C') returning id into gc;
   perform t.ok((select footprint_code from public.footprints where id = ga) like 'PRSDM-KNM-KH26-G-%-A', 'T2: grade lot code carries the grade');
   perform t.ok(app.available_qty(g) = 0, 'T2: split parent fully allocated to grade lots');
 

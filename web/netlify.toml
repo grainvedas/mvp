@@ -1,0 +1,11 @@
+# Netlify (alternative to Cloudflare). Base directory: web. dist/_headers (written by the build) carries the security
+# headers and cache rules; Netlify reads it from the publish folder.
+[build]
+  command = "npm ci && npx vite build --mode production"
+  publish = "dist"
+
+# every path that is not a file answers with the app: /verify/GV-…, /work/…, /records/…
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

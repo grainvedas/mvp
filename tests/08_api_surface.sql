@@ -19,7 +19,14 @@ insert into allowed values
   ('authenticated', 'import_farmers'), ('authenticated', 'my_context'), ('authenticated', 'footprint_detail'),
   ('authenticated', 'submit_farmer'), ('authenticated', 'send_back_farmer'), ('authenticated', 'verify_farmer'),
   ('authenticated', 'register_attachment'), ('authenticated', 'normalise_in_mobile'), ('authenticated', 'preview_correction'), ('authenticated', 'split_grades'),
-  ('authenticated', 'lot_trace');
+  ('authenticated', 'lot_trace'),
+  -- Phase 4 (migration 22)
+  ('authenticated', 'withdraw_footprint'),
+  -- Phase 4 (migration 23)
+  ('anon', 'environment'), ('authenticated', 'environment'), ('authenticated', 'lot_markets'), ('authenticated', 'scope_activity'),
+  ('authenticated', 'reset_login_allowed'), ('authenticated', 'report_client_error'), ('authenticated', 'check_ledger_now'),
+  -- Phase 4 (migration 24)
+  ('authenticated', 'seal_source');
 
 do $$
 declare r record; leaks text := '';

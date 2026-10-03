@@ -1,0 +1,71 @@
+# GrainVeda · ऑपरेटर के लिए एक पन्ना / one page for operators
+
+Print both halves on one sheet (A4, both sides). The words in **bold** are the words on the screen.
+The Hindi half uses the app's own Hindi labels; it has not yet been read by field operators (see `docs/FIX_LIST.md`,
+"Hindi review"): correct this page together with the app's wording.
+
+---
+
+## हिन्दी
+
+**भाषा:** ऊपर की पट्टी में **English / हिन्दी** चुनें।
+
+| # | काम | कैसे |
+|---|---|---|
+| 1 | साइन इन | **फ़ील्ड ऑपरेटर (फ़ोन)** → अपना फ़ोन नंबर और पासवर्ड → **साइन इन करें** |
+| 2 | पहली बार | ऐप कहेगा **अपना पासवर्ड चुनें**: कम से कम 8 अक्षर, जो सिर्फ़ आप जानें। मैनेजर का दिया पासवर्ड इसके बाद नहीं चलता |
+| 3 | अपना काम खोलें | **होम** → **आपके चरण** → अपना चरण दबाएँ। "3 इंतज़ार में" का मतलब: पिछले चरण से 3 लॉट आए हैं। **खेत जाने से पहले** नेटवर्क रहते अपना चरण एक बार खोल लें: उसके बाद वह बिना नेटवर्क भी, दिन भर खुलेगा |
+| 4 | आया माल जाँचें | लॉट दबाएँ → हर बात पर सही का निशान **तभी** लगाएँ जब वह इस लॉट के लिए सच हो → **यह लॉट सत्यापित करें**। आपका नाम उस पर दर्ज होता है। कुछ ठीक न हो तो सत्यापित न करें: मैनेजर को बताएँ या **फ़्लैग लगाएँ** |
+| 5 | अपना रिकॉर्ड भरें | **इस लॉट का … दर्ज करें** → फ़ॉर्म भरें → **जाँचें** → आँकड़े लॉट से मिलाएँ, निशान लगाएँ → **रिकॉर्ड सेव करें**। "… के रूप में सेव हुआ" दिखे तो काम पूरा। कोड पर्ची पर लिख लें |
+| 6 | ख़रीद (Procurement) | किसान चुनें, तौल, बोरे, नमी के तीन पाठ, फ़ोटो। शुद्ध वज़न ऐप निकालता है, आप नहीं लिखते |
+| 7 | नेटवर्क नहीं है | **इस फ़ोन में सेव करें** दबाएँ। नेटवर्क आने पर रिकॉर्ड (और फ़ोटो) अपने-आप, उसी क्रम में भेजे जाते हैं; एक रिकॉर्ड दो बार नहीं बनता। **फ़ोन में सेव** में देखें: "इंतज़ार में" = अभी भेजना बाकी; "ध्यान दें" = डेटाबेस ने मना किया, कारण लिखा है → **ठीक करके फिर सेव करें** |
+| 8 | गलती हो गई | अगला चरण अभी सत्यापित नहीं किया: रिकॉर्ड खोलें → **यह रिकॉर्ड सुधारें**। सत्यापित हो चुका, या लैब / बैच / ग्रेड का रिकॉर्ड है: मैनेजर को बताएँ; वह उसे वापस लेगा, फिर आप **सही रिकॉर्ड दर्ज करें** |
+| 9 | फ़ोटो या काग़ज़ बाद में | रिकॉर्ड खोलें → **फ़ोटो या काग़ज़ जोड़ें** → **जोड़ें** (फ़ोटो या PDF) |
+| 10 | QR ऑपरेटर | लॉट जाँचें → **चालू करें और सील करें**। ऐप मना करे तो कारण पढ़ें (खुला फ़्लैग, बिना सत्यापन का चरण, लैब जाँच नहीं): वह ठीक होने पर लॉट सूची में ही मिलेगा |
+| 11 | पासवर्ड भूल गए / फ़ोन खो गया | **तुरंत** अपने मैनेजर को बताएँ। वह खोए फ़ोन को बंद कर देगा और आपको नया अस्थायी पासवर्ड देगा |
+| 12 | काम ख़त्म | **फ़ोन में सेव** खाली हो तभी **साइन आउट** करें। नेटवर्क न हो तो साइन आउट न करें: नेटवर्क आने तक दोबारा साइन इन नहीं होगा। अपना फ़ोन हो तो साइन इन रहने दें (30 दिन) |
+
+**याद रखें**
+
+- पासवर्ड किसी को न बताएँ, मैनेजर को भी नहीं। हर रिकॉर्ड पर आपका नाम जाता है।
+- फ़ोन पर स्क्रीन लॉक ज़रूर रखें: बिना नेटवर्क काम के लिए किसानों की सूची फ़ोन में रहती है।
+- जो तौला, वही लिखें। सेव होने के बाद मात्रा, कोड और तारीख़ कोई नहीं बदल सकता।
+- अपने दर्ज किए लॉट को आप ख़ुद सत्यापित नहीं कर सकते: यह अगले चरण का काम है।
+- आपको सिर्फ़ अपना चरण और उससे ठीक पहले का चरण दिखता है। यह गड़बड़ी नहीं, नियम है।
+- ऊपर सुनहरी पट्टी **अभ्यास सिस्टम** दिखे तो वह सीखने की जगह है, असली लॉट वहाँ दर्ज न करें।
+- "यह स्क्रीन रुक गई" दिखे: **फिर से कोशिश करें**। जो सेव हुआ वह सुरक्षित है।
+
+मैनेजर का नाम और फ़ोन: ______________________________
+
+---
+
+## English
+
+**Language:** choose **English / हिन्दी** in the top bar.
+
+| # | Task | How |
+|---|---|---|
+| 1 | Sign in | **Field operator (phone)** → your phone number and password → **Sign in** |
+| 2 | The first time | The app says **Choose your own password**: 8 characters or more, known only to you. The password your manager gave you stops working after this |
+| 3 | Open your work | **Home** → **Your stages** → tap your stage. "3 waiting" means 3 lots have arrived from the stage before yours. **Before you leave for the field**, open your stage once while you have a network: after that it opens with no network, all day |
+| 4 | Check what arrived | Tap the lot → tick an item **only** if it is true for this lot → **Verify this lot**. Your name goes on it. If something is not right, do not verify: tell your manager or **Raise a flag** |
+| 5 | Record your step | **Record … for this lot** → fill in the form → **Review** → compare the numbers with the lot, tick → **Save record**. "Saved as …" means it is done. Write the code on the slip |
+| 6 | Procurement | Pick the farmer, weigh, bags, three moisture readings, a photo. The app works out the net weight; you do not type it |
+| 7 | No network | Tap **Save on this phone**. When the network is back the records (and photos) are sent by themselves, in the order you saved; a record is never made twice. Look under **Saved on phone**: "waiting" = not sent yet; "needs attention" = the database refused it and says why → **Fix and save again** |
+| 8 | A mistake | The next stage has not verified it yet: open the record → **Correct this record**. Already verified, or a lab / batch / grade record: tell your manager; they withdraw it, then you **Record the replacement** |
+| 9 | A photo or paper later | Open the record → **Add a photo or document** → **Attach** (a photo or a PDF) |
+| 10 | QR operator | Check the lot → **Activate and seal**. If the app refuses, read why (an open flag, a stage nobody verified, no lab test): once that is fixed the lot is still in your list |
+| 11 | Forgot the password / lost the phone | Tell your manager **at once**. They cut the lost phone off and give you a new temporary password |
+| 12 | End of work | **Sign out** only when **Saved on phone** is empty. Do not sign out where there is no network: you cannot sign in again until it is back. On your own phone you can stay signed in (30 days) |
+
+**Remember**
+
+- Tell nobody your password, not even your manager. Your name goes on every record.
+- Keep a screen lock on your phone: the farmer list is kept on it so that you can work with no network.
+- Record what you weighed. After saving, nobody can change a quantity, a code or a date.
+- You cannot verify a lot you recorded yourself: that is the next stage's job.
+- You see only your own stage and the one just before it. That is the rule, not a fault.
+- A gold strip **PRACTICE SYSTEM** at the top means a training system: do not record real lots there.
+- "This screen stopped working": tap **Try again**. What you saved is safe.
+
+Manager's name and phone: ______________________________

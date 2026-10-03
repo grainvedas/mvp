@@ -8,3 +8,5 @@ local-stack/run/
 web/dist/
 test-results/
 playwright-report/
+backups/
+release-evidence/

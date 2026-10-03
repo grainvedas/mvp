@@ -646,6 +646,7 @@
             },
             {
                 "key": "market",
+                "gate": "market_verdict",
                 "type": "select",
                 "label": "Market",
                 "options": [
@@ -719,6 +720,13 @@
                 "type": "text",
                 "label": "Destination",
                 "required": true
+            },
+            {
+                "key": "documents",
+                "type": "attachment",
+                "label": "Documents (photo or PDF)",
+                "accept": "document",
+                "required": false
             }
         ],
         "yield_alarm": false,

@@ -1,10 +1,10 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useI18n, type Lang } from '../lib/i18n';
 import { humanise } from '../lib/format';
 import type { Role } from '../lib/types';
 import { useOutbox } from '../offline/useOutbox';
-import { forgetAll } from '../offline/cache';
+import { CrashCard, ErrorBoundary } from './ErrorBoundary';
 
 const NAV: { to: string; key: string; roles: Role[] | 'farmer-slot' }[] = [
   { to: '/', key: 'nav.home', roles: ['admin', 'state_manager', 'client_manager', 'client_view', 'operator'] },
@@ -15,18 +15,23 @@ const NAV: { to: string; key: string; roles: Role[] | 'farmer-slot' }[] = [
   { to: '/farmers', key: 'nav.farmers', roles: 'farmer-slot' },
   { to: '/users', key: 'nav.users', roles: ['admin', 'state_manager', 'client_manager'] },
   { to: '/flags', key: 'nav.flags', roles: ['admin', 'state_manager', 'client_manager'] },
+  { to: '/health', key: 'nav.health', roles: ['admin', 'state_manager'] },
 ];
+const ALL_ROLES: Role[] = ['admin', 'state_manager', 'client_manager', 'client_view', 'operator'];
+const ACCOUNT = { to: '/account', key: 'nav.account', roles: ALL_ROLES };
 
 export function Layout() {
   const { ctx, signOut } = useAuth();
   const { t, lang, setLang } = useI18n();
+  const { pathname } = useLocation();
   const me = ctx?.user;
   const box = useOutbox({ autoSync: true });
   const pending = box.waiting + box.failed;
   const leave = async () => {
     if (pending > 0 && !window.confirm(t('outbox.signout_warning', { n: pending }))) return;
-    await forgetAll();
-    await signOut();
+    // Signing in needs the network; signing out does not. Say so before someone locks themselves out at the farm gate.
+    if (!box.online && !window.confirm(t('outbox.signout_offline'))) return;
+    await signOut();                                       // also forgets what was kept on this phone for offline work
   };
   const farmerSlot = !!ctx?.slots.some((s) => s.stage_type === 'procurement' || s.stage_type === 'village_batch');
   const visible = NAV.filter((n) => me && (n.roles === 'farmer-slot'
@@ -50,8 +55,9 @@ export function Layout() {
       <nav className="nav" aria-label="Main">
         {visible.map((n) => <NavLink key={n.to} to={n.to} end={n.to === '/'}>{t(n.key)}</NavLink>)}
         {(box.items.length > 0 || me?.role === 'operator') && <NavLink to="/outbox">{t('nav.outbox')}</NavLink>}
+        {me && <NavLink to={ACCOUNT.to}>{t(ACCOUNT.key)}</NavLink>}
       </nav>
-      <main><Outlet /></main>
+      <main><ErrorBoundary key={pathname} fallback={(_e, retry) => <CrashCard retry={retry} />}><Outlet /></ErrorBoundary></main>
     </>
   );
 }

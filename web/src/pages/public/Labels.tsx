@@ -6,9 +6,11 @@ import QRCode from 'qrcode';
 import { useAsync } from '../../lib/useAsync';
 import { ErrorBox, Loading } from '../../shell/ui';
 import { loadJourney, seasonName } from './journey';
+import { useI18n } from '../../lib/i18n';
 
 export function Labels() {
   const { code = '' } = useParams();
+  const { t } = useI18n();
   const [search, setSearch] = useSearchParams();
   const n = Math.min(Math.max(Number(search.get('n') ?? 12) || 12, 1), 60);
   const j = useAsync(() => loadJourney(code), [code]);
@@ -21,10 +23,10 @@ export function Labels() {
   return (
     <div>
       <div className="row no-print" style={{ marginBottom: 12 }}>
-        <h1 style={{ margin: 0 }}>Labels · <span className="mono">{code}</span></h1>
-        <label className="row" style={{ margin: 0 }}>Copies <input type="number" min={1} max={60} value={n} style={{ width: 90 }}
+        <h1 style={{ margin: 0 }}>{t('labels.title')} · <span className="mono">{code}</span></h1>
+        <label className="row" style={{ margin: 0 }}>{t('labels.copies')} <input type="number" min={1} max={60} value={n} style={{ width: 90 }}
           onChange={(e) => setSearch({ n: e.target.value })} /></label>
-        <button onClick={() => window.print()}>Print / save as PDF</button>
+        <button onClick={() => window.print()}>{t('labels.print_sheet')}</button>
       </div>
       <div className="label-sheet" data-testid="label-sheet">
         {Array.from({ length: n }, (_, i) => (

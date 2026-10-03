@@ -12,7 +12,11 @@ export function useOnline() {
   return online;
 }
 
-/** The signed-in user's outbox, live. Syncs by itself when the connection returns and once a minute while items wait. */
+/** How often waiting saves are tried again while the browser says there is a network (a weak link, or a sign-in token
+ *  that could not be renewed on the first try, both pass by themselves). */
+export const RETRY_MS = 20_000;
+
+/** The signed-in user's outbox, live. Syncs by itself when the connection returns and every RETRY_MS while items wait. */
 export function useOutbox({ autoSync = false } = {}) {
   const { ctx } = useAuth();
   const userId = ctx?.user?.id ?? '';
@@ -25,7 +29,7 @@ export function useOutbox({ autoSync = false } = {}) {
   useEffect(() => {
     if (!autoSync || !online || !userId || waiting === 0) return;
     void sync();
-    const t = window.setInterval(() => void sync(), 60_000);
+    const t = window.setInterval(() => void sync(), RETRY_MS);
     return () => window.clearInterval(t);
   }, [autoSync, online, userId, waiting, sync]);
   return {

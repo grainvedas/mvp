@@ -6,10 +6,11 @@
 // Nothing is resolved silently: a save the database refuses stays in the outbox as "needs attention" with the
 // database's own words, until the operator fixes it (opens it in the form again) or discards it.
 import { supabase } from '../lib/supabase';
-import { rpc } from '../lib/api';
+import { rpc, within } from '../lib/api';
 import { toAppError } from '../lib/errors';
+import { reportError } from '../lib/errorLog';
 import type { Footprint } from '../lib/types';
-import { uploadEvidence } from '../engine/evidence';
+import { uploadEvidence, UPLOAD_WAIT_MS } from '../engine/evidence';
 import { available, idbAll, idbDel, idbGet, idbPut } from './idb';
 
 export type OutboxState = 'queued' | 'syncing' | 'failed' | 'synced';
@@ -27,7 +28,8 @@ export interface OutboxItem {
   files: { name: string; type: string; blob: Blob }[];
   state: OutboxState;
   attempts: number;
-  error?: string;
+  error?: string;                           // the database's own words when it refused the save (state "failed")
+  note?: 'network' | 'session' | 'photo';   // why a waiting save has not gone out yet; shown in the reader's language
   photo_error?: string;
   footprint_id?: string;
   footprint_code?: string;
@@ -63,16 +65,28 @@ export async function clearSynced(userId: string) {
 
 async function saveItem(i: OutboxItem) { await idbPut('outbox', i); emit(); }
 
-/** Insert one queued save; a duplicate client_ref means an earlier attempt already made it. */
-async function push(i: OutboxItem): Promise<Footprint> {
-  const { data, error } = await supabase.from('footprints').insert({ ...i.row, client_ref: i.id }).select().single();
-  if (!error) return data as Footprint;
-  if (error.code === '23505' && /client_ref/.test(error.message)) {
-    const again = await supabase.from('footprints').select('*').eq('client_ref', i.id).single();
-    if (!again.error) return again.data as Footprint;
-    throw again.error;
-  }
-  throw error;
+/** A save that has had no answer for this long is stopped and treated as "no connection" (a dead link can hold a
+ *  request for minutes). Safe because of the save id: if the server did store it, the retry finds it. */
+export const SAVE_TIMEOUT_MS = 30_000;
+
+/**
+ * Store one record under a save id (footprints.client_ref, unique in the database: migration 21).
+ * Every save goes through here, whether it is sent at once or was kept on the phone first, so a save whose answer was
+ * lost on the way back is found again instead of being made a second time.
+ */
+export async function insertOnce(row: Record<string, unknown>, ref: string): Promise<Footprint> {
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), SAVE_TIMEOUT_MS);
+  try {
+    const { data, error } = await supabase.from('footprints').insert({ ...row, client_ref: ref }).select().abortSignal(stop.signal).single();
+    if (!error) return data as Footprint;
+    if (error.code === '23505' && /client_ref/.test(error.message)) {
+      const again = await supabase.from('footprints').select('*').eq('client_ref', ref).abortSignal(stop.signal).single();
+      if (!again.error) return again.data as Footprint;
+      throw again.error;
+    }
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 
 let running: Promise<{ synced: number; failed: number; left: number }> | null = null;
@@ -90,27 +104,41 @@ async function run(userId: string) {
     await saveItem({ ...i, state: 'syncing', attempts: i.attempts + 1 });
     let rec: Footprint;
     try {
-      rec = await push(i);
+      rec = await insertOnce(i.row, i.id);
     } catch (e) {
       const err = toAppError(e);
       if (err.kind === 'network' || err.kind === 'session') {       // still offline, or must sign in again: stop, keep order
-        await saveItem({ ...i, state: 'queued', attempts: i.attempts + 1, error: err.message });
+        await saveItem({ ...i, state: 'queued', attempts: i.attempts + 1, error: undefined, note: err.kind });
         break;
       }
       failed++;
-      await saveItem({ ...i, state: 'failed', attempts: i.attempts + 1, error: err.message });
+      await saveItem({ ...i, state: 'failed', attempts: i.attempts + 1, error: err.message, note: undefined });
+      reportError('sync_refused', `${i.stage_label}: ${err.message}`, `captured ${i.captured_at} · scope ${i.scope_label}`);   // the admin sees it too
       continue;
     }
-    let photoError: string | undefined;
+    let photoError: string | undefined, photoLater = false;
     for (const f of i.files) {
-      try { await uploadEvidence(rec, new File([f.blob], f.name, { type: f.type })); }
-      catch (e) { photoError = (e as Error).message; }
+      try { await within(UPLOAD_WAIT_MS, uploadEvidence(rec, new File([f.blob], f.name, { type: f.type }))); }
+      catch (e) {
+        const kind = toAppError(e).kind;
+        if (kind === 'network' || kind === 'session') { photoLater = true; break; }
+        photoError = (e as Error).message;                   // the server refused the file itself: retrying cannot help
+      }
+    }
+    if (photoLater) {
+      // The record is stored, its photo is not. The whole save keeps waiting with the photo; the next run finds the
+      // record by its save id (nothing is made twice) and sends the photo then. Before, the photo was dropped here.
+      await saveItem({ ...i, state: 'queued', attempts: i.attempts + 1, error: undefined, note: 'photo', footprint_id: rec.id, footprint_code: rec.footprint_code });
+      break;
     }
     if (i.split && rec.split_into_grades) {
-      try { await rpc('split_grades', { p_run: rec.id }); } catch (e) { photoError = `grade lots not created: ${(e as Error).message}`; }
+      // The save itself made the grade lots (migration 24). The call only creates them on a database without that
+      // migration, so a dropped connection here is not a problem to report.
+      try { await rpc('split_grades', { p_run: rec.id }); }
+      catch (e) { if (toAppError(e).kind !== 'network') photoError = `grade lots not created: ${(e as Error).message}`; }
     }
     synced++;
-    await saveItem({ ...i, state: 'synced', attempts: i.attempts + 1, error: undefined, photo_error: photoError,
+    await saveItem({ ...i, state: 'synced', attempts: i.attempts + 1, error: undefined, note: undefined, photo_error: photoError,
       footprint_id: rec.id, footprint_code: rec.footprint_code, synced_at: new Date().toISOString(), files: [] });
   }
   const left = (await listOutbox(userId)).filter((i) => i.state === 'queued').length;

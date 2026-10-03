@@ -464,3 +464,92 @@ SQL suite (`tests/run_local.sh`, PostgreSQL 16, UTC): `ALL TESTS PASSED`, 266 ok
   taps missed) — the bar now wraps; the badge said "0 to send" next to "1 need attention".
 - NOT run: anything on the live project; pg_cron scheduling; evidence re-hash against real Storage; the app on real
   low-end phones (device lab); Lighthouse; penetration test; Hindi review by operators.
+
+## 2026-10-02 — Phase 4 "go-live kit" (local stack, rebuilt from zero; nothing on a hosted project)
+
+Final run: `PGHOST=127.0.0.1 PGPORT=5433 PGUSER=postgres scripts/collect_release_evidence.sh --fresh`, exit 0, every
+step green; result files in `release-evidence/` (git-ignored). Postgres 16.13, Supabase Auth v2.197.0, PostgREST
+v12.2.3, Chromium with a Pixel 7 profile.
+
+- Migrations 22–27. SQL suite `ALL TESTS PASSED`, 510 assertions (files 01–18, the T1 self-test, the production build
+  on a second scratch database, concurrency). The same 510 under PowerShell (`tests/run_local.ps1`).
+- Stack with real logins: `remote_rls.mjs --t1` 121/121 · `remote_create_user.mjs` 29/29 · `ledger-check` function 6/6
+  incl. a block altered through psql and restored · ledger audit `NO FINDINGS (705 blocks, 227 records, 37 seals,
+  6 evidence files checked)` · smoke 20/21 (the 21st is `pg_cron`, which the sandbox Postgres does not have).
+- Web: `tsc` clean · `vitest` 83/83 · Playwright whole suite 25/25, two consecutive runs · built app behind a host-like
+  server 14/14 (public page on throttled 3G: 1681 ms, 169 KB; budgets 3 s, 200 KB) · acceptance rehearsal T1–T5
+  against the built app 5/5, two consecutive runs (public page 1664 and 1671 ms, 169 KB) · Lighthouse accessibility 100.
+- Backup and restore drill `RESTORE DRILL PASSED`: schema from the 27 migrations, data loaded in 1.9 s; identical to the
+  source in 20 tables, 1139 rows, 109 functions, 36 policies, 40 triggers; 705 ledger blocks verify with the source's
+  last hash; newest sealed lot's public page byte-identical; one block altered by hand in the copy is caught; 6/6
+  evidence files re-hashed; 22 logins in `auth.dump`.
+- Release gate (`release-evidence/GATE.md`), 10 rows: PASS 3 (edge checks, Hindi, ledger audit), REHEARSAL 4 (T1–T5,
+  RLS, page speed + Lighthouse, restore drill: green, but on the local stack), PENDING 3 (Veda's own run, acceptance
+  run by a non-builder, a day without network on a real phone). Gate CLOSED, as it must be before staging.
+
+Faults found in this phase, each reproduced before it was fixed (the list with the user-facing wording is in
+`docs/FIX_LIST.md`):
+
+- **Offline work ended after one hour** (fix-list 1, 2, 7). Reproduced on the build as it was: with no network and the
+  sign-in token past its hour, a cold start showed "Sign in" (test failed at that line). A probe of that build, with a
+  save waiting on the phone, the hour over and the network back, showed the request leaving with the PUBLIC key and
+  the save marked "needs attention · Permission denied for table footprints". A second probe: Sign out in that state
+  did nothing for 38 s while the offline copy was already erased (0 entries). Cause: supabase-js answers "no session"
+  when it cannot renew, after up to 25 s of retries, and falls back to the public key. Fix: the app reads the login
+  kept on the phone itself (`web/src/lib/keptLogin.ts`), a separate data client gets its token from `accessToken()`,
+  and a token that cannot be renewed is "no connection".
+- **A save whose answer was lost was stored twice** (fix-list 3). Reproduced: the request was let through and its answer
+  dropped; the old build ended with 2 records of that weight. Fix: one save id from the first tap (`insertOnce`).
+- **An unsent photo was dropped; a dead link left a form closed and a save hanging** (fix-list 4, 5): reproduced on
+  the old build (no "kept on the phone" after the photo upload failed; the form not open after 40 s on a link that
+  never answers). Now: the photo waits with the save; the form opens from the phone's copy after 9.0 s; the save is
+  stopped after 31 s and kept; it is sent once when the link is back.
+- **The offline copy survived a lost phone and a login ended by the server** (fix-list 6): on the old build 6 cache
+  entries (the farmer list among them) remained after deactivation and after a forced sign-out. Now 0.
+- Negative control for all of the above: the eight tests of `e2e-prod/field_day.spec.ts` run against a build of the
+  code as it was before these fixes: 8/8 FAIL, each at the line that states the fault. Against the fixed build: 8/8 pass
+  (cold start with no network and a run-out token: 0.5 s; after a dead link, sent 48 s after the link was back).
+- **A regression of my own, caught by an existing test**: the first version of the save id was kept per form, so ten
+  lots captured offline in a row overwrote each other in the outbox (1 left of 10). The Phase 3 airplane-mode test
+  failed ("1 to send", expected 10). Fixed (the id is released when the save is handed to the outbox); 10 of 10 again,
+  consecutive codes.
+- **Hindi screens showed English** on the record page, in status words and in the app's own messages (fix-list 17).
+  Found by a scan of the operator screens for text outside the dictionary; the scan is now a unit test, and it fails
+  on a planted line (negative control: three planted strings, three findings).
+- Earlier in this phase, each with its failing test first: a half-filled form wiped when the phone came back from
+  another app (supabase-js announces SIGNED_IN on every refocus) · a lot left closed and unsealable after a refused
+  seal · a split grading run without its grade lots · the whole scope's ledger readable by any operator (a Procurement
+  operator read 11 blocks, among them the buyer and the sale) · eleven direct-write openings (migration 22 header) ·
+  "Correct this record" opening the waiting list · contrast below the mark (Lighthouse 96, now 100).
+- Checks that were given a negative control: the ledger audit (5 findings on forged and altered rows); the restore
+  drill (fails, naming the table and the block, when the manifest disagrees; the backup names an altered evidence
+  file); evidence restore (one file removed, put back byte-identical; the monitor reports a missing and an altered
+  file); the auth-settings check (three combinations of settings against a stand-in server: sign-up off with
+  auto-confirm on → PASSED with notes; sign-up open → 3 failures; all strict → PASSED).
+- Public sign-up OFF, as the live projects will have it (`STACK_DISABLE_SIGNUP=1 local-stack/up.sh`): demo logins made,
+  `remote_create_user.mjs` 28/28 (the 29th check is "a sign-up gets no role", replaced by "sign-up is switched off"),
+  `remote_rls.mjs --t1` 121/121, and through the screens: scope wizard creating a person, new person → own password →
+  reset → deactivate, T1.
+- Tooling faults fixed: `collect_release_evidence.sh` stopped at step 6 on its first complete run (`$!` unset under
+  `set -u`); `local-stack/down.sh` did not stop the Auth server (the recorded pid was a wrapper shell's), so rebuilt
+  stacks accumulated Auth servers sharing one port. Both fixed and re-run from zero.
+- Not a demonstrated fault, and not claimed as one: the service worker's plain copy of the app shell (the old worker
+  passed the same test); sign-out with no network while the token is still fresh (it worked before).
+- Cosmetic, left as is: in one of four suite runs the list reporter printed the compiled file's line numbers for
+  `t3_t5.spec.ts` (12 and 158 instead of 13 and 125). One compiled copy exists in the runner's cache; the same tests ran.
+
+NOT run, and therefore not known:
+
+- Anything on the hosted staging or production project: migrations 22–27, the `reset-password` function, the Auth
+  settings, the smoke check, permissions with real logins, the restore drill from a real backup.
+- Which earlier run-sheets (Phases 1 to 3) have been completed on the hosted project: step A2 of
+  `docs/RUNSHEET_phase4.md` shows it.
+- The Cloudflare deploy, and whether Cloudflare applies `_headers` to the single-page fallback (tested here against a
+  stand-in server that reads the same file).
+- The app on a real phone: low-end Android, a real hour without network, the camera, a real weak signal.
+- The CI workflow in `docs/ci/database-tests.yml` with its new steps (result files, artifact upload, 40-minute limit):
+  its first run is its proof.
+- `pg_cron` scheduling; phone + password sign-in with the hosted Phone provider settings; SMS.
+- Restoring `auth.dump` and uploading evidence into a hosted project (the evidence upload was rehearsed against the
+  local stand-in only).
+- Penetration test, device lab, Hindi read by operators.

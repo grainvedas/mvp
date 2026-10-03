@@ -14,6 +14,8 @@ export interface FieldDef {
   options?: string[];
   column?: boolean;        // stored in a footprints column (e.g. farmer_id), not in payload
   sets_prev?: boolean;     // footprint[] whose first lot becomes prev_footprint_id (aggregating stages)
+  gate?: 'market_verdict'; // select: only the markets the source lot may be sold to are offered (app.lot_markets)
+  accept?: 'document';     // attachment: any photo or PDF from the phone (default: take a photo with the camera)
 }
 
 export interface StageDefinition {
@@ -75,6 +77,7 @@ export interface Footprint {
   is_grade_lot: boolean;
   grade: string | null;
   split_into_grades: boolean;
+  supersedes_id: string | null;
   created_by: string;
   verified_by: string | null;
   verified_at: string | null;
@@ -136,3 +139,10 @@ export interface FootprintDetail {
 export const MANAGER_ROLES: Role[] = ['admin', 'state_manager', 'client_manager'];
 export const ROLE_RANK: Record<Role, number> = { admin: 4, state_manager: 3, client_manager: 2, client_view: 1, operator: 1 };
 export const isManager = (r?: Role | null) => !!r && MANAGER_ROLES.includes(r);
+
+export interface LotMarkets {
+  has_qc: boolean; domestic: 'pass' | 'fail' | 'pending'; export: 'pass' | 'fail' | 'pending';
+  overridden: boolean; export_allowed: boolean; markets: string[];
+}
+export interface Withdrawal { footprint_id: string; reason: string; withdrawn_by: string; withdrawn_at: string }
+

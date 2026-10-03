@@ -3,26 +3,30 @@
 //   2 Arrival   app.incoming_records      6 Review   confirm what will be stored
 //   3 Verify    app.verify_footprint      7 Save     insert footprints (gate stage: app.seal_lot)
 //   4 Form      stage.form_schema         8 Handoff  the tick-list the next stage will check
+// The gate stage saves nothing by insert: app.seal_source creates the QR record and seals it in one transaction.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
-import { rpc, q } from '../lib/api';
+import { rpc, q, within } from '../lib/api';
+import { toAppError } from '../lib/errors';
 import { supabase } from '../lib/supabase';
 import { useAsync, useAction } from '../lib/useAsync';
 import { useI18n } from '../lib/i18n';
 import { kg, dateTime, humanise, num } from '../lib/format';
-import type { Footprint, Preview, StageForm, StageType } from '../lib/types';
-import { ErrorBox, Loading, Badge, Empty } from '../shell/ui';
+import type { Footprint, LotMarkets, Preview, StageForm, StageType, Withdrawal } from '../lib/types';
+import { ErrorBox, Loading, Badge, Empty, errorText } from '../shell/ui';
 import { Widget, buildPayload, missingRequired, PREFILL_FROM_SOURCE, SUPPORTED, type FieldValue } from './widgets';
-import { uploadEvidence } from './evidence';
+import { uploadEvidence, UPLOAD_WAIT_MS } from './evidence';
 import { offlinePreview, type OfflinePreview } from './offlinePreview';
 import { localiseForm } from './localise';
 import { cached, isNetworkError } from '../offline/cache';
-import { enqueue, discard, getOutboxItem, type OutboxItem } from '../offline/outbox';
+import { enqueue, discard, getOutboxItem, insertOnce, type OutboxItem } from '../offline/outbox';
 import { useOnline } from '../offline/useOutbox';
 import { useAuth } from '../auth/AuthProvider';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+/** How long the maths step waits for the server before working the numbers out on the phone (dead link). */
+const PREVIEW_WAIT_MS = 8000;
 
 export function Stepper({ current, form }: { current: Step; form: StageForm }) {
   const { t } = useI18n();
@@ -40,13 +44,25 @@ export function Stepper({ current, form }: { current: Step; form: StageForm }) {
 
 export function StagePage() {
   const { scopeId = '', stage = '' } = useParams();
-  const [search] = useSearchParams();
+  const [search, setSearch] = useSearchParams();
   const editId = search.get('edit');
   const draftId = search.get('draft');
+  const replacesId = search.get('replaces');
   const { t, lang } = useI18n();
   const form = useAsync(() => cached(`stage_form:${scopeId}:${stage}`, () => rpc<StageForm>('stage_form', { p_scope: scopeId, p_stage: stage })), [scopeId, stage]);
   const [draft, setDraft] = useState<OutboxItem | null>(null);
   useEffect(() => { if (draftId) void getOutboxItem(draftId).then((d) => setDraft(d ?? null)); else setDraft(null); }, [draftId]);
+  // ?replaces=<id>: record the replacement of a withdrawn record (same source lot, values prefilled, linked by supersedes_id)
+  const [replaces, setReplaces] = useState<{ old: Footprint; source: Footprint | null } | null>(null);
+  useEffect(() => {
+    if (!replacesId) { setReplaces(null); return; }
+    void (async () => {
+      const old = await q(supabase.from('footprints').select('*').eq('id', replacesId).single()) as unknown as Footprint;
+      const src = old.prev_footprint_id && !old.is_grade_lot
+        ? await q(supabase.from('footprints').select('*').eq('id', old.prev_footprint_id).single()) as unknown as Footprint : null;
+      setReplaces({ old, source: src });
+    })().catch(() => setReplaces(null));
+  }, [replacesId]);
   const [tab, setTab] = useState<'incoming' | 'new' | 'records'>('incoming');
   const [source, setSource] = useState<Footprint | null>(null);
   const [editing, setEditing] = useState<Footprint | null>(null);
@@ -54,8 +70,15 @@ export function StagePage() {
   useEffect(() => { if (form.data) setTab(form.data.stage.is_first ? 'new' : 'incoming'); }, [form.data]);
   useEffect(() => {
     if (!editId) { setEditing(null); return; }
-    q(supabase.from('footprints').select('*').eq('id', editId).single()).then((f) => { setEditing(f as unknown as Footprint); setTab('new'); });
+    void q(supabase.from('footprints').select('*').eq('id', editId).single()).then((f) => setEditing(f as unknown as Footprint), () => setEditing(null));
   }, [editId]);
+  // A form opened by a link (?edit, ?draft, ?replaces) is shown whatever tab is selected: before, the correction form
+  // of any stage but the first was replaced by the "waiting" list as soon as the stage definition finished loading.
+  const opened = !!(draft || replaces || editing);
+  const pick = (next: 'incoming' | 'new' | 'records') => {
+    if (opened) setSearch({}, { replace: true });                       // leaving the opened form
+    setTab(next); setSource(null);
+  };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const localised = useMemo(() => (form.data ? localiseForm(form.data, t) : null), [form.data, lang]);
@@ -69,21 +92,21 @@ export function StagePage() {
       <p className="muted small"><Link to="/">{t('nav.home')}</Link> · {f.scope.client.name} · {f.scope.crop.name} · {f.scope.season_code} · {f.scope.geography}</p>
       <h1>{f.stage.label}</h1>
       <div className="tabs" role="tablist">
-        {!f.stage.is_first && <button role="tab" aria-selected={tab === 'incoming'} className={tab === 'incoming' ? 'active' : ''}
-          onClick={() => { setTab('incoming'); setSource(null); }}>{t('engine.incoming', { stage: prevLabel })}</button>}
-        {(f.stage.is_first || f.stage.aggregates) && f.can_create && <button role="tab" aria-selected={tab === 'new'} className={tab === 'new' ? 'active' : ''}
-          onClick={() => setTab('new')}>{t('engine.new_record', { stage: f.stage.label })}</button>}
-        <button role="tab" aria-selected={tab === 'records'} className={tab === 'records' ? 'active' : ''} onClick={() => setTab('records')}>{t('engine.my_records')}</button>
+        {!f.stage.is_first && <button role="tab" aria-selected={!opened && tab === 'incoming'} className={!opened && tab === 'incoming' ? 'active' : ''}
+          onClick={() => pick('incoming')}>{t('engine.incoming', { stage: prevLabel })}</button>}
+        {(f.stage.is_first || f.stage.aggregates) && f.can_create && <button role="tab" aria-selected={!opened && tab === 'new'} className={!opened && tab === 'new' ? 'active' : ''}
+          onClick={() => pick('new')}>{t('engine.new_record', { stage: f.stage.label })}</button>}
+        <button role="tab" aria-selected={!opened && tab === 'records'} className={!opened && tab === 'records' ? 'active' : ''} onClick={() => pick('records')}>{t('engine.my_records')}</button>
       </div>
       {draft && <RecordForm key={draft.id} form={f} source={draft.source as Footprint | null} editing={null} draft={draft} />}
-      {!draft && tab === 'incoming' && !source && <Incoming form={f} onPick={(fp) => setSource(fp)} />}
-      {!draft && tab === 'incoming' && source && (
+      {!draft && replaces && <RecordForm key={`r-${replaces.old.id}`} form={f} source={replaces.source} editing={null} replaces={replaces.old} />}
+      {!draft && !replaces && editing && <RecordForm key={`e-${editing.id}`} form={f} source={null} editing={editing} />}
+      {!opened && tab === 'incoming' && !source && <Incoming form={f} onPick={(fp) => setSource(fp)} />}
+      {!opened && tab === 'incoming' && source && (
         <VerifyAndContinue form={f} source={source} onBack={() => setSource(null)} onReload={(fp) => setSource(fp)} />
       )}
-      {!draft && tab === 'new' && (f.can_create || editing) && (
-        <RecordForm key={editing?.id ?? 'new'} form={f} source={null} editing={editing} />
-      )}
-      {!draft && tab === 'records' && <Records form={f} />}
+      {!opened && tab === 'new' && f.can_create && <RecordForm key="new" form={f} source={null} editing={null} />}
+      {!opened && tab === 'records' && <Records form={f} />}
     </div>
   );
 }
@@ -134,6 +157,7 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
   const [round, setRound] = useState(0);
   const act = useAction();
   const [sealed, setSealed] = useState<{ qr_code: string; img: string } | null>(null);
+  const markets = useLotMarkets(source.id);
 
   const verify = () => act.run(async () => {
     const r = await rpc<Footprint>('verify_footprint', { p_fp: source.id });
@@ -141,12 +165,9 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
   });
 
   const seal = () => act.run(async () => {
-    const me = (await rpc<{ user: { id: string } }>('my_context')).user.id;
-    const created = await q(supabase.from('footprints').insert({
-      scope_id: form.scope.id, client_id: form.scope.client.id, stage_type: form.stage.stage_type,
-      prev_footprint_id: source.id, created_by: me, payload: {},
-    }).select().single()) as Footprint;
-    const s = await rpc<{ qr_code: string }>('seal_lot', { p_qr_fp: created.id });
+    // One request, one transaction (migration 24): if the gate refuses (an open flag, …) nothing is saved and the lot
+    // stays in this list, to be sealed once the reason is fixed.
+    const s = await rpc<{ qr_code: string }>('seal_source', { p_source: source.id });
     setSealed({ qr_code: s.qr_code, img: await QRCode.toDataURL(`${window.location.origin}/verify/${s.qr_code}`, { margin: 1, width: 360 }) });
   });
 
@@ -180,6 +201,8 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
         ))}
         <dt>{t('common.status')}</dt><dd><Badge value={source.status} /></dd>
       </dl>
+      <MarketVerdict m={markets} />
+      <ReplacesNote withdrawnId={source.supersedes_id} />
       {source.warnings?.length > 0 && <div className="alert warn">{source.warnings.join(' · ')}</div>}
       <p><Link to={`/records/${source.id}`}>{t('engine.open_full')}</Link></p>
       {!verified && form.can_verify_incoming && (
@@ -213,18 +236,70 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
 
 function FragmentKV({ k, v }: { k: string; v: string }) { return <><dt>{k}</dt><dd>{v}</dd></>; }
 
+/** What the lab said about a lot, for any stage after QC (the verdict travels with the lot). */
+function useLotMarkets(lotId: string | undefined) {
+  const [m, setM] = useState<LotMarkets | null>(null);
+  useEffect(() => {
+    setM(null);
+    if (!lotId) return;
+    let live = true;
+    cached(`lot_markets:${lotId}`, () => rpc<LotMarkets>('lot_markets', { p_fp: lotId })).then((r) => { if (live) setM(r); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [lotId]);
+  return m;
+}
+function MarketVerdict({ m }: { m: LotMarkets | null }) {
+  const { t } = useI18n();
+  if (!m?.has_qc) return null;
+  return (
+    <p data-testid="market-verdict">{t('engine.lab_verdict')}: {t('pv.domestic')} <Badge value={m.domestic} label={t(`pv.v_${m.domestic}`)} /> · {t('pv.export')} <Badge value={m.export} label={t(`pv.v_${m.export}`)} />
+      {m.overridden && <> <Badge value="pending" label={t('pv.override')} /></>}</p>
+  );
+}
+
+/** "This record replaces X, withdrawn by a manager: reason" — shown to whoever records or verifies the replacement. */
+function ReplacesNote({ withdrawnId }: { withdrawnId: string | null | undefined }) {
+  const { t } = useI18n();
+  const [info, setInfo] = useState<{ code: string; reason: string } | null>(null);
+  useEffect(() => {
+    setInfo(null);
+    if (!withdrawnId) return;
+    let live = true;
+    void (async () => {
+      const old = await q(supabase.from('footprints').select('footprint_code').eq('id', withdrawnId).single()) as unknown as { footprint_code: string };
+      const w = await q(supabase.from('withdrawals').select('*').eq('footprint_id', withdrawnId).maybeSingle()) as unknown as Withdrawal | null;
+      if (live) setInfo({ code: old.footprint_code, reason: w?.reason ?? '' });
+    })().catch(() => undefined);
+    return () => { live = false; };
+  }, [withdrawnId]);
+  if (!info) return null;
+  return <div className="alert info" data-testid="replaces-note">{t('engine.replaces', { code: info.code, reason: info.reason })}</div>;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Steps 4–8: form, live maths, review, save, handoff
 // ---------------------------------------------------------------------------------------------------------------
-function RecordForm({ form, source, editing, onAnother, draft }: {
-  form: StageForm; source: Footprint | null; editing: Footprint | null; onAnother?: () => void; draft?: OutboxItem;
+function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
+  form: StageForm; source: Footprint | null; editing: Footprint | null; onAnother?: () => void; draft?: OutboxItem; replaces?: Footprint;
 }) {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const online = useOnline();
   const fields = form.stage.form_schema;
   const [values, setValues] = useState<Record<string, FieldValue>>(() =>
-    draft ? (draft.values as Record<string, FieldValue>) : initialValues(form, source, editing));
+    draft ? (draft.values as Record<string, FieldValue>) : initialValues(form, source, editing ?? replaces ?? null));
+  // Fields gated on the lab verdict (Commercial "market"): only what the source lot may be sold to is offered.
+  const gated = fields.some((fd) => fd.gate === 'market_verdict');
+  const markets = useLotMarkets(gated ? source?.id : undefined);
+  useEffect(() => {
+    if (!markets) return;
+    for (const fd of fields) {
+      if (fd.gate === 'market_verdict' && typeof values[fd.key] === 'string' && values[fd.key] && !markets.markets.includes(values[fd.key] as string)) {
+        setValues((s) => ({ ...s, [fd.key]: '' }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markets]);
   const [preview, setPreview] = useState<Preview | OfflinePreview | null>(null);
   const [queued, setQueued] = useState<OutboxItem | null>(null);
   const [reviewing, setReviewing] = useState(false);
@@ -234,6 +309,9 @@ function RecordForm({ form, source, editing, onAnother, draft }: {
   const [gradeLots, setGradeLots] = useState<Footprint[]>([]);
   const [leftOnSource, setLeftOnSource] = useState<number | null>(null);
   const act = useAction();
+  // One id for this save, whichever way it reaches the server: sent now, or kept on the phone and sent later. The
+  // database refuses the same id twice, so a save whose answer was lost on a weak signal is never made twice.
+  const saveRef = useRef<string>('');
   const unsupported = fields.filter((f) => !SUPPORTED.has(f.type) && f.required);
   const missing = missingRequired(fields, values);
   const built = useMemo(() => buildPayload(fields, values), [fields, values]);
@@ -249,11 +327,11 @@ function RecordForm({ form, source, editing, onAnother, draft }: {
       try {
         const p = editing
           ? await rpc<Preview>('preview_correction', { p_fp: editing.id, p_payload: built.payload, p_farmer: built.columns.farmer_id ?? null })
-          : await rpc<Preview>('preview_reconcile', { p_scope: form.scope.id, p_stage: form.stage.stage_type,
+          : await within(PREVIEW_WAIT_MS, rpc<Preview>('preview_reconcile', { p_scope: form.scope.id, p_stage: form.stage.stage_type,
               p_prev: source?.id ?? built.columns.prev_footprint_id ?? null, p_payload: built.payload, p_farmer: built.columns.farmer_id ?? null,
-              p_split: built.columns.split_into_grades === true });
+              p_split: built.columns.split_into_grades === true }));
         setPreview(p);
-      } catch (e) { setPreview(isNetworkError(e) && !editing ? local() : { ok: false, error: (e as Error).message }); }
+      } catch (e) { setPreview(isNetworkError(e) && !editing ? local() : { ok: false, error: errorText(toAppError(e), t) }); }
     }, 350);
     return () => window.clearTimeout(timer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -262,10 +340,12 @@ function RecordForm({ form, source, editing, onAnother, draft }: {
   /** Keep the save on this phone; the outbox sends it when the connection returns (oldest first). */
   const queue = async (me: string) => {
     const row = { scope_id: form.scope.id, client_id: form.scope.client.id, stage_type: form.stage.stage_type,
-      prev_footprint_id: source?.id ?? null, created_by: me, payload: built.payload, ...built.columns };
+      prev_footprint_id: source?.id ?? null, created_by: me, payload: built.payload, ...built.columns,
+      ...(replaces ? { supersedes_id: replaces.id } : {}) };
     const farmerName = document.querySelector('[data-testid="farmer-picked"] strong')?.textContent;
     const qty = (preview as OfflinePreview | null)?.qty_out;
     const item = await enqueue({
+      id: saveRef.current || undefined,
       user_id: me, scope_id: form.scope.id, stage_type: form.stage.stage_type, stage_label: form.stage.label,
       scope_label: `${form.scope.crop.name} · ${form.scope.season_code} · ${form.scope.geography}`,
       summary: [farmerName, source?.footprint_code, qty !== undefined ? kg(qty) : null].filter(Boolean).join(' · '),
@@ -274,7 +354,8 @@ function RecordForm({ form, source, editing, onAnother, draft }: {
       split: built.columns.split_into_grades === true,
       files: built.files.map(({ file }) => ({ name: file.name, type: file.type, blob: file })),
     });
-    if (draft) await discard(draft.id);
+    saveRef.current = '';                                  // the id now belongs to the save waiting in the outbox; the next lot gets its own
+    if (draft && draft.id !== item.id) await discard(draft.id);
     setQueued(item);
   };
 
@@ -284,23 +365,39 @@ function RecordForm({ form, source, editing, onAnother, draft }: {
     if (editing) {
       rec = await q(supabase.from('footprints').update({ payload: built.payload, ...built.columns }).eq('id', editing.id).select().single()) as Footprint;
     } else {
+      saveRef.current ||= crypto.randomUUID();
       if (!online) { await queue(me); return; }
       try {
-        rec = await q(supabase.from('footprints').insert({
+        rec = await insertOnce({
           scope_id: form.scope.id, client_id: form.scope.client.id, stage_type: form.stage.stage_type,
           prev_footprint_id: source?.id ?? null, created_by: me, payload: built.payload, ...built.columns,
-        }).select().single()) as Footprint;
+          ...(replaces ? { supersedes_id: replaces.id } : {}),
+        }, saveRef.current);
       } catch (e) {
-        if (isNetworkError(e)) { await queue(me); return; }   // connection dropped while saving: keep it on the phone
-        throw e;
+        // Connection dropped, or no answer in time: keep it on the phone under the same save id. If the server did
+        // store it and only the answer was lost, the outbox finds that record instead of making a second one.
+        if (isNetworkError(e)) { await queue(me); return; }
+        throw toAppError(e);
       }
       if (draft) await discard(draft.id);
     }
+    // The record is stored. From here on a lost connection must not make the save look failed.
     for (const { file } of built.files) {
-      try { await uploadEvidence(rec, file); } catch (e) { setPhotoError((e as Error).message); }
+      try { await within(UPLOAD_WAIT_MS, uploadEvidence(rec, file)); }
+      catch (e) {
+        // No connection for the photo: it waits on the phone under the same save id. The outbox finds the record that
+        // was just made (it is not made twice) and attaches the photo when the network is back.
+        if (isNetworkError(e) && !editing) { await queue(me); return; }
+        setPhotoError(errorText(toAppError(e), t));
+      }
     }
-    if (form.stage.splits_forward && rec.split_into_grades && !editing) setGradeLots(await rpc<Footprint[]>('split_grades', { p_run: rec.id }));
-    if (source && form.stage.splits_forward && !editing) setLeftOnSource(await rpc<number>('available_qty', { p_fp: source.id }));
+    try {
+      // The save itself made the grade lots (migration 24); this asks for them to show their codes. On a database
+      // that has not had that migration yet the same call creates them, as before.
+      if (form.stage.splits_forward && rec.split_into_grades) setGradeLots(await rpc<Footprint[]>('split_grades', { p_run: rec.id }));
+      if (source && form.stage.splits_forward && !editing) setLeftOnSource(await rpc<number>('available_qty', { p_fp: source.id }));
+    } catch (e) { if (!isNetworkError(e)) throw e; }         // only what the "saved" screen shows extra; the record page has it
+    saveRef.current = '';
     setSaved(rec);
   });
 
@@ -353,16 +450,22 @@ function RecordForm({ form, source, editing, onAnother, draft }: {
       {editing && <div className="alert info">{t('record.edit_pending')}: <span className="mono">{editing.footprint_code}</span></div>}
       {editing && !online && <div className="alert warn">{t('engine.correct_needs_network')}</div>}
       {draft?.error && <div className="alert error" data-testid="draft-error">{t('engine.draft_refused')} {draft.error}</div>}
+      <ReplacesNote withdrawnId={replaces?.id} />
+      {gated && <MarketVerdict m={markets} />}
       {source && <p className="muted">{t('engine.source_lot')} <span className="mono">{source.footprint_code}</span> · {kg(source.qty_out)}</p>}
       {unsupported.length > 0 && <div className="alert warn">{t('engine.widget_missing')} ({unsupported.map((f) => f.label).join(', ')})</div>}
-      <form onSubmit={(e) => { e.preventDefault(); if (preview?.ok) setReviewing(true); }} aria-label={`${form.stage.label} form`}>
+      <form onSubmit={(e) => { e.preventDefault(); if (preview?.ok) setReviewing(true); }} aria-label={form.stage.label}>
         <fieldset disabled={reviewing} style={{ border: 'none', padding: 0, margin: 0 }}>
           {fields.map((fd) => (
             <div className="field" key={fd.key}>
               <label htmlFor={`f-${fd.key}`}>{fd.label}{fd.unit ? ` (${fd.unit})` : ''}{fd.required ? ' *' : ''}</label>
               <Widget id={`f-${fd.key}`} field={fd} value={values[fd.key] ?? null} qualityParams={form.quality_params}
                 clientId={form.scope.client.id} scopeId={form.scope.id} stageType={form.stage.stage_type}
+                allowed={fd.gate === 'market_verdict' && markets ? markets.markets : undefined}
                 onChange={(v) => setValues((s) => ({ ...s, [fd.key]: v }))} />
+              {fd.gate === 'market_verdict' && markets && !markets.export_allowed && (
+                <p className="hint" data-testid="market-gate">{t(markets.has_qc ? 'engine.market_domestic_only' : 'engine.market_no_verdict')}</p>
+              )}
             </div>
           ))}
         </fieldset>

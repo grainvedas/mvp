@@ -22,7 +22,7 @@ export function SignIn() {
     const { error: err } = mode === 'email'
       ? await supabase.auth.signInWithPassword({ email: id.trim(), password })
       : await supabase.auth.signInWithPassword({ phone, password });
-    if (err) setError(toAppError({ message: err.message === 'Invalid login credentials' ? 'Wrong sign-in details.' : err.message }));
+    if (err) setError(toAppError({ message: err.message === 'Invalid login credentials' ? t('signin.wrong') : err.message }));
     setBusy(false);
   }
 

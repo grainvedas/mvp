@@ -1,14 +1,18 @@
 {
   "name": "grainveda-web",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build --mode staging",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "build:production": "tsc -b && vite build --mode production",
+    "serve:dist": "node scripts/serve-dist.mjs",
+    "e2e:prod": "playwright test -c playwright.prod.config.ts",
+    "e2e:acceptance": "playwright test -c playwright.acceptance.config.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

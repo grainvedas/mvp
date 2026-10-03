@@ -6,12 +6,22 @@
 // Requests to Supabase (another origin) are never touched.
 // One cache per build: main.tsx registers /sw.js?v=<build id>, so every deploy installs afresh and drops the old cache.
 const CACHE = 'grainveda-shell-' + (new URL(self.location.href).searchParams.get('v') || 'dev');
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg'];
+const SHELL = ['/manifest.webmanifest', '/icon.svg'];
 
 // Precache the shell AND every built file (asset-manifest.json is written by `vite build`), so the signed-in part of
 // the app, loaded lazily, also opens offline even if the operator never visited that screen online.
+// Static hosts redirect /index.html to / (Cloudflare) and a redirected response may not be used to answer a page
+// load. So the shell is fetched from / and stored as a plain copy under both names.
+async function plainCopy(res) {
+  return new Response(await res.blob(), { status: res.status, statusText: res.statusText, headers: res.headers });
+}
 async function precache() {
   const c = await caches.open(CACHE);
+  const shell = await fetch('/', { cache: 'no-store' });
+  if (!shell.ok) throw new Error('app shell not available');
+  const copy = await plainCopy(shell);
+  await c.put('/index.html', copy.clone());
+  await c.put('/', copy);
   await c.addAll(SHELL);
   try {
     const m = await (await fetch('/asset-manifest.json', { cache: 'no-store' })).json();
@@ -35,8 +45,11 @@ self.addEventListener('fetch', (e) => {
 
   if (req.mode === 'navigate') {
     e.respondWith(fetch(req).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put('/index.html', copy));
+      // keep the newest shell for the next start with no network; only a real page, never an error or a redirect chain
+      if (res.ok && (res.headers.get('content-type') ?? '').includes('text/html')) {
+        const copy = res.clone();
+        e.waitUntil(plainCopy(copy).then((plain) => caches.open(CACHE).then((c) => c.put('/index.html', plain))).catch(() => undefined));
+      }
       return res;
     }).catch(() => caches.match('/index.html')));
     return;

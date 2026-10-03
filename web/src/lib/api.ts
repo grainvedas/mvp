@@ -1,5 +1,5 @@
-import { appDb, supabase, SUPABASE_URL } from './supabase';
-import { toAppError } from './errors';
+import { accessToken, appDb, SUPABASE_ANON_KEY, SUPABASE_URL } from './supabase';
+import { AppError, toAppError } from './errors';
 
 /** Call an RPC in the `app` schema and throw a plain-language AppError on refusal. */
 export async function rpc<T = unknown>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -15,14 +15,23 @@ export async function q<T>(p: PromiseLike<{ data: T | null; error: unknown }>): 
   return data as T;
 }
 
+/**
+ * A link that is connected but dead can hold a request for minutes. Rejects as "no connection" when `p` has not
+ * answered within `ms`; the request itself is left alone (if it does get through, the save id makes the retry safe).
+ */
+export function within<T>(ms: number, p: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new AppError('No connection to the server. Check the network and try again.', '', 'network')), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
+}
+
 /** Call an Edge Function with the signed-in user's token. */
 export async function callFunction<T = unknown>(name: string, body: unknown): Promise<T> {
-  const { data: s } = await supabase.auth.getSession();
-  const token = s.session?.access_token;
+  const token = await accessToken().catch((e) => { throw toAppError(e); });     // renewed first if the hourly token has run out
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${token ?? ''}`, 'content-type': 'application/json',
-      apikey: (supabase as unknown as { supabaseKey: string }).supabaseKey },
+    headers: { authorization: `Bearer ${token ?? ''}`, 'content-type': 'application/json', apikey: SUPABASE_ANON_KEY },
     body: JSON.stringify(body),
   }).catch((e) => { throw toAppError(e); });
   const data = await res.json().catch(() => ({}));

@@ -1,10 +1,12 @@
-// One URL like a Supabase project: /rest/v1 -> PostgREST, /auth/v1 -> Auth, /functions/v1/<name> -> local function runner.
+// One URL like a Supabase project: /rest/v1 -> PostgREST, /auth/v1 -> Auth, /functions/v1/<name> -> local function runner,
+// /storage/v1 -> the Storage stand-in.
 import http from 'node:http';
 const port = Number(process.env.GATEWAY_PORT ?? 54321);
 const routes = [
   ['/rest/v1', Number(process.env.PGRST_PORT ?? 54330)],
   ['/auth/v1', Number(process.env.AUTH_PORT ?? 54331)],
   ['/functions/v1', Number(process.env.FUNCTIONS_PORT ?? 54332)],
+  ['/storage/v1', Number(process.env.STORAGE_PORT ?? 54333)],
 ];
 http.createServer((req, res) => {
   const hit = routes.find(([p]) => req.url === p || req.url.startsWith(p + '/') || req.url.startsWith(p + '?'));

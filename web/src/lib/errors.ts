@@ -22,9 +22,14 @@ export function toAppError(e: unknown): AppError {
   const err = e as { code?: string; message?: string; status?: number; name?: string } | null;
   const code = err?.code ?? '';
   const message = err?.message ?? String(e ?? 'Something went wrong');
-  if (/Failed to fetch|NetworkError|network/i.test(message) || err?.name === 'TypeError')
+  // An answer that carries a database code (SQLSTATE or PGRST…) came from the server, whatever its words: it is never
+  // "no connection". AbortError / TimeoutError: a save that waited too long on a dead link, stopped by the app itself.
+  const fromServer = /^[0-9A-Z]{5}$|^PGRST/.test(code);
+  // (A TypeError with other words is a fault in the app, not the network: it must be shown, not queued.)
+  if (!fromServer && (/Failed to fetch|fetch failed|NetworkError|network|Load failed|^(AbortError|TimeoutError)\b|signal (is|was) aborted|signal timed out/i.test(message)
+    || err?.name === 'AbortError' || err?.name === 'TimeoutError'))
     return new AppError('No connection to the server. Check the network and try again.', code, 'network');
-  if (code === 'PGRST301' || /JWT expired|invalid jwt/i.test(message))
+  if (code === 'PGRST301' || code === 'PGRST303' || /JWT expired|invalid jwt/i.test(message))
     return new AppError('Your session has ended. Please sign in again.', code, 'session');
   if (code === '23514') return new AppError(tidy(message), code, 'rule');
   if (code === '42501' || /row-level security/i.test(message))

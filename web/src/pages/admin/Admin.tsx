@@ -72,7 +72,9 @@ export function Users() {
   const creatable = (['state_manager', 'client_manager', 'client_view', 'operator'] as Role[]).filter((r) => me.role === 'admin' || ROLE_RANK[r] < ROLE_RANK[me.role]);
   const [f, setF] = useState({ role: creatable[creatable.length - 1] ?? 'operator', display_name: '', email: '', phone: '', client_id: me.client_id ?? '', state_id: '' });
   const [msg, setMsg] = useState<string | null>(null);
-  const act = useAction();
+  const [resetting, setResetting] = useState<string | null>(null);     // the user whose reset is waiting for a second tap
+  const act = useAction();                                             // the "new user" form
+  const row = useAction();                                             // deactivate / reset on a row of the list
   useEffect(() => { if (!f.client_id && clients.data?.length) setF((s) => ({ ...s, client_id: clients.data![0].id })); }, [clients.data, f.client_id]);
   const add = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
     const body = { role: f.role, display_name: f.display_name, email: f.role === 'operator' ? undefined : f.email, phone: f.phone || undefined,
@@ -81,17 +83,32 @@ export function Users() {
     setMsg(t('users.temp_password', { who: r.sign_in, pw: r.temporary_password }));
     setF({ ...f, display_name: '', email: '', phone: '' }); await list.reload();
   }); };
-  const toggle = (u: UserRow) => act.run(async () => { await q(supabase.from('app_users').update({ active: !u.active }).eq('id', u.id).select()); await list.reload(); });
+  const toggle = (u: UserRow) => row.run(async () => { await q(supabase.from('app_users').update({ active: !u.active }).eq('id', u.id).select()); await list.reload(); });
+  // Forgotten password or lost phone: a new temporary password, shown once to the manager. The database decides who
+  // may reset whom (app.reset_login_allowed); the person must choose an own password at the next sign-in.
+  const reset = (u: UserRow) => row.run(async () => {
+    setMsg(null);
+    try {
+      const r = await callFunction<{ sign_in: string; temporary_password: string }>('reset-password', { app_user_id: u.id });
+      setMsg(t('users.temp_password', { who: r.sign_in, pw: r.temporary_password }));
+    } finally { setResetting(null); }
+  });
+  const linked = (u: UserRow) => !!u.auth_uid && u.auth_uid !== u.id;
   return (
     <div><h1>{t('users.title')}</h1>
       <div className="card table-wrap">{list.loading ? <Loading /> : (
         <table><thead><tr><th>Name</th><th>Role</th><th>Sign-in</th><th>Client</th><th>Login</th><th></th></tr></thead>
-          <tbody>{list.data?.map((u) => <tr key={u.id}><td>{u.display_name}</td><td>{humanise(u.role)}</td><td className="small">{u.email ?? u.phone}</td>
+          <tbody>{list.data?.map((u) => <tr key={u.id} data-testid="user-row"><td>{u.display_name}</td><td>{humanise(u.role)}</td><td className="small">{u.email ?? u.phone}</td>
             <td>{clients.data?.find((c) => c.id === u.client_id)?.name ?? '—'}</td>
-            <td>{u.auth_uid && u.auth_uid !== u.id ? <Badge value="active" label="linked" /> : <Badge value="draft" label="no login" />}{!u.active && <Badge value="closed" label="inactive" />}</td>
-            <td>{u.id !== me.id && (me.role === 'admin' || ROLE_RANK[u.role] < ROLE_RANK[me.role]) &&
-              <button className="secondary" onClick={() => void toggle(u)}>{u.active ? t('users.deactivate') : t('users.activate')}</button>}</td></tr>)}</tbody></table>)}</div>
+            <td>{linked(u) ? <Badge value="active" label="linked" /> : <Badge value="draft" label="no login" />}{!u.active && <Badge value="closed" label="inactive" />}</td>
+            <td>{u.id !== me.id && (me.role === 'admin' || ROLE_RANK[u.role] < ROLE_RANK[me.role]) && <div className="row">
+              <button className="secondary" onClick={() => void toggle(u)}>{u.active ? t('users.deactivate') : t('users.activate')}</button>
+              {u.active && linked(u) && (resetting === u.id
+                ? <button className="danger" disabled={row.busy} onClick={() => void reset(u)} data-testid="reset-confirm">{t('users.reset_sure')}</button>
+                : <button className="secondary" onClick={() => setResetting(u.id)} data-testid="reset-password">{t('users.reset_password')}</button>)}
+            </div>}</td></tr>)}</tbody></table>)}</div>
       {msg && <div className="alert ok" data-testid="temp-password">{msg}</div>}
+      <ErrorBox error={row.error} />
       <form className="card" onSubmit={add}>
         <h2>{t('users.new')}</h2>
         <Field label="Role" htmlFor="u-role"><select id="u-role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>

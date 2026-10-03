@@ -13,6 +13,7 @@ import { date } from '../../lib/format';
 /** The client whose farmers this user works with; State Managers and admins pick one. */
 export function useClientChoice() {
   const { ctx } = useAuth();
+  const { t } = useI18n();
   const me = ctx!.user!;
   const fixed = me.client_id;
   const clients = useAsync(() => fixed ? Promise.resolve([]) : q(supabase.from('clients').select('id,name,code').order('name')) as Promise<{ id: string; name: string; code: string }[]>, [fixed]);
@@ -20,7 +21,7 @@ export function useClientChoice() {
   const clientId = fixed ?? chosen ?? '';
   useEffect(() => { if (!fixed && clients.data?.length) setChosen((c) => c || clients.data![0].id); }, [fixed, clients.data]);
   const picker = fixed ? null : (
-    <Field label="Client" htmlFor="client-pick">
+    <Field label={t('account.client')} htmlFor="client-pick">
       <select id="client-pick" value={clientId} onChange={(e) => { setChosen(e.target.value); try { localStorage.setItem('grainveda-client', e.target.value); } catch { /* ignore */ } }}>
         {(clients.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>
@@ -34,7 +35,7 @@ export function FarmerList() {
   const { ctx } = useAuth();
   const me = ctx!.user!;
   const { clientId, picker } = useClientChoice();
-  const [tab, setTab] = useState<'draft' | 'under_review' | 'active'>(me.role === 'state_manager' ? 'under_review' : 'active');
+  const [tab, setTab] = useState<'draft' | 'under_review' | 'active' | 'inactive'>(me.role === 'state_manager' ? 'under_review' : 'active');
   const [search, setSearch] = useState('');
   const list = useAsync(async () => {
     if (!clientId) return [] as Farmer[];
@@ -55,9 +56,9 @@ export function FarmerList() {
         <input aria-label={t('common.search')} placeholder={t('common.search')} value={search} onChange={(e) => setSearch(e.target.value)} style={{ flex: '1 1 200px', width: 'auto' }} />
       </div>
       <div className="tabs" role="tablist">
-        {(['draft', 'under_review', 'active'] as const).map((s) => (
+        {(isSM ? ['draft', 'under_review', 'active', 'inactive'] as const : ['draft', 'under_review', 'active'] as const).map((s) => (
           <button key={s} role="tab" aria-selected={tab === s} className={tab === s ? 'active' : ''} onClick={() => setTab(s)}>
-            {t(s === 'draft' ? 'farmers.tab_draft' : s === 'under_review' ? 'farmers.tab_review' : 'farmers.tab_active')}
+            {t(s === 'draft' ? 'farmers.tab_draft' : s === 'under_review' ? 'farmers.tab_review' : s === 'active' ? 'farmers.tab_active' : 'farmers.tab_inactive')}
           </button>
         ))}
       </div>
@@ -103,6 +104,19 @@ function FarmerActions({ farmer, isSM, canEdit, onDone }: { farmer: Farmer; isSM
       <ErrorBox error={act.error} />
     </div>
   );
+  // After verification only a State Manager (or admin) changes a farmer; every change is a ledger block (migration 22).
+  if (isSM && (farmer.status === 'active' || farmer.status === 'inactive')) {
+    const flip = farmer.status === 'active' ? 'inactive' : 'active';
+    return (
+      <div className="row">
+        <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>
+        <button className="secondary" disabled={act.busy} data-testid={`farmer-${flip}`}
+          onClick={() => act.run(async () => { await q(supabase.from('farmers').update({ status: flip }).eq('id', farmer.id).select()); onDone(); })}>
+          {t(flip === 'inactive' ? 'farmers.deactivate' : 'farmers.reactivate')}</button>
+        <ErrorBox error={act.error} />
+      </div>
+    );
+  }
   return <span className="muted small">{farmer.status === 'active' ? <Badge value="active" /> : date(farmer.created_at)}</span>;
 }
 
@@ -112,11 +126,15 @@ export function FarmerForm() {
   const nav = useNavigate();
   const { clientId, picker } = useClientChoice();
   const [f, setF] = useState({ name: '', guardian_name: '', village: '', district: '', phone: '', land_area_acres: '', photo_consent: false, notes: '' });
+  const [status, setStatus] = useState<Farmer['status']>('draft');
+  const [extra, setExtra] = useState<Record<string, unknown>>({});     // everything else kept in farmers.extra (import columns, photo)
   const act = useAction();
   useEffect(() => {
     if (!id) return;
     q(supabase.from('farmers').select('*').eq('id', id).single()).then((r) => {
       const x = r as unknown as Farmer;
+      setStatus(x.status);
+      setExtra(x.extra ?? {});
       setF({ name: x.name, guardian_name: x.guardian_name, village: x.village, district: x.district, phone: x.phone,
         land_area_acres: String(x.land_area_acres), photo_consent: x.photo_consent, notes: String(x.extra?.notes ?? '') });
     });
@@ -127,7 +145,7 @@ export function FarmerForm() {
     const digits = f.phone.replace(/[^0-9]/g, '');
     const phone = digits.length === 10 ? `+91${digits}` : f.phone;
     const row = { name: f.name.trim(), guardian_name: f.guardian_name.trim(), village: f.village.trim(), district: f.district.trim(), phone,
-      land_area_acres: Number(f.land_area_acres), photo_consent: f.photo_consent, extra: f.notes ? { notes: f.notes } : {} };
+      land_area_acres: Number(f.land_area_acres), photo_consent: f.photo_consent, extra: (() => { const e = { ...extra }; if (f.notes) e.notes = f.notes; else delete e.notes; return e; })() };
     const saved = id
       ? await q(supabase.from('farmers').update(row).eq('id', id).select().single()) as Farmer
       : await q(supabase.from('farmers').insert({ ...row, client_id: clientId, status: 'draft' }).select().single()) as Farmer;
@@ -141,6 +159,7 @@ export function FarmerForm() {
     <div className="card" style={{ maxWidth: 560 }}>
       <h1>{id ? t('common.edit') : t('farmers.new')}</h1>
       {!id && picker}
+      {status !== 'draft' && <div className="alert info" data-testid="farmer-verified-note">{t('farmers.change_recorded')}</div>}
       <form onSubmit={(e) => submit(e, false)}>
         {input('name', t('farmer.name'))}
         {input('guardian_name', t('farmer.guardian'))}
@@ -155,7 +174,7 @@ export function FarmerForm() {
         <ErrorBox error={act.error} />
         <div className="row">
           <button type="submit" className="secondary" disabled={act.busy}>{t('common.save')}</button>
-          <button type="button" disabled={act.busy} onClick={(e) => submit(e as unknown as FormEvent, true)}>{t('farmers.submit')}</button>
+          {status === 'draft' && <button type="button" disabled={act.busy} onClick={(e) => submit(e as unknown as FormEvent, true)}>{t('farmers.submit')}</button>}
         </div>
       </form>
     </div>

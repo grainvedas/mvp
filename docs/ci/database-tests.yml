@@ -42,7 +42,7 @@ jobs:
   stack:
     name: local stack + real logins
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:17.6
@@ -71,29 +71,66 @@ jobs:
         run: ENV_FILE=.env.stack node scripts/create_demo_logins.mjs
       - name: permissions + T1 with real logins
         run: ENV_FILE=.env.stack node tests/remote_rls.mjs --t1
-      - name: create-user Edge Function
+      - name: create-user and reset-password Edge Functions (own password, reset, sessions ended, sign-up cannot become a user)
         run: ENV_FILE=.env.stack node tests/remote_create_user.mjs
+      - name: Auth settings (informational on the stack; the same script FAILS on a production project with sign-up open)
+        run: ENV_FILE=.env.stack node tests/remote_auth_settings.mjs || true
       - name: ledger-check Edge Function (incl. a tampered block, restored)
         run: ENV_FILE=.env.stack STACK_DB=grainveda_stack node tests/remote_ledger_check.mjs --tamper-local
+      # The result files below are what scripts/release_gate.mjs reads. They are uploaded as the artifact
+      # "release-evidence" at the end; the staging steps of docs/RUNSHEET_phase4.md add the rest.
+      - name: database suite, kept for the release gate
+        run: |
+          mkdir -p release-evidence/rehearsal
+          set -o pipefail
+          bash tests/run_local.sh | tee release-evidence/sql.log
       - name: web — install, typecheck, component tests
         working-directory: web
         run: |
           npm ci
           npx tsc -b --noEmit
           npx vitest run
+          npx vitest run --reporter=json --outputFile=../release-evidence/unit.json > /dev/null
       - name: web — end-to-end in a real browser (Playwright)
         working-directory: web
         run: |
           npx playwright install --with-deps chromium
-          npx playwright test
-      - name: web — production build (offline start, public page on throttled 3G)
+          PLAYWRIGHT_JSON_OUTPUT_NAME=../release-evidence/e2e.json npx playwright test --reporter=list,json
+      - name: web — production build behind a host-like server (security policy, public page on throttled 3G, and a day in the field - no network for hours, dead links, lost answers, lost phone)
         working-directory: web
-        run: npx playwright test -c playwright.prod.config.ts
-      - name: smoke + ledger audit
         run: |
-          psql -d grainveda_stack -f tests/remote_smoke.sql
-          psql -d grainveda_stack -f tests/remote_ledger_audit.sql | tee audit.txt
-          grep -q 'NO ORPHAN BLOCKS' audit.txt
+          set -o pipefail
+          npx playwright test -c playwright.prod.config.ts | tee ../release-evidence/prod.log
+      - name: web — acceptance rehearsal, T1–T5 against the built app, two consecutive runs
+        working-directory: web
+        run: |
+          node scripts/serve-dist.mjs &
+          for i in $(seq 1 40); do curl -sf http://127.0.0.1:4173/ >/dev/null && break; sleep 0.5; done
+          for n in 1 2; do
+            ACCEPTANCE_URL=http://127.0.0.1:4173 ENV_FILE=.env.stack GV_LOGINS_FILE=.env.demo-logins.stack \
+              ACCEPTANCE_REPORT=../release-evidence/rehearsal/acceptance-$n.json npx playwright test -c playwright.acceptance.config.ts
+          done
+      - name: smoke + ledger audit (after everything above has written to the stack)
+        run: |
+          psql -At -d grainveda_stack -f tests/remote_smoke.sql | tee smoke.txt
+          test "$(grep -vc '|OK' smoke.txt)" = "1"          # every row OK except pg_cron, which a plain Postgres does not have
+          psql -At -d grainveda_stack -f tests/remote_ledger_audit.sql | tee audit.txt
+          grep -q 'NO FINDINGS' audit.txt
+      - name: Postgres 17 client tools (pg_dump must be the server's major version or newer; the runner ships 16)
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update && sudo apt-get install -y postgresql-client-17
+          echo "PGBIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+      - name: backup and restore drill (dump, restore into a scratch database, compare, alter a block and expect it caught)
+        run: ENV_FILE=.env.stack node scripts/restore_drill.mjs
+      - name: result files for the release gate (sql.log, unit.json, e2e.json, prod.log; the acceptance rehearsal is under rehearsal/)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence
+          path: release-evidence/
       - name: stack logs on failure
         if: failure()
         run: tail -n 50 local-stack/run/*.log
@@ -102,4 +139,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-traces
-          path: web/test-results/
+          path: |
+            web/test-results/
+            web/playwright-report/

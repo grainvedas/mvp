@@ -177,8 +177,9 @@ interface SlotRow { id: string; user_id: string; stage_type: StageType }
 
 function SlotAssigner({ scope, label }: { scope: ScopeRow; label: (x: StageType) => string }) {
   const { t } = useI18n();
+  // every operator of the client, active or not: a deactivated person still holding a stage must be shown by name
   const users = useAsync(() => q(supabase.from('app_users').select('id,display_name,role,phone,client_id,active')
-    .eq('client_id', scope.client_id).eq('role', 'operator').eq('active', true).order('display_name')) as Promise<UserRow[]>, [scope.client_id]);
+    .eq('client_id', scope.client_id).eq('role', 'operator').order('display_name')) as Promise<UserRow[]>, [scope.client_id]);
   const slots = useAsync(() => q(supabase.from('slot_assignments').select('id,user_id,stage_type').eq('scope_id', scope.id)) as Promise<SlotRow[]>, [scope.id]);
   const act = useAction();
   const [newUser, setNewUser] = useState<{ stage: StageType; name: string; phone: string } | null>(null);
@@ -186,6 +187,13 @@ function SlotAssigner({ scope, label }: { scope: ScopeRow; label: (x: StageType)
   if (users.loading || slots.loading) return <Loading />;
   const assign = (stage: StageType, userId: string) => act.run(async () => {
     await q(supabase.from('slot_assignments').insert({ user_id: userId, scope_id: scope.id, stage_type: stage }).select()); await slots.reload();
+  });
+  // Taking a stage away from a person (migration 25). On an active scope the database writes it to the ledger.
+  const remove = (slot: SlotRow, name: string) => act.run(async () => {
+    if (!window.confirm(t('wizard.remove_confirm', { name, stage: label(slot.stage_type) }))) return;
+    const gone = await q(supabase.from('slot_assignments').delete().eq('id', slot.id).select()) as SlotRow[];
+    if (gone.length === 0) throw new Error(t('wizard.remove_refused'));
+    await slots.reload();
   });
   const create = () => act.run(async () => {
     const r = await callFunction<{ temporary_password: string; sign_in: string }>('create-user', {
@@ -202,11 +210,21 @@ function SlotAssigner({ scope, label }: { scope: ScopeRow; label: (x: StageType)
         const assigned = (slots.data ?? []).filter((x) => x.stage_type === stage);
         return (
           <tr key={stage}><td><strong>{label(stage)}</strong></td>
-            <td>{assigned.map((a) => users.data?.find((u) => u.id === a.user_id)?.display_name ?? 'manager').join(', ') || <span className="muted">nobody yet</span>}</td>
+            <td>{assigned.length === 0 && <span className="muted">{t('wizard.nobody')}</span>}
+              {assigned.map((a) => {
+                const u = users.data?.find((x) => x.id === a.user_id);
+                const name = u?.display_name ?? 'manager';
+                return (
+                  <div key={a.id} className="row" data-testid={`slot-holder-${stage}`}>
+                    <span>{name}{u && !u.active && <> <Badge value="closed" label={t('wizard.inactive')} /></>}</span>
+                    <button className="secondary small-btn" aria-label={`${t('wizard.remove')}: ${name} · ${label(stage)}`} onClick={() => void remove(a, name)}>{t('wizard.remove')}</button>
+                  </div>
+                );
+              })}</td>
             <td><div className="row">
               <select aria-label={`Assign ${label(stage)}`} defaultValue="" onChange={(e) => { if (e.target.value) void assign(stage, e.target.value); e.target.value = ''; }}>
                 <option value="">Assign existing…</option>
-                {(users.data ?? []).filter((u) => !assigned.some((a) => a.user_id === u.id)).map((u) => <option key={u.id} value={u.id}>{u.display_name}</option>)}
+                {(users.data ?? []).filter((u) => u.active && !assigned.some((a) => a.user_id === u.id)).map((u) => <option key={u.id} value={u.id}>{u.display_name}</option>)}
               </select>
               <button className="secondary" onClick={() => setNewUser({ stage, name: '', phone: '' })}>+ new person</button>
             </div></td></tr>

@@ -4,6 +4,15 @@
 -- Packing is held by the Sorting Operator (309): a different person from milling (308), because nobody verifies a
 -- lot they recorded themselves. 309 now works in two scopes (multi-slot navigation).
 
+-- Never on production: this file creates demo people, farmers and scopes (migration 23 marks the production project).
+do $$ begin
+  if to_regprocedure('app.environment()') is not null then
+    if app.environment() = 'production' then
+      raise exception 'demo seed refused: this is the PRODUCTION project (use supabase/seeds/production/)';
+    end if;
+  end if;
+end $$;
+
 insert into public.app_users (id, auth_uid, role, display_name, phone, state_ids, client_id) values
   ('00000000-0000-4000-8000-000000000314', '00000000-0000-4000-8000-000000000314', 'operator', 'Shipment Operator',
    '+910000000014', '{}', '00000000-0000-4000-8000-000000000201'),

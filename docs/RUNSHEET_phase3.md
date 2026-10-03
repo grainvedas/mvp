@@ -50,5 +50,5 @@ the live project.
 | Penetration test | external tester | Scope: REST + RPC surface (tests/08 allowlist), Edge Functions, storage policies, RLS per role |
 | Device lab | Tarun / QA | 3 low-end Android 9+ phones, Chrome: airplane-mode test of 10 lots, camera evidence, Hindi |
 | Hindi review | 2 field operators | Read every operator screen in Hindi; list words they would say differently |
-| Session length | Veda (decision) | PRD asks 30 days on device / 12 h on web; Supabase has one refresh-token policy per project. Proposed: 30 days, plus sign-out on shared phones |
-| Lighthouse accessibility ≥ 90 | QA | Run on the deployed public page (not measurable in this sandbox) |
+| Session length | done in Phase 4 | Managers are signed out 12 hours after signing in, operators after 30 days (the app counts from the sign-in); the project's own limit is "time-box user sessions: 720 hours" (`docs/RUNSHEET_phase4.md` A7) |
+| Lighthouse accessibility ≥ 90 | QA | Measured on the local build in Phase 4: 100 (verify page and sign-in page). On the deployed page: `docs/RUNSHEET_phase4.md` B8 |

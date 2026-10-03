@@ -39,7 +39,9 @@ export function Outbox() {
             <td className="num">{n + 1}</td>
             <td><strong>{t(`stage.${i.stage_type}`, undefined, i.stage_label)}</strong> · {i.summary}
               <div className="small muted">{i.scope_label} · {dateTime(i.captured_at)}</div>
-              {i.error && <div className={`alert ${i.state === 'failed' ? 'error' : 'warn'} small`}>{i.error}</div>}</td>
+              {i.state === 'failed' && i.error && <div className="alert error small">{i.error}</div>}
+              {i.state !== 'failed' && i.note && <div className="alert warn small">{i.note === 'photo' ? t('outbox.photo_waiting', { code: i.footprint_code ?? '' })
+                : i.note === 'session' ? t('outbox.sign_in_again') : t('outbox.retrying')}</div>}</td>
             <td><Badge value={i.state === 'failed' ? 'fail' : 'pending'} label={t(`outbox.state_${i.state}`)} /></td>
             <td>{i.state === 'failed' && <div className="stack">
               <Link className="btn secondary" to={`/work/${i.scope_id}/${i.stage_type}?draft=${i.id}`}>{t('outbox.fix')}</Link>

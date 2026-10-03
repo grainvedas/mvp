@@ -16,11 +16,15 @@ export interface WidgetProps {
   id: string;
   scopeId?: string;
   stageType?: string;
+  allowed?: string[];      // select with a gate: only these options are offered
 }
 
 /** Types this build can render. Anything else shows a notice and blocks save if required. */
 export const SUPPORTED = new Set(['number', 'integer', 'number[3]', 'text', 'select', 'date', 'boolean', 'attachment', 'readings', 'farmer',
   'breakdown', 'packets[]', 'footprint[]']);
+
+/** What a "document" may be: a photo, or a PDF. */
+export const EVIDENCE_ACCEPT = 'image/*,application/pdf';
 
 const limitText = (l: number | [number, number]) => (Array.isArray(l) ? `${l[0]}–${l[1]}` : String(l));
 
@@ -51,14 +55,17 @@ export function Widget(p: WidgetProps) {
       return (
         <select id={id} name={field.key} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} required={field.required}>
           <option value="">—</option>
-          {(field.options ?? []).map((o) => <option key={o} value={o}>{t(`opt.${o}`, undefined, o.replace(/_/g, ' '))}</option>)}
+          {(field.options ?? []).filter((o) => !p.allowed || p.allowed.includes(o))
+            .map((o) => <option key={o} value={o}>{t(`opt.${o}`, undefined, o.replace(/_/g, ' '))}</option>)}
         </select>
       );
     case 'boolean':
       return <input id={id} name={field.key} type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} />;
     case 'attachment':
-      return <input id={id} name={field.key} type="file" accept="image/*" capture="environment"
-        onChange={(e) => onChange(e.target.files?.[0] ?? null)} />;
+      return field.accept === 'document'
+        ? <input id={id} name={field.key} type="file" accept={EVIDENCE_ACCEPT} onChange={(e) => onChange(e.target.files?.[0] ?? null)} />
+        : <input id={id} name={field.key} type="file" accept="image/*" capture="environment"
+            onChange={(e) => onChange(e.target.files?.[0] ?? null)} />;
     case 'readings': {
       const obj = (value && typeof value === 'object' && !(value instanceof File) && !Array.isArray(value)) ? value as Record<string, string> : {};
       return (
@@ -140,6 +147,7 @@ function RowsEditor({ id, value, onChange, cols, addLabel }: {
   id: string; value: FieldValue; onChange: (v: FieldValue) => void;
   cols: { key: string; label: string; numeric: boolean }[]; addLabel: string;
 }) {
+  const { t } = useI18n();
   const rows: Row[] = Array.isArray(value) ? (value as unknown as Row[]) : [];
   const set = (next: Row[]) => onChange(next as unknown as FieldValue);
   const blank = () => Object.fromEntries(cols.map((c) => [c.key, ''])) as Row;
@@ -153,7 +161,7 @@ function RowsEditor({ id, value, onChange, cols, addLabel }: {
               style={{ flex: c.numeric ? '0 0 120px' : '1 1 160px', width: 'auto' }} value={r[c.key] ?? ''}
               onChange={(e) => { const n = list.map((x) => ({ ...x })); n[i][c.key] = c.numeric ? e.target.value.replace(',', '.') : e.target.value; set(n); }} />
           ))}
-          {list.length > 1 && <button type="button" className="secondary" aria-label={`Remove row ${i + 1}`} onClick={() => set(list.filter((_, j) => j !== i))}>✕</button>}
+          {list.length > 1 && <button type="button" className="secondary" aria-label={t('widget.remove_row', { n: i + 1 })} onClick={() => set(list.filter((_, j) => j !== i))}>✕</button>}
         </div>
       ))}
       <button type="button" className="secondary" onClick={() => set([...list, blank()])}>{addLabel}</button>
