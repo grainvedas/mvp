@@ -553,3 +553,42 @@ NOT run, and therefore not known:
 - Restoring `auth.dump` and uploading evidence into a hosted project (the evidence upload was rehearsed against the
   local stand-in only).
 - Penetration test, device lab, Hindi read by operators.
+
+## 2026-10-03 — Claude: first working Vercel deploy of the staging app (commit 787b652)
+
+Why five deploys in a row had failed (commits 5d05103 to 25c142c), read from the systems, not guessed:
+
+- Vercel dashboard, deployment of 25c142c: "The `vercel.json` schema validation failed with the following message: should
+  NOT have additional property `$comment`", duration "—": the build never started. The project's Root Directory is
+  `web`, so the file Vercel reads is `web/vercel.json`. The four commits that changed files at the repo root could not
+  change the result.
+- GitHub Actions on the same commits, `npm ci` in `web/`: 5ffc656 "can only install with an existing
+  package-lock.json"; b1f9b6f onwards "Cannot find module @rollup/rollup-linux-x64-gnu". The root `package.json` named
+  `web` as a workspace, so npm used the root lockfile, written on Windows.
+
+What ran:
+
+- This machine (Windows, Node 20.18), before the fix: `npx vitest run tests/phase4.test.tsx -t "hosting config"
+  --environment node` → 2 failed (`["$comment"]`; `expected [ 'web' ] to be undefined`). After: 2 passed.
+  `--environment node` because jsdom 30 does not load on Node 20: the full unit suite did NOT run on this machine.
+- Fresh clone plus the patch, from `web/` (a rehearsal: Windows cannot show the Linux fault): `npm ci` 317 packages from
+  `web/package-lock.json`; `npx tsc -b --noEmit` exit 0; `npx vite build --mode staging` built.
+- GitHub Actions on 787b652 (Linux, Node 22, run 37116623173): `run_local.sh` success · web install, typecheck,
+  component tests success (failed on the four commits before) · Playwright end-to-end success · production build suite
+  success · **"smoke + ledger audit" FAILED**: the workflow looks for `NO ORPHAN BLOCKS`, the audit prints
+  `NO FINDINGS (288 blocks, 83 records, 12 seals, 4 evidence files checked)`. The run is red for a reason in the
+  workflow file (FIX_LIST open item 3).
+- Vercel: 787b652 Ready in 14 s, Production. https://mvp-beta-one.vercel.app: `/`, `/work/x/y`, `/sw.js`,
+  `/asset-manifest.json`, `/manifest.webmanifest` → 200; the deep address carries the Content-Security-Policy,
+  `nosniff`, `X-Frame-Options: DENY`, HSTS and the referrer policy; the bundle names one Supabase project
+  (`zogkrhgzatplarimbmxk`); the sign-in screen renders in Chrome on `/` and `/work/x/y` with no console errors.
+
+NOT run, and what the deployed app cannot do yet (read-only queries on the staging project, same day):
+
+- **Nobody can sign in.** Supabase Auth on staging holds 0 logins; the 15 demo people are in `app_users` with the seed
+  placeholder. `scripts/create_demo_logins.mjs` has not been run against it (there is no `.env.demo-logins` on this
+  machine either).
+- Staging has 21 migrations (last `20261001000800`); 22 to 27 are not applied. Edge Functions deployed: `create-user`
+  v1, `ledger-check` v1; no `reset-password`. The deployed app is the Phase 4 build: part A of
+  `docs/RUNSHEET_phase4.md` is still to do (FIX_LIST open item 4).
+- A sign-in, any stage, a save, a phone.
