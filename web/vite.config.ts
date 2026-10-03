@@ -50,7 +50,7 @@ function securityHeaders(): Plugin {
     apply: 'build',
     configResolved(c) {
       out = resolve(c.root, c.build.outDir);
-      url = c.env.VITE_SUPABASE_URL ?? c.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+      url = c.env.VITE_SUPABASE_URL ?? c.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://zogkrhgzatplarimbmxk.supabase.co';
       // A production build must name the production project itself. .env.local (the staging project) is read in every
       // mode, so without this check a production build made before .env.production exists would quietly ship pointing
       // at staging, and nothing on the screen would say so until real lots had been recorded in the wrong database.
