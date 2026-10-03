@@ -1,7 +1,7 @@
 {
-  "buildCommand": "npm --prefix web run build",
+  "buildCommand": "npm --prefix web install && npm --prefix web run build",
   "outputDirectory": "web/dist",
-  "installCommand": "npm --prefix web install",
+  "installCommand": "echo skip",
   "rewrites": [{ "source": "/((?!assets/|sw\\.js|manifest\\.webmanifest|icon\\.svg|asset-manifest\\.json).*)", "destination": "/index.html" }],
   "headers": [
     { "source": "/(.*)", "headers": [
