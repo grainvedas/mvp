@@ -58,6 +58,16 @@ more) before anything else.
 Nobody can reset their own password this way, and nobody can reset someone ranked above them. To change your own:
 **My account → Change password**.
 
+### When "New user" or "Reset password" does not work
+
+| What the screen says | It means | Do |
+|---|---|---|
+| A yellow line above the list: "Creating people and resetting passwords will not work on this system yet: …" | The server functions were not deployed with the last update of the database or the app. Nothing is wrong with what anybody entered | Admin (with Antigravity): run-sheet Phase 4 step A6, then `node scripts/check_functions.mjs` must end with `FUNCTIONS DEPLOYED AND CURRENT` |
+| "The server is not up to date with this app…" or "A part of the server is not installed…" after **Create** or **Reset** | The same | The same. Then try again: nothing was kept from the failed attempt |
+| "Login created but not linked: …; both removed" | The database did not accept the new login for this person. The words after the colon say why (another person has the same phone or e-mail; the person was deactivated meanwhile; …). The login and the person were removed again | Correct what the reason names and create the person again |
+| "… COULD NOT REMOVE login …" | A login without a person stayed behind (the Auth server did not answer the delete). It opens nothing, but it holds that phone number or e-mail: the next attempt says "already registered" | **A login without a person:** admin: `node scripts/check_logins.mjs` lists them, `node scripts/check_logins.mjs --remove` deletes them. The same list is in the Supabase dashboard → Edge Functions → create-user → Logs, with the reason |
+| "A user with this phone or email already exists" for somebody who is not in the list | As the line above, or a person who is deactivated (deactivated people are in the list, marked inactive) | `node scripts/check_logins.mjs` |
+
 ## A record is wrong
 
 | The record is… | Who | Do |

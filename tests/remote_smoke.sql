@@ -1,6 +1,6 @@
 -- READ-ONLY smoke check for a Supabase project after `db push` + seeds. Safe on production: no writes.
 -- Run: psql "$SUPABASE_DB_URL" -f tests/remote_smoke.sql   (or paste into Dashboard → SQL Editor)
--- Every row must start with OK (23 rows). The same file serves staging (demo seed expected) and production (demo
+-- Every row must start with OK (24 rows). The same file serves staging (demo seed expected) and production (demo
 -- seed forbidden): the 'environment' row says which one it found, from app.environment() (migration 23).
 -- API exposure of the `app` schema is not checked here: hosted Supabase keeps that setting in PostgREST's config, which
 -- SQL cannot read. Prove it with tests/remote_api_check.ps1 (REST call with the public key).
@@ -111,6 +111,10 @@ select 'capture time, verdict preview', case when exists (select 1 from informat
                                         and exists (select 1 from pg_trigger where not tgisinternal and tgname = 'footprints_d0_capture_time')
                                         and to_regprocedure('app.preview_verdict(uuid, jsonb)') is not null
                                       then 'OK' else 'MISSING (push migration 29)' end
+union all
+select 'a new client can be read back', case when exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'clients'
+                                                           and policyname = 'clients_read_by_row' and cmd = 'SELECT')
+                                      then 'OK' else 'MISSING: nobody can add a client from the screen (push migration 30)' end
 union all
 select 'nightly ledger check',   case when to_regclass('cron.job') is null then 'NO pg_cron: see RUNSHEET_phase3 step 5'
                                       when (xpath('/row/n/text()', query_to_xml(

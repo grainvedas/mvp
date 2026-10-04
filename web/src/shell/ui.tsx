@@ -12,6 +12,8 @@ export function errorText(error: AppError, t: (key: string) => string): string {
   if (error.kind === 'session') return t('error.session');
   if (error.kind === 'duplicate') return t('error.duplicate');
   if (error.message === 'Not allowed for your role or stage.') return t('error.not_allowed');
+  // The server is set up wrongly (a function not deployed, or older than the app): nothing the person can correct.
+  if (error.kind === 'setup') return `${t(error.code === 'FN_MISSING' ? 'error.fn_missing' : 'error.fn_outdated')} ${error.message}`;
   return error.message;
 }
 

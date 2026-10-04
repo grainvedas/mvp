@@ -1,0 +1,201 @@
+<title>Admin Form Mockups</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  :root {
+    --bg: #f8f9fa; --card: #fff; --fg: #1a1a2e; --muted: #6b7280;
+    --border: #e5e7eb; --accent: #2563eb; --accent-light: #dbeafe;
+    --section: #374151; --hint: #9ca3af; --input-bg: #fff;
+    --badge-bg: #e0f2fe; --badge-fg: #0369a1;
+    --green-bg: #dcfce7; --green-fg: #166534;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f172a; --card: #1e293b; --fg: #e2e8f0; --muted: #94a3b8;
+    --border: #334155; --accent: #60a5fa; --accent-light: #1e3a5f;
+    --section: #cbd5e1; --hint: #64748b; --input-bg: #0f172a;
+    --badge-bg: #0c4a6e; --badge-fg: #7dd3fc;
+    --green-bg: #14532d; --green-fg: #86efac;
+    color-scheme: dark;
+  }}
+  :root[data-theme="dark"] {
+    --bg: #0f172a; --card: #1e293b; --fg: #e2e8f0; --muted: #94a3b8;
+    --border: #334155; --accent: #60a5fa; --accent-light: #1e3a5f;
+    --section: #cbd5e1; --hint: #64748b; --input-bg: #0f172a;
+    --badge-bg: #0c4a6e; --badge-fg: #7dd3fc;
+    --green-bg: #14532d; --green-fg: #86efac;
+    color-scheme: dark;
+  }
+  body { background: var(--bg); color: var(--fg); font-family: 'Inter', system-ui, sans-serif; max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; font-weight: 700; margin: 2rem 0 0.5rem; color: var(--fg); }
+  h1 .icon { margin-right: 0.4rem; }
+  .page-label { display: inline-block; background: var(--accent-light); color: var(--accent); font-size: 0.7rem; font-weight: 600; padding: 2px 10px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1.5rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+  h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 1rem; }
+  h3 { font-size: 0.82rem; font-weight: 600; color: var(--section); text-transform: uppercase; letter-spacing: 0.06em; margin: 1.25rem 0 0.6rem; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border); }
+  h3:first-of-type { margin-top: 0.25rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1.25rem; }
+  @media (max-width: 540px) { .grid { grid-template-columns: 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 0.25rem; }
+  .field label { font-size: 0.78rem; font-weight: 500; color: var(--muted); }
+  .field .hint { font-size: 0.68rem; color: var(--hint); }
+  .field input, .field select { background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.65rem; font-size: 0.88rem; color: var(--fg); font-family: inherit; }
+  .field input:focus, .field select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .field input::placeholder { color: var(--hint); }
+  .btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 0.55rem 1.4rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; margin-top: 0.75rem; }
+  .divider { border: none; border-top: 2px dashed var(--border); margin: 2.5rem 0; }
+  .note { font-size: 0.75rem; color: var(--hint); margin-top: -0.3rem; margin-bottom: 0.75rem; }
+  .badge { display: inline-block; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: var(--badge-bg); color: var(--badge-fg); }
+  .badge.green { background: var(--green-bg); color: var(--green-fg); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th { text-align: left; font-weight: 600; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+  td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); }
+  .mini-input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.3rem 0.45rem; font-size: 0.8rem; color: var(--fg); width: 70px; font-family: inherit; }
+  .secondary-btn { background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.8rem; font-size: 0.78rem; color: var(--muted); cursor: pointer; }
+  .stages-wrap { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.3rem; }
+  .stage-chip { display: flex; align-items: center; gap: 0.35rem; background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.3rem 0.65rem; font-size: 0.8rem; }
+  .stage-chip input[type="checkbox"] { accent-color: var(--accent); }
+</style>
+
+<!-- ====== CLIENTS ====== -->
+<h1><span class="icon">🏢</span> Clients</h1>
+<div class="page-label">Create form</div>
+
+<div class="card">
+  <h2>Create</h2>
+
+  <h3>Company details</h3>
+  <div class="grid">
+    <div class="field">
+      <label>Name</label>
+      <input placeholder="e.g. Sunrise Exports">
+    </div>
+    <div class="field">
+      <label>Code</label>
+      <span class="hint">2–6 capitals, used in every footprint code</span>
+      <input placeholder="e.g. SUNEX">
+    </div>
+    <div class="field">
+      <label>Type</label>
+      <select><option>Exporter</option><option>FPO</option><option>Brand</option><option>GrainVeda</option></select>
+    </div>
+  </div>
+
+  <h3>Assignment</h3>
+  <div class="field">
+    <label>State</label>
+    <select><option>—</option><option>Bihar</option><option>Madhya Pradesh</option><option>Rajasthan</option></select>
+  </div>
+
+  <button class="btn">Create</button>
+</div>
+
+<hr class="divider">
+
+<!-- ====== USERS ====== -->
+<h1><span class="icon">👤</span> Users</h1>
+<div class="page-label">New user form</div>
+
+<div class="card">
+  <h2>New user</h2>
+
+  <h3>Role & identity</h3>
+  <div class="grid">
+    <div class="field">
+      <label>Role</label>
+      <select><option>Client manager</option><option>Client view</option><option>Operator</option></select>
+    </div>
+    <div class="field">
+      <label>Name</label>
+      <input placeholder="e.g. Ramesh Gupta">
+    </div>
+  </div>
+
+  <h3>Contact</h3>
+  <div class="grid">
+    <div class="field">
+      <label>Email</label>
+      <input type="email" placeholder="user@example.com">
+    </div>
+    <div class="field">
+      <label>Mobile (optional)</label>
+      <input type="tel" placeholder="+91 98765 43210">
+    </div>
+  </div>
+
+  <h3>Assignment</h3>
+  <div class="field">
+    <label>Client</label>
+    <select><option>Sunrise Exports</option><option>Bihar FPO</option></select>
+  </div>
+
+  <button class="btn">Create</button>
+</div>
+
+<hr class="divider">
+
+<!-- ====== CROPS ====== -->
+<h1><span class="icon">🌿</span> Crops</h1>
+<div class="page-label">Edit form</div>
+
+<div class="card">
+
+  <h3>Basic info</h3>
+  <div class="grid">
+    <div class="field">
+      <label>Name</label>
+      <input value="Basmati Rice">
+    </div>
+    <div class="field">
+      <label>Code</label>
+      <input value="BASMT">
+    </div>
+    <div class="field">
+      <label>GI tag</label>
+      <input value="Champaran Basmati">
+    </div>
+    <div class="field">
+      <label>Origin</label>
+      <input value="Bihar">
+    </div>
+  </div>
+
+  <h3>Quality limits</h3>
+  <p class="note">Active scopes keep the limits they were activated with; edits apply to scopes activated afterwards.</p>
+  <table>
+    <thead><tr><th>Key</th><th>Label</th><th>Unit</th><th>Rule</th><th>Domestic</th><th>Export</th><th></th></tr></thead>
+    <tbody>
+      <tr>
+        <td><input class="mini-input" value="moisture" style="width:90px"></td>
+        <td><input class="mini-input" value="Moisture" style="width:90px"></td>
+        <td><input class="mini-input" value="%" style="width:50px"></td>
+        <td><select class="mini-input" style="width:90px"><option>≤ at most</option></select></td>
+        <td><input class="mini-input" value="14"></td>
+        <td><input class="mini-input" value="13"></td>
+        <td><button class="secondary-btn">✕</button></td>
+      </tr>
+      <tr>
+        <td><input class="mini-input" value="broken" style="width:90px"></td>
+        <td><input class="mini-input" value="Broken" style="width:90px"></td>
+        <td><input class="mini-input" value="%" style="width:50px"></td>
+        <td><select class="mini-input" style="width:90px"><option>≤ at most</option></select></td>
+        <td><input class="mini-input" value="5"></td>
+        <td><input class="mini-input" value="2"></td>
+        <td><button class="secondary-btn">✕</button></td>
+      </tr>
+    </tbody>
+  </table>
+  <button class="secondary-btn" style="margin-top:0.75rem">+ Add parameter</button>
+
+  <h3>Allowed stages</h3>
+  <div class="stages-wrap">
+    <label class="stage-chip"><input type="checkbox" checked> Cleaning</label>
+    <label class="stage-chip"><input type="checkbox" checked> Grading</label>
+    <label class="stage-chip"><input type="checkbox"> Polishing</label>
+    <label class="stage-chip"><input type="checkbox" checked> Sorting</label>
+    <label class="stage-chip"><input type="checkbox"> Milling</label>
+  </div>
+
+  <div style="display:flex;gap:0.5rem;margin-top:1.25rem">
+    <button class="btn">Save</button>
+    <button class="secondary-btn">Cancel</button>
+  </div>
+</div>

@@ -12,7 +12,7 @@ http.createServer((req, res) => {
   const hit = routes.find(([p]) => req.url === p || req.url.startsWith(p + '/') || req.url.startsWith(p + '?'));
   const cors = { 'access-control-allow-origin': req.headers.origin ?? '*', 'access-control-allow-credentials': 'true',
     'access-control-allow-headers': req.headers['access-control-request-headers'] ?? '*',
-    'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'access-control-expose-headers': 'content-range,content-profile' };
+    'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'access-control-expose-headers': 'content-range,content-profile,x-grainveda-function' };
   if (req.method === 'OPTIONS') { res.writeHead(204, cors); return res.end(); }
   if (!hit) { res.writeHead(404, cors); return res.end('{"message":"no route"}'); }
   const path = req.url.slice(hit[0].length) || '/';

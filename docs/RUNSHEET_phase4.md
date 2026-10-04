@@ -14,6 +14,18 @@ lab form shows pass / fail before saving. The app carries the fixes of FIX_LIST 
 stage forms in sections. No new migration. **Seed 01 changed** (each field now names its form section): run step A5
 again even if part A was done before. Until then the app works, with each form as one block without headings.
 
+**Found on staging the same evening (FIX_LIST open item 17): step A6 was skipped.** The migrations were pushed, the
+functions were not: `create-user` was still the build of 1 October, `reset-password` was not deployed, `ledger-check`
+had no token. Every **New user** ended in "Login created but not linked; both removed" and **Reset password** failed.
+**The functions go with the database: after any `supabase db push`, do A6 and its two checks.** If `ledger-check` is
+reported as "secrets are not set": `docs/RUNSHEET_phase3.md` steps 7 and 8, then A6 again.
+
+**Changed on 5 October 2026: migration 30 added.** 30 `20261005000100_clients_read_by_row`: an admin or a State
+Manager can add a client from the screen (before: "Not allowed for your role or stage", FIX_LIST open item 18,
+fault 33). On a project that already has migrations 22 to 29: A1, then A2 lists exactly this one, A3, then **A6 with
+its two checks** (the functions go with every push), A8 (24 rows now). The app of the same day adds a client also on
+a database without migration 30, so a push to GitHub alone makes the Clients page work.
+
 - Part A not yet done on staging: the steps below already include both migrations.
 - Part A already done: repeat A1, A2 (it then lists exactly the two new migrations), A3, **A5** and A8.
 - The app and the database can go in either order. The new app on a database without migration 29 still saves
@@ -36,13 +48,13 @@ and anything with `ENV_FILE=.env.stack`. Seeds 02–05 never go to production (t
 | # | Command | Expect |
 |---|---|---|
 | A1 | `tests/run_local.ps1` | `ALL TESTS PASSED`. Files 01–21, the T1 self-test, the production build, concurrency |
-| A2 | `supabase db push --linked --dry-run` | Would push exactly eight: `20261002000100_integrity_guards`, `…000200_phase4_ops`, `…000300_atomic_saves`, `…000400_access_rules`, `…000500_ledger_event_evidence`, `…000600_evidence_ledger`, `20261004000100_public_page_data`, `20261004000200_capture_time_verdict_preview`. **If the list also has `20261001…` files, the run-sheets of Phases 1 to 3 were not finished on this project: do them first, in order, then come back here.** Any other name: stop |
+| A2 | `supabase db push --linked --dry-run` | Would push exactly eight: `20261002000100_integrity_guards`, `…000200_phase4_ops`, `…000300_atomic_saves`, `…000400_access_rules`, `…000500_ledger_event_evidence`, `…000600_evidence_ledger`, `20261004000100_public_page_data`, `20261004000200_capture_time_verdict_preview`, and since 5 October a ninth, `20261005000100_clients_read_by_row`. **If the list also has `20261001…` files, the run-sheets of Phases 1 to 3 were not finished on this project: do them first, in order, then come back here.** Any other name: stop |
 | A3 | `supabase db push --linked --yes` | `Finished supabase db push.` A NOTICE `catch-up not run in this transaction` is expected: step A4 |
 | A4 | SQL Editor: `select app.record_missing_evidence_blocks();` | One number: the evidence files registered before today that now get their ledger block (0 if none) |
 | A5 | `supabase db query --linked -f supabase/seeds/01_stage_definitions.sql` | No errors (Commercial "market" is gated on the lab verdict; Shipment takes a document; every field names its form section). Check: `supabase db query --linked "select count(*) from public.stage_definitions d, jsonb_array_elements(d.form_schema) f where f ? 'section'"` says **64** |
-| A6 | `supabase functions deploy create-user` · `supabase functions deploy reset-password` · `supabase functions deploy ledger-check --no-verify-jwt` | `Deployed Function` three times |
+| A6 | `supabase functions deploy create-user` · `supabase functions deploy reset-password` · `supabase functions deploy ledger-check --no-verify-jwt` · then `node scripts/check_functions.mjs` · then `node scripts/check_logins.mjs` | `Deployed Function` three times. Then three lines `ok` and `FUNCTIONS DEPLOYED AND CURRENT` (a line `FAIL … not deployed` or `… an older build`: deploy that one again; `… secrets are not set`: Phase 3 run-sheet steps 7 and 8). Then `NO LOGIN WITHOUT A PERSON` (if it lists any: the same command with `--remove`; a listed "person without a login": FIX_LIST K22) |
 | A7 | Dashboard → Authentication → Sign In / Providers: **Allow new users to sign up OFF**, anonymous sign-ins OFF. **Leave the Phone provider as it is** (operators sign in with phone + password through it). Sessions: **time-box user sessions 720 hours**. Then `node tests/remote_auth_settings.mjs` | First line `ok    public sign-up is off`; no line starts with `WARN`; a line starting `note` (addresses auto-confirmed, no effect while sign-up is off) is fine. Last line `AUTH SETTINGS CHECKED` |
-| A8 | `supabase db query --linked -f tests/remote_smoke.sql` | 23 rows, all `OK`. `environment` says staging; `phase 4 objects`, `phase 4 triggers`, `ledger read by stage`, `direct writes closed`, `evidence in the ledger`, `public page data`, `capture time, verdict preview` are the new rows |
+| A8 | `supabase db query --linked -f tests/remote_smoke.sql` | 24 rows, all `OK`. `environment` says staging; `phase 4 objects`, `phase 4 triggers`, `ledger read by stage`, `direct writes closed`, `evidence in the ledger`, `public page data`, `capture time, verdict preview`, `a new client can be read back` are the new rows |
 | A9 | Create the folder `release-evidence`, then `node tests/remote_rls.mjs --t1 \| Tee-Object release-evidence\rls.log` | First line `project: <ref>.supabase.co (staging)`; last lines `… passed, 0 failed` and `REMOTE RLS PASSED` |
 | A10 | `supabase db query --linked -f tests/remote_ledger_audit.sql \| Tee-Object release-evidence\audit.log` | `NO FINDINGS (… blocks, … records, … seals, … evidence files checked)` |
 | A11 | `node tests/remote_ledger_check.mjs` | `LEDGER CHECK TEST PASSED` |
@@ -55,7 +67,7 @@ and anything with `ENV_FILE=.env.stack`. Seeds 02–05 never go to production (t
 | B1 | Antigravity | `cd web; npm ci; npm run build` | `dist\` with `_headers` in it; the build names the staging project |
 | B2 | Antigravity | `npx wrangler login` (Veda's Cloudflare account, in the browser), then `npx wrangler deploy` | An address like `https://grainveda-staging.<account>.workers.dev`: "the staging address" below |
 | B3 | Antigravity | `curl.exe -sI https://<staging address>/work/x/y` | `HTTP/… 200`, `content-security-policy:` containing `connect-src 'self' https://<ref>.supabase.co`, `x-frame-options: DENY`, `strict-transport-security:`. **If the policy line is missing on this deep address, stop**: Cloudflare is not applying `_headers` to the app's fallback pages (checked here only against a stand-in) |
-| B4 | Veda, on a phone | Open the staging address. Sign in as the Client Manager → **Users & Roles** → create a test person → sign out → sign in as that person with the temporary password | Gold strip **PRACTICE SYSTEM** on every screen. The temporary password is shown once; the new person is asked to choose an own password. (This is also the check that logins can be made with public sign-up off.) Then **Deactivate** the test person |
+| B4 | Veda, on a phone | Open the staging address. Sign in as the Client Manager → **Users & Roles** → create a test person → sign out → sign in as that person with the temporary password | Gold strip **PRACTICE SYSTEM** on every screen. **No yellow warning above the list of people** (a warning "Creating people and resetting passwords will not work on this system yet" means A6 is not done). The temporary password is shown once; the new person is asked to choose an own password. (This is also the check that logins can be made with public sign-up off.) Then **Deactivate** the test person |
 | B5 | A person who did not build it | `docs/ACCEPTANCE.md` part A: the automated run, twice | `5 passed`, twice; `release-evidence\acceptance-1.json` and `acceptance-2.json` |
 | B6 | Veda, on a phone | `docs/ACCEPTANCE.md` part B: T1–T4 by hand; fill in `docs/ACCEPTANCE_SIGNOFF.md` | Four lines `pass`, name, date. Anything that did not match: `docs/FIX_LIST.md` |
 | B7 | Veda or an operator, on a real phone | **A day without network.** Sign in as `…05`, open Procurement · Gorakhpur once. Airplane mode ON. Leave it **more than one hour** (overnight is better). Open the app, record two lots, **Save on this phone**. Airplane mode OFF | The app opens straight into the form, not the sign-in screen. After the network is back both lots show under **Saved on phone → Sent** with consecutive codes, none "needs attention". Write the result in the sign-off |
@@ -93,12 +105,12 @@ Decisions G1 to G5 of `docs/FIX_LIST.md` are taken first. Explanations of each s
 
 | # | Do | Expect |
 |---|---|---|
-| C1 | Security run-sheet: rotate the database password, the service key and the access token of the development phase; update `.env.local`; repeat A8 | 23 rows `OK` with the new keys |
+| C1 | Security run-sheet: rotate the database password, the service key and the access token of the development phase; update `.env.local`; repeat A8 | 24 rows `OK` with the new keys |
 | C2 | Dashboard: new project, **Pro**, **Mumbai (ap-south-1)**; database password generated and kept in the password manager. Then Database → Extensions → enable **pg_cron**. Project Settings → API → exposed schemas: add **app** | Project ref noted |
 | C3 | `.env.production` in the repository root, six lines: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | `git status` does not show the file |
-| C4 | `supabase link --project-ref <production ref>` then `supabase db push --linked --dry-run` | **29** migrations listed, first `20260927000100_extensions_enums`, last `20261004000200_capture_time_verdict_preview` |
+| C4 | `supabase link --project-ref <production ref>` then `supabase db push --linked --dry-run` | **30** migrations listed, first `20260927000100_extensions_enums`, last `20261005000100_clients_read_by_row` |
 | C5 | `supabase db push --linked --yes` · `supabase db query --linked -f supabase/seeds/01_stage_definitions.sql` · `supabase db query --linked -f supabase/seeds/production/10_reference.sql` | `production reference seed applied`, environment `production`. **Never seeds 02–05** |
-| C6 | `$env:ENV_FILE='.env.production'; node scripts/make_ledger_token.mjs` · `supabase secrets set --env-file .env.functions.production` · the three `supabase functions deploy …` of A6 | Token "not shown"; `Finished supabase secrets set.`; three functions deployed |
+| C6 | `$env:ENV_FILE='.env.production'; node scripts/make_ledger_token.mjs` · `supabase secrets set --env-file .env.functions.production` · the three `supabase functions deploy …` of A6 · `$env:ENV_FILE='.env.production'; node scripts/check_functions.mjs` | Token "not shown"; `Finished supabase secrets set.`; three functions deployed; `FUNCTIONS DEPLOYED AND CURRENT` |
 | C7 | Dashboard → Authentication: as A7, plus password minimum 8; keep "Secure password change" OFF | — |
 | C8 | `supabase db query --linked -f tests/remote_smoke.sql` · `node tests/remote_auth_settings.mjs` · `node tests/remote_ledger_check.mjs` (`ENV_FILE` still `.env.production`) | 23 rows `OK`; `environment` = `OK production`, `demo data` = `OK production: no demo people or scopes`; `AUTH SETTINGS PASSED`; `LEDGER CHECK TEST PASSED` |
 | C9 | **`supabase link --project-ref <staging ref>`** · `Remove-Item Env:ENV_FILE` | From here every `--linked` command is staging again. Check: `supabase projects list` marks the staging project |

@@ -2,7 +2,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { q, callFunction, functionState } from '../../lib/api';
-import { toAppError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
@@ -59,23 +58,27 @@ export function Clients() {
   const [f, setF] = useState({ name: '', code: '', type: 'exporter', state_id: '' });
   const act = useAction();
   const add = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
-    // No .select() here: the list is read again below. Asking for the row back made every insert fail on a database
-    // without migration 30 ("Not allowed for your role or stage", 5 Oct 2026: the read rule could not see the new row).
-    const { error } = await supabase.from('clients').insert({ ...f, code: f.code.toUpperCase() });
-    if (error) throw toAppError(error);
-    setF({ ...f, name: '', code: '' }); await list.reload(); }); };
+    await q(supabase.from('clients').insert({ ...f, code: f.code.toUpperCase() }).select()); setF({ ...f, name: '', code: '' }); await list.reload(); }); };
   return (
     <div><h1><span aria-hidden="true">🏢 </span>{t('clients.title')}</h1>
+
+      {/* ── Client list ── */}
       <div className="card table-wrap">{list.loading ? <Loading /> : (
         <table><thead><tr><th>Name</th><th>Code</th><th>Type</th><th>State</th></tr></thead>
           <tbody>{list.data?.map((c) => <tr key={c.id}><td>{c.name}</td><td className="mono">{c.code}</td><td>{humanise(c.type)}</td>
             <td>{states.data?.find((s) => s.id === c.state_id)?.name}</td></tr>)}</tbody></table>)}</div>
+
+      {/* ── Create form ── */}
       <form className="card" onSubmit={add}>
         <h2>{t('common.create')}</h2>
-        <Field label="Name" htmlFor="cl-name"><input id="cl-name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required /></Field>
-        <Field label="Code" hint="2–6 capitals, used in every footprint code" htmlFor="cl-code"><input id="cl-code" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} required maxLength={6} /></Field>
-        <Field label="Type" htmlFor="cl-type"><select id="cl-type" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
-          {['exporter', 'fpo', 'brand', 'grainveda'].map((x) => <option key={x} value={x}>{humanise(x)}</option>)}</select></Field>
+        <h3>Company details</h3>
+        <div className="grid">
+          <Field label="Name" htmlFor="cl-name"><input id="cl-name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required /></Field>
+          <Field label="Code" hint="2–6 capitals, used in every footprint code" htmlFor="cl-code"><input id="cl-code" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} required maxLength={6} /></Field>
+          <Field label="Type" htmlFor="cl-type"><select id="cl-type" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
+            {['exporter', 'fpo', 'brand', 'grainveda'].map((x) => <option key={x} value={x}>{humanise(x)}</option>)}</select></Field>
+        </div>
+        <h3>Assignment</h3>
         <Field label="State" htmlFor="cl-state"><select id="cl-state" value={f.state_id} onChange={(e) => setF({ ...f, state_id: e.target.value })} required>
           <option value="">—</option>{states.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
         <ErrorBox error={act.error} /><button disabled={act.busy}>{t('common.create')}</button>
@@ -128,6 +131,8 @@ export function Users() {
   return (
     <div><h1><span aria-hidden="true">👤 </span>{t('users.title')}</h1>
       {!!fns.data?.length && <div className="alert warn" role="status" data-testid="functions-warning">{t('users.fn_warning', { what: fns.data.join('; ') })}</div>}
+
+      {/* ── User list ── */}
       <div className="card table-wrap">{list.loading ? <Loading /> : (
         <table><thead><tr><th>Name</th><th>Role</th><th>Sign-in</th><th>Client</th><th>Login</th><th></th></tr></thead>
           <tbody>{list.data?.map((u) => <tr key={u.id} data-testid="user-row"><td>{u.display_name}</td><td>{humanise(u.role)}</td><td className="small">{u.email ?? u.phone}</td>
@@ -141,13 +146,25 @@ export function Users() {
             </div>}</td></tr>)}</tbody></table>)}</div>
       {msg && <div className="alert ok" data-testid="temp-password">{msg}</div>}
       <ErrorBox error={row.error} />
+
+      {/* ── New user form ── */}
       <form className="card" onSubmit={add}>
         <h2>{t('users.new')}</h2>
-        <Field label="Role" htmlFor="u-role"><select id="u-role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>
-          {creatable.map((r) => <option key={r} value={r}>{humanise(r)}</option>)}</select></Field>
-        <Field label="Name" htmlFor="u-name"><input id="u-name" value={f.display_name} onChange={(e) => setF({ ...f, display_name: e.target.value })} required /></Field>
-        {f.role !== 'operator' && <Field label="Email" htmlFor="u-email"><input id="u-email" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} required /></Field>}
-        <Field label={f.role === 'operator' ? 'Mobile' : 'Mobile (optional)'} htmlFor="u-phone"><input id="u-phone" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} required={f.role === 'operator'} /></Field>
+
+        <h3>Role &amp; identity</h3>
+        <div className="grid">
+          <Field label="Role" htmlFor="u-role"><select id="u-role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>
+            {creatable.map((r) => <option key={r} value={r}>{humanise(r)}</option>)}</select></Field>
+          <Field label="Name" htmlFor="u-name"><input id="u-name" value={f.display_name} onChange={(e) => setF({ ...f, display_name: e.target.value })} required /></Field>
+        </div>
+
+        <h3>Contact</h3>
+        <div className="grid">
+          {f.role !== 'operator' && <Field label="Email" htmlFor="u-email"><input id="u-email" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} required /></Field>}
+          <Field label={f.role === 'operator' ? 'Mobile' : 'Mobile (optional)'} htmlFor="u-phone"><input id="u-phone" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} required={f.role === 'operator'} /></Field>
+        </div>
+
+        <h3>Assignment</h3>
         {f.role === 'state_manager'
           ? <Field label="State" htmlFor="u-state"><select id="u-state" value={f.state_id} onChange={(e) => setF({ ...f, state_id: e.target.value })} required>
               <option value="">—</option>{states.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
@@ -204,6 +221,7 @@ export function Crops() {
         {!edit && <button onClick={() => setEdit(structuredClone(blank))}>{t('common.create')}</button>}</div>
       {edit && (
         <div className="card">
+          <h3>Basic info</h3>
           <div className="grid">
             <Field label="Name" htmlFor="cr-name"><input id="cr-name" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
             <Field label="Code" htmlFor="cr-code"><input id="cr-code" value={edit.code} maxLength={5} onChange={(e) => setEdit({ ...edit, code: e.target.value.toUpperCase() })} /></Field>

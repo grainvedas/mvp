@@ -1,7 +1,7 @@
 // Database rules are the app's validation: turn their refusals into plain words (execution plan §6, "Error display").
 export class AppError extends Error {
   code: string;
-  kind: 'rule' | 'permission' | 'not_found' | 'duplicate' | 'session' | 'network' | 'other';
+  kind: 'rule' | 'permission' | 'not_found' | 'duplicate' | 'session' | 'network' | 'setup' | 'other';
   constructor(message: string, code = '', kind: AppError['kind'] = 'other') {
     super(message);
     this.code = code;

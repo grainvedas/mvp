@@ -11,10 +11,15 @@
 
 type Env = Record<string, string | undefined>;
 
+/** The build of the three functions; the same value as in create-user/handler.ts (a unit test holds them together). */
+export const VERSION = '2026-10-04';
+
 const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info',
-  'access-control-allow-methods': 'POST, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-expose-headers': 'x-grainveda-function',
+  'x-grainveda-function': VERSION,
 };
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
@@ -27,6 +32,7 @@ function tempPassword(): string {
 
 export async function handle(req: Request, env: Env): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  if (req.method === 'GET') return json(200, { function: 'reset-password', version: VERSION });
   if (req.method !== 'POST') return json(405, { error: 'POST only' });
 
   const url = (env.SUPABASE_URL ?? '').replace(/\/+$/, '');

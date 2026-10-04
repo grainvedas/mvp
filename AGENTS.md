@@ -97,6 +97,14 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
 - **Every new `app` function is closed by hand:** end the migration with `revoke execute on function app.x(...) from public, anon, authenticated;`
   and grant it by name only if it is API. Postgres grants EXECUTE to everyone by default and `app` is exposed over REST.
   Add API functions to the allowlist in `tests/08_api_surface.sql`; that test fails the build on anything left open.
+- **A read policy decides from the row's own columns.** A policy that looks its own row up by id
+  (`using (app.can_access_x(id))`) cannot see a row inside the statement that inserts it, so `INSERT … RETURNING`
+  (what `supabase-js` sends when the app writes `.insert().select()`) is refused for everybody: scopes in Phase 1
+  (migration 18), clients on 5 October (migration 30). Test every table a screen inserts into with `returning *`, as
+  each role that may insert.
+- **Demo data hides set-up faults.** What a seed puts in place was never made through the screens. Anything a real
+  client needs before its first lot (client, manager, scope, people, farmer) has to be made in a test the way a
+  person makes it: `e2e/phase7.spec.ts` "A brand-new client, set up from the screens only".
 - **A fix needs a test that failed before the fix.** Reproduce first (a failing test, or a probe of the app as it is), then
   fix. If the old behaviour passes your new test, you have hardened something, not fixed a fault: say so
   (`docs/FIX_LIST.md` keeps the two apart). A check that cannot fail proves nothing: give every new check a negative control.
@@ -110,6 +118,14 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   the local stack is a rehearsal, staging is the test, and the release gate (`scripts/release_gate.mjs`) reads result
   files and keeps the two apart.
 - When a test fails, first decide whether the rule or the test is wrong. Rules trace to the PRD sections named in the SQL comments.
+- **The server functions are a third deploy, apart from the database and the app.** When a migration changes what a
+  function must send or may rely on (migration 23 did: logins need `app_metadata.grainveda_login`), or a function
+  changes what the app relies on, raise `VERSION` in all three `supabase/functions/*/handler.ts` and `FUNCTIONS_NEEDED`
+  in `web/src/lib/api.ts` (`web/tests/functions.test.ts` holds them together), and say in the run-sheet that step A6
+  has to be repeated. A step that makes two things in two systems (a person's row, then a login) takes both back on
+  every way out, checks that the removal happened, and says why the second step failed: "created but not linked"
+  with no reason cost a day (FIX_LIST fault 32). When you write a prompt for another agent, name every step, not the
+  ones you think are new.
 - Keep `docs/VERIFICATION_LOG.md` honest: what ran, what did not. Keep `docs/FIX_LIST.md` current: every known gap, every decision.
 - Stage-specific field names are in `supabase/seeds/01_stage_definitions.sql` (`form_schema.key`). Payload keys must match exactly.
 - Web tests, all three: `npx vitest run`; `npx playwright test` (the whole suite, files in name order, against the local

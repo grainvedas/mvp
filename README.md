@@ -76,6 +76,7 @@ supabase/
     20261002000500 … 000600           evidence fingerprints in the ledger
     20261004000100_public_page_data   what the public page's function sends: no buyer, no worked-out values
     20261004000200_capture_time_…     the time a record was captured on the phone; the lab verdict before saving
+    20261005000100_clients_read_by_row   a client can be added from the screen (the row is readable in its own insert)
   seeds/
     01_stage_definitions.sql       the one stage registry (16 stage types): forms, hand-off checks
     02 … 05                        demo data for staging and tests. They refuse to run on production
@@ -85,7 +86,7 @@ tests/
   00_local_auth_shim.sql           LOCAL ONLY: stands in for Supabase Auth
   01 … 21_*.sql, concurrency/      the database suite (plain SQL assertions)
   run_local.sh / run_local.ps1     rebuilds a scratch database and runs all of it
-  remote_smoke.sql                 read-only check of a hosted project (23 rows)
+  remote_smoke.sql                 read-only check of a hosted project (24 rows)
   remote_ledger_audit.sql          read-only: every ledger block has a real counterpart, and the reverse
   remote_rls.mjs                   permissions with real logins through the API (refuses production)
   remote_auth_settings.mjs         read-only: who can get a login
@@ -96,6 +97,8 @@ scripts/
   create_demo_logins.mjs           demo logins for staging and the stack (refuses production)
   bootstrap_admin.mjs              the first admin of a project
   make_ledger_token.mjs            the monitor's token
+  check_functions.mjs              read-only: are the three server functions deployed, and the build of this repository?
+  check_logins.mjs                 logins that belong to no person (and people without a login); --remove deletes the former
   backup.mjs, restore_drill.mjs, restore_evidence.mjs      off-platform backup, proven by restoring it
   collect_release_evidence.sh      every check that can run on the local stack, with result files
   release_gate.mjs                 PRD §12, criterion by criterion, from the result files

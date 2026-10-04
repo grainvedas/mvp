@@ -11,8 +11,11 @@
 type Env = Record<string, string | undefined>;
 const EVIDENCE_LIMIT = 200;
 
+/** The build of the three functions; the same value as in create-user/handler.ts (a unit test holds them together). */
+export const VERSION = '2026-10-04';
+
 const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-grainveda-function': VERSION } });
 
 function sameSecret(a: string, b: string): boolean {
   if (!a || !b || a.length !== b.length) return false;

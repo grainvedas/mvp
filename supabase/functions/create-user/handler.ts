@@ -7,13 +7,26 @@
 //
 // POST { role, display_name, email? | phone?, client_id?, state_ids?, slot?: { scope_id, stage_type } }
 // 201  { app_user_id, login_id, sign_in, temporary_password }   (temporary password shown once, to the creator)
+// GET  { function, version }                                    (which build is deployed: scripts/check_functions.mjs)
+//
+// THIS FUNCTION AND THE DATABASE GO TOGETHER. Since migration 23 the database links a login to a user row only if the
+// login carries app_metadata.grainveda_login. On 4 Oct 2026 staging had migration 23 and the function of 1 Oct, which
+// does not set that mark: every "New user" ended in "login created but not linked; both removed" (FIX_LIST fault 32).
+// Every answer now carries the build in the header x-grainveda-function, the app warns when it is missing or older
+// than it needs, and a link that fails says why.
 
 type Env = Record<string, string | undefined>;
+
+/** The build of the three functions (create-user, reset-password, ledger-check). Raise it in all three whenever one
+ *  changes in a way the app or the database depends on, and FUNCTIONS_NEEDED in web/src/lib/api.ts with it. */
+export const VERSION = '2026-10-04';
 
 const cors = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info',
-  'access-control-allow-methods': 'POST, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-expose-headers': 'x-grainveda-function',
+  'x-grainveda-function': VERSION,
 };
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
@@ -35,6 +48,27 @@ function tempPassword(): string {
   return 'Gv-' + btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+interface Login { id?: string; phone?: string | null; email?: string | null; phone_confirmed_at?: string | null; email_confirmed_at?: string | null;
+  app_metadata?: Record<string, unknown> | null }
+interface UserRow { auth_uid: string | null; active: boolean }
+
+/**
+ * Why did the database not link this login to this user row? The linking trigger (app.link_login, migrations 9 and 23)
+ * declines without an error, so the reason has to be read off the two records. null = it is linked.
+ * The order is the trigger's own: a confirmed channel, the service mark, an active and unclaimed row.
+ */
+export function whyNotLinked(login: Login, row: UserRow | null | undefined, userId: string): string | null {
+  if (!row) return 'the user row could not be read back (deleted meanwhile, or the service key cannot read app_users)';
+  if (row.auth_uid === login.id) return null;
+  if (!login.phone_confirmed_at && !login.email_confirmed_at) return 'the login has no confirmed phone or email';
+  if (login.app_metadata?.grainveda_login !== true)
+    return 'the login does not carry app_metadata.grainveda_login, and since migration 23 the database links only logins that do';
+  if (!row.active) return 'the user row is not active';
+  if (row.auth_uid && row.auth_uid !== userId) return 'the user row is already linked to another login';
+  return 'the database declined the link: another user row has the same phone or email, or the trigger grainveda_link_login is missing '
+    + '(Postgres log: "login linking failed" or "matches … app users")';
+}
+
 function dbMessage(data: unknown, fallback: string): string {
   const d = data as { message?: string; msg?: string; error_description?: string } | null;
   return d?.message ?? d?.msg ?? d?.error_description ?? fallback;
@@ -42,6 +76,7 @@ function dbMessage(data: unknown, fallback: string): string {
 
 export async function handle(req: Request, env: Env): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  if (req.method === 'GET') return json(200, { function: 'create-user', version: VERSION });
   if (req.method !== 'POST') return json(405, { error: 'POST only' });
 
   const url = (env.SUPABASE_URL ?? '').replace(/\/+$/, '');
@@ -88,45 +123,75 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   }
   const appUser = (insData as Array<{ id: string }>)[0];
 
-  const undo = async () => {
-    await fetch(`${url}/rest/v1/app_users?id=eq.${appUser.id}`, { method: 'DELETE', headers: asService });
+  // Taking back what was made. Each removal is checked and tried twice: a login without a user row would block that
+  // phone or e-mail for the next attempt ("already registered"), a row without a login would show as "no login".
+  const gone = async (what: string) => {
+    for (let i = 0; i < 2; i++) {
+      const r = await fetch(what, { method: 'DELETE', headers: asService }).catch(() => null);
+      if (r && (r.ok || r.status === 404)) return true;
+    }
+    return false;
+  };
+  const removeRow = () => gone(`${url}/rest/v1/app_users?id=eq.${appUser.id}`);
+  const removeLogin = (id: string) => gone(`${url}/auth/v1/admin/users/${id}`);
+  /** Removes the login (if one was made) and the row; says what, if anything, it could not remove. */
+  const takeBack = async (loginId: string | null): Promise<string> => {
+    const left: string[] = [];
+    if (loginId && !(await removeLogin(loginId))) left.push(`login ${loginId}`);
+    if (!(await removeRow())) left.push(`user row ${appUser.id}`);
+    if (left.length === 0) return loginId ? 'both removed' : 'nothing was kept';
+    const msg = `COULD NOT REMOVE ${left.join(' and ')}: remove by hand (docs/OPERATIONS.md "A login without a person")`;
+    console.error(`create-user: ${msg}`);
+    return msg;
   };
 
-  // 2. Optional slot, also as the caller (slots_write policy: must manage the scope's client).
-  const slot = body.slot as { scope_id?: string; stage_type?: string } | undefined;
-  if (slot?.scope_id && slot?.stage_type) {
-    const s = await fetch(`${url}/rest/v1/slot_assignments`, {
-      method: 'POST', headers: asCaller,
-      body: JSON.stringify({ user_id: appUser.id, scope_id: slot.scope_id, stage_type: slot.stage_type }),
+  let loginId: string | null = null;
+  try {
+    // 2. Optional slot, also as the caller (slots_write policy: must manage the scope's client).
+    const slot = body.slot as { scope_id?: string; stage_type?: string } | undefined;
+    if (slot?.scope_id && slot?.stage_type) {
+      const s = await fetch(`${url}/rest/v1/slot_assignments`, {
+        method: 'POST', headers: asCaller,
+        body: JSON.stringify({ user_id: appUser.id, scope_id: slot.scope_id, stage_type: slot.stage_type }),
+      });
+      if (!s.ok) { const d = await s.json().catch(() => null); await takeBack(null); return json(403, { error: dbMessage(d, 'slot refused') }); }
+    }
+
+    // 3. The login (service key). Created confirmed and marked, so the linking trigger attaches it to the row.
+    const password = tempPassword();
+    const cred = email ? { email, password, email_confirm: true } : { phone: phone!.replace('+', ''), password, phone_confirm: true };
+    const a = await fetch(`${url}/auth/v1/admin/users`, {
+      method: 'POST', headers: asService,
+      // app_metadata.grainveda_login: only a login made here (service role) can be linked to a user row (migration 23).
+      // user_metadata.must_change_password: the app asks for an own password at first sign-in (the creator knows this one).
+      body: JSON.stringify({ ...cred, app_metadata: { grainveda_login: true },
+        user_metadata: { display_name: displayName, must_change_password: true } }),
     });
-    if (!s.ok) { const d = await s.json().catch(() => null); await undo(); return json(403, { error: dbMessage(d, 'slot refused') }); }
-  }
+    const login = await a.json().catch(() => null) as Login | null;
+    if (!a.ok || !login?.id) {
+      await takeBack(null);
+      const msg = dbMessage(login, 'login could not be created');
+      return json(/registered|exists/i.test(msg) ? 409 : 502, { error: msg });
+    }
+    loginId = login.id;
 
-  // 3. The login (service key). Created confirmed, so the linking trigger (migration 9) attaches it to the row.
-  const password = tempPassword();
-  const cred = email ? { email, password, email_confirm: true } : { phone: phone!.replace('+', ''), password, phone_confirm: true };
-  const a = await fetch(`${url}/auth/v1/admin/users`, {
-    method: 'POST', headers: asService,
-    // app_metadata.grainveda_login: only a login made here (service role) can be linked to a user row (migration 23).
-    // user_metadata.must_change_password: the app asks for an own password at first sign-in (the creator knows this one).
-    body: JSON.stringify({ ...cred, app_metadata: { grainveda_login: true },
-      user_metadata: { display_name: displayName, must_change_password: true } }),
-  });
-  const login = await a.json().catch(() => null) as { id?: string } | null;
-  if (!a.ok || !login?.id) {
-    await undo();
-    const msg = dbMessage(login, 'login could not be created');
-    return json(/registered|exists/i.test(msg) ? 409 : 502, { error: msg });
-  }
+    // 4. Linked? The trigger declines without an error, so read the row back and say why if it did.
+    const chk = await fetch(`${url}/rest/v1/app_users?id=eq.${appUser.id}&select=auth_uid,active`, { headers: asService });
+    const rows = chk.ok ? (await chk.json().catch(() => null)) as UserRow[] | null : null;
+    const why = chk.ok && Array.isArray(rows) ? whyNotLinked(login, rows[0], appUser.id)
+      : `the user row could not be read back with the service key (HTTP ${chk.status})`;
+    if (why) {
+      console.error(`create-user: login ${login.id} was not linked to user row ${appUser.id}: ${why}`);
+      const cleaned = await takeBack(login.id);
+      return json(500, { error: `login created but not linked: ${why}; ${cleaned}` });
+    }
 
-  // 4. Linked?
-  const chk = await fetch(`${url}/rest/v1/app_users?id=eq.${appUser.id}&select=auth_uid`, { headers: asService });
-  const linked = ((await chk.json().catch(() => [])) as Array<{ auth_uid: string }>)[0]?.auth_uid === login.id;
-  if (!linked) {
-    await fetch(`${url}/auth/v1/admin/users/${login.id}`, { method: 'DELETE', headers: asService });
-    await undo();
-    return json(500, { error: 'login created but not linked; both removed' });
+    return json(201, { app_user_id: appUser.id, login_id: login.id, sign_in: email ?? phone, temporary_password: password });
+  } catch (e) {
+    // A request that broke half-way (the Auth server or the database did not answer) must not leave half a person.
+    const what = e instanceof Error ? e.message : String(e);
+    console.error(`create-user: interrupted for user row ${appUser.id}: ${what}`);
+    const cleaned = await takeBack(loginId);
+    return json(502, { error: `the server did not answer while the person was being created (${what}); ${cleaned}` });
   }
-
-  return json(201, { app_user_id: appUser.id, login_id: login.id, sign_in: email ?? phone, temporary_password: password });
 }

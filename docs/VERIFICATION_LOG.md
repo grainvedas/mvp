@@ -816,3 +816,152 @@ NOT run, and therefore not known:
 - The new Hindi words (104 entries) have been read by nobody who speaks Hindi in the field (limit K9).
 - The acceptance suite against a deployed address; the Windows runner.
 - Nobody but the builder has looked at any of this: run-sheet step B11, steps 10 to 15, is that check.
+
+## 2026-10-04 (evening) — "Login created but not linked; both removed" on staging: cause read from the live project; functions and app changed; local stack only
+
+Reported by Veda from the deployed app (Users & Roles → New user, every attempt). `docs/FIX_LIST.md` open item 17
+(staging) and fault 32 (what was wrong in the repository).
+
+Read from the staging project, without signing in and without changing anything (a browser on Veda's computer; the
+build machine cannot reach the project):
+
+- Functions: `create-user` answers, with no build header (a build from before today); `reset-password`:
+  `404 NOT_FOUND "Requested function was not found"`; `ledger-check`: `500 "function not configured (SUPABASE_URL,
+  service key, LEDGER_CHECK_TOKEN)"`. From another origin a request to the missing function fails in the browser
+  ("Failed to fetch"): the gateway's 404 carries no CORS headers.
+- Database, asked with the app's public key: `app.environment()` → `"staging"`; `preview_verdict`, `scope_activity`,
+  `seal_source` exist (permission denied for a visitor, not "not found"). So migrations 23, 24 and 29 are applied.
+- The folder on the computer: the Supabase CLI was used after batch 8; two scripts were added by Antigravity
+  (`scripts/check_b11.mjs`, `scripts/debug_signin.mjs`: B11 run by a script against the deployed app).
+
+Cause: run-sheet step A6 was not done. `create-user` of 1 October makes the login without
+`app_metadata.grainveda_login`; the linking trigger of migration 23 returns at that condition without an error; the
+function finds the row unlinked and removes both. None of scope ("Overall"), row-level security or a missing column:
+the form sends no scope, the row insert (as the caller) succeeds, and no insert happens at the link step.
+
+Reproduced on the local stack (real Supabase Auth 2.197.0, the version the staging project reported when it was
+linked), the Phase 1 handler taken from git (`b83ada8`) against a database with migration 23:
+
+```
+Phase 1 function : 500 {"error":"login created but not linked; both removed"}      (no row, no login left behind)
+function of 2 Oct: 201
+```
+
+What changed (no migration):
+
+- `supabase/functions/*/handler.ts`: one `VERSION` in all three, sent with every answer (`x-grainveda-function`) and
+  as the answer to GET. `create-user`: `whyNotLinked()`; every removal checked and tried twice; the login and the row
+  are taken back on every way out, also when a request throws.
+- `scripts/check_functions.mjs`, `scripts/check_logins.mjs` (new). `local-stack/gateway.mjs` lets a page read the header.
+- Web: `lib/api.ts` (`FUNCTIONS_NEEDED`, `functionState`, a failed call to an outdated or missing function becomes
+  an error of kind `setup`), `lib/errors.ts`, `shell/ui.tsx`, `pages/admin/Admin.tsx` (the warning), 5 dictionary
+  entries in each language.
+- Tests: `web/tests/functions.test.ts` (new, 21), `web/e2e/phase7.spec.ts` (new, 1).
+- Guides: `FIX_LIST.md` (item 17, fault 32, limit K22), `RUNSHEET_phase4.md` (A6 with its two checks, B4, C6),
+  `OPERATIONS.md` ("When New user or Reset password does not work"), `DEPLOY.md` ("Three things are deployed apart"),
+  `AGENTS.md`, `README.md`.
+
+What ran (local stack):
+
+- `npx tsc -b --noEmit` clean; `npx vitest run`: **150 passed** (7 files).
+- `npx playwright test`: **43 passed** (7.2 min). `npx playwright test -c playwright.prod.config.ts`: **14 passed**
+  (3.7 min); public page 176 KB transferred of the 200 KB budget.
+- `ENV_FILE=.env.stack node tests/remote_create_user.mjs`: `29 passed, 0 failed`, `CREATE-USER PASSED` (the functions
+  through the gateway, real logins).
+- **The fault itself, before and after, on the screen** (`e2e/phase7.spec.ts`: the browser is given the answers
+  staging gave). The app as delivered in batch 8: no warning; after **Create**: `Login created but not linked; both
+  removed`; after **Reset**: `No connection to the server`. The app now: the warning names both functions; after
+  **Create**: "The server is not up to date with this app … Nothing is wrong with what you entered … (run-sheet step
+  A6) … it answered "login created but not linked; both removed""; after **Reset**: "A part of the server is not
+  installed…". With the real functions: no warning, the person is created and linked.
+- **The clean-up, before and after** (the handler with a stand-in server; `functions.test.ts` holds the "after"):
+
+  | Case | Function of 2 Oct | Now |
+  |---|---|---|
+  | The server stops answering after the login is made | throws; **login and row stay** | `502 … both removed`; both DELETEs sent |
+  | The login cannot be deleted | says `both removed` | deletes tried twice, then `COULD NOT REMOVE login <id>: remove by hand` |
+
+- A link that fails for another reason, real function and real Auth server (the trigger switched off in the stack's
+  database for one call): `500 login created but not linked: the database declined the link: … ; both removed`;
+  0 rows and 0 logins left; the reason is in the function's log. With the trigger on again: `201`.
+- `scripts/check_functions.mjs`: local stack → three `ok`, `FUNCTIONS DEPLOYED AND CURRENT`; a stand-in that answers
+  as staging did → `create-user: … an older build`, `reset-password: not deployed`, `ledger-check: … an older build`,
+  exit 1.
+- `scripts/check_logins.mjs`: `NO LOGIN WITHOUT A PERSON`; with two logins made the old way → lists both, exit 1;
+  `--remove` → removed; again `NO LOGIN WITHOUT A PERSON`.
+
+NOT run, and therefore not known:
+
+- **Nothing was changed on staging and no function was deployed from here.** Until step A6 is done there, New user
+  and Reset password keep failing; with the app of batch 8 they keep the old words.
+- That the function deployed on staging is byte for byte the Phase 1 build: inferred from its answers (no build
+  header, GET refused as "POST only") and from `reset-password` and the `ledger-check` token missing.
+- Whether the failed attempts on staging left a login behind: the old function removes it and does not check;
+  `node scripts/check_logins.mjs` after A6 answers that.
+- Whether the hosted gateway lets a page read `x-grainveda-function` from another origin. The app also reads the
+  build from the answer to GET, so it does not depend on it; `check_functions.mjs` is not a browser.
+- `tests/run_local.sh`: not run again; no SQL changed.
+
+## 2026-10-05 — "Not allowed for your role or stage" on Clients → Create: migration 30, the Clients form; local stack only
+
+Reported by Veda from the deployed app, signed in as admin. `docs/FIX_LIST.md` open item 18, fault 33.
+
+Cause: `clients_read` is `using (app.can_access_client(id))`, a function that looks the client up by id. The app sends
+`insert … returning` (`.insert().select()`); the row being inserted is not visible to that lookup, the returned row
+fails the read rule, the insert is refused. Not a matter of the admin's role: the insert rule itself passes.
+
+Reproduced on the local stack through the API, as the demo admin and the demo State Manager:
+
+```
+admin, as the app sends it (wants the row back): 403 new row violates row-level security policy for table "clients"
+admin, same row, not asking for it back        : 201
+state manager, as the app sends it             : 403 (the same)
+```
+
+Looked through for the same pattern: the read rule of every table (`pg_policies`). Only scopes (fixed in migration 18)
+and clients look their own row up by id. `insert … returning` as admin on states and crops: accepted.
+
+What changed:
+
+- Migration 30 `20261005000100_clients_read_by_row`: one more read rule on clients, from the row's own columns.
+- `web/src/pages/admin/Admin.tsx`: the Clients form inserts without asking for the row back (it reads the list again).
+- Tests: `tests/22_clients_create_returning.sql` (10 assertions), smoke row 24 `a new client can be read back`,
+  `web/e2e/phase7.spec.ts`: "An admin adds a client…" and "A brand-new client, set up from the screens only…".
+
+What ran (local stack):
+
+- `tests/22` on the test database as built before migration 30: fails at its first statement, `new row violates
+  row-level security policy for table "clients"`. `tests/run_local.sh` with migration 30: `ALL TESTS PASSED`,
+  **557 assertions** (547 + 10).
+- The screen test "An admin adds a client…", in the four combinations:
+
+  | App | Database | Result |
+  |---|---|---|
+  | as delivered in batch 9 | without migration 30 | fails: "Not allowed for your role or stage." on the screen, no row |
+  | now | without migration 30 | passes |
+  | as delivered in batch 9 | with migration 30 | passes |
+  | now | with migration 30 | passes |
+
+- **A brand-new client from nothing, through the screens only** (new test, 23 s): the admin adds the client and its
+  manager; the manager chooses an own password, makes a scope, makes a new person at each of three stages, activates;
+  registers a farmer; the State Manager verifies (Farmer ID `<new code>-F-0001`); the three new people each choose a
+  password, buy, test and seal (`<new code>-KNM-…-P-0001`); the public page shows the farmer and never the phone
+  number. It passed at the first run: no further fault on that path in this build.
+- `npx tsc -b --noEmit` clean; `npx vitest run`: 150 passed. `npx playwright test`: **45 passed** (7.8 min).
+  `npx playwright test -c playwright.prod.config.ts`: **14 passed** (3.7 min); public page 176 KB.
+- `tests/remote_smoke.sql` on the stack: 24 rows, 23 `OK` and the expected `NO pg_cron` of the local stack.
+
+NOT run, and therefore not known:
+
+- **Nothing on staging.** The Clients page there fails until the app is pushed to GitHub (or migration 30 is pushed).
+  Creating people there still needs step A6 (open item 17).
+- The from-nothing test needs the functions of 4 October and ran on the local stack only; on staging the same path
+  stops at "create the manager" until A6 is done.
+- States and Crops were checked for this fault through SQL as admin, not by adding one from the screen.
+
+Found in the folder before delivering (changed by someone else after batch 9, kept as found): `Admin.tsx` with
+rename and delete for states, and a new `Admin-1.tsx` that nothing imports. The Clients change was merged into the
+folder's `Admin.tsx`; with the merged file: `tsc` clean, vitest 150 passed, `phase7` 3 passed, and the two other
+screen tests that use that file passed. Tried on the stack: renaming a state works; **Delete** answers "Permission
+denied for table states" (FIX_LIST open items 19 and 20). The full Playwright suite was run before the merge, not
+again after it; the merge adds only the states part.
