@@ -1,7 +1,7 @@
 // S3 states · S4 clients · S5 users · S6 crop registry · open flags
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { q, callFunction } from '../../lib/api';
+import { q, callFunction, functionState } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
@@ -17,17 +17,36 @@ export function States() {
   const { t } = useI18n();
   const list = useAsync(() => q(supabase.from('states').select('*').order('name')) as Promise<State[]>, []);
   const [name, setName] = useState(''); const [code, setCode] = useState('');
+  const [editing, setEditing] = useState<State | null>(null);
   const act = useAction();
+  const row = useAction();
   const add = (e: FormEvent) => { e.preventDefault(); void act.run(async () => { await q(supabase.from('states').insert({ name, code: code.toUpperCase() }).select()); setName(''); setCode(''); await list.reload(); }); };
+  const save = (e: FormEvent) => { e.preventDefault(); if (!editing) return; void row.run(async () => {
+    await q(supabase.from('states').update({ name: editing.name, code: editing.code.toUpperCase() }).eq('id', editing.id).select());
+    setEditing(null); await list.reload();
+  }); };
+  const remove = (s: State) => row.run(async () => { await q(supabase.from('states').delete().eq('id', s.id)); setEditing(null); await list.reload(); });
   return (
     <div><h1><span aria-hidden="true">📍 </span>{t('states.title')}</h1>
-      <div className="card">{list.loading ? <Loading /> : <ul>{list.data?.map((s) => <li key={s.id}>{s.name} <span className="mono">{s.code}</span></li>)}</ul>}</div>
+      <div className="card">{list.loading ? <Loading /> : <ul>{list.data?.map((s) => (
+        <li key={s.id} className="row">{editing?.id === s.id
+          ? <form className="row" onSubmit={save} style={{ flex: 1 }}>
+              <input aria-label="State name" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} required style={{ flex: 2 }} />
+              <input aria-label="Code" value={editing.code} onChange={(e) => setEditing({ ...editing, code: e.target.value })} required maxLength={4} style={{ flex: 1 }} />
+              <button disabled={row.busy}>{t('common.save')}</button>
+              <button type="button" className="secondary" onClick={() => setEditing(null)}>{t('common.cancel')}</button>
+              <button type="button" className="danger" disabled={row.busy} onClick={() => void remove(s)}>Delete</button>
+            </form>
+          : <>{s.name} <span className="mono">{s.code}</span>
+              <button className="secondary" onClick={() => setEditing({ ...s })}>{t('common.edit')}</button></>}
+        </li>))}</ul>}</div>
       <form className="card row" onSubmit={add}>
         <input aria-label="State name" placeholder="State name" value={name} onChange={(e) => setName(e.target.value)} required style={{ flex: 2 }} />
         <input aria-label="Code" placeholder="Code (e.g. BR)" value={code} onChange={(e) => setCode(e.target.value)} required maxLength={4} style={{ flex: 1 }} />
         <button disabled={act.busy}>{t('common.create')}</button>
       </form>
       <ErrorBox error={act.error} />
+      <ErrorBox error={row.error} />
     </div>
   );
 }
@@ -72,6 +91,13 @@ export function Users() {
   const creatable = (['state_manager', 'client_manager', 'client_view', 'operator'] as Role[]).filter((r) => me.role === 'admin' || ROLE_RANK[r] < ROLE_RANK[me.role]);
   const [f, setF] = useState({ role: creatable[creatable.length - 1] ?? 'operator', display_name: '', email: '', phone: '', client_id: me.client_id ?? '', state_id: '' });
   const [msg, setMsg] = useState<string | null>(null);
+  // The two server functions this page needs are deployed apart from the app: say so here if they were left behind,
+  // before somebody fills in the form (4 Oct 2026: "New user" failed every time on staging, with no cause named).
+  const fns = useAsync(async () => {
+    const names = ['create-user', 'reset-password'];
+    const states = await Promise.all(names.map((n) => functionState(n)));
+    return names.flatMap((n, i) => states[i] === 'outdated' ? [t('users.fn_old', { name: n })] : states[i] === 'missing' ? [t('users.fn_none', { name: n })] : []);
+  }, []);
   const [resetting, setResetting] = useState<string | null>(null);     // the user whose reset is waiting for a second tap
   const act = useAction();                                             // the "new user" form
   const row = useAction();                                             // deactivate / reset on a row of the list
@@ -96,6 +122,7 @@ export function Users() {
   const linked = (u: UserRow) => !!u.auth_uid && u.auth_uid !== u.id;
   return (
     <div><h1><span aria-hidden="true">👤 </span>{t('users.title')}</h1>
+      {!!fns.data?.length && <div className="alert warn" role="status" data-testid="functions-warning">{t('users.fn_warning', { what: fns.data.join('; ') })}</div>}
       <div className="card table-wrap">{list.loading ? <Loading /> : (
         <table><thead><tr><th>Name</th><th>Role</th><th>Sign-in</th><th>Client</th><th>Login</th><th></th></tr></thead>
           <tbody>{list.data?.map((u) => <tr key={u.id} data-testid="user-row"><td>{u.display_name}</td><td>{humanise(u.role)}</td><td className="small">{u.email ?? u.phone}</td>
