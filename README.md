@@ -24,6 +24,15 @@ them; step A2 of the Phase 4 run-sheet shows it at a glance (the migrations stil
 the two that need a person. What was run, with numbers, and what was not: `docs/VERIFICATION_LOG.md`.
 What is known to be missing or undecided: `docs/FIX_LIST.md`.
 
+**The interface has the prototype's look and frame, by decision** (Veda, 4 October 2026: option B; FIX_LIST G8). On a
+laptop: dark top bar and side menu, scope selector, first screens with number cards, stage forms in two columns under
+section headings. On a phone: one column that fits the screen. Built in the repository the same day (FIX_LIST "The
+prototype's look and frame", B1 to B7); it reaches staging with the next deploy of the app and a re-run of seed 01.
+It still differs from the prototype in **what the stage forms ask for** (103 fields, one stage, about 15 screens):
+`docs/INTERFACE_GAP.md`. Of the twelve faults that comparison found in this system, eleven are fixed in the repository
+(FIX_LIST lines 21 to 31) and reach staging with migrations 28 and 29. The twelfth, an arrival check that can verify a
+lot but not refuse it, stays (FIX_LIST K19).
+
 ## Read this first
 
 | You are | Read |
@@ -34,6 +43,7 @@ What is known to be missing or undecided: `docs/FIX_LIST.md`.
 | The admin or a manager in a live season | `docs/OPERATIONS.md` |
 | An operator | `docs/OPERATOR_GUIDE.md` (one sheet, Hindi and English) |
 | Whoever looks after backups | `docs/RESTORE.md` |
+| Anyone asking why the screens differ from the prototype | `docs/INTERFACE_GAP.md` (compared 4 Oct 2026; decided the same day: the prototype's look and frame, option B) |
 
 ## The model in one paragraph
 
@@ -52,7 +62,7 @@ Postgres (triggers and row-level security); the screens mirror them and are neve
 
 ```
 supabase/
-  migrations/                      27 files, applied in name order. Never edit an applied one.
+  migrations/                      29 files, applied in name order. Never edit an applied one.
     20260927000100 … 001300        Phase 0: tables, integrity triggers, RLS, seal, login linking, counters, ledger hash
     20261001000100_api_surface     every app function closed by default, granted by name
     20261001000200 … 000500        Phase 1: preview (review = save), stage_form, farmers, corrections, scope reads
@@ -64,6 +74,8 @@ supabase/
     20261002000300_atomic_saves       record + seal in one transaction; grade lots made by the save
     20261002000400_access_rules       ledger read by stage; assignments removable; people in the ledger
     20261002000500 … 000600           evidence fingerprints in the ledger
+    20261004000100_public_page_data   what the public page's function sends: no buyer, no worked-out values
+    20261004000200_capture_time_…     the time a record was captured on the phone; the lab verdict before saving
   seeds/
     01_stage_definitions.sql       the one stage registry (16 stage types): forms, hand-off checks
     02 … 05                        demo data for staging and tests. They refuse to run on production
@@ -71,9 +83,9 @@ supabase/
   functions/                       Edge Functions: create-user, reset-password, ledger-check
 tests/
   00_local_auth_shim.sql           LOCAL ONLY: stands in for Supabase Auth
-  01 … 18_*.sql, concurrency/      the database suite (plain SQL assertions)
+  01 … 21_*.sql, concurrency/      the database suite (plain SQL assertions)
   run_local.sh / run_local.ps1     rebuilds a scratch database and runs all of it
-  remote_smoke.sql                 read-only check of a hosted project (21 rows)
+  remote_smoke.sql                 read-only check of a hosted project (23 rows)
   remote_ledger_audit.sql          read-only: every ledger block has a real counterpart, and the reverse
   remote_rls.mjs                   permissions with real logins through the API (refuses production)
   remote_auth_settings.mjs         read-only: who can get a login
@@ -92,13 +104,18 @@ web/
   src/offline/                     outbox (saves kept on the phone), copy of forms for work without network
   src/lib/keptLogin.ts             who is signed in on this phone, whatever the network says
   src/lib/i18n.en.ts, i18n.hi.ts   every visible string
+  src/engine/values.tsx            how a record's values are shown: a name, a value with its unit, never code text
+  src/shell/Layout.tsx, scope.tsx  the frame (top bar, side menu on a laptop) and the scope a person works in
+  src/pages/Home.tsx               first screens by role: stage cards, number cards, action queue, season flow
+  src/styles.css                   ONE style sheet: the prototype's colours as tokens; laptop from 900 px, phone to 600 px
   public/sw.js                     lets the app open with no network
   tests/                           unit tests (vitest)
   e2e/                             end-to-end through the screens (Playwright, phone-sized); T1–T5 are the acceptance tests
   e2e-prod/                        the BUILT app behind a host-like server: budgets, security policy, a day in the field
   wrangler.jsonc, netlify.toml, vercel.json     hosting (Cloudflare is the default)
 docs/                              run-sheets per phase, DEPLOY, ACCEPTANCE, RESTORE, OPERATIONS, OPERATOR_GUIDE, FIX_LIST,
-                                   VERIFICATION_LOG, ci/database-tests.yml (copy to .github/workflows/)
+                                   VERIFICATION_LOG, INTERFACE_GAP (this system against the prototype),
+                                   ci/database-tests.yml (copy to .github/workflows/)
 AGENTS.md                          rules for coding agents working in this repository
 ```
 

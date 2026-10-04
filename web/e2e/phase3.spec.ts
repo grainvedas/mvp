@@ -141,7 +141,9 @@ test('Dashboards: pipeline dots, sealed lots, flag log, season CSV, journey CSV;
     const dl = page.waitForEvent('download');
     await page.getByTestId('season-csv').click();
     const csv = readFileSync((await (await dl).path())!, 'utf8').replace(/^\uFEFF/, '');
-    expect(csv.split('\r\n')[0]).toBe('code,stage,status,qty_in_kg,qty_out_kg,grade,lot_closed,farmer_id,farmer,village,batch_code,buyer,market,created_at,verified_at,warnings');
+    // 4 Oct 2026 (capture time, migration 29): the time column is the time the work was recorded and is named so; the
+    // time the server stored it is a new last column. The other columns are where they were.
+    expect(csv.split('\r\n')[0]).toBe('code,stage,status,qty_in_kg,qty_out_kg,grade,lot_closed,farmer_id,farmer,village,batch_code,buyer,market,recorded_at,verified_at,warnings,received_by_server_at');
     expect(csv).toMatch(/\r\nSUMMARY 1,procurement,/);
     expect(csv).toMatch(/\r\nPRSDM-KNM-KH26-P-\d{4},procurement,verified,/);
     expect(csv).toMatch(/\r\nPRSDM-KNM-KH26-M-\d{4},milling,/);
@@ -164,9 +166,9 @@ test('Dashboards: pipeline dots, sealed lots, flag log, season CSV, journey CSV;
 test('Hindi: operator screens switch language; English stays as the database sends it', async ({ page }) => {
   await signIn(page, P.proc);
   await page.getByLabel('Language').selectOption('hi');
-  await expect(page.getByRole('link', { name: 'होम' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'डैशबोर्ड' })).toBeVisible();
   await open(page, 'procurement', 'Gorakhpur');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('ख़रीद (फ़ार्म-गेट)');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('ख़रीद (फ़ार्म-गेट)');   // after its pictogram
   await expect(page.getByText(/^कुल वज़न/)).toBeVisible();
   await expect(page.getByPlaceholder('नाम, किसान आईडी, फ़ोन या गाँव')).toBeVisible();
   // The record page too: its labels, the status word and the ledger's event names (they come from the database in English).
@@ -175,7 +177,7 @@ test('Hindi: operator screens switch language; English stays as the database sen
   await expect(page.getByRole('heading', { level: 1 })).toContainText('रिकॉर्ड');
   const card = page.locator('.card').first();
   for (const word of ['चरण', 'आई मात्रा', 'निकली मात्रा', 'अभी उपलब्ध', 'दर्ज', 'भरे गए मान']) await expect(card).toContainText(word);
-  await expect(card.locator('.badge').first()).toHaveText(/^(बाकी|सत्यापित|बंद)$/);
+  await expect(card.locator('.badge').first()).toHaveText(/^(सत्यापन बाकी|स्वीकृत|बंद)$/);
   await expect(page.locator('th', { hasText: 'घटना' })).toBeVisible();
   await expect(page.locator('td', { hasText: 'दर्ज किया' }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'ख़रीद (फ़ार्म-गेट)' })).toBeVisible();   // the way back to the stage, in Hindi too
@@ -183,6 +185,6 @@ test('Hindi: operator screens switch language; English stays as the database sen
   await page.getByLabel('Language').selectOption('en');
   await expect(card).toContainText('Quantity in');
   await page.goBack();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Procurement (farm-gate)');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Procurement (farm-gate)');
   await signOut(page);
 });

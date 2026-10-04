@@ -27,7 +27,7 @@ the live project.
 - Sign in as `…05`, open Procurement once, then switch on airplane mode: record lots, they show "Saved on phone";
   switch airplane mode off: they send by themselves, codes in the order captured.
 - Language → हिन्दी on any operator screen (and on the public page).
-- Client Manager / Client View: Home → a scope → **Dashboard**: chain dots, sealed lots, flag log, season CSV;
+- Client Manager / Client View: **Dashboard** → a scope → **Full dashboard and exports**: chain dots, sealed lots, flag log, season CSV;
   a sealed lot → **Journey & export** → CSV or Print / save as PDF.
 - A record with a photo shows "file matches its fingerprint" (re-hashed on opening).
 

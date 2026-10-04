@@ -1,0 +1,252 @@
+{
+ "flags": 0,
+ "ledger": [
+  {
+   "by": "Procurement Op (field)",
+   "code": "PRSDM-KNM-KH26-P-0001",
+   "event": "create",
+   "hash": "219cbde57d966faf",
+   "seq": 63
+  },
+  {
+   "by": "QC Technician",
+   "code": "PRSDM-KNM-KH26-P-0001",
+   "event": "verify",
+   "hash": "0bdd312a9c9f2458",
+   "seq": 64
+  },
+  {
+   "by": "QC Technician",
+   "code": "PRSDM-KNM-KH26-P-0001",
+   "event": "close",
+   "hash": "c7510a0bf2a82739",
+   "seq": 65
+  },
+  {
+   "by": "QC Technician",
+   "code": "PRSDM-KNM-KH26-QC-0001",
+   "event": "create",
+   "hash": "dac678b1d96c3e61",
+   "seq": 66
+  },
+  {
+   "by": "QR Sealer",
+   "code": "PRSDM-KNM-KH26-QC-0001",
+   "event": "verify",
+   "hash": "6f3b10dae3198e24",
+   "seq": 67
+  },
+  {
+   "by": "QR Sealer",
+   "code": "PRSDM-KNM-KH26-QC-0001",
+   "event": "close",
+   "hash": "52544448619e0ce6",
+   "seq": 68
+  },
+  {
+   "by": "QR Sealer",
+   "code": "PRSDM-KNM-KH26-QR-0001",
+   "event": "create",
+   "hash": "9d0958176ac2fb73",
+   "seq": 69
+  },
+  {
+   "by": "QR Sealer",
+   "code": "PRSDM-KNM-KH26-QR-0001",
+   "event": "verify",
+   "hash": "02125ca840e0206f",
+   "seq": 70
+  },
+  {
+   "by": "QR Sealer",
+   "code": "PRSDM-KNM-KH26-QR-0001",
+   "event": "close",
+   "hash": "f72855c3e93c4bbf",
+   "seq": 71
+  },
+  {
+   "by": "QR Sealer",
+   "code": "PRSDM-KNM-KH26-QR-0001",
+   "event": "seal",
+   "hash": "893be61ba075a78f",
+   "seq": 72
+  }
+ ],
+ "ledger_problems": 0,
+ "public": {
+  "batch_codes": [],
+  "client": {
+   "name": "GrainVeda (Prasaadam trade scope)",
+   "type": "grainveda"
+  },
+  "crop": {
+   "gi_tag": "GI 280",
+   "name": "Kalanamak rice",
+   "origin": "Eastern UP Terai belt (Siddharthnagar)"
+  },
+  "geography": "Siddharthnagar",
+  "journey": [
+   {
+    "code": "PRSDM-KNM-KH26-P-0001",
+    "computed": {
+     "moisture_avg": 11.9,
+     "moisture_max": 12,
+     "moisture_min": 11.8,
+     "net_kg": 147.5
+    },
+    "created_at": "2026-10-03T11:39:05.433844+00:00",
+    "farmer": {
+     "district": "Siddharthnagar",
+     "name": "Sita Devi",
+     "photo": null,
+     "village": "Itwa"
+    },
+    "grade": null,
+    "qty_in_kg": 147.5,
+    "qty_out_kg": 147.5,
+    "stage": "procurement",
+    "verified_at": "2026-10-03T11:39:05.433844+00:00"
+   },
+   {
+    "code": "PRSDM-KNM-KH26-QC-0001",
+    "computed": {
+     "forwarding_kg": 147,
+     "sample_qty_kg": 0.5
+    },
+    "created_at": "2026-10-03T11:39:05.433844+00:00",
+    "grade": null,
+    "qty_in_kg": 147.5,
+    "qty_out_kg": 147,
+    "readings": {
+     "broken_pct": 2,
+     "foreign_matter_pct": 0.2,
+     "moisture_pct": 11.9
+    },
+    "stage": "qc",
+    "verified_at": "2026-10-03T11:39:05.433844+00:00"
+   },
+   {
+    "code": "PRSDM-KNM-KH26-QR-0001",
+    "computed": {
+     "final_kg": 147
+    },
+    "created_at": "2026-10-03T11:39:05.433844+00:00",
+    "grade": null,
+    "qty_in_kg": 147,
+    "qty_out_kg": 147,
+    "stage": "qr_activation",
+    "verified_at": "2026-10-03T11:39:05.433844+00:00"
+   }
+  ],
+  "ledger_hash": "893be61ba075a78f2d0af6205fcbdd44ddb8f036d9938e400a61a12ef41415c3",
+  "qr_code": "GV-D3C38791036F",
+  "sealed_at": "2026-10-03T11:39:05.433844+00:00",
+  "season": "KH26",
+  "verdict": {
+   "domestic": "pass",
+   "export": "pass",
+   "overridden": false
+  }
+ },
+ "records": [
+  {
+   "by": "Procurement Op (field)",
+   "code": "PRSDM-KNM-KH26-P-0001",
+   "computed": {
+    "moisture_avg": 11.9,
+    "moisture_max": 12,
+    "moisture_min": 11.8,
+    "net_kg": 147.5
+   },
+   "created_ist": "03 Oct 2026 17:09:05",
+   "id": "0abc13d8-48d1-4733-9b63-9fc30ae62d40",
+   "payload": {
+    "bags": 1,
+    "gross_kg": 150,
+    "moisture_pct": [
+     11.9,
+     11.8,
+     12
+    ],
+    "tare_kg_per_bag": 2.5
+   },
+   "qty_in": 147.5,
+   "qty_out": 147.5,
+   "stage": "procurement",
+   "status": "verified",
+   "verified_by": "QC Technician",
+   "warnings": []
+  },
+  {
+   "by": "QC Technician",
+   "code": "PRSDM-KNM-KH26-QC-0001",
+   "computed": {
+    "forwarding_kg": 147,
+    "sample_qty_kg": 0.5
+   },
+   "created_ist": "03 Oct 2026 17:09:05",
+   "id": "4bb7f2dd-85af-4e3d-a310-3d0e1f715200",
+   "payload": {
+    "qty_kg": 147.5,
+    "readings": {
+     "broken_pct": 2,
+     "foreign_matter_pct": 0.2,
+     "moisture_pct": 11.9
+    },
+    "sample_qty_kg": 0.5
+   },
+   "qty_in": 147.5,
+   "qty_out": 147,
+   "stage": "qc",
+   "status": "verified",
+   "verified_by": "QR Sealer",
+   "warnings": []
+  },
+  {
+   "by": "QR Sealer",
+   "code": "PRSDM-KNM-KH26-QR-0001",
+   "computed": {
+    "final_kg": 147
+   },
+   "created_ist": "03 Oct 2026 17:09:05",
+   "id": "e7754c15-8aaa-4aba-9376-d078dde00224",
+   "payload": {},
+   "qty_in": 147,
+   "qty_out": 147,
+   "stage": "qr_activation",
+   "status": "verified",
+   "verified_by": "QR Sealer",
+   "warnings": []
+  }
+ ],
+ "seal": {
+  "ledger_hash": "893be61ba075a78f2d0af6205fcbdd44ddb8f036d9938e400a61a12ef41415c3",
+  "qr_code": "GV-D3C38791036F",
+  "sealed_by": "QR Sealer",
+  "sealed_ist": "03 Oct 2026 17:09:05"
+ },
+ "verdict": {
+  "domestic": "pass",
+  "export": "pass",
+  "judged": [
+   {
+    "domestic": "pass",
+    "export": "pass",
+    "param": "moisture_pct",
+    "value": 11.9
+   },
+   {
+    "domestic": "pass",
+    "export": "pass",
+    "param": "broken_pct",
+    "value": 2
+   },
+   {
+    "domestic": "pass",
+    "export": "pass",
+    "param": "foreign_matter_pct",
+    "value": 0.2
+   }
+  ]
+ }
+}

@@ -15,7 +15,7 @@ insert into allowed values
   ('authenticated', 'can_manage_client'), ('authenticated', 'can_see_footprint'), ('authenticated', 'farmer_access'),
   ('authenticated', 'is_my_stage'),
   -- Phase 1 API (migrations 15–17)
-  ('authenticated', 'preview_reconcile'), ('authenticated', 'check_chain'), ('authenticated', 'stage_form'),
+  ('authenticated', 'preview_reconcile'), ('authenticated', 'preview_verdict'), ('authenticated', 'check_chain'), ('authenticated', 'stage_form'),
   ('authenticated', 'import_farmers'), ('authenticated', 'my_context'), ('authenticated', 'footprint_detail'),
   ('authenticated', 'submit_farmer'), ('authenticated', 'send_back_farmer'), ('authenticated', 'verify_farmer'),
   ('authenticated', 'register_attachment'), ('authenticated', 'normalise_in_mobile'), ('authenticated', 'preview_correction'), ('authenticated', 'split_grades'),

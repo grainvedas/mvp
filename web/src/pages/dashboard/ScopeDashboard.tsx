@@ -18,18 +18,33 @@ interface SealRow { qr_code: string; sealed_at: string; batch_codes: string[]; f
 interface FlagRow { id: string; text: string; status: string; created_at: string; footprint_id: string;
   footprints: { footprint_code: string; stage_type: string; scope_id: string } }
 interface ActivityRow { day: string; saved: number; verified: number; sealed: number; supervisory: number }
-interface SeasonRow { footprint_code: string; stage_type: string; status: string; qty_in: number; qty_out: number; grade: string | null;
-  lot_closed: boolean; warnings: string[]; created_at: string; verified_at: string | null; farmer_id: string | null; payload: Record<string, unknown> }
+export interface SeasonRow { footprint_code: string; stage_type: string; status: string; qty_in: number; qty_out: number; grade: string | null;
+  lot_closed: boolean; warnings: string[]; created_at: string; captured_at?: string | null; verified_at: string | null; farmer_id: string | null; payload: Record<string, unknown> }
+
+/**
+ * Columns of the season export. `recorded_at` is when the work was done: for a save that waited on the phone, the time
+ * it was captured there. `received_by_server_at` is when the server stored it; it is the last column so that every
+ * earlier column keeps its place. Until migration 29 the one time column was the server's and was named `created_at`.
+ */
+export const SEASON_HEADER = ['code', 'stage', 'status', 'qty_in_kg', 'qty_out_kg', 'grade', 'lot_closed', 'farmer_id', 'farmer', 'village',
+  'batch_code', 'buyer', 'market', 'recorded_at', 'verified_at', 'warnings', 'received_by_server_at'];
+
+export function seasonRow(r: SeasonRow, f?: { farmer_code: string | null; name: string; village: string }) {
+  return [r.footprint_code, r.stage_type, r.status, r.qty_in, r.qty_out, r.grade, r.lot_closed, f?.farmer_code, f?.name, f?.village,
+    r.payload.batch_code as string, r.payload.buyer as string, r.payload.market as string,
+    r.captured_at ?? r.created_at, r.verified_at, r.warnings.join(' | '), r.created_at];
+}
 
 export function StageDots({ rows, stageLabel }: { rows: PipeRow[]; stageLabel: (s: string) => string }) {
+  const { t } = useI18n();
   return (
     <ol className="dots" aria-label="Chain" data-testid="stage-dots">
       {rows.map((p) => (
         <li key={p.stage} className={p.verified > 0 ? 'done' : p.records > 0 ? 'active' : ''}>
           <span className="dot" aria-hidden="true">{p.chain_pos}</span>
           <span className="dot-label">{stageLabel(p.stage)}</span>
-          <span className="small num">{p.records} · {kg(p.kg_available)}</span>
-          {p.pending > 0 && <span className="small"><Badge value="pending" label={`${p.pending} pending`} /></span>}
+          <span className="small num" data-testid="stage-box-figures">{t('dash.stage_box', { n: p.records, kg: kg(p.kg_available) })}</span>
+          {p.pending > 0 && <span className="small"><Badge value="pending" label={t('dash.pending_n', { n: p.pending })} /></span>}
         </li>
       ))}
     </ol>
@@ -54,22 +69,16 @@ export function ScopeDashboard() {
 
   const exportSeason = () => exp.run(async () => {
     const rows = (await q(supabase.from('footprints')
-      .select('footprint_code,stage_type,status,qty_in,qty_out,grade,lot_closed,warnings,created_at,verified_at,farmer_id,payload')
+      .select('*')         // every column the server has: captured_at exists from migration 29 on, and naming it would fail before
       .eq('scope_id', scopeId).order('created_at'))) as SeasonRow[];
     const fids = [...new Set(rows.map((r) => r.farmer_id).filter(Boolean))] as string[];
     const farmers = fids.length ? (await q(supabase.from('farmers').select('id,farmer_code,name,village').in('id', fids))) as
       { id: string; farmer_code: string | null; name: string; village: string }[] : [];
     const fm = new Map(farmers.map((f) => [f.id, f]));
-    const header = ['code', 'stage', 'status', 'qty_in_kg', 'qty_out_kg', 'grade', 'lot_closed', 'farmer_id', 'farmer', 'village',
-      'batch_code', 'buyer', 'market', 'created_at', 'verified_at', 'warnings'];
-    const body = rows.map((r) => {
-      const f = r.farmer_id ? fm.get(r.farmer_id) : undefined;
-      return [r.footprint_code, r.stage_type, r.status, r.qty_in, r.qty_out, r.grade, r.lot_closed, f?.farmer_code, f?.name, f?.village,
-        r.payload.batch_code as string, r.payload.buyer as string, r.payload.market as string, r.created_at, r.verified_at, r.warnings.join(' | ')];
-    });
+    const body = rows.map((r) => seasonRow(r, r.farmer_id ? fm.get(r.farmer_id) : undefined));
     const summary = (pipe.data ?? []).map((p) => [`SUMMARY ${p.chain_pos}`, p.stage, `${p.records} records, ${p.pending} pending`,
-      null, p.kg_out, null, null, null, null, null, null, null, null, null, null, `available ${p.kg_available} kg`]);
-    downloadCsv(`grainveda-season-${scope?.season_code ?? ''}-${(scope?.geography ?? 'scope').replace(/\W+/g, '-')}.csv`, header, [...summary, ...body]);
+      null, p.kg_out, null, null, null, null, null, null, null, null, null, null, `available ${p.kg_available} kg`, null]);
+    downloadCsv(`grainveda-season-${scope?.season_code ?? ''}-${(scope?.geography ?? 'scope').replace(/\W+/g, '-')}.csv`, SEASON_HEADER, [...summary, ...body]);
   });
 
   return (

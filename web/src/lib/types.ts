@@ -16,6 +16,7 @@ export interface FieldDef {
   sets_prev?: boolean;     // footprint[] whose first lot becomes prev_footprint_id (aggregating stages)
   gate?: 'market_verdict'; // select: only the markets the source lot may be sold to are offered (app.lot_markets)
   accept?: 'document';     // attachment: any photo or PDF from the phone (default: take a photo with the camera)
+  section?: string;        // heading the field stands under on the form (section.<key> in the dictionaries); display only
 }
 
 export interface StageDefinition {
@@ -82,6 +83,16 @@ export interface Footprint {
   verified_by: string | null;
   verified_at: string | null;
   created_at: string;
+  /** When the operator saved it on the phone (migration 29). Absent on older servers and older records: use created_at. */
+  captured_at?: string | null;
+}
+
+/** app.preview_verdict: what the save of a lab record would derive from these readings. */
+export interface VerdictPreview {
+  ok: boolean;
+  domestic: 'pass' | 'fail' | 'pending';
+  export: 'pass' | 'fail' | 'pending';
+  judged: { param: string; value: number | null; domestic: string; export: string }[];
 }
 
 export interface Preview {

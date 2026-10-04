@@ -3,6 +3,9 @@
 You are working on the GrainVeda MVP, built from the PRD: https://claude.ai/code/artifact/28bf2d7b-66e0-4580-a6c7-5b12a85eefeb
 Phases 0 to 4 are built and tested on a local stand-in. Do not weaken a database rule to make a screen easier.
 Where things stand: `README.md`. What is known to be missing: `docs/FIX_LIST.md`.
+**The interface has the prototype's look and frame** (decision G8 = B, Veda, 4 October 2026; it replaced A of the same
+morning). What the forms ask for is still this system's: do not add the prototype's fields or screens without a new
+decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed whenever they are found.
 
 ## Non-negotiables
 
@@ -54,6 +57,34 @@ Where things stand: `README.md`. What is known to be missing: `docs/FIX_LIST.md`
   refresh `web/tests/fixtures/stage_definitions.json` with
   `psql -Atc "select jsonb_pretty(jsonb_agg(to_jsonb(d) order by d.sort_order)) from public.stage_definitions d"`.
   Unit tests fail on a missing key, a missing Hindi label, and on plain text in an operator screen.
+- **How a record's values are shown is one file, `web/src/engine/values.tsx`** (`ComputedRows`, `EnteredRows`,
+  `showComputed`, `showEntered`), for the review step, the arrival check, the record page and the journey. Never push a
+  value of unknown type through `num()` or print it with `JSON.stringify`: a batch code came out as "NaN" and a list
+  as code text (FIX_LIST 22, 26). A new worked-out key needs `computed.<key>` in both dictionaries and a place in
+  `ORDER`; a stage's name is `t('stage.<type>')` on every screen.
+- **A record has two times.** `captured_at`: when the work was done (the phone's clock, accepted by the server within
+  31 days back and 5 minutes ahead; migration 29). `created_at`: when the server stored it. "When was this recorded" is
+  `capturedAt(f).at` in the app and `coalesce(captured_at, created_at)` in SQL; `created_at` alone only answers "how
+  long has it been at the server". The phone sends `captured_at` only for a save that waited in the outbox
+  (`insertWithCaptureTime`). Never name it in a `select` list: the app must keep working on a database that does not
+  have the column yet (it retries without it on `PGRST204`).
+- **The lab verdict before saving comes from the database** (`app.preview_verdict`, the save's own rule). Do not work it
+  out in the browser; `tests/21_verdict_preview.sql` holds the preview and the save to the same answer.
+- **On a phone the header is three single lines** (practice strip, top bar with the person's name, menu that scrolls
+  sideways) and no page is wider than the screen; `e2e/phase5.spec.ts` bounds both. In `styles.css` a width override
+  goes after the rule it overrides: put before it, the practice strip showed no words at all on phones.
+- **Two sizes, one set of screens** (decision B). A laptop (900 px and wider) gets the top bar and the dark side menu;
+  below that the phone frame. Every colour is a token at the top of `styles.css` (the prototype's values; text pairs
+  hold 4.5:1): never a colour written into a component. The frame is `shell/Layout.tsx`; the scope in force is
+  `useScope()` from `shell/scope.tsx` ("Overall" when a person has several scopes and has chosen none), never a second
+  piece of state. First screens are `pages/Home.tsx`; their figures come from `app.pipeline_summary` through
+  `scopeFigures()`: do not count records in the browser.
+- **A form's sections are data.** Each field in `supabase/seeds/01_stage_definitions.sql` carries `"section"`: display
+  only, the database does not read it. A new section name needs `section.<name>` in both dictionaries and a pictogram
+  in `engine/icons.ts` (`SECTION_ICON`); a new stage type needs one in `STAGE_ICON`; fields of one section stand
+  together. A field type that needs the whole row of a two-column form goes into `FULL_WIDTH` (`engine/widgets.tsx`).
+  `tests/look_b.test.tsx` fails on any of these; `e2e/phase6.spec.ts` holds the frame, the first screens and the
+  two-column form at 1366 px and their folding to one column at 390 px.
 - **Offline maths (`web/src/engine/offlinePreview.ts`) mirrors `app.reconcile` for Procurement and Lot Inward ONLY.** Any
   change to those two rules in SQL must change the mirror and `web/tests/phase3.test.ts` in the same commit. Do not add
   other stages: offline saves of every other stage are checked by the server at sync (decision D10).
@@ -69,6 +100,12 @@ Where things stand: `README.md`. What is known to be missing: `docs/FIX_LIST.md`
 - **A fix needs a test that failed before the fix.** Reproduce first (a failing test, or a probe of the app as it is), then
   fix. If the old behaviour passes your new test, you have hardened something, not fixed a fault: say so
   (`docs/FIX_LIST.md` keeps the two apart). A check that cannot fail proves nothing: give every new check a negative control.
+  For a screen: run the new test against the app as it was (the previous commit served on another port).
+- **A check of a text is not a check that it is shown.** `toContainText` and `toHaveText` read hidden text too: use
+  `{ useInnerText: true }`, or `toBeVisible()` on the element that carries the words. After a change to the layout,
+  look at pictures of the changed screens at 390 px and at 1366 px before calling it done.
+- The tests of 4 October name faults "item 6" to "item 16": the open-item numbers of that day. `docs/FIX_LIST.md`
+  lines 22 to 31 say which is which.
 - Do not claim something works without running it. Paste the relevant output in your summary. Say which system it ran on:
   the local stack is a rehearsal, staging is the test, and the release gate (`scripts/release_gate.mjs`) reads result
   files and keeps the two apart.
@@ -86,4 +123,4 @@ Where things stand: `README.md`. What is known to be missing: `docs/FIX_LIST.md`
 ## Stack (PRD §10)
 
 Supabase (Postgres 17 hosted, 16 or 17 locally; RLS, PL/pgSQL triggers, Auth, Storage, Edge Functions) · React + TypeScript +
-Vite PWA with a service worker · one design system (paddy green + GI gold) · static hosting (Cloudflare by default).
+Vite PWA with a service worker · one design system (the prototype's greens; tokens in `web/src/styles.css`) · static hosting (Cloudflare by default).

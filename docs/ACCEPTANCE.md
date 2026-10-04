@@ -46,6 +46,10 @@ What each test proves, in the PRD's words:
 
 Open the staging address in Chrome on an Android phone. Passwords are in `.env.demo-logins` on Antigravity's computer.
 Operators sign in under **Field operator (phone)** with `+91 00000 000NN`; managers under **Manager (email)**.
+On the first screen every stage a person holds is a card, "My stage: Procurement" with the scope's name under it.
+"Procurement · Siddharthnagar" below means: tap that card. (On a laptop the same stage is also in the menu on the left
+under **Operations**, once the scope is chosen in the **Scope** box of the top bar.) A record's status chip reads
+**Pending verification** until the next stage has verified it, then **Approved**.
 
 | Step | Sign in as | Do | You should see |
 |---|---|---|---|

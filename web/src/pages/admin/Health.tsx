@@ -33,7 +33,7 @@ export function Health() {
   const last = checks.data?.[0];
   return (
     <div>
-      <h1>{t('health.title')}</h1>
+      <h1><span aria-hidden="true">🩺 </span>{t('health.title')}</h1>
 
       <div className="card">
         <h2>{t('health.system')}</h2>

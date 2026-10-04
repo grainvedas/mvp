@@ -12,13 +12,15 @@ import { toAppError } from '../lib/errors';
 import { supabase } from '../lib/supabase';
 import { useAsync, useAction } from '../lib/useAsync';
 import { useI18n } from '../lib/i18n';
-import { kg, dateTime, humanise, num } from '../lib/format';
-import type { Footprint, LotMarkets, Preview, StageForm, StageType, Withdrawal } from '../lib/types';
+import { kg, dateTime, humanise } from '../lib/format';
+import type { Footprint, LotMarkets, Preview, QualityParam, StageForm, StageType, VerdictPreview, Withdrawal } from '../lib/types';
 import { ErrorBox, Loading, Badge, Empty, errorText } from '../shell/ui';
-import { Widget, buildPayload, missingRequired, PREFILL_FROM_SOURCE, SUPPORTED, type FieldValue } from './widgets';
+import { Widget, buildPayload, missingRequired, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, type FieldValue } from './widgets';
+import { SECTION_ICON, stageIcon } from './icons';
 import { uploadEvidence, UPLOAD_WAIT_MS } from './evidence';
 import { offlinePreview, type OfflinePreview } from './offlinePreview';
 import { localiseForm } from './localise';
+import { ComputedRows, capturedAt, leftAfter } from './values';
 import { cached, isNetworkError } from '../offline/cache';
 import { enqueue, discard, getOutboxItem, insertOnce, type OutboxItem } from '../offline/outbox';
 import { useOnline } from '../offline/useOutbox';
@@ -67,7 +69,11 @@ export function StagePage() {
   const [source, setSource] = useState<Footprint | null>(null);
   const [editing, setEditing] = useState<Footprint | null>(null);
 
-  useEffect(() => { if (form.data) setTab(form.data.stage.is_first ? 'new' : 'incoming'); }, [form.data]);
+  // A first stage has no "waiting" list. Someone who may not record there (a client viewer, a manager looking in, the
+  // operator of another stage) lands on its records; before, the page showed its tabs and nothing under them.
+  // ?tab=records: a link from a first screen ("review what waits at this stage") opens the stage on its records.
+  const wantRecords = search.get('tab') === 'records';
+  useEffect(() => { if (form.data) setTab(wantRecords ? 'records' : form.data.stage.is_first ? (form.data.can_create ? 'new' : 'records') : 'incoming'); }, [form.data, wantRecords]);
   useEffect(() => {
     if (!editId) { setEditing(null); return; }
     void q(supabase.from('footprints').select('*').eq('id', editId).single()).then((f) => setEditing(f as unknown as Footprint), () => setEditing(null));
@@ -89,8 +95,12 @@ export function StagePage() {
 
   return (
     <div>
-      <p className="muted small"><Link to="/">{t('nav.home')}</Link> · {f.scope.client.name} · {f.scope.crop.name} · {f.scope.season_code} · {f.scope.geography}</p>
-      <h1>{f.stage.label}</h1>
+      <p className="muted small"><Link to="/">{t('nav.back_home')}</Link></p>
+      <div className="band">
+        <div><div className="band-title">{f.scope.crop.name} · {f.scope.season_code} · {f.scope.geography}</div>
+          <div className="sub">{f.scope.client.name}{f.scope.crop.gi_tag ? ` · ${f.scope.crop.gi_tag}` : ''}</div></div>
+      </div>
+      <div className="page-hd"><h1><span aria-hidden="true">{stageIcon(f.stage.stage_type)} </span>{f.stage.label}</h1></div>
       <div className="tabs" role="tablist">
         {!f.stage.is_first && <button role="tab" aria-selected={!opened && tab === 'incoming'} className={!opened && tab === 'incoming' ? 'active' : ''}
           onClick={() => pick('incoming')}>{t('engine.incoming', { stage: prevLabel })}</button>}
@@ -133,7 +143,7 @@ function Incoming({ form, onPick }: { form: StageForm; onPick: (f: Footprint) =>
                   <td className="mono">{r.footprint_code}{r.grade ? ` · Grade ${r.grade}` : ''}</td>
                   <td className="num">{kg(r.qty_out)}</td>
                   <td><Badge value={r.status} /></td>
-                  <td className="hide-mobile">{dateTime(r.created_at)}</td>
+                  <td className="hide-mobile">{dateTime(capturedAt(r).at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -196,9 +206,7 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
       <dl className="kv">
         <dt>{t('engine.col_code')}</dt><dd className="mono">{source.footprint_code}{source.grade ? ` · Grade ${source.grade}` : ''}</dd>
         <dt>{t('engine.qty_forwarded')}</dt><dd className="big">{kg(source.qty_out)}</dd>
-        {Object.entries(source.computed ?? {}).map(([k, v]) => (
-          <FragmentKV key={k} k={t(`computed.${k}`, undefined, humanise(k))} v={typeof v === 'object' ? JSON.stringify(v) : num(v as number)} />
-        ))}
+        <ComputedRows computed={source.computed} t={t} />
         <dt>{t('common.status')}</dt><dd><Badge value={source.status} /></dd>
       </dl>
       <MarketVerdict m={markets} />
@@ -233,8 +241,6 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
     </div>
   );
 }
-
-function FragmentKV({ k, v }: { k: string; v: string }) { return <><dt>{k}</dt><dd>{v}</dd></>; }
 
 /** What the lab said about a lot, for any stage after QC (the verdict travels with the lot). */
 function useLotMarkets(lotId: string | undefined) {
@@ -301,6 +307,9 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markets]);
   const [preview, setPreview] = useState<Preview | OfflinePreview | null>(null);
+  // A lab record: what the save would derive from the readings typed so far (PRD §4: the technician sees both verdicts).
+  const readingsKey = fields.find((fd) => fd.type === 'readings')?.key;
+  const [verdict, setVerdict] = useState<VerdictPreview | null>(null);
   const [queued, setQueued] = useState<OutboxItem | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -319,10 +328,10 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
 
   useEffect(() => {
     setReviewing(false); setConfirmed(false);
-    if (missing.length) { setPreview(null); return; }
+    if (missing.length) { setPreview(null); setVerdict(null); return; }
     window.clearTimeout(timer.current);
     const local = () => offlinePreview(form.stage.stage_type, built.payload, built.columns, form.scope.tolerances);
-    if (!online && !editing) { setPreview(local()); return; }
+    if (!online && !editing) { setPreview(local()); setVerdict(null); return; }
     timer.current = window.setTimeout(async () => {
       try {
         const p = editing
@@ -331,7 +340,13 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
               p_prev: source?.id ?? built.columns.prev_footprint_id ?? null, p_payload: built.payload, p_farmer: built.columns.farmer_id ?? null,
               p_split: built.columns.split_into_grades === true }));
         setPreview(p);
-      } catch (e) { setPreview(isNetworkError(e) && !editing ? local() : { ok: false, error: errorText(toAppError(e), t) }); }
+        if (readingsKey && p.ok) {
+          // The same judging the save runs (migration 29). No answer (no network, or a server without it): the screen
+          // says the result comes with the save, as before.
+          try { setVerdict(await within(PREVIEW_WAIT_MS, rpc<VerdictPreview>('preview_verdict', { p_scope: form.scope.id, p_readings: built.payload[readingsKey] ?? {} }))); }
+          catch { setVerdict(null); }
+        } else setVerdict(null);
+      } catch (e) { setVerdict(null); setPreview(isNetworkError(e) && !editing ? local() : { ok: false, error: errorText(toAppError(e), t) }); }
     }, 350);
     return () => window.clearTimeout(timer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -451,25 +466,36 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
       {editing && !online && <div className="alert warn">{t('engine.correct_needs_network')}</div>}
       {draft?.error && <div className="alert error" data-testid="draft-error">{t('engine.draft_refused')} {draft.error}</div>}
       <ReplacesNote withdrawnId={replaces?.id} />
+      {!editing && <div className="sign-banner">{form.next_stage
+        ? t('engine.sign_banner', { name: ctx?.user?.display_name ?? '', stage: form.next_stage.label })
+        : t('engine.sign_banner_last', { name: ctx?.user?.display_name ?? '' })}</div>}
       {gated && <MarketVerdict m={markets} />}
       {source && <p className="muted">{t('engine.source_lot')} <span className="mono">{source.footprint_code}</span> · {kg(source.qty_out)}</p>}
       {unsupported.length > 0 && <div className="alert warn">{t('engine.widget_missing')} ({unsupported.map((f) => f.label).join(', ')})</div>}
       <form onSubmit={(e) => { e.preventDefault(); if (preview?.ok) setReviewing(true); }} aria-label={form.stage.label}>
         <fieldset disabled={reviewing} style={{ border: 'none', padding: 0, margin: 0 }}>
-          {fields.map((fd) => (
-            <div className="field" key={fd.key}>
-              <label htmlFor={`f-${fd.key}`}>{fd.label}{fd.unit ? ` (${fd.unit})` : ''}{fd.required ? ' *' : ''}</label>
-              <Widget id={`f-${fd.key}`} field={fd} value={values[fd.key] ?? null} qualityParams={form.quality_params}
-                clientId={form.scope.client.id} scopeId={form.scope.id} stageType={form.stage.stage_type}
-                allowed={fd.gate === 'market_verdict' && markets ? markets.markets : undefined}
-                onChange={(v) => setValues((s) => ({ ...s, [fd.key]: v }))} />
-              {fd.gate === 'market_verdict' && markets && !markets.export_allowed && (
-                <p className="hint" data-testid="market-gate">{t(markets.has_qc ? 'engine.market_domestic_only' : 'engine.market_no_verdict')}</p>
-              )}
+          {groupSections(fields).map((g) => (
+            <div className="form-section" key={g.fields[0].key} data-section={g.section ?? ''}>
+              {g.section && <h3><span aria-hidden="true">{SECTION_ICON[g.section] ?? ''}</span>{t(`section.${g.section}`, undefined, humanise(g.section))}</h3>}
+              <div className="form-grid">
+                {g.fields.map((fd) => (
+                  <div className={`field${FULL_WIDTH.has(fd.type) ? ' full' : ''}`} key={fd.key}>
+                    <label htmlFor={`f-${fd.key}`}>{fd.label}{fd.unit ? ` (${fd.unit})` : ''}{fd.required ? ' *' : ''}</label>
+                    <Widget id={`f-${fd.key}`} field={fd} value={values[fd.key] ?? null} qualityParams={form.quality_params}
+                      clientId={form.scope.client.id} scopeId={form.scope.id} stageType={form.stage.stage_type}
+                      allowed={fd.gate === 'market_verdict' && markets ? markets.markets : undefined}
+                      onChange={(v) => setValues((s) => ({ ...s, [fd.key]: v }))} />
+                    {fd.gate === 'market_verdict' && markets && !markets.export_allowed && (
+                      <p className="hint" data-testid="market-gate">{t(markets.has_qc ? 'engine.market_domestic_only' : 'engine.market_no_verdict')}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </fieldset>
-        <MathsPanel preview={preview} missing={missing} />
+        <MathsPanel preview={preview} missing={missing} aggregates={form.stage.aggregates} />
+        {readingsKey && preview?.ok && !reviewing && <VerdictLine v={verdict} params={form.quality_params} />}   {/* at review it is in the summary below */}
         {!reviewing && <button type="submit" disabled={!preview?.ok || unsupported.length > 0}>{t('engine.review')}</button>}
       </form>
       {reviewing && preview?.ok && (
@@ -478,8 +504,9 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
           <dl className="kv">
             <dt>{t('engine.qty_in')}</dt><dd className="num">{kg(preview.qty_in)}</dd>
             <dt>{t('engine.qty_out')}</dt><dd className="big" data-testid="review-qty-out">{kg(preview.qty_out)}</dd>
-            {Object.entries(preview.computed ?? {}).map(([k, v]) => <FragmentKV key={k} k={t(`computed.${k}`, undefined, humanise(k))} v={typeof v === 'object' ? JSON.stringify(v) : num(v as number, 3)} />)}
+            <ComputedRows computed={preview.computed} t={t} />
           </dl>
+          {readingsKey && <VerdictLine v={verdict} params={form.quality_params} />}
           {preview.warnings && preview.warnings.length > 0 && <div className="alert warn">{t('engine.warnings')}: {preview.warnings.join(' · ')}</div>}
           <label className="check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />{t('engine.review_confirm')}</label>
           <ErrorBox error={act.error} />
@@ -493,7 +520,24 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
   );
 }
 
-function MathsPanel({ preview, missing }: { preview: Preview | OfflinePreview | null; missing: string[] }) {
+/** The lab result the save would derive, shown before saving. */
+function VerdictLine({ v, params }: { v: VerdictPreview | null; params: QualityParam[] }) {
+  const { t } = useI18n();
+  if (!v?.ok) return <p className="hint" data-testid="verdict-later">{t('engine.verdict_later')}</p>;
+  const name = (p: string) => params.find((q) => q.param === p)?.label ?? p;
+  const failed = v.judged.filter((j) => j.domestic === 'fail' || j.export === 'fail');
+  return (
+    <div className={`alert ${v.domestic === 'fail' || v.export === 'fail' ? 'warn' : 'info'}`} aria-live="polite" data-testid="verdict-preview">
+      {t('engine.verdict_preview')}: {t('pv.domestic')} <Badge value={v.domestic} label={t(`pv.v_${v.domestic}`)} /> · {t('pv.export')} <Badge value={v.export} label={t(`pv.v_${v.export}`)} />
+      {failed.length > 0 && (
+        <div className="small">{t('engine.verdict_not_met')}: {failed.map((j) =>
+          `${name(j.param)} (${[j.domestic === 'fail' ? t('pv.domestic') : '', j.export === 'fail' ? t('pv.export') : ''].filter(Boolean).join(', ')})`).join(' · ')}</div>
+      )}
+    </div>
+  );
+}
+
+function MathsPanel({ preview, missing, aggregates }: { preview: Preview | OfflinePreview | null; missing: string[]; aggregates: boolean }) {
   const { t } = useI18n();
   if (missing.length) return <div className="alert info" aria-live="polite">{t('engine.preview_wait')} <span className="small">({missing.join(', ')})</span></div>;
   if (!preview) return <div className="alert info" aria-live="polite">{t('common.loading')}</div>;
@@ -501,11 +545,12 @@ function MathsPanel({ preview, missing }: { preview: Preview | OfflinePreview | 
   const off = (preview as OfflinePreview).offline;
   if (off && (preview as OfflinePreview).provisional)
     return <div className="alert warn" aria-live="polite" data-testid="preview-ok">{t('engine.offline_provisional')}</div>;
+  const left = leftAfter(preview, aggregates);
   return (
     <div className="alert ok" aria-live="polite" data-testid="preview-ok">
       {off && <div className="small" data-testid="offline-maths">{t('engine.offline_maths')}</div>}
       <strong>{kg(preview.qty_out)}</strong> {t('engine.forwarded')}
-      {preview.available_on_prev != null && <> · {t('engine.available', { kg: kg(preview.available_on_prev) })}</>}
+      {left !== null && <> · {t('engine.left_after', { kg: kg(left) })}</>}
       {preview.warnings && preview.warnings.length > 0 && <div className="small">{preview.warnings.join(' · ')}</div>}
     </div>
   );
@@ -552,7 +597,7 @@ function Records({ form }: { form: StageForm }) {
               <td className="mono"><Link to={`/records/${r.id}`}>{r.footprint_code}</Link></td>
               <td className="num">{kg(r.qty_in)}</td><td className="num">{kg(r.qty_out)}</td>
               <td><Badge value={r.status} />{r.lot_closed ? <> <Badge value="closed" /></> : null}</td>
-              <td className="hide-mobile">{dateTime(r.created_at)}</td>
+              <td className="hide-mobile">{dateTime(capturedAt(r).at)}</td>
             </tr>
           ))}
         </tbody>

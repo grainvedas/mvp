@@ -48,7 +48,7 @@ test('Offline start: after one online sign-in the app opens with no network and 
 
   await context.setOffline(true);
   await page.reload();                                                    // cold start with no network
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Procurement (farm-gate)');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Procurement (farm-gate)');
   await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');
   await page.getByRole('button', { name: /Sita Devi/ }).click();
   await page.getByLabel(/Gross weight/).fill('150'); await page.getByLabel(/^Bags/).fill('1'); await page.getByLabel(/Tare per bag/).fill('2.5');

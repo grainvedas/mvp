@@ -1,6 +1,6 @@
 -- READ-ONLY smoke check for a Supabase project after `db push` + seeds. Safe on production: no writes.
 -- Run: psql "$SUPABASE_DB_URL" -f tests/remote_smoke.sql   (or paste into Dashboard → SQL Editor)
--- Every row must start with OK (21 rows). The same file serves staging (demo seed expected) and production (demo
+-- Every row must start with OK (23 rows). The same file serves staging (demo seed expected) and production (demo
 -- seed forbidden): the 'environment' row says which one it found, from app.environment() (migration 23).
 -- API exposure of the `app` schema is not checked here: hosted Supabase keeps that setting in PostgREST's config, which
 -- SQL cannot read. Prove it with tests/remote_api_check.ps1 (REST call with the public key).
@@ -101,6 +101,16 @@ select 'evidence in the ledger', case when not exists (select 1 from pg_enum e j
                                                     (select 1 from public.ledger l where l.event::text = 'evidence' and l.payload->>'attachment_id' = a.id::text))
                                       then 'CATCH-UP NEEDED: select app.record_missing_evidence_blocks();'
                                       else 'OK' end
+union all
+select 'public page data',       case when to_regprocedure('app.public_lot_journey(text)') is null then 'MISSING (push all migrations)'
+                                      when position('computed' in pg_get_functiondef(to_regprocedure('app.public_lot_journey(text)'))) = 0
+                                      then 'OK' else 'OPEN: the buyer''s name is sent to anyone who has the QR (push migration 28)' end
+union all
+select 'capture time, verdict preview', case when exists (select 1 from information_schema.columns
+                                                    where table_schema = 'public' and table_name = 'footprints' and column_name = 'captured_at')
+                                        and exists (select 1 from pg_trigger where not tgisinternal and tgname = 'footprints_d0_capture_time')
+                                        and to_regprocedure('app.preview_verdict(uuid, jsonb)') is not null
+                                      then 'OK' else 'MISSING (push migration 29)' end
 union all
 select 'nightly ledger check',   case when to_regclass('cron.job') is null then 'NO pg_cron: see RUNSHEET_phase3 step 5'
                                       when (xpath('/row/n/text()', query_to_xml(

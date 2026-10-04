@@ -1,5 +1,5 @@
 // S17 record detail · S16 QC override · S18 flags · S20 entry to "correct a pending record"
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { rpc, q, sha256Hex } from '../../lib/api';
@@ -8,22 +8,38 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { kg, dateTime, humanise, num, shortHash } from '../../lib/format';
-import { isManager, type Footprint, type FootprintDetail, type Withdrawal } from '../../lib/types';
+import { isManager, type Footprint, type FootprintDetail, type QualityParam, type StageForm, type Withdrawal } from '../../lib/types';
 import { Badge, ErrorBox, Loading, Field } from '../../shell/ui';
 import { uploadEvidence } from '../../engine/evidence';
 import { EVIDENCE_ACCEPT } from '../../engine/widgets';
+import { ComputedRows, EnteredRows, capturedAt, paramName } from '../../engine/values';
+import { localiseForm } from '../../engine/localise';
+import { cached } from '../../offline/cache';
 
 export function RecordDetail() {
   const { id = '' } = useParams();
-  const { t } = useI18n();
-  const { ctx } = useAuth();
-  const me = ctx!.user!;
   const d = useAsync(() => rpc<FootprintDetail>('footprint_detail', { p_fp: id }), [id]);
   // Keep the page on screen while it refreshes after an action (a flag raised, a file attached): only the first load
   // of a record shows "Loading", so the panel just used keeps its message and the page does not jump.
   if (d.data?.footprint.id !== id) return d.loading ? <Loading /> : <ErrorBox error={d.error} onRetry={d.reload} />;
   if (d.error) return <ErrorBox error={d.error} onRetry={d.reload} />;
-  const r = d.data, f = r.footprint;
+  return <RecordView r={d.data} reload={d.reload} />;
+}
+
+function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
+  const { t, lang } = useI18n();
+  const { ctx } = useAuth();
+  const me = ctx!.user!;
+  const f = r.footprint;
+  // The stage's form gives the names of the fields and of the lab parameters (the copy the stage page keeps). Without
+  // it (no network and nothing kept) the values are still listed, under plainer names.
+  const sf = useAsync(() => cached(`stage_form:${f.scope_id}:${f.stage_type}`,
+    () => rpc<StageForm>('stage_form', { p_scope: f.scope_id, p_stage: f.stage_type })), [f.scope_id, f.stage_type]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const form = useMemo(() => (sf.data ? localiseForm(sf.data, t) : null), [sf.data, lang]);
+  const when = capturedAt(f);
+  // A lot that has not reached the lab has no result yet: say nothing rather than "pending · pending".
+  const noLabYet = !r.qc && !r.market_verdict.overridden && r.market_verdict.domestic === 'pending' && r.market_verdict.export === 'pending';
   const mine = f.status === 'pending' && (f.created_by === me.id || isManager(me.role));
   // Records whose save derived something elsewhere (a verdict, a batch, grade lots) are not edited in place (migration 22)
   const frozen = f.stage_type === 'qc' || f.stage_type === 'village_batch' || f.is_grade_lot || f.split_into_grades;
@@ -41,13 +57,18 @@ export function RecordDetail() {
           <dt>{t('record.qty_in')}</dt><dd>{kg(f.qty_in)}</dd>
           <dt>{t('record.qty_out')}</dt><dd className="big">{kg(f.qty_out)}</dd>
           <dt>{t('record.available')}</dt><dd>{kg(r.available_kg)}</dd>
-          {Object.entries(f.computed ?? {}).map(([k, v]) => <Kv key={k} k={t(`computed.${k}`, undefined, humanise(k))} v={typeof v === 'object' ? JSON.stringify(v) : num(v as number, 3)} />)}
-          <dt>{t('record.recorded')}</dt><dd>{dateTime(f.created_at)} · {r.created_by_name ?? '—'}</dd>
+          <ComputedRows computed={f.computed} t={t} />
+          <dt>{t('record.recorded')}</dt><dd>{dateTime(when.at)} · {r.created_by_name ?? '—'}
+            {when.sentLater && <span className="muted small" data-testid="sent-later"> · {t('record.sent_later', { at: dateTime(f.created_at) })}</span>}</dd>
           <dt>{t('record.verified')}</dt><dd>{f.verified_at ? `${dateTime(f.verified_at)} · ${r.verified_by_name ?? '—'}` : '—'}</dd>
-          <dt>{t('record.market_verdict')}</dt><dd>{t('record.market_domestic')} <Badge value={r.market_verdict.domestic} /> · {t('record.market_export')} <Badge value={r.market_verdict.export} />{r.market_verdict.overridden && <> <Badge value="pending" label={t('record.overridden')} /></>}</dd>
+          {!noLabYet && <><dt>{t('record.market_verdict')}</dt><dd>{t('record.market_domestic')} <Badge value={r.market_verdict.domestic} /> · {t('record.market_export')} <Badge value={r.market_verdict.export} />{r.market_verdict.overridden && <> <Badge value="pending" label={t('record.overridden')} /></>}</dd></>}
         </dl>
         {f.warnings?.length > 0 && <div className="alert warn">{f.warnings.join(' · ')}</div>}
-        <details><summary>{t('record.entered')}</summary><pre className="small mono">{JSON.stringify(f.payload, null, 2)}</pre></details>
+        <details><summary>{t('record.entered')}</summary>
+          <dl className="kv" data-testid="entered-values">
+            <EnteredRows payload={f.payload} fields={form?.stage.form_schema ?? []} stage={f.stage_type} params={form?.quality_params} t={t} />
+          </dl>
+        </details>
         <div className="row">
           {canCorrect && <Link className="btn secondary" to={`/work/${f.scope_id}/${f.stage_type}?edit=${f.id}`}>{t('record.edit_pending')}</Link>}
           {me.role !== 'operator' && <Link className="btn secondary" to={`/trace/${f.id}`} data-testid="trace-link">{t('record.trace')}</Link>}
@@ -55,13 +76,13 @@ export function RecordDetail() {
         {mine && frozen && <p className="hint">{t('record.fix_by_withdraw')}</p>}
       </div>
       <WithdrawalInfo f={f} canRecord={me.role !== 'client_view'} />
-      {isManager(me.role) && (f.status === 'pending' || f.status === 'verified') && !r.seal && <WithdrawPanel f={f} onDone={d.reload} />}
-      {r.qc && <QcPanel detail={r} onChange={d.reload} canOverride={isManager(me.role)} />}
+      {isManager(me.role) && (f.status === 'pending' || f.status === 'verified') && !r.seal && <WithdrawPanel f={f} onDone={reload} />}
+      {r.qc && <QcPanel detail={r} onChange={reload} canOverride={isManager(me.role)} params={form?.quality_params ?? []} />}
       {r.seal && <SealPanel code={r.seal.qr_code} hash={r.seal.ledger_hash} batch={r.seal.batch_codes} />}
-      {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && <FinishSeal f={f} onDone={d.reload} />}
+      {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && <FinishSeal f={f} onDone={reload} />}
       {r.attachments.length > 0 && <Attachments detail={r} />}
-      {me.role !== 'client_view' && f.status !== 'superseded' && <AddEvidence f={f} onDone={d.reload} />}
-      <Flags detail={r} onChange={d.reload} canResolve={isManager(me.role)} canRaise />
+      {me.role !== 'client_view' && f.status !== 'superseded' && <AddEvidence f={f} onDone={reload} />}
+      <Flags detail={r} onChange={reload} canResolve={isManager(me.role)} canRaise />
       <div className="card">
         <h2>{t('record.ledger')}</h2>
         <div className="table-wrap"><table>
@@ -75,8 +96,6 @@ export function RecordDetail() {
     </div>
   );
 }
-
-function Kv({ k, v }: { k: string; v: string }) { return <><dt>{k}</dt><dd>{v}</dd></>; }
 
 /** A withdrawn record shows why, and what replaced it; a replacement shows what it replaces. */
 function WithdrawalInfo({ f, canRecord }: { f: Footprint; canRecord: boolean }) {
@@ -132,10 +151,11 @@ function WithdrawPanel({ f, onDone }: { f: Footprint; onDone: () => void }) {
   );
 }
 
-function QcPanel({ detail, onChange, canOverride }: { detail: FootprintDetail; onChange: () => void; canOverride: boolean }) {
+function QcPanel({ detail, onChange, canOverride, params }: { detail: FootprintDetail; onChange: () => void; canOverride: boolean; params: QualityParam[] }) {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const qc = detail.qc!;
+  const unit = (p: string) => { const q = params.find((x) => x.param === p); return { label: q?.label, unit: q?.unit }; };
   const [reason, setReason] = useState('');
   const act = useAction();
   const override = () => act.run(async () => {
@@ -149,7 +169,7 @@ function QcPanel({ detail, onChange, canOverride }: { detail: FootprintDetail; o
       <p>{t('record.domestic')} <Badge value={qc.domestic_verdict} /> · {t('record.export')} <Badge value={qc.export_verdict} /> <span className="muted small">{t('record.derived')}</span></p>
       <div className="table-wrap"><table>
         <thead><tr><th>{t('record.param')}</th><th>{t('record.reading')}</th><th>{t('record.domestic')}</th><th>{t('record.export')}</th></tr></thead>
-        <tbody>{qc.judged.map((j) => <tr key={j.param}><td>{t(`qp.${j.param}`, undefined, humanise(j.param))}</td><td className="num">{num(j.value)}</td>
+        <tbody>{qc.judged.map((j) => <tr key={j.param}><td>{t(`qp.${j.param}`, undefined, unit(j.param).label ?? paramName(j.param))}</td><td className="num">{num(j.value)}{j.value !== null && unit(j.param).unit ? ` ${unit(j.param).unit}` : ''}</td>
           <td><Badge value={j.domestic} /></td><td><Badge value={j.export} /></td></tr>)}</tbody>
       </table></div>
       {qc.override && <div className="alert warn">{t('record.override_done', { market: t(`opt.${String(qc.override.market)}`, undefined, String(qc.override.market)), reason: String(qc.override.reason), at: dateTime(String(qc.override.at)) })}</div>}
@@ -249,7 +269,7 @@ function AddEvidence({ f, onDone }: { f: Footprint; onDone: () => void }) {
     <div className="card">
       <h2>{t('record.add_evidence')}</h2>
       <div className="row">
-        <input key={round} aria-label={t('record.add_evidence')} type="file" accept={EVIDENCE_ACCEPT} style={{ flex: '1 1 220px', width: 'auto' }}
+        <input key={round} aria-label={t('record.add_evidence')} type="file" accept={EVIDENCE_ACCEPT} style={{ flex: '1 1 220px', width: 'auto', minWidth: 0, maxWidth: '100%' }}
           onChange={(e) => { setFile(e.target.files?.[0] ?? null); setDone(false); }} data-testid="evidence-file" />
         <button className="secondary" disabled={!file || act.busy} onClick={attach} data-testid="evidence-attach">{t('record.attach')}</button>
       </div>

@@ -40,7 +40,7 @@ test('A wrong lab record is withdrawn by the manager with a reason and recorded 
   test.setTimeout(240_000);
   const S = SCOPES.siddharthnagar;
   await page.goto('/');
-  await expect(page.getByTestId('practice-strip')).toContainText('PRACTICE SYSTEM');     // this is not the production system
+  await expect(page.getByTestId('practice-strip')).toContainText('PRACTICE SYSTEM', { useInnerText: true });   // this is not the production system (the words as shown, not hidden text)
 
   await signIn(page, USERS.procurement);
   const p = await procure(page, S, 'Suresh Yadav', '199', '2', '2');

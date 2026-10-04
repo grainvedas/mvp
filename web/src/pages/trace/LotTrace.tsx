@@ -1,6 +1,7 @@
 // F14 ledger explorer and journey export for one lot: every origin lot (all sources of a Village Batch included),
 // who recorded and who verified each step, QC, flags, evidence fingerprints and ledger blocks.
 // CSV for spreadsheets; "Print / save as PDF" uses the browser's own PDF printer (no extra library, works offline).
+import { capturedAt } from '../../engine/values';
 import { Link, useParams } from 'react-router-dom';
 import { rpc } from '../../lib/api';
 import { useAsync } from '../../lib/useAsync';
@@ -14,7 +15,7 @@ export interface TraceStep {
   qty_in_kg: number; qty_out_kg: number; grade: string | null;
   payload: Record<string, unknown>; computed: Record<string, unknown>; warnings: string[];
   farmer: { code: string | null; name: string; village: string } | null;
-  created_at: string; created_by: string | null; verified_at: string | null; verified_by: string | null;
+  created_at: string; captured_at?: string | null; created_by: string | null; verified_at: string | null; verified_by: string | null;
   qc: { domestic: string; export: string; readings: Record<string, number>; override: Record<string, unknown> | null } | null;
   seal: { qr_code: string; sealed_at: string; ledger_hash: string; batch_codes: string[] } | null;
   withdrawn?: { reason: string; by: string | null; at: string } | null;                                  // migration 23
@@ -28,18 +29,19 @@ export interface Trace { footprint_id: string; generated_at: string; steps: Trac
 export const TRACE_HEADER = ['step', 'code', 'stage', 'status', 'farmer_id', 'farmer', 'village', 'qty_in_kg', 'qty_out_kg', 'grade',
   'recorded_by', 'recorded_at', 'verified_by', 'verified_at', 'qc_domestic', 'qc_export', 'qc_readings', 'qc_override',
   'qr_code', 'batch_codes', 'flags', 'evidence_sha256', 'ledger_blocks', 'last_block_hash', 'warnings', 'entered_values',
-  'withdrawn', 'replaces'];
+  'withdrawn', 'replaces', 'received_by_server_at'];
 
 export function traceRows(tr: Trace) {
   return tr.steps.map((s, i) => [
     i + 1, s.code, s.stage_label ?? humanise(s.stage), s.status, s.farmer?.code, s.farmer?.name, s.farmer?.village,
-    s.qty_in_kg, s.qty_out_kg, s.grade, s.created_by, s.created_at, s.verified_by, s.verified_at,
+    s.qty_in_kg, s.qty_out_kg, s.grade, s.created_by, s.captured_at ?? s.created_at, s.verified_by, s.verified_at,
     s.qc?.domestic, s.qc?.export, s.qc ? JSON.stringify(s.qc.readings) : '', s.qc?.override ? JSON.stringify(s.qc.override) : '',
     s.seal?.qr_code, s.seal?.batch_codes.join(' '), s.flags.map((f) => `${f.status}: ${f.text}`).join(' | '),
     s.evidence.map((e) => `${e.kind}:${e.sha256}`).join(' '), s.ledger.map((l) => `${l.seq}:${l.event}`).join(' '),
     s.ledger.at(-1)?.hash, s.warnings.join(' | '), JSON.stringify(s.payload),
     s.withdrawn ? `${s.withdrawn.at} · ${s.withdrawn.by ?? ''}: ${s.withdrawn.reason}` : '',
     s.replaces ? `${s.replaces.code} (${s.replaces.qty_out_kg} kg) withdrawn by ${s.replaces.by ?? ''}: ${s.replaces.reason ?? ''}` : '',
+    s.created_at,                    // recorded_at is the time on the phone; this is when the server received it
   ]);
 }
 
@@ -69,10 +71,11 @@ export function LotTrace() {
             <dl className="kv">
               {s.farmer && <><dt>{t('trace.farmer')}</dt><dd>{s.farmer.name} · {s.farmer.village} <span className="mono small">{s.farmer.code}</span></dd></>}
               <dt>{t('trace.qty')}</dt><dd>{kg(s.qty_in_kg)} → {kg(s.qty_out_kg)}</dd>
-              <dt>{t('trace.recorded')}</dt><dd>{dateTime(s.created_at)} · {s.created_by ?? '—'}</dd>
+              <dt>{t('trace.recorded')}</dt><dd>{dateTime(capturedAt(s).at)} · {s.created_by ?? '—'}
+                {capturedAt(s).sentLater && <span className="muted small"> · {t('record.sent_later', { at: dateTime(s.created_at) })}</span>}</dd>
               <dt>{t('trace.verified')}</dt><dd>{s.verified_at ? `${dateTime(s.verified_at)} · ${s.verified_by ?? '—'}` : '—'}</dd>
               {s.qc && <><dt>QC</dt><dd>domestic <Badge value={s.qc.domestic} /> · export <Badge value={s.qc.export} />
-                {' '}<span className="small">{Object.entries(s.qc.readings ?? {}).map(([k, v]) => `${humanise(k)} ${v}`).join(' · ')}</span>
+                {' '}<span className="small">{Object.entries(s.qc.readings ?? {}).map(([k, v]) => `${t(`qp.${k}`, undefined, humanise(k.replace(/_pct$/, '')))} ${v}${k.endsWith('_pct') ? ' %' : ''}`).join(' · ')}</span>
                 {s.qc.override && <> · <Badge value="pending" label="override" /> “{String(s.qc.override.reason ?? '')}”</>}</dd></>}
               {s.withdrawn && <><dt>{t('record.withdrawn')}</dt><dd>{dateTime(s.withdrawn.at)} · {s.withdrawn.by ?? '—'} · “{s.withdrawn.reason}”</dd></>}
               {s.replaces && <><dt>{t('record.replaces')}</dt><dd><span className="mono">{s.replaces.code}</span> ({kg(s.replaces.qty_out_kg)}) · {s.replaces.by ?? '—'} · “{s.replaces.reason ?? ''}”</dd></>}

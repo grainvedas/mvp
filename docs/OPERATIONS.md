@@ -19,10 +19,10 @@ A manager may act at any stage when needed. The ledger marks such an act as supe
 
 ## Start of a season
 
-1. Admin: **Crops** → check the quality limits (domestic and export). Limits are copied into a scope when it is
+1. Admin: **Crop Registry** → check the quality limits (domestic and export). Limits are copied into a scope when it is
    activated; changing them later does not change running scopes.
-2. Admin: **Users** → State Manager. State Manager or admin: **Users** → Client Manager for the client.
-3. Client Manager: **Scopes → New scope** → season and place → crop → chain → **People**: one person per stage, a
+2. Admin: **Users & Roles** → State Manager. State Manager or admin: **Users & Roles** → Client Manager for the client.
+3. Client Manager: **Season Scopes → New scope** → season and place → crop → chain → **People**: one person per stage, a
    different person at neighbouring stages (nobody verifies a lot they recorded). **+ new person** makes the login and
    shows a temporary password once: give it in person.
 4. **Activate scope**. From here the chain, the place and the limits are frozen; people can still be assigned and
@@ -41,17 +41,18 @@ more) before anything else.
 | **Health** (admin, State Manager) → Ledger check | green, checked last night | § Ledger check failed |
 | Health → Waiting longest to be verified | nothing older than 2 days | call the operator of the next stage: a lot nobody verifies cannot move |
 | Health → Problems reported by phones | empty | "Sync refused": the operator's phone has a save the database refused; they see the reason under **Saved on phone**. Anything else: copy the line into the fix list |
-| **Flags** | none open | § Flags |
-| Home → a scope → **Dashboard** | activity every working day | no activity where there should be: phone the operator |
+| **Flags & Disputes** | none open | § Flags |
+| **Dashboard** → choose the scope (selector in the top bar; on a phone, on the first screen) | action queue empty, no bottleneck line under the season flow | the queue says what waits: records nobody verified, stages with nobody assigned, open flags |
+| the same screen → **Full dashboard and exports** | activity every working day | no activity where there should be: phone the operator |
 
 ## People
 
 | Situation | Who | Do |
 |---|---|---|
-| Forgot the password | Client Manager (State Manager for a Client Manager, admin for a State Manager) | **Users** → the person → **Reset password** → tap again to confirm → a new temporary password is shown once. The old password stops working at once; a phone that is still signed in with it is signed out within the hour (to cut a phone off at once: Deactivate) |
-| Phone lost or stolen | the same | **Users → Deactivate** first: from that moment the lost phone gets nothing more from the database and can save nothing, and the copy it keeps for offline work is erased the next time that phone reaches the server. Until then that copy can still be read on the phone itself (for a Procurement operator: the client's farmer list with phone numbers), so **every operator phone needs a screen lock**. When the person has a phone again: **Activate**, then **Reset password**. Saves that were still waiting on the lost phone are lost; the person records those lots again from the paper slip |
-| Left the job | Client Manager | **Users → Deactivate**. Their records stay, with their name |
-| Works at another stage now | Client Manager | **Scopes** → the scope → People → **Remove** at the old stage, **Assign existing…** at the new one. Both acts are in the ledger |
+| Forgot the password | Client Manager (State Manager for a Client Manager, admin for a State Manager) | **Users & Roles** → the person → **Reset password** → tap again to confirm → a new temporary password is shown once. The old password stops working at once; a phone that is still signed in with it is signed out within the hour (to cut a phone off at once: Deactivate) |
+| Phone lost or stolen | the same | **Users & Roles → Deactivate** first: from that moment the lost phone gets nothing more from the database and can save nothing, and the copy it keeps for offline work is erased the next time that phone reaches the server. Until then that copy can still be read on the phone itself (for a Procurement operator: the client's farmer list with phone numbers), so **every operator phone needs a screen lock**. When the person has a phone again: **Activate**, then **Reset password**. Saves that were still waiting on the lost phone are lost; the person records those lots again from the paper slip |
+| Left the job | Client Manager | **Users & Roles → Deactivate**. Their records stay, with their name |
+| Works at another stage now | Client Manager | **Season Scopes** → the scope → People → **Remove** at the old stage, **Assign existing…** at the new one. Both acts are in the ledger |
 | A stage has nobody for a day | Client Manager | assign a second person to that stage, or do the step yourself (it is recorded as supervisory) |
 
 Nobody can reset their own password this way, and nobody can reset someone ranked above them. To change your own:
@@ -72,14 +73,19 @@ again; the replacement shows "Replaces …" to whoever verifies it, and in the j
 
 ## Flags
 
-Anyone who can see a record can raise a flag on it (record page → **Raise a flag**). A flag cannot be edited or
+Anyone who can see a record can raise a flag on it (record page → **Raise a flag**). **This is also how an arrival
+is refused**: the arrival check can verify a lot, it has no "Reject". The receiver does not verify, opens the full
+record from the arrival check, raises a flag saying what is wrong and tells the manager; the sender corrects the
+record while it is pending, or the manager withdraws it ("A record is wrong", above). A flag cannot be edited or
 deleted. A manager closes it with **Resolve** (the matter was dealt with) or **Dismiss** (it was not a problem); both
 are written to the ledger. **A lot cannot be sealed while any record in its history has an open flag**: the QR operator
 sees which record; when the flag is closed the lot is still in the operator's list and seals.
 
 ## Lab verdict and export
 
-The lab's verdict is derived from the readings against the crop's limits; nobody types it. At Commercial Clearance a
+The lab's verdict is derived from the readings against the crop's limits; nobody types it. The technician sees it
+before saving ("Lab result if saved now", with the reading that is over a limit named), and the saved record says the
+same. At Commercial Clearance a
 lot that did not pass the export limits is offered for domestic sale only. A Client Manager can open export for that
 lot: QC record → **Override the export verdict** with a reason. The failed verdict stays visible, the override is in
 the ledger with the manager's name, and the public page says "export approved with a recorded reason".
@@ -109,6 +115,13 @@ the save (**Saved on phone**) and sends it when the network is back, in the orde
 condition: the operator has opened that stage once, with a network, on that phone. That is when the form, the farmer
 list and the lots waiting are put on the phone. Verifying an arrival, correcting a record and sealing need a
 connection.
+
+A record saved on the phone keeps **the time it was saved there**; that is the time shown as "Recorded" on the record,
+in the lists, in the journey, on the public page and in the exports (`recorded_at`). When it waited more than two
+minutes the record also says "kept on the phone, sent …", and the exports carry the server's time in
+`received_by_server_at`. The time is the phone's own clock: keep operator phones on automatic network time. A time
+more than 31 days old or more than 5 minutes ahead of the server is not believed: the server uses its own time and
+puts a warning on the record ("phone clock not plausible").
 
 | Situation | What the app does |
 |---|---|

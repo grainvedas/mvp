@@ -19,7 +19,7 @@ export function ScopeList() {
   const { ctx } = useAuth();
   return (
     <div>
-      <h1>{t('scopes.title')}</h1>
+      <h1><span aria-hidden="true">🎯 </span>{t('scopes.title')}</h1>
       {isManager(ctx!.user!.role) && <p><Link className="btn" to="/scopes/new">{t('scopes.new')}</Link></p>}
       {ctx!.scopes.length === 0 ? <Empty /> : (
         <div className="card table-wrap"><table>
@@ -27,7 +27,7 @@ export function ScopeList() {
           <tbody>{ctx!.scopes.map((s) => (
             <tr key={s.scope_id}><td>{s.client_name}</td><td>{s.crop_name}</td><td>{s.season_code}</td>
               <td><Link to={`/scopes/${s.scope_id}`}>{s.geography}</Link></td>
-              <td className="small">{s.chain.map(humanise).join(' → ')}</td><td><Badge value={s.status} /></td></tr>
+              <td className="small">{s.chain.map((x) => t(`stage.${x}`, undefined, humanise(x))).join(' → ')}</td><td><Badge value={s.status} /></td></tr>
           ))}</tbody>
         </table></div>
       )}
@@ -161,9 +161,9 @@ export function ScopeWizard() {
       {step === 4 && s && (
         <div className="card">
           <div className="alert info"><strong>Chain:</strong> {s.chain.map(label).join(' → ')}</div>
-          <SlotAssigner scope={s} label={label} />
+          <SlotAssigner scope={s} label={label} canManage={isManager(me.role)} />
           <ErrorBox error={act.error} />
-          {s.status === 'draft' && <div className="row"><button className="secondary" onClick={() => setStep(3)}>{t('common.back')}</button>
+          {s.status === 'draft' && isManager(me.role) && <div className="row"><button className="secondary" onClick={() => setStep(3)}>{t('common.back')}</button>
             <button className="gold" onClick={activate} disabled={act.busy}>{t('wizard.activate')}</button></div>}
           {s.status !== 'draft' && <p className="small"><Link to="/">{t('nav.home')}</Link></p>}
         </div>
@@ -175,7 +175,13 @@ export function ScopeWizard() {
 interface UserRow { id: string; display_name: string; role: string; phone: string | null; client_id: string | null; active: boolean }
 interface SlotRow { id: string; user_id: string; stage_type: StageType }
 
-function SlotAssigner({ scope, label }: { scope: ScopeRow; label: (x: StageType) => string }) {
+/**
+ * Who holds each stage. Only a manager of the client may change it (the database decides); anyone else who can open the
+ * scope, a client viewer for one, sees the names and no controls. Before, the controls were drawn for everyone.
+ * Laid out as a grid so that it folds to one column on a phone; the table roles keep it a table for a screen reader
+ * (and for the tests, which find a stage by its row).
+ */
+function SlotAssigner({ scope, label, canManage }: { scope: ScopeRow; label: (x: StageType) => string; canManage: boolean }) {
   const { t } = useI18n();
   // every operator of the client, active or not: a deactivated person still holding a stage must be shown by name
   const users = useAsync(() => q(supabase.from('app_users').select('id,display_name,role,phone,client_id,active')
@@ -206,30 +212,30 @@ function SlotAssigner({ scope, label }: { scope: ScopeRow; label: (x: StageType)
     <div>
       <h3>{t('wizard.step4')}</h3>
       {created && <div className="alert ok" data-testid="temp-password">{created}</div>}
-      <table><tbody>{scope.chain.map((stage) => {
+      <div className="slots" role="table" aria-label={t('wizard.step4')} data-testid="slots">{scope.chain.map((stage) => {
         const assigned = (slots.data ?? []).filter((x) => x.stage_type === stage);
         return (
-          <tr key={stage}><td><strong>{label(stage)}</strong></td>
-            <td>{assigned.length === 0 && <span className="muted">{t('wizard.nobody')}</span>}
+          <div className="slot" role="row" key={stage}><div role="cell"><strong>{label(stage)}</strong></div>
+            <div role="cell">{assigned.length === 0 && <span className="muted">{t('wizard.nobody')}</span>}
               {assigned.map((a) => {
                 const u = users.data?.find((x) => x.id === a.user_id);
                 const name = u?.display_name ?? 'manager';
                 return (
                   <div key={a.id} className="row" data-testid={`slot-holder-${stage}`}>
                     <span>{name}{u && !u.active && <> <Badge value="closed" label={t('wizard.inactive')} /></>}</span>
-                    <button className="secondary small-btn" aria-label={`${t('wizard.remove')}: ${name} · ${label(stage)}`} onClick={() => void remove(a, name)}>{t('wizard.remove')}</button>
+                    {canManage && <button className="secondary small-btn" aria-label={`${t('wizard.remove')}: ${name} · ${label(stage)}`} onClick={() => void remove(a, name)}>{t('wizard.remove')}</button>}
                   </div>
                 );
-              })}</td>
-            <td><div className="row">
+              })}</div>
+            {canManage && <div className="row slot-controls" role="cell">
               <select aria-label={`Assign ${label(stage)}`} defaultValue="" onChange={(e) => { if (e.target.value) void assign(stage, e.target.value); e.target.value = ''; }}>
                 <option value="">Assign existing…</option>
                 {(users.data ?? []).filter((u) => u.active && !assigned.some((a) => a.user_id === u.id)).map((u) => <option key={u.id} value={u.id}>{u.display_name}</option>)}
               </select>
               <button className="secondary" onClick={() => setNewUser({ stage, name: '', phone: '' })}>+ new person</button>
-            </div></td></tr>
+            </div>}</div>
         );
-      })}</tbody></table>
+      })}</div>
       {newUser && (
         <div className="card">
           <h3>New operator for {label(newUser.stage)}</h3>

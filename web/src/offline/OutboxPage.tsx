@@ -33,7 +33,7 @@ export function Outbox() {
 
       {open.length === 0 && <Empty>{t('outbox.empty')}</Empty>}
       {open.length > 0 && <div className="card table-wrap"><table data-testid="outbox-open">
-        <thead><tr><th>#</th><th>{t('outbox.what')}</th><th>{t('common.status')}</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>{t('outbox.what')}</th><th>{t('common.status')}</th></tr></thead>
         <tbody>{open.map((i, n) => (
           <tr key={i.id}>
             <td className="num">{n + 1}</td>
@@ -41,14 +41,15 @@ export function Outbox() {
               <div className="small muted">{i.scope_label} · {dateTime(i.captured_at)}</div>
               {i.state === 'failed' && i.error && <div className="alert error small">{i.error}</div>}
               {i.state !== 'failed' && i.note && <div className="alert warn small">{i.note === 'photo' ? t('outbox.photo_waiting', { code: i.footprint_code ?? '' })
-                : i.note === 'session' ? t('outbox.sign_in_again') : t('outbox.retrying')}</div>}</td>
-            <td><Badge value={i.state === 'failed' ? 'fail' : 'pending'} label={t(`outbox.state_${i.state}`)} /></td>
-            <td>{i.state === 'failed' && <div className="stack">
+                : i.note === 'session' ? t('outbox.sign_in_again') : t('outbox.retrying')}</div>}
+              {/* the two actions sit under the reason: beside it they squeezed the text into a column a word wide on a phone */}
+              {i.state === 'failed' && <div className="row" style={{ marginTop: 8 }}>
               <Link className="btn secondary" to={`/work/${i.scope_id}/${i.stage_type}?draft=${i.id}`}>{t('outbox.fix')}</Link>
               {confirm === i.id
                 ? <button className="danger" onClick={() => { void discard(i.id); setConfirm(null); }}>{t('outbox.discard_sure')}</button>
                 : <button className="secondary" onClick={() => setConfirm(i.id)}>{t('outbox.discard')}</button>}
             </div>}</td>
+            <td><Badge value={i.state === 'failed' ? 'fail' : 'pending'} label={t(`outbox.state_${i.state}`)} /></td>
           </tr>
         ))}</tbody>
       </table></div>}

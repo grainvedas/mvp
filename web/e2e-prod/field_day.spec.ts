@@ -86,7 +86,7 @@ test('No network for more than an hour: the app opens from the phone, captures a
   await ageTheToken(page);
   const t0 = Date.now();
   await page.reload();                                                    // cold start: no network, the hour is over
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Procurement (farm-gate)');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Procurement (farm-gate)');
   console.log(`cold start with no network and a run-out token: ${Date.now() - t0} ms`);
   expect(Date.now() - t0, 'the app opens at once, it does not wait for a renewal that cannot happen').toBeLessThan(5000);
 
@@ -150,7 +150,7 @@ test('A link that takes requests and never answers: the form opens from the phon
   await context.route(`${API}/**`, () => { /* taken, never answered */ });
   const t0 = Date.now();
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Procurement (farm-gate)', { timeout: 40_000 });
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Procurement (farm-gate)', { timeout: 40_000 });
   const opened = Date.now() - t0;
   console.log(`dead link: the form opened from the phone after ${opened} ms`);
   expect(opened, 'one wait of 8 s, then every further screen straight from the phone').toBeLessThan(14_000);

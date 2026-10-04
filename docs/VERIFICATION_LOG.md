@@ -592,3 +592,227 @@ NOT run, and what the deployed app cannot do yet (read-only queries on the stagi
   v1, `ledger-check` v1; no `reset-password`. The deployed app is the Phase 4 build: part A of
   `docs/RUNSHEET_phase4.md` is still to do (FIX_LIST open item 4).
 - A sign-in, any stage, a save, a phone.
+
+## 2026-10-03 — Claude: demo journey kept on staging (T1, scope 401), and what the live app shows of it
+
+Asked for by Veda. Not through the screens: operators cannot sign in (Phone provider off) and Claude does not sign in
+to a hosted service. The three steps of T1 (`tests/remote_rls.mjs`, at the Phase 3 level staging is on) were carried
+out in one transaction as the three demo operators, with the caller set per step, so every trigger and policy applied.
+Script: `Claude outputs/demo-run-2026-10-03/demo_journey.sql`.
+
+- Trial first, rolled back (private SQLSTATE): the full result came back in the error text; staging unchanged
+  afterwards (0 records, 6 blocks, 0 seals).
+- Then kept, 17:09 IST: `PRSDM-KNM-KH26-P-0001` 147.5 kg (Sita Devi, Itwa) → `PRSDM-KNM-KH26-QC-0001` 147 kg, verdict
+  domestic pass / export pass → `PRSDM-KNM-KH26-QR-0001` 147 kg, sealed `GV-D3C38791036F`. Ledger blocks 63 to 72;
+  `app.verify_ledger()` 0 problems (16 blocks). All three records carry one timestamp (one transaction).
+- Refused during the run, as they must be: the procurement operator verifying the own record ("verification is by
+  the receiving stage"); the QC technician sealing ("only the assigned QR operator … may seal").
+- On the deployed app (https://mvp-beta-one.vercel.app), in Veda's signed-in admin session and without login for the
+  public page: `/verify/GV-D3C38791036F` shows the journey and both verdicts, no farmer phone; Home, the scope
+  dashboard (pipeline 1/1/1, the sealed lot), the QC record, **Journey & export** and the label sheet all open.
+- **Fails on the deployed app:** the dashboard's "Activity, last 14 days" box: "Could not find the function
+  app.scope_activity(p_days, p_scope) in the schema cache". The Phase 4 app against the Phase 3 database (FIX_LIST
+  open item 4).
+
+NOT done: any stage through the screens; a photo; any chain longer than three stages; anything as an operator login.
+
+## 2026-10-04 — Comparison with the prototype; migration 28 (public page data)
+
+Asked by Veda: the built interface is not the prototype's. What was done, on the local stack only:
+
+- The prototype (`GrainVeda_Platform_v1.html`) was read in full into an inventory of its screens, forms and messages, and
+  driven in a headless browser with entries made through its own forms: one lot through seven stages to an active QR and
+  the verify page, plus side runs. 874 pictures (laptop 1366 × 768, phone 390 × 844). Sign-in was done by setting the
+  prototype's own session, never by typing a password.
+- The built system was inventoried from `web/src` and driven on the local stack through the same journey. 571 pictures.
+- Result: `docs/INTERFACE_GAP.md`. 103 typed fields of the prototype's stage forms are not asked for here (counted by
+  label from the prototype's source: procurement 9761–9959, QC 13002–13270, commercial 16567–17002, shipment
+  17422–17727, arrival check 10714–10783, processing configurations 13561–13689); the prototype has 17 stage types
+  (`ALL_STAGES`, line 13524), this system 16 (no Warehouse Inward); about 15 screens have no counterpart.
+- Faults found in the built system: 11 open (FIX_LIST open items 6 to 16) and one fixed (below). None was caught by the suites.
+
+Fixed, database only:
+
+- **Fixed fault 21.** `app.public_lot_journey` (callable without a login) returned each record's `computed` values; for
+  a Commercial record these are `{market, buyer}`. Migration 28 (`20261004000100_public_page_data`) re-creates the
+  function from migration 20's body by script with that one key removed (diff: one line).
+- Negative control: `tests/19_public_page_data.sql` run on a build WITHOUT migration 28: `ASSERTION FAILED: public data:
+  the buyer's name is not sent to an anonymous visitor`, the only failing file. With migration 28: `ALL TESTS PASSED`,
+  519 assertions (510 + 9).
+- `tests/remote_smoke.sql` has a 22nd row, `public page data`: `OK` on a build with migration 28,
+  `OPEN: the buyer's name is sent to anyone who has the QR (push migration 28)` on one without.
+
+NOT run, and therefore not known:
+
+- Migration 28 on the hosted project (run-sheet Phase 4, steps A1–A3 and A8). Staging was at 21 migrations on 3 October
+  (entry above), so the leak is open there until 22 to 28 are pushed; it holds demo data only.
+- The comparison on a real handset: the phone pictures are a 390 px browser window.
+- A line-by-line comparison of dashboards, set-up screens, QR, ledger, flags and queries: started, stopped by a usage
+  limit. `docs/INTERFACE_GAP.md` section 14 says how far each area was compared.
+- No screen was changed. Open items 6 to 16 are open.
+
+## 2026-10-04 — Decision G8 = A; the faults of the comparison fixed (migration 29, web app); local stack only
+
+Veda's decision the same day: **A, keep the interface as built**; only the faults found in the comparison are fixed.
+Of the eleven open items (6 to 16), ten are fixed (`docs/FIX_LIST.md` lines 22 to 31); item 15, an arrival check that
+cannot refuse a lot, is not built under A and is limit K19.
+
+What changed:
+
+- Migration 29 `20261004000200_capture_time_verdict_preview`: `footprints.captured_at` with its insert trigger;
+  `footprint_snapshot`, `public_lot_journey`, `lot_trace` re-created by script with that one key added;
+  `app.judge_readings` (closed) generated by script from `derive_qc_verdict`; `app.preview_verdict` (API).
+- Web: 21 files of `web/src` (one new, `engine/values.tsx`); 67 English and 19 Hindi dictionary entries.
+- Tests: `tests/20_capture_time.sql`, `tests/21_verdict_preview.sql`; `tests/08` allowlist and `tests/19` key list;
+  smoke row 23; `web/tests/faults_oct4.test.tsx` (23 unit tests); `web/e2e/phase5.spec.ts` (11 tests).
+- Guides: `docs/OPERATIONS.md` (capture time; how an arrival is refused without a "Reject"), `docs/OPERATOR_GUIDE.md`
+  (three sentences, both languages), `docs/RUNSHEET_phase4.md` (the note of 4 October and step B11), `AGENTS.md`.
+
+What ran (local stack: Postgres 16, PostgREST 12.2.3, Supabase Auth 2.197.0; Chromium with a Pixel 7 profile):
+
+- `tests/run_local.sh`: `ALL TESTS PASSED`, 547 assertions (519 + 13 in file 20 + 15 in file 21), counted as in the
+  entries above: 546 `NOTICE: ok` lines and the production-seed check the runner prints itself.
+- The same on a build WITHOUT migration 29: file 20 fails (`record "x" has no field "captured_at"`), file 21 fails
+  (`function app.preview_verdict(uuid, jsonb) does not exist`), nothing else. `tests/remote_smoke.sql`: 23 rows, all
+  `OK` but `pg_cron` on the full build; `capture time, verdict preview` → `MISSING (push migration 29)` without it.
+- `npx tsc -b --noEmit` clean; `npx vitest run`: 108 passed (5 files).
+- `npx playwright test`: **36 passed** (5.8 min). `npx playwright test -c playwright.prod.config.ts`: **14 passed**
+  (3.6 min); public page 170 KB transferred of the 200 KB budget, 1,649 ms on throttled 3G.
+- **Negative control for the screens**: `e2e/phase5.spec.ts` against the app as it was on 2 October (this tree with the
+  20 changed files taken from the computer's folder, served on port 5174; same database, so with migration 29):
+  10 failed, 1 passed. The nine fault tests fail at the fault itself:
+  1. `Net Kg` where "Net weight" is expected; at the packing review `Batch CodeNaN`.
+  2. `Reject Reasons[{"kg":4,"reason":"discoloured grains"},{"kg":2,"reason":"stones"}]`.
+  3. 12.5 typed, `125` in the box.
+  4. No lab result on the form before saving.
+  5. The record's time is the moment it was sent, 10,800,023 ms after the moment it was captured.
+  6. "+ new person" drawn three times for a client viewer.
+  7. The name hidden; header 239 px for operator and manager; practice strip 43 px, on two lines; the record page
+     12 px, the label sheet 135 px and the people of a scope 64 px wider than a 390 px screen.
+  8. No language box on the sign-in screen.
+  9. "Market verdict domestic Pending · export Pending" on a farm-gate record, before and after the lab; `57 · 443 kg`
+     in a stage box; "Manager actions".
+  The tenth failure is the test of the app ahead of its database (next point): the old app never sends a capture
+  time. The test that passes is the K19 path, which is not a fix and works on the old app too. These runs also show
+  the old app working against the database with migration 29: lots, lab records and seals were saved through it.
+  A first control run had four of these tests stopping at an element that did not exist yet, which shows that the
+  old app lacks the fix but not what it showed instead; their checks were then put in an order, or made soft, so that
+  the old app reaches the fault. The figures above are from the second run.
+- **The app ahead of its database.** PostgREST's answer to an insert naming a column it does not know was read from
+  the local server: `HTTP 400`, `PGRST204`, "Could not find the 'captured_at_x' column of 'footprints' in the schema
+  cache". With that answer given for `captured_at`, a save that waited on the phone is sent a second time without the
+  capture time, under the same save id, and goes through (`phase5` "An app deployed ahead of its database…"). With
+  the fallback switched off the same test fails: the save never reaches "sent".
+- After all the runs, `tests/remote_ledger_audit.sql` on the stack: `NO FINDINGS (1464 blocks, 524 records, 66 seals,
+  12 evidence files checked)`; 18 of the 524 records carry a capture time earlier than the time the server stored
+  them, none carries the clock warning.
+- Header on a phone, measured: 121 px (strip 25, top bar 48, menu 48), 14 % of an 844 px screen, at 390, 360 and
+  320 px, English and Hindi, operator and manager. Before: 239 px.
+- The way to refuse an arrival under limit K19, through the screens (`phase5` "An arrival that is wrong…"): the
+  receiver cannot verify without ticking, finds no "Reject", opens the full record, raises a flag; the manager sees
+  the flag and withdraws the pending record with a reason; it no longer waits at the receiving stage.
+
+Found on the way, in this work's own changes:
+
+- First complete run after the changes: 31 passed, 2 failed, both caused by the changes. (1) The people of a scope
+  were turned from a table into a grid for phones and lost their table rows; "Scope wizard…" finds a stage by its row.
+  Fixed in the app: the grid carries table roles. (2) The season export's time column was renamed on purpose
+  (`created_at` → `recorded_at`, plus `received_by_server_at` last); the test that pins the header was changed to the
+  new header, and the columns are now unit-tested (`faults_oct4` "the season export gives both times").
+- **Found by looking at pictures, not by a test:** on a phone the practice strip had become an empty gold bar (a
+  width override placed before the rule it overrides: both wordings hidden). Two existing checks of the strip passed,
+  because a text check reads hidden text. Fixed; the phone test now checks the words as shown and fails when the
+  faulty order is put back (`Expected: visible, Received: hidden`); `e2e/phase4.spec.ts` checks the shown text too.
+- The lab result was drawn twice at review; now once.
+- Three of the smaller fixes (the verdict line on a farm-gate record, the stage box caption, the activity column's
+  name) had no test; they have one now (point 9 above).
+
+NOT run, and therefore not known:
+
+- **Nothing on the hosted project.** Migrations 22 to 29 are not pushed from here and the deployed app is the build
+  of 3 October: every fault above is still there on https://mvp-beta-one.vercel.app until run-sheet Phase 4 part A,
+  a push to GitHub `main`, and step B11.
+- `tests/run_local.ps1` (the Windows runner): step A1.
+- A real phone. The 390, 360 and 320 px figures are a desktop Chromium window; the Hindi figures are from a browser
+  whose Devanagari font is not the one on an operator's phone.
+- The new app against a real database without migration 29: the refusal was given to the browser in the server's own
+  words, not produced by such a database.
+- A phone clock that is wrong by less than 31 days is accepted as it is. That is a limit (K20), not a test.
+- The acceptance suite (`playwright.acceptance.config.ts`) against a deployed address.
+- Nobody but the builder has looked at any of this.
+
+## 2026-10-04 — Decision G8 = B; the prototype's look and frame built (web app, seed 01); local stack only
+
+Veda's decision later the same day, replacing A: **B, the prototype's look on a laptop**, built so that laptop and
+phone both work well (who works on which is not decided). `docs/FIX_LIST.md` "The prototype's look and frame", B1 to B7.
+This is new build, not fault fixing: nothing here "failed before"; each part has a test that holds it and a negative
+control that shows the test can fail.
+
+What changed:
+
+- No migration, no database rule. `supabase/seeds/01_stage_definitions.sql`: a display-only `"section"` on each of the
+  64 fields; cold storage's four fields reordered (stored, stored on, retrieved, retrieved on).
+- Web: `styles.css` rewritten around the prototype's colour tokens; `shell/Layout.tsx` (top bar, side menu in
+  sections), `shell/scope.tsx` (new: the scope in force, the scope a page belongs to, laptop or not),
+  `pages/Home.tsx` (first screens by role), `auth/SignIn.tsx`, `engine/StagePage.tsx` and `engine/widgets.tsx` (forms
+  in sections), `engine/icons.ts` (new), page titles of the admin pages, `index.html`, manifest and icon colours.
+  104 new dictionary entries in each language, 12 reworded (menu and status words).
+- Tests: `web/tests/look_b.test.tsx` (new, 21 unit tests), `web/e2e/phase6.spec.ts` (new, 6 tests: 4 at 1366 px,
+  1 at 390 px, 1 for the status words). Eight assertions in four existing files changed because a word or a title
+  changed on purpose: `e2e/phase3.spec.ts` (Hindi menu word, a title that now carries a pictogram, Hindi status
+  words), `e2e/phase5.spec.ts` ("Crop Registry", name over role in the top bar, "Pending verification"),
+  `e2e-prod/field_day.spec.ts` and `prod.spec.ts` (the title). No test was removed.
+- Guides: the menu and status words in `OPERATIONS.md`, `OPERATOR_GUIDE.md` (both languages), `ACCEPTANCE.md`,
+  `RUNSHEET_phase3.md`, `RUNSHEET_phase4.md` (seed 01 again in A5; B11 now has 15 steps, 6 of them on a laptop),
+  `AGENTS.md`, `README.md`, `INTERFACE_GAP.md` (a column "Since decision B" in sections 3 and 4).
+
+What ran (local stack: Postgres 16, PostgREST 12.2.3, Supabase Auth 2.197.0; Chromium, Pixel 7 profile unless a
+test sets its own size):
+
+- `tests/run_local.sh` after the seed change: `ALL TESTS PASSED`, 547 assertions (unchanged: the database does not
+  read `section`). On the stack: 64 of 64 fields carry a section.
+- `npx tsc -b --noEmit` clean; `npx vitest run`: **129 passed** (6 files).
+- `npx playwright test`: **42 passed** (7.2 min), run twice, the second time after the last change to the frame.
+  `npx playwright test -c playwright.prod.config.ts`: **14 passed** (3.7 min), also twice; public page 175 KB transferred of the
+  200 KB budget (170 before: the style sheet and the dictionaries grew), 1.7 s on throttled 3G, both runs.
+- Acceptance rehearsal (`playwright.acceptance.config.ts` against the built app on the local stack): **5 passed**
+  (T1 to T5, 1.3 min).
+- Lighthouse 12, accessibility: 100 on the sign-in page and on the public page. A first run gave 96 on sign-in
+  (white on the lighter green of the active tab and the button); both were darkened. All text / background pairs of
+  the palette were then computed: 4.5:1 or more.
+- **Negative controls** for `e2e/phase6.spec.ts`: one thing broken at a time in the app, the one test that should
+  notice run, the change put back. All six were caught:
+  1. forms in one column on a laptop → "gross weight and bags on one line" fails;
+  2. the "Procured" card showing 1 kg too much → `Expected "5,592 kg"`, received `5,593 kg`;
+  3. side menu 260 px → `Expected: 220, Received: 260`;
+  4. the scope choice not kept on the device → after reload the selector no longer holds the scope;
+  5. full stage cards on a phone with five stages → `Expected: 0, Received: 5` lists;
+  6. status word "Verified" in place of "Approved" → the chip test fails (and a unit test).
+  After putting everything back: `phase6` 6 passed, then the two full runs above.
+- Pictures of 21 screens at 1366 × 768 and at 390 × 844 were looked at (sign-in, the three kinds of first screen,
+  a form, review, saved, a record, the arrival check, the lab form, scope dashboard, farmers, scopes, people, users,
+  flags, crops, health). One sheet of each size is in `Claude outputs\interface-gap-2026-10-04\`.
+
+Found on the way, in this work's own changes:
+
+- **Found by looking at pictures:** with "Overall" chosen, the top bar said "Overall — all scopes" above a form that
+  belongs to one scope, and the menu showed no stages there. The frame now shows the scope of the page being worked
+  on (a stage page, a scope's dashboard) without changing the person's choice; unit-tested and in `phase6`.
+- The action queue sent a manager to the "new record" tab of a stage; it now opens "Records at this stage".
+- Initials of "Veda (Admin)" came out as "V(": brackets and signs are no longer counted as letters.
+- A count of scope cards was written as a fixed number and failed when another test had added a scope; it is now the
+  number the server says the person can read.
+- Three title checks used an exact match and failed once titles carried a pictogram; they check the words now.
+
+NOT run, and therefore not known:
+
+- **Nothing on the hosted project.** The deployed app (https://mvp-beta-one.vercel.app) is still the build of
+  3 October with the old look. The new one arrives with a push to GitHub `main`; the form sections with step A5.
+- A real laptop and a real phone. Both sizes are a desktop Chromium window; "Segoe UI" is not installed on the build
+  machine, so the pictures show a fallback font, and the pictograms are the build machine's emoji font.
+- Widths between 600 and 900 px (a tablet, a narrow laptop window) get the phone frame; no test or picture at those
+  widths beyond the rule itself.
+- Browsers other than Chromium.
+- The new Hindi words (104 entries) have been read by nobody who speaks Hindi in the field (limit K9).
+- The acceptance suite against a deployed address; the Windows runner.
+- Nobody but the builder has looked at any of this: run-sheet step B11, steps 10 to 15, is that check.

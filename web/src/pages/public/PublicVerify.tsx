@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { ErrorBox, Loading } from '../../shell/ui';
-import { loadJourney, seasonName, type JourneyStep } from './journey';
+import { loadJourney, seasonName, type JourneyStep, stepDate } from './journey';
 
 const date = (s?: string | null) => (s ? new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 const kg = (n?: number | null) => (n === null || n === undefined ? '' : `${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg`);
@@ -60,7 +60,7 @@ function Step({ s }: { s: JourneyStep }) {
       <div className="pv-dot" aria-hidden="true" />
       <div>
         <strong>{t(`pv.stage_${s.stage}`, undefined, pretty(s.stage))}</strong>
-        <span className="muted small"> · {date(s.verified_at ?? s.created_at)}{s.qty_out_kg ? ` · ${kg(s.qty_out_kg)}` : ''}{s.grade ? ` · Grade ${s.grade}` : ''}</span>
+        <span className="muted small"> · {date(stepDate(s))}{s.qty_out_kg ? ` · ${kg(s.qty_out_kg)}` : ''}{s.grade ? ` · Grade ${s.grade}` : ''}</span>
         {s.farmer && <div>{t('pv.grown_by', { name: s.farmer.name, place: `${s.farmer.village}, ${s.farmer.district}` })}</div>}
         {s.farmers && s.farmers.length > 0 && (
           <div>{t('pv.farmers_of', { n: s.farmers.length, village: s.village ?? '' })}

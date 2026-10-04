@@ -70,7 +70,7 @@ explanation of each step.
    `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL` (Connect → Session pooler),
    `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. The last two repeat the first two: they are the only ones the app
    build reads.
-3. **Database**: link the CLI to the production project, `supabase db push` (27 migrations), then
+3. **Database**: link the CLI to the production project, `supabase db push` (29 migrations), then
    `supabase/seeds/01_stage_definitions.sql` and `supabase/seeds/production/10_reference.sql`. Never seeds 02–05.
    Then link the CLI back to staging.
 4. **Dashboard settings**: API → exposed schemas: add `app`. Authentication → Sign In / Providers: "Allow new users
@@ -82,7 +82,7 @@ explanation of each step.
 5. **Functions and secrets**: `supabase functions deploy create-user`, `reset-password`, and
    `ledger-check --no-verify-jwt`; a new `LEDGER_CHECK_TOKEN` for production (`scripts/make_ledger_token.mjs` with
    `ENV_FILE=.env.production`), uploaded with `supabase secrets set --env-file .env.functions.production`.
-6. **Checks, read-only**: `tests/remote_smoke.sql` (21 rows; "environment" must say `OK production`, "demo data" must
+6. **Checks, read-only**: `tests/remote_smoke.sql` (23 rows; "environment" must say `OK production`, "demo data" must
    say `OK production: no demo people or scopes`), `ENV_FILE=.env.production node tests/remote_auth_settings.mjs`
    (must end `AUTH SETTINGS PASSED`; on production an open setting is a failure, not a warning).
 7. **First admin**: `ENV_FILE=.env.production node scripts/bootstrap_admin.mjs --email <Veda's address> --name "Veda"`.
@@ -103,7 +103,7 @@ explanation of each step.
 | ☐ | Decisions G1 to G5 taken | `docs/FIX_LIST.md` |
 | ☐ | Secrets of the development phase rotated (database password, service key, access token) | `docs/RUNSHEET_2026-10-01_security_and_phase0.md` |
 | ☐ | Production project: Pro, Mumbai | Dashboard |
-| ☐ | 27 migrations, seed 01, production seed; no demo data | smoke check 21/21 |
+| ☐ | 29 migrations, seed 01, production seed; no demo data | smoke check 23/23 |
 | ☐ | Sign-up off, anonymous off | `remote_auth_settings.mjs`: PASSED |
 | ☐ | Functions deployed, token set, monitor green | monitor's first check |
 | ☐ | First admin signed in with an own password; `.env.admin-login` deleted | — |

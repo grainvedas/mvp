@@ -20,7 +20,7 @@ export function States() {
   const act = useAction();
   const add = (e: FormEvent) => { e.preventDefault(); void act.run(async () => { await q(supabase.from('states').insert({ name, code: code.toUpperCase() }).select()); setName(''); setCode(''); await list.reload(); }); };
   return (
-    <div><h1>{t('states.title')}</h1>
+    <div><h1><span aria-hidden="true">📍 </span>{t('states.title')}</h1>
       <div className="card">{list.loading ? <Loading /> : <ul>{list.data?.map((s) => <li key={s.id}>{s.name} <span className="mono">{s.code}</span></li>)}</ul>}</div>
       <form className="card row" onSubmit={add}>
         <input aria-label="State name" placeholder="State name" value={name} onChange={(e) => setName(e.target.value)} required style={{ flex: 2 }} />
@@ -41,7 +41,7 @@ export function Clients() {
   const add = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
     await q(supabase.from('clients').insert({ ...f, code: f.code.toUpperCase() }).select()); setF({ ...f, name: '', code: '' }); await list.reload(); }); };
   return (
-    <div><h1>{t('clients.title')}</h1>
+    <div><h1><span aria-hidden="true">🏢 </span>{t('clients.title')}</h1>
       <div className="card table-wrap">{list.loading ? <Loading /> : (
         <table><thead><tr><th>Name</th><th>Code</th><th>Type</th><th>State</th></tr></thead>
           <tbody>{list.data?.map((c) => <tr key={c.id}><td>{c.name}</td><td className="mono">{c.code}</td><td>{humanise(c.type)}</td>
@@ -95,7 +95,7 @@ export function Users() {
   });
   const linked = (u: UserRow) => !!u.auth_uid && u.auth_uid !== u.id;
   return (
-    <div><h1>{t('users.title')}</h1>
+    <div><h1><span aria-hidden="true">👤 </span>{t('users.title')}</h1>
       <div className="card table-wrap">{list.loading ? <Loading /> : (
         <table><thead><tr><th>Name</th><th>Role</th><th>Sign-in</th><th>Client</th><th>Login</th><th></th></tr></thead>
           <tbody>{list.data?.map((u) => <tr key={u.id} data-testid="user-row"><td>{u.display_name}</td><td>{humanise(u.role)}</td><td className="small">{u.email ?? u.phone}</td>
@@ -129,6 +129,16 @@ export function Users() {
 
 interface CropRow { id: string; name: string; code: string; gi_tag: string | null; origin: string | null; primary_unit: string; quality_params: QualityParam[]; allowed_stages: StageType[] }
 
+/** Text that can still become a number as typing goes on: digits with at most one point. */
+export const limitTyping = (text: string) => /^\d*\.?\d*$/.test(text.trim());
+
+/** A quality limit as typed: a number, or null while it is not one (empty, "12.", a letter). */
+export function limitInput(text: string): number | null {
+  const s = text.trim();
+  if (s === '' || s.endsWith('.') || !/^\d*\.?\d+$/.test(s)) return null;
+  return Number(s);
+}
+
 export function Crops() {
   const { t } = useI18n();
   const list = useAsync(() => q(supabase.from('crops').select('*').order('name')) as Promise<CropRow[]>, []);
@@ -139,11 +149,23 @@ export function Crops() {
   const save = () => act.run(async () => {
     const { id, ...row } = edit!;
     if (id) await q(supabase.from('crops').update(row).eq('id', id).select()); else await q(supabase.from('crops').insert(row).select());
-    setEdit(null); await list.reload();
+    setTyped({}); setEdit(null); await list.reload();
   });
   const setParam = (i: number, patch: Partial<QualityParam>) => setEdit({ ...edit!, quality_params: edit!.quality_params.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
+  // What is typed into a limit box, kept as typed. Before, the box was turned into a number at every key, so the decimal
+  // point of "12.5" was dropped as soon as it was typed and the limit became 125.
+  const [typed, setTyped] = useState<Record<string, string>>({});
+  const limitBox = (i: number, which: 'domestic_limit' | 'export_limit', p: QualityParam) => {
+    const k = `${i}:${which}`;
+    const bad = k in typed && !limitTyping(typed[k]);
+    return <input aria-label={which === 'domestic_limit' ? 'domestic limit' : 'export limit'} inputMode="decimal" value={typed[k] ?? String(p[which])}
+      aria-invalid={bad || undefined} style={{ width: 90, borderColor: bad ? 'var(--bad)' : undefined }}
+      onChange={(e) => { setTyped({ ...typed, [k]: e.target.value }); const n = limitInput(e.target.value); if (n !== null) setParam(i, { [which]: n }); }} />;
+  };
+  const limitsBad = Object.values(typed).some((x) => !limitTyping(x));            // letters, two points…: say so
+  const limitsOpen = Object.values(typed).some((x) => limitInput(x) === null);   // not a number yet ("12.", empty): cannot be saved
   return (
-    <div><h1>{t('crops.title')}</h1>
+    <div><h1><span aria-hidden="true">🌿 </span>{t('crops.title')}</h1>
       <div className="card">{list.loading ? <Loading /> : <ul>{list.data?.map((c) => (
         <li key={c.id} className="row">{c.name} <span className="mono">{c.code}</span> {c.gi_tag && <Badge value="verified" label={c.gi_tag} />}
           <button className="secondary" onClick={() => setEdit(structuredClone(c))}>{t('common.edit')}</button></li>))}</ul>}
@@ -166,16 +188,22 @@ export function Crops() {
                 <td><input aria-label="unit" value={p.unit ?? ''} onChange={(e) => setParam(i, { unit: e.target.value })} style={{ width: 70 }} /></td>
                 <td><select aria-label="rule" value={p.operator} onChange={(e) => setParam(i, { operator: e.target.value as QualityParam['operator'] })}>
                   <option value="<=">≤ at most</option><option value=">=">≥ at least</option></select></td>
-                <td><input aria-label="domestic limit" inputMode="decimal" value={String(p.domestic_limit)} onChange={(e) => setParam(i, { domestic_limit: Number(e.target.value) })} style={{ width: 90 }} /></td>
-                <td><input aria-label="export limit" inputMode="decimal" value={String(p.export_limit)} onChange={(e) => setParam(i, { export_limit: Number(e.target.value) })} style={{ width: 90 }} /></td>
-                <td><button className="secondary" onClick={() => setEdit({ ...edit, quality_params: edit.quality_params.filter((_, j) => j !== i) })}>✕</button></td>
+                <td>{limitBox(i, 'domestic_limit', p)}</td>
+                <td>{limitBox(i, 'export_limit', p)}</td>
+                <td><button className="secondary" onClick={() => { setTyped({}); setEdit({ ...edit, quality_params: edit.quality_params.filter((_, j) => j !== i) }); }}>✕</button></td>
               </tr>))}</tbody></table></div>
-          <button className="secondary" onClick={() => setEdit({ ...edit, quality_params: [...edit.quality_params, { param: '', label: '', unit: '%', operator: '<=', domestic_limit: 0, export_limit: 0 }] })}>+ limit</button>
+          {/* a new row starts with empty limit boxes (they held "0", which had to be deleted before typing) and cannot be saved until both are numbers */}
+          <button className="secondary" onClick={() => {
+            const n = edit.quality_params.length;
+            setTyped({ ...typed, [`${n}:domestic_limit`]: '', [`${n}:export_limit`]: '' });
+            setEdit({ ...edit, quality_params: [...edit.quality_params, { param: '', label: '', unit: '%', operator: '<=', domestic_limit: 0, export_limit: 0 }] });
+          }}>+ limit</button>
           <h3>{t('crops.allowed_stages')}</h3>
           {defs.data?.map((d) => <label key={d.stage_type} className="check"><input type="checkbox" checked={edit.allowed_stages.includes(d.stage_type)}
             onChange={(e) => setEdit({ ...edit, allowed_stages: e.target.checked ? [...edit.allowed_stages, d.stage_type] : edit.allowed_stages.filter((x) => x !== d.stage_type) })} />{d.label}</label>)}
           <ErrorBox error={act.error} />
-          <div className="row"><button className="secondary" onClick={() => setEdit(null)}>{t('common.cancel')}</button><button onClick={save} disabled={act.busy}>{t('common.save')}</button></div>
+          {limitsBad && <div className="alert error" data-testid="limit-not-a-number">{t('crops.limit_number')}</div>}
+          <div className="row"><button className="secondary" onClick={() => { setTyped({}); setEdit(null); }}>{t('common.cancel')}</button><button onClick={save} disabled={act.busy || limitsOpen}>{t('common.save')}</button></div>
         </div>
       )}
     </div>
@@ -192,11 +220,11 @@ export function OpenFlags() {
     return flags.map((f) => ({ ...f, fp: fps.find((x) => x.id === f.footprint_id) }));
   }, []);
   return (
-    <div><h1>{t('flags.title')}</h1>
+    <div><h1><span aria-hidden="true">🚩 </span>{t('flags.title')}</h1>
       {list.loading ? <Loading /> : <ErrorBox error={list.error} />}
       {list.data?.length === 0 && <Empty />}
       {!!list.data?.length && <div className="card table-wrap"><table><thead><tr><th>Record</th><th>Flag</th><th>Raised</th></tr></thead>
-        <tbody>{list.data.map((f) => <tr key={f.id}><td><Link className="mono" to={`/records/${f.footprint_id}`}>{f.fp?.footprint_code ?? 'record'}</Link> <span className="muted small">{humanise(f.fp?.stage_type ?? '')}</span></td>
+        <tbody>{list.data.map((f) => <tr key={f.id}><td><Link className="mono" to={`/records/${f.footprint_id}`}>{f.fp?.footprint_code ?? 'record'}</Link> <span className="muted small">{f.fp ? t(`stage.${f.fp.stage_type}`, undefined, humanise(f.fp.stage_type)) : ''}</span></td>
           <td>{f.text}</td><td>{dateTime(f.created_at)}</td></tr>)}</tbody></table></div>}
     </div>
   );

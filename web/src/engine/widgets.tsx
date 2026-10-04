@@ -23,6 +23,20 @@ export interface WidgetProps {
 export const SUPPORTED = new Set(['number', 'integer', 'number[3]', 'text', 'select', 'date', 'boolean', 'attachment', 'readings', 'farmer',
   'breakdown', 'packets[]', 'footprint[]']);
 
+/** Field types that take the whole width of a two-column form (lists, pickers, files, groups of inputs). */
+export const FULL_WIDTH = new Set(['number[3]', 'attachment', 'readings', 'farmer', 'breakdown', 'packets[]', 'footprint[]', 'boolean']);
+
+/** Consecutive fields with the same `section` form one block of the form; a registry without sections gives one block. */
+export function groupSections(fields: FieldDef[]): { section: string | null; fields: FieldDef[] }[] {
+  const out: { section: string | null; fields: FieldDef[] }[] = [];
+  for (const f of fields) {
+    const sec = f.section ?? null;
+    const last = out[out.length - 1];
+    if (last && last.section === sec) last.fields.push(f); else out.push({ section: sec, fields: [f] });
+  }
+  return out;
+}
+
 /** What a "document" may be: a photo, or a PDF. */
 export const EVIDENCE_ACCEPT = 'image/*,application/pdf';
 
@@ -131,9 +145,9 @@ function FarmerPicker({ id, clientId, value, onChange }: { id: string; clientId:
       <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0' }} role="listbox" aria-label={t('widget.active_farmers')}>
         {list.map((f) => (
           <li key={f.id}>
-            <button type="button" className="secondary" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 4 }}
+            <button type="button" className="secondary" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 4, textAlign: 'left' }}
               onClick={() => { setPicked(f); onChange(f.id); }}>
-              {f.name} · <span className="mono">{f.farmer_code}</span> · {f.village}
+              <span>{f.name} · <span className="mono">{f.farmer_code}</span> · {f.village}</span>
             </button>
           </li>
         ))}

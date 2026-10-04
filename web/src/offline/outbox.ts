@@ -89,6 +89,26 @@ export async function insertOnce(row: Record<string, unknown>, ref: string): Pro
   } finally { clearTimeout(timer); }
 }
 
+/**
+ * A save that waited on the phone carries the time it was captured (footprints.captured_at, migration 29); the server
+ * accepts it within limits and dates the record by it. A server that does not have the column yet answers "unknown
+ * column": the save is then sent as before, so an app deployed ahead of its database loses nothing.
+ */
+export async function insertWithCaptureTime(i: Pick<OutboxItem, 'row' | 'id' | 'captured_at'>): Promise<Footprint> {
+  try { return await insertOnce({ ...i.row, captured_at: i.captured_at }, i.id); }
+  catch (e) {
+    const err = e as { code?: string; message?: string };
+    if (err.code === 'PGRST204' && /captured_at/.test(err.message ?? '')) return insertOnce(i.row, i.id);
+    throw e;
+  }
+}
+
+/** "Milling: input (148) must equal …": the database's refusal already starts with the stage; do not print it twice. */
+export function refusalText(stageLabel: string, message: string): string {
+  const first = stageLabel.split(/[\s(]/)[0].toLowerCase();
+  return first && message.toLowerCase().startsWith(`${first}:`) ? message : `${stageLabel}: ${message}`;
+}
+
 let running: Promise<{ synced: number; failed: number; left: number }> | null = null;
 
 /** Send every queued save of this user, oldest first. Safe to call often; concurrent calls share one run. */
@@ -104,7 +124,7 @@ async function run(userId: string) {
     await saveItem({ ...i, state: 'syncing', attempts: i.attempts + 1 });
     let rec: Footprint;
     try {
-      rec = await insertOnce(i.row, i.id);
+      rec = await insertWithCaptureTime(i);
     } catch (e) {
       const err = toAppError(e);
       if (err.kind === 'network' || err.kind === 'session') {       // still offline, or must sign in again: stop, keep order
@@ -113,7 +133,7 @@ async function run(userId: string) {
       }
       failed++;
       await saveItem({ ...i, state: 'failed', attempts: i.attempts + 1, error: err.message, note: undefined });
-      reportError('sync_refused', `${i.stage_label}: ${err.message}`, `captured ${i.captured_at} · scope ${i.scope_label}`);   // the admin sees it too
+      reportError('sync_refused', refusalText(i.stage_label, err.message), `captured ${i.captured_at} · scope ${i.scope_label}`);   // the admin sees it too
       continue;
     }
     let photoError: string | undefined, photoLater = false;

@@ -30,6 +30,9 @@ export function useClientChoice() {
   return { clientId, picker };
 }
 
+/** The note above the form of a farmer who is past "draft": only an active (or deactivated) farmer has been verified. */
+export const farmerNote = (status: string) => (status === 'under_review' ? 'farmers.waiting_note' : 'farmers.change_recorded');
+
 export function FarmerList() {
   const { t } = useI18n();
   const { ctx } = useAuth();
@@ -48,7 +51,7 @@ export function FarmerList() {
   const isSM = me.role === 'state_manager' || me.role === 'admin';
   return (
     <div>
-      <h1>{t('farmers.title')}</h1>
+      <h1><span aria-hidden="true">👨‍🌾 </span>{t('farmers.title')}</h1>
       {picker}
       <div className="row" style={{ marginBottom: 12 }}>
         {canEdit && <Link className="btn" to="/farmers/new">{t('farmers.new')}</Link>}
@@ -159,7 +162,7 @@ export function FarmerForm() {
     <div className="card" style={{ maxWidth: 560 }}>
       <h1>{id ? t('common.edit') : t('farmers.new')}</h1>
       {!id && picker}
-      {status !== 'draft' && <div className="alert info" data-testid="farmer-verified-note">{t('farmers.change_recorded')}</div>}
+      {status !== 'draft' && <div className="alert info" data-testid="farmer-verified-note">{t(farmerNote(status))}</div>}
       <form onSubmit={(e) => submit(e, false)}>
         {input('name', t('farmer.name'))}
         {input('guardian_name', t('farmer.guardian'))}

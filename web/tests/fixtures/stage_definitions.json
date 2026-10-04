@@ -13,6 +13,7 @@
                 "type": "farmer",
                 "label": "Farmer",
                 "column": true,
+                "section": "farmer",
                 "required": true
             },
             {
@@ -20,12 +21,14 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Gross weight",
+                "section": "weighing",
                 "required": true
             },
             {
                 "key": "bags",
                 "type": "integer",
                 "label": "Bags",
+                "section": "weighing",
                 "required": true
             },
             {
@@ -33,6 +36,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Tare per bag",
+                "section": "weighing",
                 "required": true
             },
             {
@@ -40,12 +44,14 @@
                 "type": "number[3]",
                 "unit": "%",
                 "label": "Moisture (3 readings)",
+                "section": "moisture",
                 "required": true
             },
             {
                 "key": "photo",
                 "type": "attachment",
                 "label": "Photo evidence",
+                "section": "evidence",
                 "required": false
             }
         ],
@@ -74,6 +80,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Declared quantity",
+                "section": "weighing",
                 "required": true
             },
             {
@@ -81,6 +88,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Actual weighed",
+                "section": "weighing",
                 "required": true
             },
             {
@@ -93,18 +101,21 @@
                     "trader",
                     "own_farm"
                 ],
+                "section": "source",
                 "required": true
             },
             {
                 "key": "source_name",
                 "type": "text",
                 "label": "Source name",
+                "section": "source",
                 "required": true
             },
             {
                 "key": "crop_declared",
                 "type": "text",
                 "label": "Crop declared",
+                "section": "source",
                 "required": true
             },
             {
@@ -112,12 +123,14 @@
                 "type": "number",
                 "unit": "%",
                 "label": "Moisture baseline",
+                "section": "quality",
                 "required": true
             },
             {
                 "key": "condition",
                 "type": "text",
                 "label": "Condition",
+                "section": "quality",
                 "required": false
             }
         ],
@@ -146,6 +159,7 @@
                 "key": "source_footprint_ids",
                 "type": "footprint[]",
                 "label": "Farmer lots in this batch",
+                "section": "batch",
                 "required": true,
                 "sets_prev": true
             },
@@ -153,6 +167,7 @@
                 "key": "village",
                 "type": "text",
                 "label": "Village",
+                "section": "batch",
                 "required": true
             }
         ],
@@ -180,6 +195,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Paddy in",
+                "section": "input",
                 "required": true
             },
             {
@@ -187,6 +203,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Rice out",
+                "section": "output",
                 "required": true
             },
             {
@@ -194,6 +211,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Bran",
+                "section": "output",
                 "required": true
             },
             {
@@ -201,6 +219,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Loss",
+                "section": "output",
                 "required": true
             }
         ],
@@ -228,6 +247,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Input",
+                "section": "input",
                 "required": true
             },
             {
@@ -235,12 +255,14 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Reject",
+                "section": "output",
                 "required": true
             },
             {
                 "key": "reject_reasons",
                 "type": "breakdown",
                 "label": "Reject reasons",
+                "section": "output",
                 "required": false
             },
             {
@@ -248,6 +270,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Loss",
+                "section": "output",
                 "required": true
             }
         ],
@@ -275,6 +298,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Input",
+                "section": "input",
                 "required": true
             },
             {
@@ -282,6 +306,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Grade A",
+                "section": "grades",
                 "required": true
             },
             {
@@ -289,6 +314,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Grade B",
+                "section": "grades",
                 "required": true
             },
             {
@@ -296,6 +322,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Grade C",
+                "section": "grades",
                 "required": true
             },
             {
@@ -303,6 +330,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Reject",
+                "section": "output",
                 "required": true
             },
             {
@@ -310,6 +338,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Loss",
+                "section": "output",
                 "required": true
             },
             {
@@ -317,6 +346,7 @@
                 "type": "boolean",
                 "label": "Split into grade lots",
                 "column": true,
+                "section": "output",
                 "required": false
             }
         ],
@@ -344,6 +374,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Input",
+                "section": "input",
                 "required": true
             },
             {
@@ -351,6 +382,7 @@
                 "type": "number",
                 "unit": "%",
                 "label": "Moisture in",
+                "section": "input",
                 "required": true
             },
             {
@@ -358,6 +390,7 @@
                 "type": "number",
                 "unit": "%",
                 "label": "Moisture out",
+                "section": "output",
                 "required": true
             },
             {
@@ -365,6 +398,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Output",
+                "section": "output",
                 "required": true
             }
         ],
@@ -392,6 +426,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Input",
+                "section": "input",
                 "required": true
             },
             {
@@ -399,6 +434,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Output",
+                "section": "output",
                 "required": true
             },
             {
@@ -406,6 +442,7 @@
                 "type": "number",
                 "unit": "%",
                 "label": "Pop rate",
+                "section": "output",
                 "required": true
             }
         ],
@@ -432,6 +469,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Input",
+                "section": "input",
                 "required": true
             },
             {
@@ -439,6 +477,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Foreign matter removed",
+                "section": "output",
                 "required": true
             },
             {
@@ -446,6 +485,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Loss",
+                "section": "output",
                 "required": true
             }
         ],
@@ -472,6 +512,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Input",
+                "section": "input",
                 "required": true
             },
             {
@@ -479,6 +520,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Output",
+                "section": "output",
                 "required": true
             }
         ],
@@ -505,6 +547,14 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Quantity stored",
+                "section": "storage",
+                "required": true
+            },
+            {
+                "key": "stored_on",
+                "type": "date",
+                "label": "Stored on",
+                "section": "storage",
                 "required": true
             },
             {
@@ -512,18 +562,14 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Quantity retrieved",
-                "required": true
-            },
-            {
-                "key": "stored_on",
-                "type": "date",
-                "label": "Stored on",
+                "section": "retrieval",
                 "required": true
             },
             {
                 "key": "retrieved_on",
                 "type": "date",
                 "label": "Retrieved on",
+                "section": "retrieval",
                 "required": true
             }
         ],
@@ -551,12 +597,14 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Input",
+                "section": "input",
                 "required": true
             },
             {
                 "key": "packets",
                 "type": "packets[]",
                 "label": "Packets",
+                "section": "packing",
                 "required": true
             },
             {
@@ -564,12 +612,14 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Wastage",
+                "section": "packing",
                 "required": true
             },
             {
                 "key": "batch_code",
                 "type": "text",
                 "label": "Batch code (QR link)",
+                "section": "packing",
                 "required": true
             }
         ],
@@ -597,6 +647,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Lot quantity",
+                "section": "sample",
                 "required": true
             },
             {
@@ -604,18 +655,21 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Sample drawn",
+                "section": "sample",
                 "required": true
             },
             {
                 "key": "readings",
                 "type": "readings",
                 "label": "Readings per crop parameter",
+                "section": "readings",
                 "required": true
             },
             {
                 "key": "lab_ref",
                 "type": "text",
                 "label": "Lab reference",
+                "section": "lab",
                 "required": false
             }
         ],
@@ -642,6 +696,7 @@
                 "key": "buyer",
                 "type": "text",
                 "label": "Buyer",
+                "section": "buyer",
                 "required": true
             },
             {
@@ -653,6 +708,7 @@
                     "domestic",
                     "export"
                 ],
+                "section": "buyer",
                 "required": true
             },
             {
@@ -660,6 +716,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Quantity to this buyer",
+                "section": "quantity",
                 "required": true
             },
             {
@@ -667,6 +724,7 @@
                 "type": "number",
                 "unit": "INR/kg",
                 "label": "Price",
+                "section": "quantity",
                 "required": false
             }
         ],
@@ -694,6 +752,7 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Shipped",
+                "section": "quantity",
                 "required": true
             },
             {
@@ -701,24 +760,28 @@
                 "type": "number",
                 "unit": "kg",
                 "label": "Transit loss",
+                "section": "quantity",
                 "required": false
             },
             {
                 "key": "vehicle_or_container",
                 "type": "text",
                 "label": "Vehicle / container",
+                "section": "transport",
                 "required": true
             },
             {
                 "key": "dispatch_date",
                 "type": "date",
                 "label": "Dispatch date",
+                "section": "transport",
                 "required": true
             },
             {
                 "key": "destination",
                 "type": "text",
                 "label": "Destination",
+                "section": "transport",
                 "required": true
             },
             {
@@ -726,6 +789,7 @@
                 "type": "attachment",
                 "label": "Documents (photo or PDF)",
                 "accept": "document",
+                "section": "documents",
                 "required": false
             }
         ],

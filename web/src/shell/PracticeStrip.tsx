@@ -6,5 +6,5 @@ export function PracticeStrip() {
   const env = useEnvironment();
   const { t } = useI18n();
   if (env !== 'staging') return null;
-  return <div className="practice" role="note" data-testid="practice-strip">{t('env.practice')}</div>;
+  return <div className="practice" role="note" data-testid="practice-strip"><span className="long">{t('env.practice')}</span><span className="short">{t('env.practice_short')}</span></div>;
 }

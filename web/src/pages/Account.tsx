@@ -13,11 +13,11 @@ export function Account() {
   const env = useEnvironment();
   return (
     <div style={{ maxWidth: 560 }}>
-      <h1>{t('account.title')}</h1>
+      <h1><span aria-hidden="true">🔑 </span>{t('account.title')}</h1>
       <div className="card">
         <dl className="kv" data-testid="account-me">
           <dt>{t('farmer.name')}</dt><dd>{me.display_name}</dd>
-          <dt>{t('account.role')}</dt><dd>{humanise(me.role)}</dd>
+          <dt>{t('account.role')}</dt><dd>{t(`role.${me.role}`, undefined, humanise(me.role))}</dd>
           <dt>{t('account.sign_in')}</dt><dd>{me.email ?? me.phone ?? '—'}</dd>
           {me.client_name && <><dt>{t('account.client')}</dt><dd>{me.client_name}</dd></>}
         </dl>
