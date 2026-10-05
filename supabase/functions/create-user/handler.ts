@@ -19,7 +19,7 @@ type Env = Record<string, string | undefined>;
 
 /** The build of the three functions (create-user, reset-password, ledger-check). Raise it in all three whenever one
  *  changes in a way the app or the database depends on, and FUNCTIONS_NEEDED in web/src/lib/api.ts with it. */
-export const VERSION = '2026-10-04';
+export const VERSION = '2026-10-05';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -100,7 +100,9 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   if (!ALL_ROLES.includes(role)) return json(400, { error: `role must be one of ${ALL_ROLES.join(', ')}` });
   if (!displayName) return json(400, { error: 'display_name is required' });
   if (body.phone && !phone) return json(400, { error: 'phone must be a 10-digit Indian mobile number' });
-  if (role === 'operator' && !phone) return json(400, { error: 'operators sign in by phone: phone is required' });
+  // An operator signs in by phone + password OR email + password (5 Oct 2026: email added so operators can sign in
+  // without the Twilio-gated Phone provider). A manager always has an email. Everyone needs at least one of the two.
+  if (!phone && !email) return json(400, { error: 'a phone number or an email is required to sign in' });
   if (role !== 'operator' && !email) return json(400, { error: 'managers sign in by email: email is required' });
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'email is not valid' });
 

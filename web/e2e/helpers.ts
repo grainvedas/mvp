@@ -43,7 +43,7 @@ export async function signIn(page: Page, u: Who) {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.goto('/');
-  if (u.email) await page.getByRole('tab', { name: /Manager/ }).click();
+  if (u.email) await page.getByRole('tab', { name: /Email/ }).click();
   await page.getByLabel(u.email ? 'Email' : 'Phone').fill(u.email ?? `91${u.phone}`);
   await page.getByLabel('Password').fill(passwords[u.key]);
   await page.getByRole('button', { name: 'Sign in' }).click();

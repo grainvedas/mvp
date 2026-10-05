@@ -45,7 +45,7 @@ What each test proves, in the PRD's words:
 ## B. Veda's own run of T1–T4 (by hand, on a phone)
 
 Open the staging address in Chrome on an Android phone. Passwords are in `.env.demo-logins` on Antigravity's computer.
-Operators sign in under **Field operator (phone)** with `+91 00000 000NN`; managers under **Manager (email)**.
+Operators sign in on the **Phone** tab with `+91 00000 000NN` (or on the **Email** tab, if they were given an email); managers on the **Email** tab.
 On the first screen every stage a person holds is a card, "My stage: Procurement" with the scope's name under it.
 "Procurement · Siddharthnagar" below means: tap that card. (On a laptop the same stage is also in the menu on the left
 under **Operations**, once the scope is chosen in the **Scope** box of the top bar.) A record's status chip reads

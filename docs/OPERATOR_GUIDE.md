@@ -12,7 +12,7 @@ The Hindi half uses the app's own Hindi labels; it has not yet been read by fiel
 
 | # | काम | कैसे |
 |---|---|---|
-| 1 | साइन इन | **फ़ील्ड ऑपरेटर (फ़ोन)** → अपना फ़ोन नंबर और पासवर्ड → **साइन इन करें** |
+| 1 | साइन इन | **फ़ोन** टैब → अपना नंबर और पासवर्ड → **साइन इन करें**। मैनेजर ने नंबर की जगह **ईमेल** दिया हो तो **ईमेल** टैब चुनें |
 | 2 | पहली बार | ऐप कहेगा **अपना पासवर्ड चुनें**: कम से कम 8 अक्षर, जो सिर्फ़ आप जानें। मैनेजर का दिया पासवर्ड इसके बाद नहीं चलता |
 | 3 | अपना काम खोलें | **डैशबोर्ड** → **आपके चरण** → अपने चरण का कार्ड दबाएँ। "3 लॉट आपका इंतज़ार कर रहे हैं" का मतलब: पिछले चरण से 3 लॉट आए हैं। कंप्यूटर पर वही चरण बाईं ओर की सूची में **काम के चरण** के नीचे भी है। **खेत जाने से पहले** नेटवर्क रहते अपना चरण एक बार खोल लें: उसके बाद वह बिना नेटवर्क भी, दिन भर खुलेगा |
 | 4 | आया माल जाँचें | लॉट दबाएँ → हर बात पर सही का निशान **तभी** लगाएँ जब वह इस लॉट के लिए सच हो → **यह लॉट सत्यापित करें**। आपका नाम उस पर दर्ज होता है। कुछ ठीक न हो तो सत्यापित न करें: मैनेजर को बताएँ या **फ़्लैग लगाएँ** |
@@ -45,7 +45,7 @@ The Hindi half uses the app's own Hindi labels; it has not yet been read by fiel
 
 | # | Task | How |
 |---|---|---|
-| 1 | Sign in | **Field operator (phone)** → your phone number and password → **Sign in** |
+| 1 | Sign in | **Phone** tab → your number and password → **Sign in**. If your manager gave you an **email** instead, use the **Email** tab |
 | 2 | The first time | The app says **Choose your own password**: 8 characters or more, known only to you. The password your manager gave you stops working after this |
 | 3 | Open your work | **Dashboard** → **Your stages** → tap the card of your stage. "3 lot(s) waiting for you" means 3 lots have arrived from the stage before yours. On a computer the same stage is also in the menu on the left, under **Operations**. **Before you leave for the field**, open your stage once while you have a network: after that it opens with no network, all day |
 | 4 | Check what arrived | Tap the lot → tick an item **only** if it is true for this lot → **Verify this lot**. Your name goes on it. If something is not right, do not verify: tell your manager or **Raise a flag** |

@@ -188,7 +188,7 @@ function SlotAssigner({ scope, label, canManage }: { scope: ScopeRow; label: (x:
     .eq('client_id', scope.client_id).eq('role', 'operator').order('display_name')) as Promise<UserRow[]>, [scope.client_id]);
   const slots = useAsync(() => q(supabase.from('slot_assignments').select('id,user_id,stage_type').eq('scope_id', scope.id)) as Promise<SlotRow[]>, [scope.id]);
   const act = useAction();
-  const [newUser, setNewUser] = useState<{ stage: StageType; name: string; phone: string } | null>(null);
+  const [newUser, setNewUser] = useState<{ stage: StageType; name: string; phone: string; email: string } | null>(null);
   const [created, setCreated] = useState<string | null>(null);
   if (users.loading || slots.loading) return <Loading />;
   const assign = (stage: StageType, userId: string) => act.run(async () => {
@@ -203,7 +203,7 @@ function SlotAssigner({ scope, label, canManage }: { scope: ScopeRow; label: (x:
   });
   const create = () => act.run(async () => {
     const r = await callFunction<{ temporary_password: string; sign_in: string }>('create-user', {
-      role: 'operator', display_name: newUser!.name, phone: newUser!.phone, client_id: scope.client_id,
+      role: 'operator', display_name: newUser!.name, phone: newUser!.phone || undefined, email: newUser!.email || undefined, client_id: scope.client_id,
       slot: { scope_id: scope.id, stage_type: newUser!.stage } });
     setCreated(t('users.temp_password', { who: r.sign_in, pw: r.temporary_password }));
     setNewUser(null); await users.reload(); await slots.reload();
@@ -232,7 +232,7 @@ function SlotAssigner({ scope, label, canManage }: { scope: ScopeRow; label: (x:
                 <option value="">Assign existing…</option>
                 {(users.data ?? []).filter((u) => u.active && !assigned.some((a) => a.user_id === u.id)).map((u) => <option key={u.id} value={u.id}>{u.display_name}</option>)}
               </select>
-              <button className="secondary" onClick={() => setNewUser({ stage, name: '', phone: '' })}>+ new person</button>
+              <button className="secondary" onClick={() => setNewUser({ stage, name: '', phone: '', email: '' })}>+ new person</button>
             </div>}</div>
         );
       })}</div>
@@ -240,9 +240,10 @@ function SlotAssigner({ scope, label, canManage }: { scope: ScopeRow; label: (x:
         <div className="card">
           <h3>New operator for {label(newUser.stage)}</h3>
           <Field label="Name" htmlFor="nu-name"><input id="nu-name" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} /></Field>
-          <Field label="Mobile" htmlFor="nu-phone"><input id="nu-phone" type="tel" value={newUser.phone} onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })} /></Field>
+          <Field label="Email (for sign-in, optional)" htmlFor="nu-email"><input id="nu-email" type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} /></Field>
+          <Field label="Mobile (optional)" htmlFor="nu-phone"><input id="nu-phone" type="tel" value={newUser.phone} onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })} /></Field>
           <div className="row"><button className="secondary" onClick={() => setNewUser(null)}>{t('common.cancel')}</button>
-            <button onClick={create} disabled={act.busy || !newUser.name.trim() || !newUser.phone.trim()}>{t('common.create')}</button></div>
+            <button onClick={create} disabled={act.busy || !newUser.name.trim() || (!newUser.phone.trim() && !newUser.email.trim())}>{t('common.create')}</button></div>
         </div>
       )}
       <ErrorBox error={act.error} />

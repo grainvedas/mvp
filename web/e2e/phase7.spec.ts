@@ -125,7 +125,7 @@ test('A brand-new client, set up from the screens only: manager, scope, people, 
   const temp = async () => (await page.getByTestId('temp-password').textContent())!.match(/: (Gv-[A-Za-z0-9_-]+) —/)![1];
   const firstSignIn = async (id: { email?: string; phone?: string }, tempPw: string, own: string) => {
     await page.goto('/'); await page.evaluate(() => localStorage.clear()); await page.goto('/');
-    if (id.email) await page.getByRole('tab', { name: /Manager/ }).click();
+    if (id.email) await page.getByRole('tab', { name: /Email/ }).click();
     await page.getByLabel(id.email ? 'Email' : 'Phone').fill(id.email ?? id.phone!);
     await page.getByLabel('Password').fill(tempPw);
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -246,4 +246,41 @@ test('A brand-new client, set up from the screens only: manager, scope, people, 
   await expect(page.locator('main, body').first()).toContainText(`Ramkali ${u}`);
   await expect(page.locator('main, body').first()).toContainText('Nichlaul');
   await expect(page.locator('body')).not.toContainText(`94${u}41`);              // never the farmer's phone
+});
+
+// 5 Oct 2026: operators can sign in with email + password, so a pilot works without enabling the Twilio-gated Phone
+// provider. The number stays optional. Here an admin makes an operator with an email (no number) and the operator
+// signs in on the Email tab. Before this change the create-user function refused an operator without a phone.
+test('An operator can be created with an email and sign in on the Email tab (no phone number, no SMS)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const u = uniq();
+  const mail = `operator${u}@grainveda.in`;
+  const temp = async () => (await page.getByTestId('temp-password').textContent())!.match(/: (Gv-[A-Za-z0-9_-]+) —/)![1];
+
+  await signIn(page, USERS.admin);
+  await page.goto('/users');
+  await page.getByLabel('Role').selectOption('operator');
+  await page.getByLabel('Name').fill(`Email Operator ${u}`);
+  await page.getByLabel('Email').fill(mail);                       // the operator's email; the Mobile box is left empty
+  await page.getByLabel('Client').selectOption({ label: 'GrainVeda (Prasaadam trade scope)' });
+  await page.getByRole('button', { name: 'Create' }).click();
+  await expect(page.getByTestId('temp-password')).toContainText(mail);
+  const tempPw = await temp();
+  await expect(page.getByTestId('user-row').filter({ hasText: `Email Operator ${u}` })).toContainText('linked');
+  await signOut(page);
+
+  // sign in on the Email tab with the temporary password, then choose an own one
+  await page.goto('/'); await page.evaluate(() => localStorage.clear()); await page.goto('/');
+  await page.getByRole('tab', { name: /Email/ }).click();
+  await page.getByLabel('Email').fill(mail);
+  await page.getByLabel('Password').fill(tempPw);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByTestId('must-change')).toBeVisible();
+  await page.getByLabel('New password', { exact: true }).fill(`Khet-${u}`);
+  await page.getByLabel('New password again').fill(`Khet-${u}`);
+  await page.getByRole('button', { name: 'Set password' }).click();
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await page.goto('/account');
+  await expect(page.getByTestId('account-me')).toContainText('Operator');
+  await signOut(page);
 });

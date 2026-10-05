@@ -33,7 +33,8 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
    Use the same derivation the server uses (`app.reconcile` rules, PRD §7) — port it, do not reinvent it.
 9. **Logins are made by service code only**: the `create-user` and `reset-password` Edge Functions,
    `scripts/bootstrap_admin.mjs`, `scripts/create_demo_logins.mjs`. A public sign-up never becomes a GrainVeda user
-   (migration 23). The service key never reaches the browser or git.
+   (migration 23). The service key never reaches the browser or git. A person signs in by **email or phone + password**
+   (managers email; operators either — 5 Oct 2026); `create-user` requires at least one of the two. No SMS is sent.
 10. **Two systems.** Production is the project marked by `supabase/seeds/production/10_reference.sql`. Any script that
     writes demo data or runs a destructive check calls `assertNotProduction` first. Demo seeds 02–05 never go there.
 

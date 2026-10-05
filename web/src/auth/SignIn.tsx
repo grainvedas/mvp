@@ -4,8 +4,8 @@ import { useI18n, type Lang } from '../lib/i18n';
 import { toAppError, type AppError } from '../lib/errors';
 import { ErrorBox, Field } from '../shell/ui';
 
-// Development sign-in: email + password (managers) or phone + password (operators). Production operators switch to
-// phone OTP once DLT registration is done (execution plan D, D4); only the phone branch changes.
+// Sign-in: email + password, or phone + password. Managers use email; operators use whichever their login was made
+// with (email or phone — 5 Oct 2026). The two tabs choose which credential to type; the role is read after sign-in.
 export function SignIn() {
   const { t, lang, setLang } = useI18n();
   const [mode, setMode] = useState<'email' | 'phone'>('phone');

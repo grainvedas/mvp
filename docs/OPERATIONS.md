@@ -34,6 +34,10 @@ A manager may act at any stage when needed. The ledger marks such an act as supe
 Every new person: first sign-in with the temporary password → the app asks for an own password (8 characters or
 more) before anything else.
 
+An operator can be given a **mobile number or an email** to sign in with (whichever you enter when you create them;
+both is fine). A number is easier to tap in the field; an email works even where the Phone provider is not switched on
+in Supabase. They sign in on the matching tab (**Phone** or **Email**). Managers always use email.
+
 ## Every day
 
 | Look at | Healthy | If not |

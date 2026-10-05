@@ -90,7 +90,8 @@ explanation of each step.
    Then link the CLI back to staging.
 4. **Dashboard settings**: API → exposed schemas: add `app`. Authentication → Sign In / Providers: "Allow new users
    to sign up" OFF, anonymous sign-ins OFF, e-mail confirmation ON, phone provider set up exactly as on staging
-   (operators sign in with phone + password until SMS is registered). Sessions: time-box 720 hours (30 days). Password
+   (operators sign in with phone + password; where the Phone provider is not enabled, create operators with an email
+   instead — they sign in with email + password, no SMS). Sessions: time-box 720 hours (30 days). Password
    minimum 8. Keep "Secure password change" OFF: operators have no e-mail to receive a re-authentication code.
    With sign-up off, nobody can make a login for themselves; the settings check then reports an "auto-confirm"
    setting as a note, not a failure.

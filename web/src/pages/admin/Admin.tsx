@@ -108,7 +108,7 @@ export function Users() {
   const row = useAction();                                             // deactivate / reset on a row of the list
   useEffect(() => { if (!f.client_id && clients.data?.length) setF((s) => ({ ...s, client_id: clients.data![0].id })); }, [clients.data, f.client_id]);
   const add = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
-    const body = { role: f.role, display_name: f.display_name, email: f.role === 'operator' ? undefined : f.email, phone: f.phone || undefined,
+    const body = { role: f.role, display_name: f.display_name, email: f.email || undefined, phone: f.phone || undefined,
       client_id: f.role === 'state_manager' ? null : f.client_id, state_ids: f.role === 'state_manager' && f.state_id ? [f.state_id] : [] };
     const r = await callFunction<{ sign_in: string; temporary_password: string }>('create-user', body);
     setMsg(t('users.temp_password', { who: r.sign_in, pw: r.temporary_password }));
@@ -146,8 +146,8 @@ export function Users() {
         <Field label="Role" htmlFor="u-role"><select id="u-role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>
           {creatable.map((r) => <option key={r} value={r}>{humanise(r)}</option>)}</select></Field>
         <Field label="Name" htmlFor="u-name"><input id="u-name" value={f.display_name} onChange={(e) => setF({ ...f, display_name: e.target.value })} required /></Field>
-        {f.role !== 'operator' && <Field label="Email" htmlFor="u-email"><input id="u-email" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} required /></Field>}
-        <Field label={f.role === 'operator' ? 'Mobile' : 'Mobile (optional)'} htmlFor="u-phone"><input id="u-phone" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} required={f.role === 'operator'} /></Field>
+        <Field label={f.role === 'operator' ? 'Email (for sign-in, optional)' : 'Email'} htmlFor="u-email"><input id="u-email" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} required={f.role !== 'operator'} /></Field>
+        <Field label={f.role === 'operator' ? 'Mobile (optional)' : 'Mobile (optional)'} htmlFor="u-phone"><input id="u-phone" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
         {f.role === 'state_manager'
           ? <Field label="State" htmlFor="u-state"><select id="u-state" value={f.state_id} onChange={(e) => setF({ ...f, state_id: e.target.value })} required>
               <option value="">—</option>{states.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>

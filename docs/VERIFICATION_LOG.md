@@ -965,3 +965,33 @@ folder's `Admin.tsx`; with the merged file: `tsc` clean, vitest 150 passed, `pha
 screen tests that use that file passed. Tried on the stack: renaming a state works; **Delete** answers "Permission
 denied for table states" (FIX_LIST open items 19 and 20). The full Playwright suite was run before the merge, not
 again after it; the merge adds only the states part.
+
+## 2026-10-05 — operators can sign in with email + password (web app + create-user; local stack only)
+
+Veda's decision, to run a pilot without enabling Supabase's Twilio-gated Phone provider (FIX_LIST item 21, fault 34).
+Not a fault fix: a new way to sign in.
+
+What changed (no migration):
+- `supabase/functions/create-user/handler.ts`: an operator may be created with an email, a phone, or both; at least
+  one is required (was: operator forced to phone). Build raised to 2026-10-05 in all three functions; `FUNCTIONS_NEEDED`
+  in `web/src/lib/api.ts` with it.
+- `web/src/pages/admin/Admin.tsx` and `web/src/pages/scopes/Scopes.tsx`: an optional Email box for operators; the
+  number is now optional too.
+- `web/src/auth/SignIn.tsx` + i18n: the sign-in tabs are relabelled **Phone** / **Email** (were "Field operator
+  (phone)" / "Manager (email)"); default tab unchanged. `web/e2e/helpers.ts` and `phase7` updated to the new tab name.
+
+What ran (local stack):
+- The real function through the gateway: a Client Manager creates an operator with an **email only** → 201; the
+  operator signs in by email and `my_context` returns role operator with the procurement slot. An operator with
+  **neither** email nor phone → 400 "a phone number or an email is required to sign in".
+- The previous build (batch 9) against the same stack: an operator with email only → 400 "operators sign in by phone:
+  phone is required" (the "failed before" control).
+- `npx tsc -b --noEmit` clean; `npx vitest run` 150 passed; `npx playwright test` **46 passed** (the new
+  `phase7` "An operator can be created with an email…" among them); `npx playwright test -c playwright.prod.config.ts`
+  14 passed; `ENV_FILE=.env.stack node tests/remote_create_user.mjs` 29 passed (phone operators unaffected).
+
+NOT run / not known:
+- Nothing on staging. On the hosted project an email operator works only once the new app and the new functions
+  (build 2026-10-05, run-sheet A6) are deployed.
+- No real field trial of operators typing an email on a phone; the field-usability trade-off (email vs number) stands.
+- The demo seed still makes operators with phone numbers; email operators are exercised only by the new test.
