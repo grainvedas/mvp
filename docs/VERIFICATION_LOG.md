@@ -1178,8 +1178,8 @@ identity layer ran on a hosted project, and the first run of the script on Windo
 
 - D0 OK · D1 NOT RUN · D2, D3: nothing left to push · D4 OK (ledger-check token: standing) · D5 **30 of 30 OK** ·
   D6 OK · D6b **OK: `NO FINDINGS (95 blocks, 6 records, 2 seals, 0 evidence files checked)`** (4 blocks more than
-  in the second run: the seats and lenses given by seed 06) · D7 zero rows · D8 OK · D9 OK (all 19 `existing,
-  unchanged`, `linked yes`) · D10 OK (`NO LOGIN WITHOUT A PERSON`).
+  in the second run: the seats and lenses given by seed 06) · D7 one row: Ravi Kumar, the demo person seed 06 adds without an assignment on purpose (the
+  second run, before the seed, showed zero) · D8 OK · D9 OK (all 19 `existing, unchanged`, `linked yes`) · D10 OK (`NO LOGIN WITHOUT A PERSON`).
 - D11: type check **passed**; unit tests **NOT RUN** on that computer (Node 20.18.0; the 78 app files compared with
   `scripts/tested_app_files.txt`: all the tested ones).
 - D11b **OK**: `git status` showed no `.env` file; 98 files committed (`cd597c7`), `14f20e7..cd597c7 main -> main`
@@ -1196,7 +1196,7 @@ identity layer ran on a hosted project, and the first run of the script on Windo
 | D1 local tests on Windows | **NOT RUN** | no PostgreSQL on that computer (open item 25) |
 | D2, D3 database | done | migrations 31, 32, 33 on a database in use |
 | D4 functions | done | four on build 2026-10-06; the ledger-check token was never set (open item 24) |
-| D5 to D8 checks | done | 30 of 30; store private; no audit finding; nobody left unassigned; 1 active admin |
+| D5 to D8 checks | done | 30 of 30; store private; no audit finding; nobody left unassigned by the move; 1 active admin |
 | D9, D10 demo people and logins | done | 316 to 319 created and linked; no login without a person |
 | D11 type check | done | passed |
 | D11 unit tests on that computer | **NOT RUN** | Node 20.18 (open item 26); 193 passed here on the same files |
@@ -1209,3 +1209,63 @@ NOT run / not known, still:
   password, a document uploaded to `hr-docs` and refused to its uploader on reading back (E5 to E7).
 - The rules with real logins on staging (D12), the Windows test runner (D1), the unit tests on Veda's computer.
 - Three behaviour changes still wait for Veda's yes or no (FIX_LIST G10 to G12); the mail sender (G13).
+
+### After part D, the same day: the ledger-check token on staging (open item 24)
+
+Done by Veda in the terminal (`docs/RUNSHEET_phase3.md` steps 7 to 10); the last command's output as she pasted it:
+`ok no token → 401` · `ok wrong token → 401` · `ok right token → 200, chain intact (95 blocks)` · `ok evidence
+re-hash → 200 (0 files checked)` · `4 passed, 0 failed` · `LEDGER CHECK TEST PASSED`. So an outside monitor can now
+ask the staging project whether the ledger is intact. Not seen here: the output of the steps before it
+(`check_functions.mjs` should now end `FUNCTIONS DEPLOYED AND CURRENT`). Production still needs the same steps.
+
+## 2026-10-06 (evening) — The fresh start of the practice system (decision G14), rehearsed
+
+Veda, after part D: "remove all entries from the system … start fresh as during pilot"; asked what should be there
+at the first sign-in: "only you as admin". Built: `scripts/staging_fresh_start.ps1` (+ `staging-fresh-start.cmd`),
+`scripts/fresh_start/empty_staging.sql`, `export_rows.mjs`, `clear_logins_and_files.mjs`, `local-stack/fresh_start.sh`,
+`web/e2e-fresh/fresh_start.spec.ts`, `docs/RUNSHEET_fresh_start.md`. The smoke check learned what a fresh start is.
+
+What ran, all on the local stack (PowerShell 7.4 on Linux; the Supabase CLI replaced by a stand-in that runs the
+same SQL files with `psql` against the stack's database; the Node scripts real, against the stack's own login
+service and file store):
+- **The script itself, on a stack the whole default suite had just filled** (30 people, 30 logins, 98 records, 14
+  sealed lots, 376 ledger blocks, 93 audit lines, 3 stored files): 904 rows copied out; database emptied; 30 logins
+  removed, both stores empty; one admin made; read back: 1 person, 1 login, 0 records, 1 ledger block (the admin's
+  seat), 0 files on disk; smoke 29 of 30 (the 30th is `pg_cron`, absent locally); audit `NO FINDINGS`; `RESULT: FRESH
+  START DONE`. No password in the record.
+- **A second run** on the emptied stack: "already empty with one admin: nothing is removed", no question asked,
+  the checks repeated.
+- **The first day of a pilot, through the screens, on what the script left** (`e2e-fresh`, 1 test, 43 s, three times
+  on three emptied stacks): the admin's first sign-in with the temporary password; every list page of an empty
+  system without an error; a state; a crop with three limits (0.5 stays 0.5) and its stages; a client; the first HR
+  person added by the admin, marked joined, given the HR Admin seat; four people added by the HR Admin; the client's
+  account given by the admin; a scope drafted, staffed and activated by that manager; a farmer registered and
+  verified (`PRSDM-F-0001`); a lot bought, tested against the limits typed that morning, sealed; its public page.
+  **No fault found on this path.** One thing the test had wrong: the seat list shows the person as "name (HR)".
+- **The emptying SQL** on copies of a demo database: empties everything but the 16 stage definitions and the 8
+  checklist tasks; the link from the checklist to people is put back exactly as it was; the audit log refuses a
+  TRUNCATE again afterwards. Controls: a production build (**refused, nothing removed**); the SQL broken in the middle
+  (**nothing removed**: 19 people, 64 blocks still there, guard on, link there). First version failed here: Postgres
+  refuses to truncate a table that a kept table points at; found on the first try, fixed.
+- **26 scenarios with one thing wrong each**, in a simulated project: the wrong words, nothing or "y" typed; the
+  project says production or nothing; another project linked; not linked; a migration waiting; a rehearsed file
+  changed (all: nothing removed, the emptying never called); the copy fails (nothing removed); the emptying fails,
+  leaves rows, leaves the audit guard off, or the stage definitions are gone (logins never touched); logins not
+  all removed, the admin not made ("nobody can sign in until this has run to the end; run it again"); two people
+  afterwards; a broken smoke row; the smoke check not saying "fresh start"; an audit finding; a bad address; a
+  second run; a rerun after a stop in the middle.
+- **The smoke check**: on a demo database unchanged (28 `OK` and the two local-only rows, as before); on a production
+  build unchanged; emptied with the mark: `OK fresh start (…): 0 crop(s), made in the app` and `OK staging: fresh
+  start, no demo data`; emptied without the mark: `NOT SEEDED` twice; with the mark and a demo person back: `NOT
+  SEEDED`. First version broke the check on every database without the mark (an empty answer where one row was
+  needed); the control found it.
+- After the changes: `tests/run_local.sh` `ALL TESTS PASSED`; the default screen suite 53 passed (10.2 min).
+
+NOT run / not known:
+- **Nothing of this has run on the hosted project.** There the logins go through Supabase Auth and the files
+  through Supabase Storage ("empty bucket", "list"), not the stand-ins; the emptying SQL goes through `supabase db
+  query`. The script reads everything back from the database itself (F5) and stops if it is not one admin and
+  nothing else. FIX_LIST open item 27.
+- The script under Windows PowerShell 5.1: its helpers are the ones `staging_phase5.ps1` ran with on that computer
+  three times; the question it asks (`Read-Host`) is new there.
+- The copy in `backups\` cannot be loaded back (limit K36).

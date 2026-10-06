@@ -40,6 +40,10 @@ state); what a person sees is the union. The Users & Roles page is gone: **HR ·
 replace it. On staging since 6 October 2026 (database, functions, app: run-sheet part D); part E of
 `docs/RUNSHEET_phase5.md`, by a person through the screens, is still to do.
 
+**The practice system starts empty** (decision of 6 October 2026): `docs/RUNSHEET_fresh_start.md` empties it to one
+admin (`staging-fresh-start.cmd`) and then lists the first day in the app: state, crop, client, HR seat, people,
+scope, farmer, first lot. No demo data is on staging after that; the demo seeds are for the local stack and CI.
+
 ## Read this first
 
 | You are | Read |

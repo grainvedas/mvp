@@ -1,3 +1,7 @@
+# HISTORICAL: this ran on 6 October 2026 and its job is done (docs/VERIFICATION_LOG.md). It will stop at D0 now, on
+# purpose: tests/remote_smoke.sql has changed since (the fresh start), and the practice system no longer holds the
+# demo data its steps D9 and D10 expect. Kept as the record of how part D was done and as the pattern for part F.
+#
 # Phase 5, part D on STAGING in one command: docs/RUNSHEET_phase5.md steps D1 to D12, with each step's "Expect"
 # checked by this script. It stops at the first step that does not match and never goes on by itself.
 # It reads no .env file and prints no key or password (the scripts it calls write passwords to git-ignored files).

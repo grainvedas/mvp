@@ -125,6 +125,10 @@ jobs:
           echo "PGBIN=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
       - name: backup and restore drill (dump, restore into a scratch database, compare, alter a block and expect it caught)
         run: ENV_FILE=.env.stack node scripts/restore_drill.mjs
+      - name: fresh start (the stack emptied to one admin, as scripts/staging_fresh_start.ps1 does to the practice system), then the first day of a pilot through the screens, from nothing to a sealed lot
+        run: |
+          local-stack/fresh_start.sh
+          cd web && npx playwright test -c playwright.fresh.config.ts
       - name: result files for the release gate (sql.log, unit.json, e2e.json, prod.log; the acceptance rehearsal is under rehearsal/)
         if: always()
         uses: actions/upload-artifact@v4

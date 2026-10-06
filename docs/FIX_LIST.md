@@ -21,8 +21,8 @@ A problem that is not on this list does not exist for planning purposes; a fix t
 
 ## Decisions only Veda can take
 
-Numbered G1 to G13 (go-live), so they are not mistaken for the PRD's own decisions D1 to D13. **G8 is decided (B); G9 has
-lapsed with it. G1 to G7 are open. G10 to G12 are built one way and wait for a yes or a no; G13 is open.**
+Numbered G1 to G14 (go-live), so they are not mistaken for the PRD's own decisions D1 to D13. **G8 is decided (B); G9 has
+lapsed with it. G1 to G7 are open. G10 to G12 are built one way and wait for a yes or a no; G13 is open. G14 is decided (6 October: the practice system starts empty).**
 
 | # | Decision | Needed by | Recommendation | Detail |
 |---|---|---|---|---|
@@ -39,6 +39,7 @@ lapsed with it. G1 to G7 are open. G10 to G12 are built one way and wait for a y
 | G11 | **Built; say if otherwise.** A joiner cannot work on a scope until they are an employee: HR presses **Mark as joined**, or the joining checklist is complete. A manager may assign earlier; the form says it opens nothing yet | Phase 5 on staging | Keep | Otherwise someone who never signed the offer letter could record lots. HR's one tap removes the wait when it is not wanted |
 | G12 | **Built; say if otherwise.** The State Manager seat (a state) is given by the admin only | Phase 5 on staging | Keep | A State Manager manages every client in the state: the widest seat below the admin |
 | G13 | A mail sender for the invite note and the once-a-day sign-in code: which service, which "from" address | before the code is wanted | Not needed for the pilot | Without one HR hands the temporary password over in person (as managers did before) and the code stays off. With one: three lines in `.env.functions` (`docs/RUNSHEET_phase5.md` part F). The code also needs every person who signs in to have an email |
+| G14 | **Decided, Veda, 6 October 2026: the practice system starts empty.** "Clean all the data, so that I can start fresh": no demo client, scopes or people on staging; one admin (`grainvedas+admin@gmail.com`), and state, crop, client and people are made in the app as they will be in the pilot | done by `staging-fresh-start.cmd` | — | Staging stays the practice system (it is not marked production). The demo seeds stay in the repository for the local stack and CI. What needs demo people cannot run on staging any more (limit K35). `docs/RUNSHEET_fresh_start.md` |
 
 ## Open items
 
@@ -61,11 +62,13 @@ lapsed with it. G1 to G7 are open. G10 to G12 are built one way and wait for a y
 
 | 23 | 2026-10-06 | Claude | `web/e2e/t3_t5.spec.ts` T5, local stack | **Seen once, not reproduced.** In one full run T5 stopped where the QC technician signs in: the menu did not appear within 10 s. Nothing in the sign-in server's or the database's log; the picture of the screen was overwritten by the next run. It passed in the two full runs after it, four repeats on its own and four acceptance runs. Expected: if it shows again, keep `web/test-results/` before anything else runs | | | Open | |
 
-| 24 | 2026-10-06 | Claude (from the staging run) | staging project, function `ledger-check` | **The token of the ledger-check function was never set on staging** (`docs/RUNSHEET_phase3.md` steps 7 and 8 were not done there). The function is deployed and on the current build, and answers "function not configured". Nothing a person uses depends on it: the nightly check inside the database and the Ledger page do not go through it. What is missing is the outside door: a monitor cannot ask this project "is the ledger intact". Expected: `node scripts/make_ledger_token.mjs`, then `supabase secrets set --env-file .env.functions`, then `node scripts/check_functions.mjs` → `FUNCTIONS DEPLOYED AND CURRENT`. Must be done on production before go-live | Before go-live | Veda / Antigravity | Open | |
+| 24 | 2026-10-06 | Claude (from the staging run) | staging project, function `ledger-check` | **The token of the ledger-check function was never set on staging** (`docs/RUNSHEET_phase3.md` steps 7 and 8 were not done there). The function is deployed and on the current build, and answers "function not configured". Nothing a person uses depends on it: the nightly check inside the database and the Ledger page do not go through it. What is missing is the outside door: a monitor cannot ask this project "is the ledger intact". Expected: `node scripts/make_ledger_token.mjs`, then `supabase secrets set --env-file .env.functions`, then `node scripts/check_functions.mjs` → `FUNCTIONS DEPLOYED AND CURRENT`. Must be done on production before go-live | Before go-live | Veda / Antigravity | **Done on staging, 6 Oct** (Veda, by hand): `node tests/remote_ledger_check.mjs` → no token 401, wrong token 401, right token 200 chain intact (95 blocks), evidence re-hash 200; `4 passed, 0 failed`, `LEDGER CHECK TEST PASSED` (output pasted by Veda; `check_functions` output not seen). **Still to do on production** (run-sheet part F) | `tests/remote_ledger_check.mjs` |
 
 | 25 | 2026-10-06 | Claude (from the staging run) | Veda's computer | **No PostgreSQL 16 or 17 tools on the computer the run-sheets are run from**, so `tests/run_local.ps1` (run-sheet step D1, "before every db push") did not run there, and by the look of it never has. The push of 6 October went ahead because the files were proven to be the ones tested on Linux. Expected: install PostgreSQL 16 or 17 (the tools are enough, no service), then `staging-phase5.cmd -NoGit` shows D1 on Windows for the first time; or decide that the Linux run (CI) is the gate and say so in `AGENTS.md` | | Veda | Open | |
 
 | 26 | 2026-10-06 | Claude (from the staging run) | Veda's computer: Node 20.18.0 | **The unit tests cannot start on the computer the run-sheets are run from.** The test tools in `web/package-lock.json` need Node 22 (jsdom 30.1 asks for 22.22 or newer; vite 7.3 itself asks for 20.19 or newer). On Node 20.18 `npx vitest run` ends with `ERR_REQUIRE_ESM`, "no tests", 9 errors: nothing ran, nothing failed. So "Vitest: all files pass" in the run-sheets (Phase 4 A-steps, Phase 5 D11) has not been true on that computer since these versions were locked; the type check does run there. On 6 October the app was pushed on the strength of the type check there plus proof that its 78 files are the ones tested under Node 22 (`scripts/tested_app_files.txt`). Expected: install Node 22 or newer on that computer (Node 20 is past its end of life), then `cd web; npx vitest run` shows 193 passed | Before next lot | Veda | Open | |
+
+| 27 | 2026-10-06 | Veda (decision G14) | staging project | **The fresh start of the practice system has been rehearsed on the local stack only.** The script, the emptying SQL, the removal of logins and files, and the first day through the screens all ran there. On the hosted project the logins are removed through Supabase Auth and the files through Supabase Storage (stand-ins locally), and `supabase db query` runs the emptying SQL. Expected: `staging-fresh-start.cmd` ends `RESULT: FRESH START DONE`; then part 2 of `docs/RUNSHEET_fresh_start.md` by Veda. Not reversible: the copy in `backups\` is JSON to read, not a backup | | Veda | Open | |
 
 Items 6 to 16 were found on 4 October 2026 while the built system was run side by side with the prototype
 (`docs/INTERFACE_GAP.md` section 10). None was known before; the three test suites passed with all of them present.
@@ -75,7 +78,8 @@ repository behind it is fixed (line 32 below), the item itself stays open until 
 was reported by Veda on 5 October; it is fixed in the repository (line 33) and stays open until the app is pushed.
 Items 19 and 20 are about changes somebody else made in the folder the same day; they were kept as found.
 Item 22 is the identity layer of 6 October, waiting for staging; item 23 a test failure seen once that day.
-The next new item is number 24.
+Items 24 to 26 came out of the staging runs of 6 October (24 is done on staging). Item 27 is the fresh start.
+The next new item is number 28.
 
 ## Known at hand-over: limits that were accepted, and what to do about each
 
@@ -115,6 +119,8 @@ The next new item is number 24.
 | K32 | People who had a login but no stage, client or state before migration 31 are now "unassigned" | They sign in and see "A manager will assign you to your work soon". Before, they saw an empty home screen. Run-sheet step D7 lists them | A manager assigns them, or HR offboards them | This week (after D7) |
 | K33 | About 420 new Hindi strings (HR, joiner, people, seats, audit) have not been read by the people who will use them | They join limit K9. HR and admin screens are fully in Hindi now, unlike the older manager screens (K10) | Review with K9 | Before the season |
 | K34 | Org facts are free text | Department and job title are typed, not picked; "reports to" is not checked for loops. They grant nothing, so a wrong one opens nothing | HR corrects them on the joiner's page | Later |
+| K35 | Since the fresh start (G14) staging holds no demo people | `node tests/remote_rls.mjs --t1` (Phase 4 A9, Phase 5 D12), the acceptance suite T1 to T5 against staging, and Phase 5 part E as written all sign in as demo people. On staging they cannot run; on the local stack and in CI they do | Use the local stack and CI for them. To have them on staging again, load seeds 02 to 06 and run `scripts/create_demo_logins.mjs` there, on purpose (it puts the demo client back) | Accepted |
+| K36 | The copy taken before the fresh start is not a backup | `backups\fresh-start-<time>\` holds every row as JSON, to look things up in. It has no logins and no files, and nothing loads it back | Accepted: it was demo and test data. A real backup needs `pg_dump` (`scripts/backup.mjs`; none on Veda's computer, open item 25) or Supabase's paid plan (G2) | Accepted |
 
 Checked only against the vendors' documentation, not by a test from here; each has a run-sheet step that checks it on
 the real system: phone + password sign-in with the hosted Phone provider settings (A7, B4), the nightly schedule

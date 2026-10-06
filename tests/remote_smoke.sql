@@ -7,7 +7,11 @@
 
 with env as (
   select case when to_regprocedure('app.environment()') is null then 'unknown'
-              else (xpath('/row/e/text()', query_to_xml('select app.environment() as e', false, true, '')))[1]::text end as e
+              else (xpath('/row/e/text()', query_to_xml('select app.environment() as e', false, true, '')))[1]::text end as e,
+         -- a practice system that was emptied on purpose (scripts/staging_fresh_start.ps1 notes when): no demo rows are
+         -- expected there, and the state, the crop and the client are made in the app
+         case when to_regclass('public.app_meta') is null then null
+              else (xpath('/row/v/text()', query_to_xml('select (select value from public.app_meta where key = ''fresh_start'') as v', false, true, '')))[1]::text end as fresh
 )
 select 'extensions'            as check_, case when count(*) = 2 then 'OK' else 'MISSING' end as result
   from pg_extension where extname in ('pgcrypto','uuid-ossp')
@@ -35,7 +39,10 @@ select 'footprint triggers',     case when (select count(*) from pg_trigger wher
 union all
 select 'ledger chain intact',    case when not exists (select 1 from app.verify_ledger()) then 'OK' else 'BROKEN' end
 union all
-select 'seed: Kalanamak crop',   case when exists (select 1 from public.crops where code = 'KNM') then 'OK' else 'NOT SEEDED' end
+select 'seed: Kalanamak crop',   case when exists (select 1 from public.crops where code = 'KNM') then 'OK'
+                                      when (select fresh from env) is not null
+                                      then 'OK fresh start (' || (select fresh from env) || '): ' || (select count(*) from public.crops) || ' crop(s), made in the app'
+                                      else 'NOT SEEDED' end
 union all
 select 'environment',            case (select e from env) when 'production' then 'OK production' when 'staging' then 'OK staging (practice system)'
                                       else 'MISSING app.environment() (push migration 23)' end
@@ -48,6 +55,10 @@ select 'demo data',              case when (select e from env) = 'production'
                                       else case when (select count(*) from public.scopes where status = 'active' and id::text like '00000000-0000-4000-8000-0000000004%') = 6
                                                  and (select count(*) from public.farmers where status = 'active') >= 5
                                                 then 'OK staging: 6 demo scopes, 5+ active farmers'
+                                                when (select fresh from env) is not null
+                                                 and not exists (select 1 from public.app_users where id::text like '00000000-0000-4000-8000-0000000003%')
+                                                 and not exists (select 1 from public.scopes where id::text like '00000000-0000-4000-8000-0000000004%')
+                                                then 'OK staging: fresh start, no demo data'
                                                 else 'NOT SEEDED (run seeds 02–05)' end end
 union all
 select 'api surface closed',     case when not has_function_privilege('anon', 'app.ledger_append(uuid, uuid, public.ledger_event, uuid, jsonb)', 'execute')

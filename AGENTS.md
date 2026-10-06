@@ -181,6 +181,14 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   Do not edit `web/src` while the dev-server suite runs: the hot reload disturbs the test in progress.
 - Never run against a hosted project: `tests/00_local_auth_shim.sql`, `tests/run_local.*`, `tests/remote_create_user.mjs`,
   `tests/remote_ledger_check.mjs --tamper-local`, `scripts/collect_release_evidence.sh`.
+- **The practice system was emptied on 6 October 2026 and holds no demo data** (`docs/RUNSHEET_fresh_start.md`):
+  one admin, and what people make in the app. `scripts/staging_fresh_start.ps1` and everything under
+  `scripts/fresh_start/` remove data for good: staging only, never production (they refuse), and never without the
+  person typing the words the script asks for. Do not reload seeds 02 to 06 there unless Veda asks. What needs the
+  demo people (`remote_rls.mjs --t1`, the acceptance suite) runs on the local stack and in CI.
+- **The first day from nothing is a test of its own**: `web/e2e-fresh/fresh_start.spec.ts` (after
+  `local-stack/fresh_start.sh`; `playwright.fresh.config.ts`). A change to the States, Crops, Clients, Seats, Add
+  joiner, Assign or scope screens has to keep it green: it is the only test in which nothing was seeded.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.
 
 ## Stack (PRD §10)

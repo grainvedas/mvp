@@ -61,10 +61,15 @@ If D3 fails: nothing was changed (each migration is one transaction). Paste the 
 
 ## Part E — the new screens on the deployed staging app, by a person (about 40 minutes)
 
+**After the fresh start of 6 October 2026** (`docs/RUNSHEET_fresh_start.md`) the demo people named below no longer
+exist on staging. Do part 2 of that run-sheet first (state, crop, client, HR seat, people, scope); then steps 3 to
+15 here with the people you made: "HR" is your HR Admin, "Client Manager" is the person you gave the client's
+account. Steps 1 and 2 as written, except that the HR Admin seat shows whoever you appointed.
+
 By Veda or anyone who did not build it. Laptop for steps 1 to 3 and 7 to 15, **a phone for steps 4 to 6**. Demo
 sign-ins: the addresses below with the passwords in `.env.demo-logins` (lines `DEMO_316…` to `DEMO_319…`, and the ones
 used before). On staging use made-up identity numbers: it is the practice system.
-Anything that does not match goes into `docs/FIX_LIST.md` as a new open item (the next number is 24).
+Anything that does not match goes into `docs/FIX_LIST.md` as a new open item (the next number is 27).
 
 | # | Sign in as | Do | Expect |
 |---|---|---|---|

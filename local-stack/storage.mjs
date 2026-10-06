@@ -8,9 +8,12 @@
 //   POST /object/sign/<bucket>/<path>       { expiresIn } → { signedURL }                         user token
 //   GET  /object/sign/<bucket>/<path>?token=…   the file                                           the signature
 //   GET  /object/<bucket>/<path>  and  /object/authenticated/<bucket>/<path>   the file            user or service token
+//   POST /bucket/<bucket>/empty             removes every file of the bucket                       service token only
+//   POST /object/list/<bucket>              { prefix } → the names at the top of the bucket        service token only
+//     (the two routes scripts/fresh_start/clear_logins_and_files.mjs uses)
 import http from 'node:http';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -86,11 +89,29 @@ http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://local');
     const seg = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
-    if (seg[0] !== 'object') return fail(res, 404, 'not_found', 'route not found');
+    if (seg[0] !== 'object' && seg[0] !== 'bucket') return fail(res, 404, 'not_found', 'route not found');
     const token = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
     const who = token ? claims(token) : null;
     const chunks = []; for await (const c of req) chunks.push(c);
     const body = Buffer.concat(chunks);
+
+    // Empty a bucket, and list what is at its top: the service role only (the fresh start of a practice system).
+    if (seg[0] === 'bucket' || (seg[0] === 'object' && seg[1] === 'list')) {
+      if (!who || who.role !== 'service_role') return fail(res, 403, 'Unauthorized', 'service role only');
+      const bucket = seg[0] === 'bucket' ? seg[1] : seg[2];
+      const known = await db('GET', `/buckets?select=id&id=eq.${encodeURIComponent(bucket ?? '')}`, token);
+      if (!known.ok || !Array.isArray(known.data) || known.data.length === 0) return fail(res, 404, 'Bucket not found', 'Bucket not found');
+      if (seg[0] === 'bucket') {
+        if (req.method !== 'POST' || seg[2] !== 'empty') return fail(res, 405, 'method_not_allowed', 'not supported by the local stand-in');
+        const del = await db('DELETE', `/objects?bucket_id=eq.${encodeURIComponent(bucket)}`, token, undefined, 'return=minimal');
+        if (!del.ok) return fail(res, 500, 'internal', 'objects not removed');
+        rmSync(filePath(bucket, '.'), { recursive: true, force: true });
+        return send(res, 200, { message: 'Successfully emptied' });
+      }
+      const rows = await db('GET', `/objects?select=name&bucket_id=eq.${encodeURIComponent(bucket)}`, token);
+      if (!rows.ok) return fail(res, 500, 'internal', 'objects not listed');
+      return send(res, 200, [...new Set(rows.data.map((r) => r.name.split('/')[0]))].map((name) => ({ name })));
+    }
 
     // GET a signed URL: the signature is the permission
     if (req.method === 'GET' && seg[1] === 'sign') {
