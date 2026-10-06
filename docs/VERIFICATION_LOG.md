@@ -1173,4 +1173,39 @@ identity layer ran on a hosted project, and the first run of the script on Windo
   failures and the loading error come together, when one app file is changed, new or missing, when the list is
   edited or missing; Windows line ends are accepted. 55 scenarios in the table run and 8 beside it.
   The unit tests ran here again on the same 78 files (sizes equal to the folder's): 9 files, 193 passed, Node 22.22.
-- **Not run yet on staging: the commit and the push (D11b), so the app there is still the old one.**
+
+### Third run on staging: 6 October 2026, 14:26 (record `…-142651.log`): `RESULT: PART D RAN TO THE END`
+
+- D0 OK · D1 NOT RUN · D2, D3: nothing left to push · D4 OK (ledger-check token: standing) · D5 **30 of 30 OK** ·
+  D6 OK · D6b **OK: `NO FINDINGS (95 blocks, 6 records, 2 seals, 0 evidence files checked)`** (4 blocks more than
+  in the second run: the seats and lenses given by seed 06) · D7 zero rows · D8 OK · D9 OK (all 19 `existing,
+  unchanged`, `linked yes`) · D10 OK (`NO LOGIN WITHOUT A PERSON`).
+- D11: type check **passed**; unit tests **NOT RUN** on that computer (Node 20.18.0; the 78 app files compared with
+  `scripts/tested_app_files.txt`: all the tested ones).
+- D11b **OK**: `git status` showed no `.env` file; 98 files committed (`cd597c7`), `14f20e7..cd597c7 main -> main`
+  on `github.com/grainvedas/mvp`; the working tree clean afterwards. D12 NOT RUN (Phone provider off).
+- **The deployed app, read from outside at 15:16** (Veda's Chrome, `https://mvp-beta-one.vercel.app`, the page and
+  its two script files fetched fresh, nothing signed in): status 200, the sign-in page of the practice system, and
+  the scripts carry `2026-10-06` (the function build the app asks for), "Ask HR to reset it", "People & access" and
+  "Add joiner": the build of commit `cd597c7` is the one being served. The Vercel dashboard itself was not looked at.
+
+### Where part D stands after the three runs
+
+| Step | On staging | Note |
+|---|---|---|
+| D1 local tests on Windows | **NOT RUN** | no PostgreSQL on that computer (open item 25) |
+| D2, D3 database | done | migrations 31, 32, 33 on a database in use |
+| D4 functions | done | four on build 2026-10-06; the ledger-check token was never set (open item 24) |
+| D5 to D8 checks | done | 30 of 30; store private; no audit finding; nobody left unassigned; 1 active admin |
+| D9, D10 demo people and logins | done | 316 to 319 created and linked; no login without a person |
+| D11 type check | done | passed |
+| D11 unit tests on that computer | **NOT RUN** | Node 20.18 (open item 26); 193 passed here on the same files |
+| D11 push, Vercel | done | `cd597c7`; the served app is that build |
+| D12 rules with real logins | **NOT RUN** | needs the Phone provider ON (open item 21) |
+
+NOT run / not known, still:
+- **No person has used the new screens on staging**: part E (15 steps, laptop and phone) is the test of that. In
+  particular: a joiner added through `create-user` on the hosted project, the first sign-in with a temporary
+  password, a document uploaded to `hr-docs` and refused to its uploader on reading back (E5 to E7).
+- The rules with real logins on staging (D12), the Windows test runner (D1), the unit tests on Veda's computer.
+- Three behaviour changes still wait for Veda's yes or no (FIX_LIST G10 to G12); the mail sender (G13).

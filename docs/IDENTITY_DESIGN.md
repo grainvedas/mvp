@@ -130,4 +130,7 @@ project**, so no mail is sent: HR hands over the temporary password in person, a
 | `tests/run_local.*` "upgrade path" | migrations 31 to 33 applied to a database already in use, then all 27 test files again | every run |
 | `web/e2e/phase7.spec.ts`, `phase8.spec.ts` | through the screens: a client set up from nothing; a joiner on a phone; directory, assign, lifecycle, state, seats, audit, the code | 3 + 8 |
 
-All of it ran on the local stack only. Nothing of this layer has run on staging yet.
+All of the table above ran on the local stack. **On staging since 6 October 2026** (run-sheet part D, three runs of
+`scripts/staging_phase5.ps1`; `docs/VERIFICATION_LOG.md`): migrations 31 to 33 on the database in use, the four
+functions, seed 06 with its logins, the smoke check (30 of 30), the ledger audit, and the app. Not yet on staging:
+anything done by a person through the screens (run-sheet part E), and the rules with real logins (step D12).

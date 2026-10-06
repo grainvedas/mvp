@@ -37,7 +37,8 @@ lot but not refuse it, stays (FIX_LIST K19).
 **People and access changed on 6 October 2026** (Veda's build prompt of 5 October; `docs/IDENTITY_DESIGN.md`). HR adds
 a person once, as an identity; a manager gives access as assignments (a scope with stages, a client's account, a
 state); what a person sees is the union. The Users & Roles page is gone: **HR · Joiners** and **People & access**
-replace it. In the repository only until `docs/RUNSHEET_phase5.md` is done on staging.
+replace it. On staging since 6 October 2026 (database, functions, app: run-sheet part D); part E of
+`docs/RUNSHEET_phase5.md`, by a person through the screens, is still to do.
 
 ## Read this first
 

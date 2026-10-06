@@ -2,7 +2,8 @@
 
 What this puts on staging: HR adds a person once; a manager gives access as assignments; the screens for both;
 suspend / offboard / re-hire; the two seats; the audit log; the once-a-day sign-in code (built, **off**).
-What it is and why: `docs/IDENTITY_DESIGN.md`. Built and tested on the local stack only (6 October 2026).
+What it is and why: `docs/IDENTITY_DESIGN.md`. Built and tested on the local stack (6 October 2026).
+**Part D was done on staging on 6 October 2026** (D12 excepted; results in `docs/VERIFICATION_LOG.md`). Part E is next.
 
 **Three things are deployed, in this order: database (D2–D3), server functions (D4), app (D11).** Between D3 and
 D11 the old app's **Users & Roles** page does not work (it answers "reload the app"); everything else does. Do D1 to
