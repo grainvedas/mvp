@@ -6,10 +6,15 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   const [error, setError] = useState<AppError | null>(null);
   const [loading, setLoading] = useState(true);
   const seq = useRef(0);
+  // Always the newest fn. `reload` is handed to buttons and rows; one that was handed out before the deps changed (an
+  // action that finishes after the person has moved to another tab) must load what is on screen NOW, not what was on
+  // screen when the action began: that put the old tab's list under the new tab's name (FIX_LIST fault 35).
+  const latest = useRef(fn);
+  latest.current = fn;
   const run = useCallback(async () => {
     const my = ++seq.current;
     setLoading(true); setError(null);
-    try { const d = await fn(); if (my === seq.current) setData(d); }
+    try { const d = await latest.current(); if (my === seq.current) setData(d); }
     catch (e) { if (my === seq.current) setError(toAppError(e)); }
     finally { if (my === seq.current) setLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps

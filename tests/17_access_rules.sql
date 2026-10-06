@@ -121,30 +121,39 @@ begin
 end $$;
 
 -- 3 · people -----------------------------------------------------------------------------------------------------------
+-- Migration 31–33: a person is created by HR (app.add_joiner), never by a manager; the blocks are the same kind.
 do $$
 declare u uuid; b record; n0 bigint;
 begin
   select count(*) into n0 from public.ledger;
   perform t.as_user(t.u('03'));
-  insert into public.app_users (role, display_name, phone, client_id) values ('operator', 'New Sorter', '+919812345678', '00000000-0000-4000-8000-000000000201') returning id into u;
+  perform t.fails($q$ select app.add_joiner('{"full_name":"New Sorter","personal_email":"sorter@test.in","join_date":"2026-11-01"}') $q$,
+                  'only HR adds a joiner', 'people: a Client Manager no longer creates people');
+  perform t.as_user(t.u('17'));
+  u := (app.add_joiner('{"full_name":"New Sorter","personal_email":"sorter@test.in","phone":"9812345678","join_date":"2026-11-01"}')->>'id')::uuid;
   perform t.as_service();
   select * into b from public.ledger order by seq desc limit 1;
-  perform t.ok((select count(*) from public.ledger) = n0 + 1 and b.event = 'supervisory' and b.scope_id is null and b.actor = t.u('03')
-               and b.payload->>'kind' = 'user_created' and b.payload->>'role' = 'operator' and b.payload->>'name' = 'New Sorter',
-               'people: creating a user is a ledger block naming who created whom, with which role');
-  perform t.as_user(t.u('03'));
-  update public.app_users set active = false where id = u;
+  perform t.ok((select count(*) from public.ledger) = n0 + 1 and b.event = 'supervisory' and b.scope_id is null and b.actor = t.u('17')
+               and b.payload->>'kind' = 'user_created' and b.payload->>'role' = 'operator' and b.payload->>'status' = 'invited'
+               and b.payload->>'name' = 'New Sorter',
+               'people: creating a person is a ledger block naming who created whom');
+  perform t.as_user(t.u('17'));
+  perform app.suspend_person(u, 'did not join');
   update public.app_users set phone = '+919898989898' where id = u;
   update public.app_users set display_name = 'New Sorter' where id = u;          -- nothing changed: no block
   perform t.as_service();
   perform t.ok((select count(*) from public.ledger) = n0 + 3
-               and (select payload->'before'->>'active' = 'true' and payload->'after'->>'active' = 'false' from public.ledger order by seq desc offset 1 limit 1)
+               and (select payload->'before'->>'active' = 'true' and payload->'after'->>'active' = 'false'
+                       and payload->'after'->>'status' = 'suspended' from public.ledger order by seq desc offset 1 limit 1)
                and (select payload->'after'->>'sign_in' = 'changed' from public.ledger order by seq desc limit 1),
-               'people: deactivating and changing the sign-in are blocks; a save that changes nothing is not');
-  perform t.ok(not exists (select 1 from public.ledger where seq > n0 and (payload::text like '%9812345678%' or payload::text like '%9898989898%')),
-               'people: phone numbers never enter the ledger');
+               'people: suspending and changing the sign-in are blocks; a save that changes nothing is not');
+  perform t.ok(not exists (select 1 from public.ledger where seq > n0 and (payload::text like '%9812345678%' or payload::text like '%9898989898%'
+                                                                          or payload::text like '%sorter@test.in%')),
+               'people: phone numbers and email addresses never enter the ledger');
   perform t.as_user(t.u('03'));
   perform t.ok((select count(*) from public.ledger where payload->>'kind' like 'user_%') = 0, 'people: these blocks are not readable by a Client Manager');
+  perform t.as_user(t.u('17'));
+  perform t.ok((select count(*) from public.ledger) = 0, 'people: nor by HR, who reads no ledger at all');
   perform t.as_user(t.u('01'));
   perform t.ok((select count(*) from public.ledger where payload->>'user_id' = u::text) = 3, 'people: the admin reads them');
   perform t.as_service();

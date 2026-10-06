@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { signIn, signOut, expectNoSideScroll } from './helpers';
+import { signIn, signOut, expectNoSideScroll, openSlotAt } from './helpers';
 
 // Phase 3 through the real screens: airplane-mode capture (PRD §12 edge check: 10 lots offline sync in order),
 // a refused offline save surfaces and is fixed, dashboards + Client View + exports, Hindi.
@@ -10,11 +10,8 @@ const CM = { key: '303', email: 'grainvedas+clientmanager@gmail.com' };
 const VIEW = { key: '304', email: 'grainvedas+clientview@gmail.com' };
 const FARMERS = ['Ram Achal', 'Sita Devi', 'Mohan Lal', 'Geeta Kumari', 'Suresh Yadav'];
 
-async function open(page: Page, stage: string, place: string) {
-  await page.getByTestId(`slot-${stage}`).filter({ hasText: new RegExp(`· ${place}(?! mandi)`) }).click();
-  await page.getByRole('tablist').waitFor();
-  await expectNoSideScroll(page);
-}
+// A person who holds stages in several scopes works in one at a time (identity layer): the helper picks the place first.
+const open = openSlotAt;
 
 async function fillProcurement(page: Page, farmer: string, gross: number) {
   await page.getByPlaceholder('Name, Farmer ID, phone or village').fill(farmer.split(' ')[0]);
@@ -180,7 +177,7 @@ test('Hindi: operator screens switch language; English stays as the database sen
   await expect(card.locator('.badge').first()).toHaveText(/^(सत्यापन बाकी|स्वीकृत|बंद)$/);
   await expect(page.locator('th', { hasText: 'घटना' })).toBeVisible();
   await expect(page.locator('td', { hasText: 'दर्ज किया' }).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: 'ख़रीद (फ़ार्म-गेट)' })).toBeVisible();   // the way back to the stage, in Hindi too
+  await expect(page.locator('main').getByRole('link', { name: 'ख़रीद (फ़ार्म-गेट)' })).toBeVisible();   // the way back to the stage, in Hindi too (the menu names the stage as well, now that a scope is in force)
   await expect(page.getByText('Quantity in')).toHaveCount(0);
   await page.getByLabel('Language').selectOption('en');
   await expect(card).toContainText('Quantity in');

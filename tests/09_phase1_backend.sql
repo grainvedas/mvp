@@ -120,7 +120,7 @@ select t.ok(jsonb_array_length((app.my_context())->'slots') = 0 and (app.my_cont
 select t.as_user(t.u('05'));
 select t.ok(jsonb_array_length((app.my_context())->'slots') = 5, 'my_context: procurement operator has 5 slots');
 select t.as_user(t.u('03'));
-select t.ok(jsonb_array_length((app.my_context())->'scopes') = 7, 'my_context: client manager sees the client''s 7 scopes (6 seeded + 1 above)');
+select t.ok(jsonb_array_length((app.my_context())->'scopes') = 8, 'my_context: client manager sees the client''s 8 scopes (7 seeded + 1 above)');
 select t.as_user(t.u('06'));
 select t.ok(jsonb_array_length((app.footprint_detail((select id from public.footprints where stage_type = 'procurement'
          and scope_id = t.scope('01') and status = 'verified' limit 1)))->'ledger') >= 2,

@@ -1,11 +1,11 @@
 import { test, expect, devices } from '@playwright/test';
-import { signIn, signOut, USERS, apiAs } from './helpers';
+import { signIn, signOut, USERS, SCOPES, openSlot, apiAs } from './helpers';
 
 // PRD §12 T1 through the real screens, signed in as three different people: procure → QC → seal → public page.
 test('T1: procurement → QC → QR seal from the UI', async ({ page }) => {
   // 1. Procurement operator records Sita Devi's lot
   await signIn(page, USERS.procurement);
-  await page.getByTestId('slot-procurement').filter({ hasText: 'Siddharthnagar' }).click();
+  await openSlot(page, 'procurement', SCOPES.siddharthnagar);
   await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');
   await page.getByRole('button', { name: /Sita Devi/ }).click();
   await page.getByLabel(/Gross weight/).fill('150');
@@ -25,7 +25,7 @@ test('T1: procurement → QC → QR seal from the UI', async ({ page }) => {
 
   // 2. QC technician verifies what arrived, then records QC
   await signIn(page, USERS.qc);
-  await page.getByTestId('slot-qc').filter({ hasText: 'Siddharthnagar' }).click();
+  await openSlot(page, 'qc', SCOPES.siddharthnagar);
   await page.getByTestId('incoming-row').filter({ hasText: code }).click();
   const verifyBtn = page.getByRole('button', { name: 'Verify this lot' });
   await expect(verifyBtn).toBeDisabled();
@@ -47,7 +47,7 @@ test('T1: procurement → QC → QR seal from the UI', async ({ page }) => {
 
   // 3. QR operator verifies QC and seals
   await signIn(page, USERS.qr);
-  await page.getByTestId('slot-qr_activation').filter({ hasText: 'Siddharthnagar' }).click();
+  await openSlot(page, 'qr_activation', SCOPES.siddharthnagar);
   await page.getByTestId('incoming-row').filter({ hasText: qcCode }).click();
   for (const box of await page.getByRole('checkbox').all()) await box.check();
   await page.getByRole('button', { name: 'Verify this lot' }).click();

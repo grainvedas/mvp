@@ -1,7 +1,7 @@
 // Own password (Phase 4). A login made by a manager (create-user, reset-password) starts with a temporary password the
 // manager has seen; the app asks for an own password before anything else (user_metadata.must_change_password).
 // The same form sits on the Account page for changing it later. Operators have no e-mail, so "forgot my password"
-// is: the manager resets it on the Users screen and hands over a new temporary one.
+// is: HR resets it on the person's profile (People & access) and hands over a new temporary one.
 import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { useI18n } from '../lib/i18n';
@@ -63,12 +63,16 @@ export function PasswordForm({ submitKey = 'account.change_password' }: { submit
 /** The whole screen, before the app, while the login still has the temporary password. */
 export function MustSetPassword() {
   const { t } = useI18n();
-  const { signOut } = useAuth();
+  const { signOut, session, ctx } = useAuth();
+  const signIn = session?.user.email ?? session?.user.phone ?? ctx?.user?.email ?? '';
+  const joiner = ctx?.user?.status === 'invited' || ctx?.user?.status === 'onboarding';
   return (
     <main style={{ maxWidth: 420 }}>
       <div className="card" data-testid="must-change">
-        <h1>{t('account.first_title')}</h1>
-        <p className="muted">{t('account.first_body')}</p>
+        <h1>{t(joiner ? 'account.invite_title' : 'account.first_title', { name: (ctx?.user?.display_name ?? '').split(' ')[0] })}</h1>
+        <p className="muted">{t(joiner ? 'account.invite_body' : 'account.first_body')}</p>
+        {/* the sign-in is fixed by HR: shown so the person knows which address this is, not editable */}
+        <Field label={t('account.sign_in')} htmlFor="pw-signin"><input id="pw-signin" value={signIn} readOnly disabled data-testid="locked-sign-in" /></Field>
         <PasswordForm submitKey="account.set_password" />
       </div>
       <button className="secondary" onClick={() => void signOut()}>{t('nav.signout')}</button>

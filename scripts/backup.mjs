@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// OFF-PLATFORM BACKUP of one GrainVeda project: the database (records, ledger, rules), the logins, and the evidence
-// files, each checked as it is taken. This is the second copy; the first is Supabase's own daily backup (Pro plan).
+// OFF-PLATFORM BACKUP of one GrainVeda project: the database (records, ledger, rules), the logins, the evidence
+// files and the HR documents, each checked as it is taken. This is the second copy; the first is Supabase's own daily backup (Pro plan).
 //
 //   node scripts/backup.mjs                          the project in .env.local
 //   ENV_FILE=.env.production node scripts/backup.mjs
@@ -11,8 +11,9 @@
 // SUPABASE_SERVICE_ROLE_KEY (for the evidence files). Needs pg_dump of the server's major version or newer (PGBIN or PATH).
 //
 // Writes backups/<UTC time>/  db.dump (schemas public + app, custom format)   auth.dump (logins)   evidence/<path>…
+//                             hr-docs/<person>/<file>…  (HR documents: identity papers, contracts; since migration 31)
 //                             MANIFEST.json (what was taken, sizes, SHA-256, and the database's fingerprint)
-// THE FOLDER HOLDS FARMERS' PHONE NUMBERS AND PASSWORD HASHES. Keep it encrypted, off shared drives, out of git
+// THE FOLDER HOLDS FARMERS' PHONE NUMBERS, PASSWORD HASHES AND EMPLOYEES' IDENTITY PAPERS. Keep it encrypted, off shared drives, out of git
 // (backups/ is git-ignored). scripts/restore_drill.mjs proves a backup can be restored.
 import { createHash } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -82,6 +83,28 @@ export async function takeBackup({ outRoot = join(ROOT, 'backups'), evidence = t
       (ev.problems.length ? `\n  PROBLEMS:\n  ${ev.problems.join('\n  ')}` : ''));
   }
 
+  // 3b. HR documents (identity layer, migration 31): the private store `hr-docs`, same check. Kept apart from the
+  //     evidence files in the backup folder: they are people's identity papers and are handled like the login dump.
+  const hr = { expected: 0, stored: 0, bytes: 0, problems: [] };
+  if (evidence && sql(env, "select to_regclass('public.employee_files') is not null") === 't') {
+    const cfg = supabaseConfig({ needService: true });
+    const rows = JSON.parse(sql(env, "select coalesce(jsonb_agg(jsonb_build_object('path', storage_path, 'sha256', sha256) order by created_at, id), '[]')::text from public.employee_files"));
+    hr.expected = rows.length;
+    for (const a of rows) {
+      const res = await fetch(`${cfg.url}/storage/v1/object/hr-docs/${a.path.split('/').map(encodeURIComponent).join('/')}`,
+        { headers: { apikey: cfg.service, authorization: `Bearer ${cfg.service}` } });
+      if (!res.ok) { hr.problems.push(`${a.path}: not downloadable (${res.status})`); continue; }
+      const bytes = Buffer.from(await res.arrayBuffer());
+      if (createHash('sha256').update(bytes).digest('hex') !== a.sha256) { hr.problems.push(`${a.path}: SHA-256 differs from the record`); continue; }
+      const p = join(dir, 'hr-docs', ...a.path.split('/'));
+      if (!resolve(p).startsWith(resolve(dir, 'hr-docs'))) { hr.problems.push(`${a.path}: unsafe path`); continue; }
+      mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, bytes);
+      hr.stored++; hr.bytes += bytes.length;
+    }
+    log(`HR documents: ${hr.stored}/${hr.expected} file(s) stored and matching their fingerprint (${(hr.bytes / 1024).toFixed(0)} KB)` +
+      (hr.problems.length ? `\n  PROBLEMS:\n  ${hr.problems.join('\n  ')}` : ''));
+  }
+
   // The schema a restore rebuilds first: the migration files of this repository at the time of the backup (and, on a
   // Supabase project, the versions its own migration table says were applied).
   const repoMigrations = readdirSync(join(ROOT, 'supabase', 'migrations')).filter((f) => f.endsWith('.sql')).sort();
@@ -92,10 +115,10 @@ export async function takeBackup({ outRoot = join(ROOT, 'backups'), evidence = t
     }
   } catch { /* not readable with this login: the repository list stands */ }
   const manifest = { taken_at: started.toISOString(), source: label, server_version_num: server, pg_dump_major: dumpTool,
-    files, logins: loginCount, evidence: evidence ? ev : 'skipped', migrations: repoMigrations, migrations_applied_on_source: applied, fingerprint: before };
+    files, logins: loginCount, evidence: evidence ? ev : 'skipped', hr_documents: evidence ? hr : 'skipped', migrations: repoMigrations, migrations_applied_on_source: applied, fingerprint: before };
   writeFileSync(join(dir, 'MANIFEST.json'), JSON.stringify(manifest, null, 2));
   log(`manifest: ${join(dir, 'MANIFEST.json').replace(ROOT, '.')}`);
-  return { dir, manifest, ok: ev.problems.length === 0 };
+  return { dir, manifest, ok: ev.problems.length === 0 && hr.problems.length === 0 };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -106,6 +106,18 @@ async function restoreBackup() {
   const missing = migrations.filter((f) => !existsSync(join(ROOT, 'supabase', 'migrations', f)));
   check(missing.length === 0, `the ${migrations.length} migrations the backup was taken under are in this repository`, missing.length ? `missing: ${missing.join(', ')}` : '');
   for (const f of migrations) if (!missing.includes(f)) run('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', join(ROOT, 'supabase', 'migrations', f)], { ...target, PGOPTIONS: '-c client_min_messages=warning' });
+  // Some migrations write rows of their own (the standard joining checklist of migration 31). The backup holds those
+  // rows as they were on the source, edited or not: empty every table the migrations filled, then load.
+  const prefilled = run('psql', ['-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1', '-c', `
+    set session_replication_role = replica;
+    do $$ declare r record; n bigint; emptied text := ''; begin
+      for r in select c.oid::regclass as t from pg_class c join pg_namespace ns on ns.oid = c.relnamespace where ns.nspname = 'public' and c.relkind = 'r' order by 1 loop
+        execute format('select count(*) from %s', r.t) into n;
+        if n > 0 then execute format('truncate %s cascade', r.t); emptied := emptied || ' ' || r.t::text || '(' || n || ')'; end if;
+      end loop;
+      raise notice 'emptied before the load:%', case when emptied = '' then ' nothing' else emptied end;
+    end $$;`], target, { allowFail: true });
+  check(prefilled.status === 0, `tables the migrations fill are emptied before the load${/emptied before the load:(.*)/.exec(prefilled.stderr ?? '')?.[1] ?? ''}`, (prefilled.stderr ?? '').trim().split('\n').slice(-2).join(' | '));
   const dataSql = join(dir, 'data.restore.sql');
   run('pg_restore', ['--data-only', '--no-owner', '--no-privileges', '--file', dataSql, dump], base);
   const load = run('psql', ['-X', '-q', '-1', '-v', 'ON_ERROR_STOP=1', '-c', 'set session_replication_role = replica', '-f', dataSql], target, { allowFail: true });
@@ -139,6 +151,10 @@ async function restoreBackup() {
     check(manifest.evidence.stored === manifest.evidence.expected && manifest.evidence.problems.length === 0,
       `evidence in the backup: ${manifest.evidence.stored}/${manifest.evidence.expected} file(s), each re-hashed against the record`);
   } else log('note  evidence files were not part of this backup');
+  if (manifest.hr_documents && manifest.hr_documents !== 'skipped') {
+    check(manifest.hr_documents.stored === manifest.hr_documents.expected && manifest.hr_documents.problems.length === 0,
+      `HR documents in the backup: ${manifest.hr_documents.stored}/${manifest.hr_documents.expected} file(s), each re-hashed against the record`);
+  }
   if (manifest.logins !== null && manifest.logins !== undefined) log(`note  logins in the backup: ${manifest.logins} (auth.dump; restored into a NEW project only, see docs/RESTORE.md)`);
   if (!has('--keep')) run('dropdb', ['--if-exists', SCRATCH], base); else log(`note  scratch database kept: ${SCRATCH}`);
   return dir;

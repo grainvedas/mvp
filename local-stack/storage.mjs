@@ -61,11 +61,11 @@ function filePart(req, body) {
   return null;
 }
 
-async function db(method, path, token, body) {
+async function db(method, path, token, body, prefer = 'return=representation') {
   const r = await fetch(`${rest}${path}`, {
     method,
     headers: { apikey: anon, authorization: `Bearer ${token}`, 'content-type': 'application/json', 'accept-profile': 'storage',
-      'content-profile': 'storage', prefer: 'return=representation' },
+      'content-profile': 'storage', prefer },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return { status: r.status, ok: r.ok, data: await r.json().catch(() => null) };
@@ -128,7 +128,9 @@ http.createServer(async (req, res) => {
       const part = filePart(req, body);
       if (!part) return fail(res, 400, 'invalid_request', 'no file in the request');
       // the INSERT as the caller is the permission check (evidence_upload policy); a second upload of the same name is a duplicate
-      const ins = await db('POST', '/objects', token, { bucket_id: bucket, name, owner: who.sub ?? null });
+      // return=minimal: as on Supabase Storage, a new (non-upsert) upload needs the INSERT policy only. A bucket whose
+      // uploader may not read it back (hr-docs: only HR and the admin open a document) must still accept the upload.
+      const ins = await db('POST', '/objects', token, { bucket_id: bucket, name, owner: who.sub ?? null }, 'return=minimal');
       if (ins.status === 409) return fail(res, 409, 'Duplicate', 'The resource already exists');
       if (!ins.ok) return fail(res, 403, 'Unauthorized', 'new row violates row-level security policy');
       const p = filePath(bucket, name);

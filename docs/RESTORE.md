@@ -71,13 +71,14 @@ drill project afterwards.
 |---|---|---|
 | The nightly ledger check fails (red banner, monitor alert) | Nothing is restored yet. Health page → which block; `tests/remote_ledger_audit.sql`; freeze sealing (tell the QR operators); call the admin. A failed check means a row was changed outside the app | `docs/OPERATIONS.md` § "Ledger check failed" |
 | Records were damaged by a mistake in the last days (a bad migration, a wrong bulk change) | First, in the app, each scope → **Dashboard → Download season summary (CSV)**: one row per record with its `created_at`. Then Supabase Dashboard → Database → Backups → restore the last good day. Every row of the CSV made after that backup is gone from the database and is recorded again from the CSV and the paper slips | smoke check, ledger audit, `restore_evidence.mjs --backup <the newest off-platform backup>` (a database restore does not touch stored files; this re-hashes every registered file and puts back any that is missing) |
-| The project is gone or unreachable for good | New project (Pro, Mumbai) → `supabase db push` → data from `db.dump` → logins from `auth.dump` → evidence with `restore_evidence.mjs` → dashboard settings, functions and secrets as in `docs/DEPLOY.md` steps 4–6 → new `.env.production`, build, deploy | `restore_drill.mjs --compare`, smoke check 21/21, a sign-in, a sealed lot's public page |
+| The project is gone or unreachable for good | New project (Pro, Mumbai) → `supabase db push` → data from `db.dump` → logins from `auth.dump` → evidence files and HR documents with `restore_evidence.mjs` → dashboard settings, functions and secrets as in `docs/DEPLOY.md` steps 4–6 → new `.env.production`, build, deploy | `restore_drill.mjs --compare`, smoke check 21/21, a sign-in, a sealed lot's public page |
 
 Loading the data and the logins into a new hosted project (third row):
 
 ```powershell
 $env:PGBIN = 'C:\path\to\pgsql17\bin'
 & "$env:PGBIN\pg_restore.exe" --data-only --no-owner --no-privileges -f data.sql backups\<time>\db.dump
+& "$env:PGBIN\psql.exe" "<new project's session-pooler URL>" -v ON_ERROR_STOP=1 -c "truncate public.onboarding_templates cascade"   # the standard checklist the migrations wrote; the backup holds it, edited or not
 & "$env:PGBIN\psql.exe" "<new project's session-pooler URL>" -1 -v ON_ERROR_STOP=1 -c "set session_replication_role = replica" -f data.sql
 & "$env:PGBIN\pg_restore.exe" --data-only --no-owner --no-privileges -f auth.sql backups\<time>\auth.dump
 & "$env:PGBIN\psql.exe" "<new project's session-pooler URL>" -1 -v ON_ERROR_STOP=1 -c "set session_replication_role = replica" -f auth.sql
@@ -85,7 +86,8 @@ Remove-Item data.sql, auth.sql
 $env:ENV_FILE = '.env.production'; node scripts/restore_evidence.mjs --backup backups\<time>
 ```
 
-The first two lines are exactly what the drill does into the scratch database. The two `auth` lines and the upload of
+The first three lines are exactly what the drill does into the scratch database (the drill empties every table the
+migrations filled; today that is the standard joining checklist). The two `auth` lines and the upload of
 evidence into a hosted bucket have been written but **not rehearsed on a hosted project** (none was available from the
 build environment; the evidence upload was rehearsed against the local stand-in: one file removed, restored
 byte-identical). Rehearse them once on a throwaway project in the first quarterly drill, and correct this page with

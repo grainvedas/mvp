@@ -15,6 +15,7 @@ PRD (living doc): https://claude.ai/code/artifact/28bf2d7b-66e0-4580-a6c7-5b12a8
 | 2 Processing stages, sale, shipment, seal, labels, public page | done | `docs/RUNSHEET_phase2.md` |
 | 3 Offline, Hindi, dashboards, exports, nightly ledger check | done | `docs/RUNSHEET_phase3.md` |
 | 4 Deploy, acceptance, restore drill, handover | done on the local stack | `docs/RUNSHEET_phase4.md` |
+| 5 Identity and authorization layer (HR onboarding, assignments, lifecycle, seats, audit log) | done on the local stack, 6 Oct 2026 | `docs/RUNSHEET_phase5.md` |
 
 Which run-sheets have been completed on the hosted project is recorded in `docs/VERIFICATION_LOG.md` by whoever runs
 them; step A2 of the Phase 4 run-sheet shows it at a glance (the migrations still to be pushed).
@@ -33,11 +34,18 @@ It still differs from the prototype in **what the stage forms ask for** (103 fie
 (FIX_LIST lines 21 to 31) and reach staging with migrations 28 and 29. The twelfth, an arrival check that can verify a
 lot but not refuse it, stays (FIX_LIST K19).
 
+**People and access changed on 6 October 2026** (Veda's build prompt of 5 October; `docs/IDENTITY_DESIGN.md`). HR adds
+a person once, as an identity; a manager gives access as assignments (a scope with stages, a client's account, a
+state); what a person sees is the union. The Users & Roles page is gone: **HR · Joiners** and **People & access**
+replace it. In the repository only until `docs/RUNSHEET_phase5.md` is done on staging.
+
 ## Read this first
 
 | You are | Read |
 |---|---|
+| Antigravity IDE, about to put the identity layer on staging | `docs/RUNSHEET_phase5.md` |
 | Antigravity IDE, about to put Phase 4 on the hosted project | `docs/RUNSHEET_phase4.md`, then `docs/DEPLOY.md` |
+| Anyone asking who may see or do what, and why | `docs/IDENTITY_DESIGN.md` |
 | A coding agent changing anything | `AGENTS.md` |
 | The person running the acceptance test | `docs/ACCEPTANCE.md` |
 | The admin or a manager in a live season | `docs/OPERATIONS.md` |
@@ -58,11 +66,17 @@ crop's limits; any later lot resolves its verdict by walking back to QC. `app.se
 seals in one transaction; `app.public_lot_journey(qr_code)` is what the public verify page shows. The rules live in
 Postgres (triggers and row-level security); the screens mirror them and are never the only check.
 
+**People.** A person (`app_users`) is created once by HR and carries a status (invited, joining, active, suspended,
+left) and a system role (admin, HR Admin, HR, operational). Access comes from **assignments**: one scope with the
+stages held there, one client's account, or one state. A person has any number of them and sees their union; an
+assignment counts while it is live and its holder is active. Org facts describe and grant nothing. Every change to a
+person or their access is one line in an append-only audit log.
+
 ## Layout
 
 ```
 supabase/
-  migrations/                      29 files, applied in name order. Never edit an applied one.
+  migrations/                      33 files, applied in name order. Never edit an applied one.
     20260927000100 … 001300        Phase 0: tables, integrity triggers, RLS, seal, login linking, counters, ledger hash
     20261001000100_api_surface     every app function closed by default, granted by name
     20261001000200 … 000500        Phase 1: preview (review = save), stage_form, farmers, corrections, scope reads
@@ -77,27 +91,30 @@ supabase/
     20261004000100_public_page_data   what the public page's function sends: no buyer, no worked-out values
     20261004000200_capture_time_…     the time a record was captured on the phone; the lab verdict before saving
     20261005000100_clients_read_by_row   a client can be added from the screen (the row is readable in its own insert)
+    20261006000100_identity_schema    Phase 5: status and system role, assignments, HR records, checklist, audit log
+    20261006000200_union_access       every access rule reads the system role and the live assignments (the union)
+    20261006000300_people_lifecycle   the actions: add joiner, assign, move, end, suspend, offboard, re-hire, seats, code
   seeds/
     01_stage_definitions.sql       the one stage registry (16 stage types): forms, hand-off checks
-    02 … 05                        demo data for staging and tests. They refuse to run on production
+    02 … 06                        demo data for staging and tests (06: HR seats, a joiner, an unassigned employee). They refuse production
     production/10_reference.sql    what a real season starts from; marks the project as production
-  functions/                       Edge Functions: create-user, reset-password, ledger-check
+  functions/                       Edge Functions: create-user, reset-password, ledger-check, daily-code (one build)
 tests/
   00_local_auth_shim.sql           LOCAL ONLY: stands in for Supabase Auth
-  01 … 21_*.sql, concurrency/      the database suite (plain SQL assertions)
+  01 … 27_*.sql, concurrency/      the database suite (plain SQL assertions; 23 to 27: the identity layer)
   run_local.sh / run_local.ps1     rebuilds a scratch database and runs all of it
-  remote_smoke.sql                 read-only check of a hosted project (24 rows)
+  remote_smoke.sql                 read-only check of a hosted project (30 rows)
   remote_ledger_audit.sql          read-only: every ledger block has a real counterpart, and the reverse
   remote_rls.mjs                   permissions with real logins through the API (refuses production)
   remote_auth_settings.mjs         read-only: who can get a login
   remote_ledger_check.mjs          the monitor function
-  remote_create_user.mjs           LOCAL STACK ONLY: makes and resets logins
-local-stack/                       Postgres + Supabase Auth + PostgREST + functions + storage stand-in behind one URL
+  remote_create_user.mjs           LOCAL STACK ONLY: adds joiners and client logins, resets, HR store, sign-in code
+local-stack/                       Postgres + Supabase Auth + PostgREST + functions + storage and mail stand-ins behind one URL
 scripts/
   create_demo_logins.mjs           demo logins for staging and the stack (refuses production)
   bootstrap_admin.mjs              the first admin of a project
   make_ledger_token.mjs            the monitor's token
-  check_functions.mjs              read-only: are the three server functions deployed, and the build of this repository?
+  check_functions.mjs              read-only: are the four server functions deployed, and the build of this repository?
   check_logins.mjs                 logins that belong to no person (and people without a login); --remove deletes the former
   backup.mjs, restore_drill.mjs, restore_evidence.mjs      off-platform backup, proven by restoring it
   collect_release_evidence.sh      every check that can run on the local stack, with result files
@@ -109,14 +126,17 @@ web/
   src/lib/i18n.en.ts, i18n.hi.ts   every visible string
   src/engine/values.tsx            how a record's values are shown: a name, a value with its unit, never code text
   src/shell/Layout.tsx, scope.tsx  the frame (top bar, side menu on a laptop) and the scope a person works in
-  src/pages/Home.tsx               first screens by role: stage cards, number cards, action queue, season flow
+  src/pages/Home.tsx               first screens: checklist, HR pipeline, waiting, pick a place, stage cards, number cards
+  src/pages/hr/, onboarding/       HR (pipeline, add joiner, joiner page, templates); the joiner's own phone screens
+  src/pages/people/, system/       directory, profile, assign, roster, state overview; seats, audit log
+  src/lib/people.ts                shapes and pure rules of the people screens (number checks: last four only)
   src/styles.css                   ONE style sheet: the prototype's colours as tokens; laptop from 900 px, phone to 600 px
   public/sw.js                     lets the app open with no network
   tests/                           unit tests (vitest)
   e2e/                             end-to-end through the screens (Playwright, phone-sized); T1–T5 are the acceptance tests
   e2e-prod/                        the BUILT app behind a host-like server: budgets, security policy, a day in the field
   wrangler.jsonc, netlify.toml, vercel.json     hosting (Cloudflare is the default)
-docs/                              run-sheets per phase, DEPLOY, ACCEPTANCE, RESTORE, OPERATIONS, OPERATOR_GUIDE, FIX_LIST,
+docs/                              run-sheets per phase, IDENTITY_DESIGN, DEPLOY, ACCEPTANCE, RESTORE, OPERATIONS, OPERATOR_GUIDE, FIX_LIST,
                                    VERIFICATION_LOG, INTERFACE_GAP (this system against the prototype),
                                    ci/database-tests.yml (copy to .github/workflows/)
 AGENTS.md                          rules for coding agents working in this repository

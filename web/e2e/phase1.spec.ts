@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import writeXlsxFile from 'write-excel-file/node';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { signIn, signOut, USERS } from './helpers';
+import { signIn, signOut, openSlot, SCOPES, USERS } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
@@ -36,7 +36,7 @@ test('Lot Inward → QC (export fail) → seal; Client Manager overrides with a 
   await signOut(page);
 
   await signIn(page, USERS.qc);
-  await page.getByTestId('slot-qc').filter({ hasText: 'Gorakhpur mandi' }).click();
+  await openSlot(page, 'qc', SCOPES.gorakhpurMandi);
   await verifyIncoming(page, liCode);
   await page.getByRole('button', { name: /Record Quality Control/ }).click();
   await page.getByLabel(/Sample drawn/).fill('1');
@@ -61,7 +61,7 @@ test('Lot Inward → QC (export fail) → seal; Client Manager overrides with a 
   await signOut(page);
 
   await signIn(page, USERS.qr);
-  await page.getByTestId('slot-qr_activation').filter({ hasText: 'Gorakhpur mandi' }).click();
+  await openSlot(page, 'qr_activation', SCOPES.gorakhpurMandi);
   await verifyIncoming(page, qcCode);
   await page.getByRole('button', { name: 'Activate and seal' }).click();
   const qr = (await page.getByTestId('sealed').textContent())!.match(/GV-[0-9A-F]{12}/)![0];
@@ -70,7 +70,7 @@ test('Lot Inward → QC (export fail) → seal; Client Manager overrides with a 
   await expect(page.getByTestId('public-journey')).toContainText('export approved with a recorded reason');
 });
 
-test('Scope wizard: build a chain, create a person for a stage, activate', async ({ page }) => {
+test('Scope wizard: build a chain, give a stage to a person from the pool, activate', async ({ page }) => {
   const u = uniq();
   await signIn(page, USERS.cm);
   await page.goto('/scopes/new');
@@ -83,12 +83,13 @@ test('Scope wizard: build a chain, create a person for a stage, activate', async
   await expect(page.getByText('This chain is valid.')).toBeVisible();
   await page.getByRole('button', { name: /Save draft/ }).click();
   await expect(page.getByRole('heading', { name: new RegExp(`Deoria ${u}`) })).toContainText('Draft');
-  await page.getByRole('row', { name: /Sorting/ }).getByRole('button', { name: '+ new person' }).click();
-  await page.getByLabel('Name').fill(`Sorter ${u}`);
-  await page.getByLabel('Mobile').fill(`97${u}11`);
-  await page.getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByTestId('temp-password')).toContainText(/Temporary password for \+9197\d{6}11: Gv-/);
-  await expect(page.getByRole('row', { name: /Sorting/ })).toContainText(`Sorter ${u}`);
+  // Identity layer: nobody is created here any more. The People step gives stages to people HR has added (the pool).
+  await expect(page.getByRole('button', { name: '+ new person' })).toHaveCount(0);
+  await expect(page.getByTestId('roster-gaps')).toContainText('4 stage(s) with nobody');
+  await page.getByLabel('Assign Sorting').selectOption({ label: 'Sorting Operator' });
+  await expect(page.getByRole('row', { name: /Sorting/ })).toContainText('Sorting Operator');
+  await expect(page.getByTestId('roster-gaps')).toContainText('3 stage(s) with nobody');
+  await expect(page.getByTestId('gap-qc')).toBeVisible();                                   // a stage nobody holds is flagged
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Activate scope' }).click();
   await expect(page.getByRole('heading', { name: new RegExp(`Deoria ${u}`) })).toContainText('Active');

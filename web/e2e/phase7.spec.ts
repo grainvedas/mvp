@@ -1,16 +1,21 @@
-// FIX_LIST fault 32 (4 October 2026): on staging "New user" failed every time with "Login created but not linked; both
-// removed". The database had migration 23, the create-user function was the build of 1 October, reset-password was not
-// deployed at all. Here the browser is given the answers staging gave that day (read from it), and the Users page has
-// to say what is wrong with the server, before and after the form is used. With the real local functions: no warning.
+// Setting a client up by hand, through the screens only. Three faults Veda reported from staging were all in this
+// path (FIX_LIST 32, 33, and "Phone logins are disabled"); demo data from a seed never walks it.
+//
+// Since the identity layer (migrations 31–33, 6 October 2026) the path has two separate acts:
+//   HR        adds a person ONCE, as an identity with a sign-in. Gives no access.
+//   a manager gives that person an assignment: a scope and stages, a client's account, or a state.
+// The old "Users" page (one form: role + client + state + login) is gone; `/users` now lands on People & access.
 import { test, expect } from '@playwright/test';
-import { signIn, signOut, USERS } from './helpers';
+import { signIn, signInWith, signOut, setOwnPassword, freshEmail, addJoiner, todayIST, USERS } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
 test.use({ viewport: { width: 1366, height: 768 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
 
-test('Server functions left behind: the Users page says so, and a failed "New user" names the server, not the person', async ({ page }) => {
-  // create-user as deployed on 1 Oct: no build header; GET is refused; a new user ends in the unlinked message.
+// FIX_LIST fault 32 (4 October 2026): on staging "New user" failed every time with "Login created but not linked; both
+// removed". The database was ahead of the server functions. Here the browser is given the answers staging gave that
+// day, and the page that needs the function has to say what is wrong with the server, before and after the form is used.
+test('Server functions left behind: the Add joiner page says so, and a failed save names the server, not the person', async ({ page }) => {
   await page.route('**/functions/v1/create-user', (route) => {
     const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
     const m = route.request().method();
@@ -21,19 +26,19 @@ test('Server functions left behind: the Users page says so, and a failed "New us
   // reset-password not deployed: the gateway's 404 carries no CORS headers, so the browser reports a failed request.
   await page.route('**/functions/v1/reset-password', (route) => route.abort('failed'));
 
-  await signIn(page, USERS.cm);
-  await page.goto('/users');
+  await signIn(page, USERS.hr);
+  await page.goto('/hr/joiners/new');
   const warning = page.getByTestId('functions-warning');
   // (soft: the form below must be reached also by an app that has no warning, so that the fault itself is shown)
   await expect.soft(warning).toBeVisible();
   await expect.soft(warning).toContainText('"create-user" is older than this app', { useInnerText: true, timeout: 3000 });
-  await expect.soft(warning).toContainText('"reset-password" is not installed', { useInnerText: true, timeout: 3000 });
   await expect.soft(warning).toContainText('run-sheet step A6', { useInnerText: true, timeout: 3000 });
 
-  const u = uniq();
-  await page.getByLabel('Name').fill(`Nobody ${u}`);
-  await page.getByLabel('Mobile').fill(`96${u}22`);
-  await page.getByRole('button', { name: 'Create' }).click();
+  const u = uniq(); const mail = freshEmail('nobody');
+  await page.getByLabel('Full name').fill(`Nobody ${u}`);
+  await page.getByLabel('Join date').fill(todayIST());
+  await page.getByLabel('Personal email').fill(mail);
+  await page.getByRole('button', { name: 'Save and create sign-in' }).click();
   const error = page.locator('form').getByRole('alert');
   await expect(error).toBeVisible();
   await expect.soft(error).toContainText('The server is not up to date with this app', { useInnerText: true, timeout: 3000 });
@@ -42,33 +47,34 @@ test('Server functions left behind: the Users page says so, and a failed "New us
   await expect(page.getByTestId('temp-password')).toHaveCount(0);
 
   // Reset password, with the function missing: not "No connection"
-  const row = page.getByTestId('user-row').filter({ hasText: 'QC Technician' });
-  await row.getByTestId('reset-password').click();
-  await row.getByTestId('reset-confirm').click();
-  await expect(row.getByTestId('reset-confirm')).toHaveCount(0);                        // the attempt is over
-  await expect.soft(page.getByText('No connection to the server')).toHaveCount(0);
+  await page.goto('/people/00000000-0000-4000-8000-000000000306');
+  page.once('dialog', (d) => d.accept());
+  await page.getByTestId('profile-actions').getByRole('button', { name: 'Reset password' }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'reset-password' })).toContainText('A part of the server is not installed', { useInnerText: true });
+  await expect.soft(page.getByText('No connection to the server')).toHaveCount(0);
+  await expect(page.getByTestId('temp-password')).toHaveCount(0);
 
   // The real functions of this repository: no warning, and the same form works.
   await page.unroute('**/functions/v1/create-user');
   await page.unroute('**/functions/v1/reset-password');
-  const asked = page.waitForResponse((r) => r.url().endsWith('/functions/v1/reset-password') && r.request().method() === 'GET');
-  await page.reload();
+  const asked = page.waitForResponse((r) => r.url().endsWith('/functions/v1/create-user') && r.request().method() === 'GET');
+  await page.goto('/hr/joiners/new');
   expect((await asked).headers()['x-grainveda-function']).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-  await expect(page.getByTestId('user-row').first()).toBeVisible();
+  await expect(page.getByLabel('Full name')).toBeVisible();
   await expect(warning).toHaveCount(0);
-  await page.getByLabel('Name').fill(`Somebody ${u}`);
-  await page.getByLabel('Mobile').fill(`96${u}22`);
-  await page.getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByTestId('temp-password')).toContainText(`+9196${u}22`);
-  await expect(page.getByTestId('user-row').filter({ hasText: `Somebody ${u}` })).toContainText('linked');
+  await page.getByLabel('Full name').fill(`Somebody ${u}`);
+  await page.getByLabel('Join date').fill(todayIST());
+  await page.getByLabel('Personal email').fill(mail);
+  await page.getByRole('button', { name: 'Save and create sign-in' }).click();
+  await expect(page.getByTestId('temp-password')).toContainText(mail);
+  await expect(page.getByTestId('joiner-made')).toContainText(/invite sent · awaiting first sign-in/i, { useInnerText: true });   // (a badge: shown in capitals)
   await signOut(page);
 });
 
 // FIX_LIST fault 33 (5 October 2026, reported by Veda from the deployed app): Admin → Clients → Create answered "Not
 // allowed for your role or stage." for the admin. No client had ever been created from the screen: the demo clients
 // come from a seed. The read rule on clients could not see a row in the statement that inserts it (migration 30).
-test('An admin adds a client from the screen; a State Manager adds one in the own state; the new client can be given a manager', async ({ page }) => {
+test('An admin adds a client from the screen; a State Manager adds one in the own state', async ({ page }) => {
   test.setTimeout(120_000);
   const u = uniq(); const code = `C${u.slice(-4)}`; const name = `Terai Exports ${u}`;
   await signIn(page, USERS.admin);
@@ -92,15 +98,10 @@ test('An admin adds a client from the screen; a State Manager adds one in the ow
   await form.getByRole('button', { name: 'Create' }).click();
   await expect(form.getByRole('alert')).toContainText('This already exists');
   await expect(page.getByRole('row').filter({ hasText: code })).toHaveCount(1);
-  // the new client can be given its Client Manager
+  // the old one-form "Users" page is gone: its address lands on People & access, which creates nobody
   await page.goto('/users');
-  await page.getByLabel('Role').selectOption('client_manager');
-  await page.getByLabel('Name').fill(`Manager ${u}`);
-  await page.getByLabel('Email').fill(`manager${u}@example.test`);
-  await page.getByLabel('Client').selectOption({ label: name });
-  await page.getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByTestId('temp-password')).toContainText(`manager${u}@example.test`);
-  await expect(page.getByTestId('user-row').filter({ hasText: `Manager ${u}` })).toContainText(name);
+  await expect(page.getByRole('heading', { name: /People & access/ })).toBeVisible();
+  await expect(page.getByLabel('Role', { exact: true })).toHaveCount(0);
   await signOut(page);
 
   await signIn(page, USERS.sm);
@@ -116,25 +117,13 @@ test('An admin adds a client from the screen; a State Manager adds one in the ow
 });
 
 // Everything before this test ran on demo data that a seed puts in place: the client, its scopes and its people were
-// never made from the screens. Both faults Veda reported from staging (32, 33) were in exactly that: setting a client
-// up by hand. This is that path from nothing, through the screens only: a new client, its manager, a scope, three
-// new people, a farmer, and the first lot to its public page.
-test('A brand-new client, set up from the screens only: manager, scope, people, farmer, first lot sealed', async ({ page }) => {
-  test.setTimeout(300_000);
-  const u = uniq(); const code = `N${u.slice(-4)}`; const client = `Naya Client ${u}`; const mail = `naya${u}@example.test`;
-  const temp = async () => (await page.getByTestId('temp-password').textContent())!.match(/: (Gv-[A-Za-z0-9_-]+) —/)![1];
-  const firstSignIn = async (id: { email?: string; phone?: string }, tempPw: string, own: string) => {
-    await page.goto('/'); await page.evaluate(() => localStorage.clear()); await page.goto('/');
-    if (id.email) await page.getByRole('tab', { name: /Email/ }).click();
-    await page.getByLabel(id.email ? 'Email' : 'Phone').fill(id.email ?? id.phone!);
-    await page.getByLabel('Password').fill(tempPw);
-    await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByTestId('must-change')).toBeVisible();
-    await page.getByLabel('New password', { exact: true }).fill(own);
-    await page.getByLabel('New password again').fill(own);
-    await page.getByRole('button', { name: 'Set password' }).click();
-    await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
-  };
+// never made from the screens. This is that path from nothing, through the screens only, in the order the identity
+// layer prescribes: the admin makes the client; HR adds four people (and gives them nothing); the State Manager gives
+// one of them the client's account; that manager opens a scope and gives the other three their stages; a farmer; the
+// first lot to its public page.
+test('A brand-new client from nothing: HR adds the people, managers give them access, the first lot is sealed', async ({ page }) => {
+  test.setTimeout(420_000);
+  const u = uniq(); const code = `N${u.slice(-4)}`; const client = `Naya Client ${u}`;
   const reviewSave = async (pattern: RegExp) => {
     await expect(page.getByTestId('preview-ok')).toBeVisible();
     await page.getByRole('button', { name: 'Review' }).click();
@@ -150,7 +139,7 @@ test('A brand-new client, set up from the screens only: manager, scope, people, 
     await expect(page.locator('.alert.ok', { hasText: 'Verified' })).toBeVisible();
   };
 
-  // 1. admin: the client and its manager
+  // 1. the admin: the client
   await signIn(page, USERS.admin);
   await page.goto('/clients');
   await page.locator('form').getByLabel('Name').fill(client);
@@ -158,40 +147,77 @@ test('A brand-new client, set up from the screens only: manager, scope, people, 
   await page.locator('form').getByLabel('State').selectOption({ label: 'Uttar Pradesh' });
   await page.locator('form').getByRole('button', { name: 'Create' }).click();
   await expect(page.getByRole('row').filter({ hasText: client })).toBeVisible();
-  await page.goto('/users');
-  await page.getByLabel('Role').selectOption('client_manager');
-  await page.getByLabel('Name').fill(`Naya Manager ${u}`);
-  await page.getByLabel('Email').fill(mail);
-  await page.getByLabel('Client').selectOption({ label: client });
-  await page.getByRole('button', { name: 'Create' }).click();
-  const managerTemp = await temp();
   await signOut(page);
 
-  // 2. the manager: own password, a scope with the shortest chain, a new person at each stage, activate
-  await firstSignIn({ email: mail }, managerTemp, `Manager-${u}`);
+  // 2. HR: four people, once each, as identities. The form has no field that could give access to anything.
+  await signIn(page, USERS.hr);
+  await page.goto('/hr/joiners/new');
+  await expect(page.getByLabel('Full name')).toBeVisible();
+  for (const label of ['Client', 'Scope', 'State', 'Role', 'Stages']) await expect(page.getByLabel(label, { exact: true })).toHaveCount(0);
+  const who = {
+    manager: { name: `Naya Manager ${u}`, email: freshEmail('manager'), type: 'full_time', title: 'Client Lead' },
+    procurement: { name: `Naya Kharid ${u}`, email: freshEmail('kharid'), type: 'contract', title: 'Field Associate' },
+    qc: { name: `Naya Jaanch ${u}`, email: freshEmail('jaanch'), type: 'contract', title: 'Field Associate' },
+    qr: { name: `Naya Mohar ${u}`, email: freshEmail('mohar'), type: 'contract', title: 'Field Associate' },
+  };
+  const made: Record<string, { id: string; temp: string }> = {};
+  for (const [k, p] of Object.entries(who)) {
+    made[k] = await addJoiner(page, p);
+    await page.getByTestId('activate').click();                                 // "Mark as joined": the person is an employee now
+    await expect(page.getByTestId('activate')).toHaveCount(0);
+    await expect(page.locator('main p.row').first()).toContainText('Active');
+  }
+  // HR sees the people it made and has no way to assign them
+  await page.goto(`/people/${made.procurement.id}`);
+  await expect(page.getByTestId('no-assignments')).toBeVisible();
+  await expect(page.getByTestId('give-assignment')).toHaveCount(0);
+  await signOut(page);
+
+  // 3. an employee nobody has assigned: signs in, chooses a password, and is told calmly to wait
+  await signInWith(page, who.procurement.email, made.procurement.temp);
+  await setOwnPassword(page, `Kharid-${u}`);
+  await expect(page.getByTestId('no-assignment')).toContainText('A manager will assign you to your work soon', { useInnerText: true });
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Farmers' })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /Scopes/ })).toHaveCount(0);
+  await signOut(page);
+
+  // 4. the State Manager gives one of them the new client's account (the client is homed in the manager's state)
+  await signIn(page, USERS.sm);
+  await page.goto(`/people/${made.manager.id}`);
+  await page.getByTestId('give-assignment').click();
+  await page.getByRole('tab', { name: "A client's account" }).click();
+  await page.getByLabel('Client', { exact: true }).selectOption({ label: client });
+  await page.getByTestId('assign-save').click();
+  await expect(page.getByTestId('assignment')).toContainText(client);
+  await expect(page.getByTestId('assignment')).toContainText('Client account');
+  await signOut(page);
+
+  // 5. that manager: own password, a scope with the shortest chain, a person from the pool at each stage, activate
+  await signInWith(page, who.manager.email, made.manager.temp);
+  await setOwnPassword(page, `Manager-${u}`);
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await expect(page.getByTestId('tb-context')).toHaveText(client);
   await page.goto('/scopes/new');
   await page.getByLabel(/Geography/).fill(`Maharajganj ${u}`);
+  await expect(page.locator('#wz-state option:checked')).toHaveText("Uttar Pradesh (client's home state)");
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByLabel('Crop').selectOption({ label: 'Kalanamak rice' });
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByTestId('chain-preview')).toContainText('Procurement (farm-gate) → Quality Control → QR Activation (seal)');
   await page.getByRole('button', { name: /Save draft/ }).click();
   await expect(page.getByRole('heading', { name: new RegExp(`Maharajganj ${u}`) })).toContainText('Draft');
-  const people: Record<string, { phone: string; temp: string }> = {};
-  for (const [stage, label, n] of [['procurement', /Procurement/, '31'], ['qc', /Quality Control/, '32'], ['qr', /QR Activation/, '33']] as const) {
-    await page.getByRole('row', { name: label }).getByRole('button', { name: '+ new person' }).click();
-    await page.getByLabel('Name').fill(`Naya ${stage} ${u}`);
-    await page.getByLabel('Mobile').fill(`95${u}${n}`);
-    await page.getByRole('button', { name: 'Create' }).click();
-    await expect(page.getByRole('row', { name: label })).toContainText(`Naya ${stage} ${u}`);
-    people[stage] = { phone: `9195${u}${n}`, temp: await temp() };
+  await expect(page.getByTestId('roster-gaps')).toContainText('3 stage(s) with nobody');
+  await expect(page.getByRole('button', { name: '+ new person' })).toHaveCount(0);                 // a manager creates nobody
+  for (const [label, k] of [['Assign Procurement (farm-gate)', 'procurement'], ['Assign Quality Control', 'qc'], ['Assign QR Activation (seal)', 'qr']] as const) {
+    await page.getByLabel(label).selectOption({ label: who[k].name });
+    await expect(page.getByTestId('slots').getByRole('link', { name: who[k].name })).toBeVisible();
   }
+  await expect(page.getByTestId('roster-covered')).toBeVisible();
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Activate scope' }).click();
   await expect(page.getByRole('heading', { name: new RegExp(`Maharajganj ${u}`) })).toContainText('Active');
 
-  // 3. the manager registers a farmer; the State Manager verifies; the Farmer ID carries the new client's code
+  // 6. the manager registers a farmer; the State Manager verifies; the Farmer ID carries the new client's code
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(`Ramkali ${u}`);
   await page.getByLabel('Father / husband name *').fill('Shri Bhola');
@@ -211,8 +237,8 @@ test('A brand-new client, set up from the screens only: manager, scope, people, 
   await expect(page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` })).toContainText(new RegExp(`${code}-F-0001`));
   await signOut(page);
 
-  // 4. the three new people, each with an own password: buy, test, seal
-  await firstSignIn({ phone: people.procurement.phone }, people.procurement.temp, `Kharid-${u}`);
+  // 7. the three people, each with an own password, each holding one stage of one scope: buy, test, seal
+  await signInWith(page, who.procurement.email, `Kharid-${u}`);
   await page.getByTestId('slot-procurement').click();
   await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Ramkali');
   await page.getByRole('button', { name: new RegExp(`Ramkali ${u}`) }).click();
@@ -223,7 +249,8 @@ test('A brand-new client, set up from the screens only: manager, scope, people, 
   const lot = await reviewSave(new RegExp(`${code}-KNM-[A-Z0-9]+-P-0001`));
   await signOut(page);
 
-  await firstSignIn({ phone: people.qc.phone }, people.qc.temp, `Jaanch-${u}`);
+  await signInWith(page, who.qc.email, made.qc.temp);
+  await setOwnPassword(page, `Jaanch-${u}`);
   await page.getByTestId('slot-qc').click();
   await verify(lot);
   await page.getByRole('button', { name: /Record Quality Control/ }).click();
@@ -234,53 +261,17 @@ test('A brand-new client, set up from the screens only: manager, scope, people, 
   const tested = await reviewSave(new RegExp(`${code}-KNM-[A-Z0-9]+-QC-0001`));
   await signOut(page);
 
-  await firstSignIn({ phone: people.qr.phone }, people.qr.temp, `Mohar-${u}`);
+  await signInWith(page, who.qr.email, made.qr.temp);
+  await setOwnPassword(page, `Mohar-${u}`);
   await page.getByTestId('slot-qr_activation').click();
   await verify(tested);
   await page.getByRole('button', { name: 'Activate and seal' }).click();
   const qr = (await page.getByTestId('sealed').textContent())!.match(/GV-[0-9A-F]{12}/)![0];
   await signOut(page);
 
-  // 5. anyone with the QR: the public page of the new client's first lot
+  // 8. anyone with the QR: the public page of the new client's first lot
   await page.goto(`/verify/${qr}`);
   await expect(page.locator('main, body').first()).toContainText(`Ramkali ${u}`);
   await expect(page.locator('main, body').first()).toContainText('Nichlaul');
   await expect(page.locator('body')).not.toContainText(`94${u}41`);              // never the farmer's phone
-});
-
-// 5 Oct 2026: operators can sign in with email + password, so a pilot works without enabling the Twilio-gated Phone
-// provider. The number stays optional. Here an admin makes an operator with an email (no number) and the operator
-// signs in on the Email tab. Before this change the create-user function refused an operator without a phone.
-test('An operator can be created with an email and sign in on the Email tab (no phone number, no SMS)', async ({ page }) => {
-  test.setTimeout(120_000);
-  const u = uniq();
-  const mail = `operator${u}@grainveda.in`;
-  const temp = async () => (await page.getByTestId('temp-password').textContent())!.match(/: (Gv-[A-Za-z0-9_-]+) —/)![1];
-
-  await signIn(page, USERS.admin);
-  await page.goto('/users');
-  await page.getByLabel('Role').selectOption('operator');
-  await page.getByLabel('Name').fill(`Email Operator ${u}`);
-  await page.getByLabel('Email').fill(mail);                       // the operator's email; the Mobile box is left empty
-  await page.getByLabel('Client').selectOption({ label: 'GrainVeda (Prasaadam trade scope)' });
-  await page.getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByTestId('temp-password')).toContainText(mail);
-  const tempPw = await temp();
-  await expect(page.getByTestId('user-row').filter({ hasText: `Email Operator ${u}` })).toContainText('linked');
-  await signOut(page);
-
-  // sign in on the Email tab with the temporary password, then choose an own one
-  await page.goto('/'); await page.evaluate(() => localStorage.clear()); await page.goto('/');
-  await page.getByRole('tab', { name: /Email/ }).click();
-  await page.getByLabel('Email').fill(mail);
-  await page.getByLabel('Password').fill(tempPw);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByTestId('must-change')).toBeVisible();
-  await page.getByLabel('New password', { exact: true }).fill(`Khet-${u}`);
-  await page.getByLabel('New password again').fill(`Khet-${u}`);
-  await page.getByRole('button', { name: 'Set password' }).click();
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
-  await page.goto('/account');
-  await expect(page.getByTestId('account-me')).toContainText('Operator');
-  await signOut(page);
 });

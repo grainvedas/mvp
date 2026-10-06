@@ -3,8 +3,11 @@
 //   ENV_FILE=.env.production node scripts/bootstrap_admin.mjs --email veda@example.com --name "Veda"
 // ENV_FILE names the git-ignored file that holds that project's SUPABASE_URL, anon key and service-role key.
 //
-// - Refuses if the project already has an admin (add more people from the Users screen). To add a second admin on
-//   purpose: --additional.
+// - Refuses if the project already has an admin (people are added by HR in the app: HR · Joiners → Add joiner).
+//   To add another admin on purpose: --additional. That is also the BREAK-GLASS tool when every admin is locked out
+//   (docs/OPERATIONS.md "Seats, and break glass"): nothing in the app can make an admin.
+// - Since the identity layer (migration 31) the admin is a system role. The row is written the way a seed writes it
+//   (role = admin, no signed-in person); the database turns it into the root seat and notes it in the audit log.
 // - The login is created confirmed through the Auth admin API (no e-mail is sent), marked as made by the service
 //   role (login linking, migration 23) and marked "must set an own password".
 // - The temporary password is NOT printed. It is written to .env.admin-login (git-ignored by `.env.*`): open the file,
@@ -29,10 +32,11 @@ const authHeaders = { apikey: cfg.service, Authorization: `Bearer ${cfg.service}
 const env = await environmentOf(cfg);
 console.log(`project: ${cfg.url}  (environment: ${env})`);
 
-const admins = await svc.get('app_users', 'role=eq.admin&select=id,display_name,active');
+// (role is the summary the database keeps in step with the system role: it reads the same before and after migration 31)
+const admins = await svc.get('app_users', 'role=eq.admin&active=is.true&select=id,display_name,active');
 if (!admins.ok) { console.error(`cannot read app_users (${admins.status}). Are all migrations pushed and is the service key right?`); process.exit(1); }
 if (admins.data.length > 0 && !additional) {
-  console.error(`REFUSED: this project already has ${admins.data.length} admin(s). Add people from the Users screen, or pass --additional.`);
+  console.error(`REFUSED: this project already has ${admins.data.length} admin(s). People are added in the app (HR · Joiners → Add joiner). To add another admin on purpose (break glass): --additional.`);
   process.exit(3);
 }
 const taken = await svc.get('app_users', `email=ilike.${encodeURIComponent(email)}&select=id`);

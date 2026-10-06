@@ -995,3 +995,182 @@ NOT run / not known:
   (build 2026-10-05, run-sheet A6) are deployed.
 - No real field trial of operators typing an email on a phone; the field-usability trade-off (email vs number) stands.
 - The demo seed still makes operators with phone numbers; email operators are exercised only by the new test.
+
+
+## 2026-10-06 — Identity and authorization layer: migrations 31 to 33, four server functions, the people screens; local stack only
+
+Veda's build prompt of 5 October ("GrainVeda — Identity & Authorization Layer"); her four answers the same day: the
+once-a-day code built and switched off; identity numbers as last four plus documents in a private store; the client's
+own login kept, outside HR; everything in one delivery. What it is: `docs/IDENTITY_DESIGN.md`. Run-sheet:
+`docs/RUNSHEET_phase5.md`. New build, not fault fixes, except the lines marked "fault" below.
+
+What changed:
+- **Database.** `20261006000100_identity_schema` (status, system role, assignments, org facts, masked identity details,
+  HR files, checklist templates and tasks, audit log, the code's tables; existing people moved to assignments),
+  `…000200_union_access` (every access rule from the system role and live assignments; sixteen record functions ask
+  about the scope in hand; store `hr-docs`), `…000300_people_lifecycle` (the actions). Seed 06 (HR seats, a joiner, an
+  unassigned employee, the same client's scope in Assam).
+- **Server functions.** `create-user` rewritten (joiner or client login), `daily-code` new, `_shared/mail.ts`; all four
+  build 2026-10-06; `FUNCTIONS_NEEDED` with it. The local stack gained a mail stand-in.
+- **Web.** `pages/hr`, `pages/onboarding`, `pages/people`, `pages/system`, `auth/DailyCode.tsx`, `lib/people.ts`;
+  `Home.tsx` (which first screen), `Layout.tsx` (menu from what the server says a person may do), `scope.tsx`,
+  `Scopes.tsx` (state and season end; the People step picks from the pool), `Admin.tsx` (Users page removed). 421 new
+  strings in English and Hindi.
+- **Fault 35** (was open item 5): a list reloaded by an action that finished after the person changed tab showed the
+  old tab's rows (`lib/useAsync.ts`).
+- **Scripts.** `backup.mjs` and `restore_evidence.mjs` carry HR documents; `restore_drill.mjs` empties what the
+  migrations filled before loading; `bootstrap_admin.mjs` is also the break-glass tool; `check_functions.mjs` knows
+  four functions. `tests/run_local.*` gained the **upgrade path** step; `tests/remote_ledger_audit.sql` knows the
+  assignment blocks; `tests/remote_smoke.sql` has 30 rows.
+
+What ran, all on the local stack, the last time from a clean rebuild (`scripts/collect_release_evidence.sh --fresh`,
+"EVERY LOCAL CHECK RAN GREEN"):
+- `tests/run_local.sh`: **ALL TESTS PASSED, 878 assertions** (557 before this layer). New files: 23 identity layer 53,
+  24 union access 67, 25 people lifecycle 100, 26 onboarding 60, 27 sign-in code 28. Production build: 8 checks.
+  **Upgrade path: the later migrations apply to a database in use, and all 27 test files pass on it.**
+- `npx tsc -b --noEmit` clean. `npx vitest run`: **193 passed** in 9 files (150 before): `identity.test.ts` 29,
+  `use_async.test.tsx` 2, `functions.test.ts` 33.
+- `npx playwright test`: **53 passed, twice in a row** (46 before). `phase7` (3): a failed server function names the
+  server; a client added from the screen; **a brand-new client from nothing** (the admin makes the client, HR adds four
+  people, the State Manager gives the client's account, that manager opens a scope and gives the stages, a farmer, the
+  first lot sealed and on its public page). `phase8` (8): a joiner from invite to first day on a phone; the new
+  screens on a phone and in Hindi; the sign-in code; directory and lenses; assigning; suspend / offboard / re-hire;
+  state overview and roster; seats and audit log.
+- `npx playwright test -c playwright.prod.config.ts`: **14 passed**. Public page first load **192 KB** of 200 (176
+  before: limit K13), 1.8 s on throttled 3G. Lighthouse accessibility 100.
+- Acceptance rehearsal T1 to T5 against the built app: 5 passed, twice.
+- `tests/remote_rls.mjs --t1`: **192 passed, 0 failed** (121 before). `tests/remote_create_user.mjs`: **84 passed**
+  (29 before): joiner, client login, the HR store, resets, offboard, public sign-up, the code with the mail stand-in.
+- `tests/remote_ledger_check.mjs --tamper-local` passed. Ledger audit: NO FINDINGS (936 blocks, 279 records, 43 seals).
+  Smoke: 29 of 30 rows OK (the thirtieth is `pg_cron`, which a plain Postgres does not have).
+- `node scripts/restore_drill.mjs`: RESTORE DRILL PASSED (identical to the source; HR documents re-hashed).
+- `scripts/bootstrap_admin.mjs --additional` on the stack: a second admin, linked, system role admin, one audit line.
+- **Upgrade rehearsal by hand** on a database at migration 30 with the demo people, a sealed T1 lot, a switched-off
+  person, a State Manager of two states and an operator with a login and no stage; then 31 to 33, one transaction
+  each. After: everyone's role, client and states as before except the two operators who held no stage (they belong
+  to no client now: the pool); switched-off people are suspended; 27 stage rows each tied to an assignment; the ledger
+  has the same 71 blocks and verifies; the sealed lot is still on its public page; ledger audit NO FINDINGS.
+
+Controls (a check that cannot fail proves nothing):
+- 21 database rules broken one at a time in a copy of the built database; the named test file failed each time. Among
+  them: HR may assign; any HR manages anyone; the audit log can be edited; two HR Admins; the last admin removed;
+  interns get the statutory task; a full PAN stored; a complete checklist does not make the joiner active; any code
+  passes; the code gate left open; a person inserted or changed through the API; the summary hand-edited; an ended
+  assignment reopened; the uploader, or anyone, reads HR documents; uploads into another person's folder; access
+  counted whatever the holder's status; and the four of 24_union_access (a global "is a manager" check, status
+  ignored, the state lens through the client's home state, lapse ignored).
+- 3 screen rules broken one at a time (the Assign link drawn for everyone; the whole PAN sent; a joiner's first
+  screen is the work): the browser test for each failed.
+- `use_async.test.tsx` fails on the hook as it was. The upgrade step fails on migration 31 as it was. The ledger audit
+  still reports an assignment block that points at no assignment.
+
+The Windows runner, run under PowerShell 7.4 on Linux (`psql`, `createdb`, `dropdb` behind `.exe` shims) before the
+files were written into the folder:
+- **Fault 36: it could not fail.** With a test file that prints one row and then fails, the runner as it was printed
+  `ALL TESTS PASSED`, exit code 0 (the ERROR line was on the screen, the verdict ignored it). Fixed; with the same
+  file the runner now prints `FAILED tests/99_control.sql`, `FAILED upgrade path`, `SOME TESTS FAILED`, exit code 1.
+- The runner's new self-test stops the runner as it was ("a failing file was reported as passed").
+- Clean run: `ALL TESTS PASSED`, exit 0, 878 checks, the upgrade line present. With migration 31 as it was: `FAILED
+  upgrade: …identity_schema.sql does not apply to a database in use`, exit 1.
+
+Found before delivery, by rehearsing the upgrade and by the full run from a clean build (FIX_LIST, "Found by…"):
+- **Migration 31 stopped on any database with a stage row in it.** All 870 checks of that moment passed with the
+  fault in place. Fixed; the runners now rehearse the upgrade every time.
+- The ledger audit reported the new assignment blocks; the restore drill failed on rows the migration itself writes;
+  the lost-phone test switched a person off by a route that is closed now; HR documents were missing from the backup.
+- Seen once and not again: in the first full run of the evening, T5 stopped at a sign-in of the QC technician (the
+  menu did not appear within 10 s). No error in the sign-in server's or the database's log; the trace was overwritten
+  by the next run. It passed in the two full runs after it, four repeats on its own and four acceptance runs
+  (FIX_LIST open item 23).
+
+NOT run / not known:
+- **Nothing on staging or production.** The move of real people, the four functions on the hosted project, and
+  Supabase Storage's handling of the `hr-docs` rules (upload allowed, reading back refused for the uploader) are
+  checked there by run-sheet part D and steps E5 to E7.
+- `tests/run_local.ps1` (the Windows runner) has not run on Windows itself, nor under Windows PowerShell 5.1; it
+  was run here under PowerShell 7.4 on Linux (below). Run-sheet step D1 is its first run on the Windows machine.
+- No mail was ever sent to a real address: the invite note and the code were tested against the local stand-in.
+- No person other than the builder has looked at the screens; no real phone. The Hindi (421 new strings) is unread.
+- Three behaviour changes wait for Veda's yes or no (FIX_LIST G10 to G12); a mail sender is undecided (G13).
+
+
+## 2026-10-06 (later) — Part D as one command: `scripts/staging_phase5.ps1`
+
+Why: Veda asked Claude to run part D itself. Claude cannot type into a terminal on her computer (the desktop bridge
+gives terminals and IDEs look-and-click access only, and offers no shell there), and the sandbox cannot reach
+Supabase. So the 25 lines became one script with the run-sheet's "Expect" built in, started by one double-click.
+
+What ran, all in the sandbox (PowerShell 7.4 on Linux, the hosted tools replaced by stand-ins that print what the
+real ones print; `git` real, against a local remote; D1 against a real scratch PostgreSQL 16):
+- The whole run to the end: every step `OK`, D12 `NOT RUN`, a commit of 19 files pushed, exit code 0.
+- **44 scenarios with one thing wrong each, every one stopped at the right step** (or went on where it should):
+  the linked project answering `production` or nothing (D0, nothing sent); an older or a missing migration in the
+  dry run, the dry run failing (D2, nothing sent); the push failing (D3); a function failing to deploy (D4); a broken
+  ledger, an old rule, three rows missing, a result `OKAY-ISH` (D5), each of them also in six output layouts (plain
+  table, boxed table, JSON on several lines, JSON on one line, CSV, Markdown) because the layout of
+  `supabase db query` on the Windows machine is not known here; the HR store public or absent (D6; `-SkipCheck`
+  does not let a public store through); an audit finding (D6b); no active admin (D8); the seed refusing, a new demo
+  person not linked, the login script failing (D9); a login without a person (D10); a type error, a failing unit
+  test (D11, nothing committed); T1 failing (D12). Phone sign-ins not linked (provider off) and the three standing
+  smoke rows go on, with a note.
+- 11 more: a migration changed by one line, a function file missing, a 34th migration file (D0, nothing sent); the
+  same file with Windows line ends (accepted: it is the same file); functions not current (one more ask after 30 s,
+  then D4); `.env` not ignored any more (D11b, nothing committed); a file named `my.environment.md` (not a secret:
+  goes through); no remote (D11b: committed here, not pushed); nothing to commit; no `node_modules` (`npm ci`).
+- D1: a clean run (`ALL TESTS PASSED`, upgrade line, scratch server made on a free port, stopped, folder removed);
+  a test file made to fail (stopped at D1, nothing sent); no tools, an old PostgreSQL 13, `initdb` failing (each
+  `NOT RUN` with the reason, the run goes on).
+
+NOT run / not known:
+- **The script has not run on Windows, nor under Windows PowerShell 5.1, and never against the hosted project.**
+  Unproven there: how `cmd` hands the lines over, the layout `supabase db query` prints, starting and stopping the
+  scratch PostgreSQL (`Start-Process`), and whether the tools ask for a sign-in. Its first hosted call (D0) only
+  reads; a surprise there stops it before anything is sent.
+
+### First run on staging: 6 October 2026, 14:06 (Veda's computer, Windows, Supabase CLI 2.118.0, Node 20.18)
+
+Read from the record `release-evidence/staging-phase5-20261006-140609.log`. This is the first time anything of the
+identity layer ran on a hosted project, and the first run of the script on Windows.
+- D0 **OK**: the 15 files are the tested ones; 33 migration files; the linked project answered `environment=staging`.
+- D1 **NOT RUN**: no PostgreSQL 16 or 17 tools on that computer (FIX_LIST open item 25).
+- D2 **OK**: the dry run listed exactly migrations 31, 32, 33.
+- D3 **OK**: `Applying migration …identity_schema.sql`, `…union_access.sql`, `…people_lifecycle.sql`, `Finished supabase
+  db push.` Migration 31 moved the people and stage rows of a database in use without a refusal: the case the
+  upgrade rehearsal was added for.
+- D4: the four functions deployed (`Deployed Functions on project …` four times); `check_functions`: `create-user`,
+  `reset-password`, `daily-code` `ok … build 2026-10-06`; `ledger-check` on build 2026-10-06 **but "its secrets are
+  not set"**. **The script stopped here.** The cause is older than today: the ledger-check token was never set on
+  staging (FIX_LIST open item 24). The script was wrong to stop for a standing setting; it now lists it and goes on
+  (six more scenarios: only that → goes on; that plus another function not ready, ledger-check on an old build,
+  another function stale → stops; rerun with nothing left to push → goes on without pushing; 50 scenarios in all).
+- **Not run yet on staging: D5 to D11** (smoke check, HR store, ledger audit, the lists of people, demo people and
+  logins, type check and unit tests, commit and push). **State of staging between the two runs: database and
+  functions new, app old**: the old Users & Roles page does not work there until the app is pushed.
+- Learned about the machine: `supabase db query` prints a boxed table (one of the six layouts tested); functions
+  deploy without Docker; no tool asked for a sign-in.
+
+### Second run on staging: 6 October 2026, 14:16 (record `…-141634.log`)
+
+- D0 OK · D1 NOT RUN (as before) · D2 OK: nothing left to push · D3: nothing to do.
+- D4 **OK**: four functions deployed again, all `build 2026-10-06`; the ledger-check token listed as standing.
+- D5 **OK: 30 rows of 30 `OK`**, among them `ledger chain intact`, `identity layer objects`, `people moved to
+  assignments` (`OK 41 live assignments`), `the two seats` (`OK 1 admin, HR Admin seat VACANT`), `manager rules ask
+  about the scope`, `people written only by their actions`, `once-a-day sign-in code` (`OK off`), and the three
+  standing rows (`demo data`, `auth.uid mapping`, `nightly ledger check`: all `OK`).
+- D6 **OK**: `hr-docs`, `public = false`. D6b **OK**: `NO FINDINGS (91 blocks, 6 records, 2 seals, 0 evidence files
+  checked)`: the 41 assignments were written without a ledger block the audit cannot place.
+- D7: **zero rows**: nobody on staging who can sign in was left without an assignment by the move.
+- D8 (before the demo seed): `admin · active · 1`, `operational · active · 7`, `operational · suspended · 19`. The 19
+  are the people who were switched off before today (test users of earlier phases); they came across as Suspended.
+- D9 **OK**: seed 06 applied; logins: 15 `existing, unchanged`, **316 to 319 `created`**, all 19 `linked yes`, `ALL
+  DEMO LOGINS CREATED AND LINKED` (so `create-user`'s rule, a service-made login links to its person, holds on the
+  hosted project; the phone logins are linked too). D10 **OK**: `logins: 31 people: 31`, `NO LOGIN WITHOUT A PERSON`.
+- D11: `npx tsc -b --noEmit` **passed** (exit 0). `npx vitest run` **could not start**: `ERR_REQUIRE_ESM` nine times,
+  "no tests", 9 errors, on Node 20.18.0 (FIX_LIST open item 26). **The script stopped here; the app was not pushed.**
+  Not a failing test: no test ran. The script now tells the two apart: when no test can start on an old Node and
+  the app's 78 files are the tested ones (`scripts/tested_app_files.txt`), it marks D11 NOT RUN and goes on.
+  Checked here: goes on (Node 20.18, and 22.11); stops when Node is new enough, when a test really fails, when
+  failures and the loading error come together, when one app file is changed, new or missing, when the list is
+  edited or missing; Windows line ends are accepted. 55 scenarios in the table run and 8 beside it.
+  The unit tests ran here again on the same 78 files (sizes equal to the folder's): 9 files, 193 passed, Node 22.22.
+- **Not run yet on staging: the commit and the push (D11b), so the app there is still the old one.**

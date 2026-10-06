@@ -27,7 +27,7 @@ const d = (r) => JSON.stringify(r.data)?.slice(0, 160);
 // ---- ground truth from the service key -------------------------------------------------------------------
 const [users, scopes, clients, slots, farmers] = await Promise.all([
   svc.get('app_users', 'select=id,role,client_id,state_ids,active'),
-  svc.get('scopes', 'select=id,client_id'),
+  svc.get('scopes', 'select=id,client_id,state_id'),
   svc.get('clients', 'select=id,state_id'),
   svc.get('slot_assignments', 'select=user_id,scope_id,stage_type'),
   svc.get('farmers', 'select=id,client_id'),
@@ -37,7 +37,8 @@ const clientState = Object.fromEntries(clients.data.map((c) => [c.id, c.state_id
 
 function expectedScopes(u) {
   if (u.role === 'admin') return scopes.data.length;
-  if (u.role === 'state_manager') return scopes.data.filter((s) => u.state_ids.includes(clientState[s.client_id])).length;
+  // migration 31: the state is a fact of the scope (a client may work in several states), not of the client
+  if (u.role === 'state_manager') return scopes.data.filter((s) => u.state_ids.includes(s.state_id)).length;
   if (u.role === 'client_manager' || u.role === 'client_view') return scopes.data.filter((s) => s.client_id === u.client_id).length;
   return new Set(slots.data.filter((x) => x.user_id === u.id).map((x) => x.scope_id)).size;
 }
@@ -66,7 +67,10 @@ for (const u of DEMO_USERS) {
   const s = sessions[u.key]; if (!s) continue;
   const row = users.data.find((x) => x.id === appUserId(u.key));
   const role = await s.app.rpc('current_role');
-  ok(role.ok && role.data === u.role, `${u.key} current_role() = ${u.role}`, d(role));
+  // The summary role. HR people, a person with no assignment and a joiner all read 'operator': what they may do
+  // comes from their system role and their assignments (checked further down), not from this word.
+  const summary = ['hr_admin', 'hr_resource', 'unassigned', 'joiner'].includes(u.role) ? 'operator' : u.role;
+  ok(role.ok && role.data === summary, `${u.key} current_role() = ${summary}`, d(role));
   const sc = await s.pub.count('scopes');
   ok(sc === expectedScopes(row), `${u.key} sees ${expectedScopes(row)} scope(s)`, `got ${typeof sc === 'number' ? sc : d(sc)}`);
   const fm = await s.pub.count('farmers');
@@ -127,6 +131,86 @@ if (sessions['303']) {
   ok(rs.ok && rs.data === false, 'a Client Manager may not reset the State Manager\'s password', d(rs));
   const er = await cm.pub.get('client_errors', 'select=id&limit=1');
   ok(refused(er), 'a Client Manager cannot read the field error log', d(er));
+}
+
+// ---- identity layer (migrations 31–33): HR makes people and sees no operation; managers assign and make nobody ------
+{
+  const employees = (await svc.get('app_users', 'select=id&external=is.false')).data.length;
+  const nobody = '00000000-0000-4000-8000-00000000ffff';
+  const joiner = { p: { full_name: 'Not Created', personal_email: 'not.created@example.test', join_date: '2027-01-01' } };
+  for (const key of ['316', '317']) {
+    const s = sessions[key]; if (!s) continue;
+    ok((await s.pub.count('app_users')) === employees, `${key} HR reads every employee (${employees}) and no client login`);
+    ok((await s.pub.count('footprints')) === 0 && (await s.pub.count('clients')) === 0 && (await s.pub.count('ledger', '', 'seq')) === 0,
+       `${key} HR reads no record, no client, no ledger`);
+    const a = await s.app.rpc('assign', { p_employee: appUserId('318'), p_lens: 'scope', p_target: '00000000-0000-4000-8000-000000000401', p_op_role: 'operator', p_stages: ['qc'] });
+    ok(!a.ok, `${key} HR cannot give an assignment`, d(a));
+    const p = await s.app.rpc('hr_pipeline');
+    ok(p.ok && p.data.some((x) => x.id === appUserId('319')), `${key} HR reads the joiner pipeline`, d(p));
+  }
+  for (const key of ['302', '303', '305', '304']) {
+    const s = sessions[key]; if (!s) continue;
+    const a = await s.app.rpc('add_joiner', joiner);
+    ok(!a.ok, `${key} cannot add a person (only HR does)`, d(a));
+    const h = await s.app.rpc('hr_pipeline');
+    ok(!h.ok, `${key} cannot open the HR pipeline`, d(h));
+    const docs = await s.pub.get('employee_docs', 'select=employee_id');
+    ok(refused(docs) || docs.data.every((x) => x.employee_id === appUserId(key)), `${key} reads nobody else's identity details`, d(docs));
+    const off = await s.app.rpc('offboard_person', { p_employee: appUserId('318'), p_exit_date: '2027-01-01' });
+    ok(!off.ok, `${key} cannot offboard anyone`, d(off));
+  }
+  for (const key of ['301', '302', '303', '305', '316']) {
+    const s = sessions[key]; if (!s) continue;
+    const ins = await s.pub.insert('app_users', { display_name: 'Planted', email: 'planted@example.test' });
+    ok(!ins.ok, `${key} cannot insert a person directly`, d(ins));
+    const asg = await s.pub.insert('assignments', { employee_id: appUserId('318'), lens: 'state', op_role: 'state_supervisor', state_id: '00000000-0000-4000-8000-000000000001' });
+    ok(!asg.ok, `${key} cannot write an assignment directly`, d(asg));
+    const aud = await s.pub.insert('audit_log', { action: 'forged' });
+    ok(!aud.ok, `${key} cannot write the audit log`, d(aud));
+    const upd = await s.pub.update('app_users', `id=eq.${appUserId('318')}`, { system_role: 'admin' });
+    ok(refused(upd), `${key} cannot set a system role by hand`, d(upd));
+  }
+  if (sessions['318']) {
+    const z = sessions['318'];
+    const c = await z.app.rpc('my_context');
+    ok(c.ok && c.data.user.status === 'active' && c.data.assignments.length === 0 && c.data.scopes.length === 0 && (await z.pub.count('clients')) === 0,
+       '318 an active person with no assignment sees nothing (the holding screen)', d(c));
+  }
+  if (sessions['319']) {
+    const j = sessions['319'];
+    const c = await j.app.rpc('my_context');
+    const t = await j.pub.get('onboarding_tasks', 'select=employee_id');
+    ok(c.ok && c.data.user.status === 'onboarding' && c.data.scopes.length === 0 && t.ok && t.data.length === 8 && t.data.every((x) => x.employee_id === appUserId('319')),
+       '319 a joiner sees her own eight tasks and no scope', d(c));
+    const done = await j.app.rpc('complete_task', { p_task: nobody });
+    ok(!done.ok, '319 a task that is not hers cannot be ticked', d(done));
+  }
+  if (sessions['303']) {
+    const cm = sessions['303'];
+    const dir = await cm.app.rpc('people_directory');
+    ok(dir.ok && dir.data.some((x) => x.id === appUserId('318') && x.unassigned) && !dir.data.some((x) => x.status === 'offboarded'),
+       '303 a Client Manager opens the people directory and finds the unassigned person', d(dir));
+    const far = await cm.app.rpc('assign', { p_employee: appUserId('318'), p_lens: 'state', p_target: '00000000-0000-4000-8000-000000000001', p_op_role: 'state_supervisor' });
+    ok(!far.ok, '303 a Client Manager cannot appoint a state supervisor', d(far));
+    const aud = await cm.app.rpc('audit_feed');
+    ok(!aud.ok && (await cm.pub.count('audit_log')) === 0, '303 a Client Manager reads no audit log', d(aud));
+    const seats = await cm.app.rpc('bootstrap_seats');
+    ok(!seats.ok, '303 a Client Manager cannot open the seats', d(seats));
+  }
+  if (sessions['305']) {
+    const dir = await sessions['305'].app.rpc('people_directory');
+    ok(!dir.ok, '305 an operator cannot open the people directory', d(dir));
+  }
+  if (sessions['301'] && sessions['316']) {
+    const a = await sessions['301'].app.rpc('audit_feed', { p_limit: 5 });
+    const h = await sessions['316'].app.rpc('audit_feed', { p_limit: 5 });
+    ok(a.ok && a.data.length > 0 && h.ok && h.data.length > 0, 'the admin and the HR Admin read the audit feed', d(a));
+    const seats = await sessions['301'].app.rpc('bootstrap_seats');
+    ok(seats.ok && seats.data.admins.length >= 1 && seats.data.hr_admin?.name === 'Asha (HR Admin)' && seats.data.daily_code.on === false,
+       'the admin reads the two seats; the once-a-day sign-in code is off', d(seats));
+  }
+  const drawn = await client(cfg, { key: cfg.anon, token: undefined, profile: 'app' }).rpc('issue_daily_code', { p_auth_uid: nobody });
+  ok(!drawn.ok, 'a visitor cannot draw a sign-in code', d(drawn));
 }
 
 const anonPub = client(cfg, { key: cfg.anon });

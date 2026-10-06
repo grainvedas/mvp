@@ -1,25 +1,30 @@
-// Edge Function logic: create a login for a new user (execution plan B5). Runtime-neutral: Supabase runs it through
-// index.ts (Deno.serve); the local stack runs it with Node (local-stack/functions.mjs).
+// Edge Function logic: make the LOGIN for a person HR has just created (identity layer, migrations 31–33).
+// Runtime-neutral: Supabase runs it through index.ts (Deno.serve); the local stack runs it with Node.
 //
-// Who may create whom is NOT decided here. The app_users row and the slot are inserted AS THE CALLER, so the same RLS
-// policies and the app_users guard (migrations 5 and 10) decide: admin > state manager > client manager > view/operator.
-// Only the Auth admin call needs the service key, and it runs after the database has accepted the caller's request.
+// Who may create whom is NOT decided here. The person is created by a database function called AS THE CALLER
+// (app.add_joiner: HR and the admin; app.add_client_viewer: whoever manages that client), which checks, writes the
+// row and the audit line. Only the Auth admin call needs the service key, and it runs after the database has said yes.
+// This function grants no access: a joiner starts with no scope, no client and no state. Access is given afterwards,
+// by a manager, as an assignment.
 //
-// POST { role, display_name, email? | phone?, client_id?, state_ids?, slot?: { scope_id, stage_type } }
-// 201  { app_user_id, login_id, sign_in, temporary_password }   (temporary password shown once, to the creator)
+// POST { kind: 'joiner', full_name, personal_email, join_date, phone?, employment_type?, designation_band?, department?,
+//        job_title?, reports_to?, buddy?, template_id?, system_role? }
+// POST { kind: 'viewer', client_id, display_name, email }                 (a client's own read-only login)
+// 201  { app_user_id, login_id, sign_in, temporary_password, invite_emailed }
+//      The temporary password is shown once, to the creator, who hands it over; the person sets their own at first sign-in.
 // GET  { function, version }                                    (which build is deployed: scripts/check_functions.mjs)
 //
 // THIS FUNCTION AND THE DATABASE GO TOGETHER. Since migration 23 the database links a login to a user row only if the
-// login carries app_metadata.grainveda_login. On 4 Oct 2026 staging had migration 23 and the function of 1 Oct, which
-// does not set that mark: every "New user" ended in "login created but not linked; both removed" (FIX_LIST fault 32).
-// Every answer now carries the build in the header x-grainveda-function, the app warns when it is missing or older
-// than it needs, and a link that fails says why.
+// login carries app_metadata.grainveda_login; since migration 31 nobody inserts a person directly. Every answer carries
+// the build in the header x-grainveda-function, the app warns when it is missing or older than it needs, and a link
+// that fails says why (FIX_LIST fault 32).
+import { mailConfigured, sendMail } from '../_shared/mail.ts';
 
 type Env = Record<string, string | undefined>;
 
-/** The build of the three functions (create-user, reset-password, ledger-check). Raise it in all three whenever one
- *  changes in a way the app or the database depends on, and FUNCTIONS_NEEDED in web/src/lib/api.ts with it. */
-export const VERSION = '2026-10-05';
+/** The build of the four functions (create-user, reset-password, ledger-check, daily-code). Raise it in all four
+ *  whenever one changes in a way the app or the database depends on, and FUNCTIONS_NEEDED in web/src/lib/api.ts with it. */
+export const VERSION = '2026-10-06';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -30,9 +35,6 @@ const cors = {
 };
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
-
-const MANAGER_ROLES = ['admin', 'state_manager', 'client_manager', 'client_view'];
-const ALL_ROLES = [...MANAGER_ROLES, 'operator'];
 
 export function normaliseMobile(p: string): string | null {
   const d = (p ?? '').replace(/[^0-9]/g, '');
@@ -74,6 +76,9 @@ function dbMessage(data: unknown, fallback: string): string {
   return d?.message ?? d?.msg ?? d?.error_description ?? fallback;
 }
 
+const JOINER_FIELDS = ['full_name', 'personal_email', 'phone', 'join_date', 'employment_type', 'designation_band', 'department',
+  'job_title', 'reports_to', 'buddy', 'template_id', 'system_role'];
+
 export async function handle(req: Request, env: Env): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   if (req.method === 'GET') return json(200, { function: 'create-user', version: VERSION });
@@ -93,40 +98,41 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return json(400, { error: 'body must be JSON' }); }
 
-  const role = String(body.role ?? '');
-  const displayName = String(body.display_name ?? '').trim();
-  const email = body.email ? String(body.email).trim().toLowerCase() : null;
-  const phone = body.phone ? normaliseMobile(String(body.phone)) : null;
-  if (!ALL_ROLES.includes(role)) return json(400, { error: `role must be one of ${ALL_ROLES.join(', ')}` });
-  if (!displayName) return json(400, { error: 'display_name is required' });
-  if (body.phone && !phone) return json(400, { error: 'phone must be a 10-digit Indian mobile number' });
-  // An operator signs in by phone + password OR email + password (5 Oct 2026: email added so operators can sign in
-  // without the Twilio-gated Phone provider). A manager always has an email. Everyone needs at least one of the two.
-  if (!phone && !email) return json(400, { error: 'a phone number or an email is required to sign in' });
-  if (role !== 'operator' && !email) return json(400, { error: 'managers sign in by email: email is required' });
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'email is not valid' });
-
-  const asCaller = { apikey: anon, authorization: `Bearer ${token}`, 'content-type': 'application/json', prefer: 'return=representation' };
-  const asService = { apikey: service, authorization: `Bearer ${service}`, 'content-type': 'application/json', prefer: 'return=representation' };
-
-  // 1. The caller inserts the user row: RLS + guard decide whether they may.
-  const row = {
-    role, display_name: displayName, email, phone,
-    client_id: body.client_id ?? null,
-    state_ids: Array.isArray(body.state_ids) ? body.state_ids : [],
-  };
-  const ins = await fetch(`${url}/rest/v1/app_users`, { method: 'POST', headers: asCaller, body: JSON.stringify(row) });
-  const insData = await ins.json().catch(() => null);
-  if (!ins.ok) {
-    const msg = dbMessage(insData, 'refused');
-    const status = ins.status === 401 || ins.status === 403 || /row-level security|may only manage/i.test(msg) ? 403
-      : /duplicate key|already exists/i.test(msg) ? 409 : 400;
-    return json(status, { error: status === 409 ? 'a user with this phone or email already exists' : msg });
+  const kind = String(body.kind ?? '');
+  if (kind !== 'joiner' && kind !== 'viewer') {
+    // The request of an app from before 6 Oct 2026 ({ role, display_name, … }): say what changed instead of a bare 400.
+    return json(400, { error: body.role !== undefined
+      ? 'people are now added by HR (HR → Add joiner) and given access by a manager afterwards: reload the app to get the new screens'
+      : 'kind must be joiner or viewer' });
   }
-  const appUser = (insData as Array<{ id: string }>)[0];
+  const name = String((kind === 'joiner' ? body.full_name : body.display_name) ?? '').trim();
+  const email = String((kind === 'joiner' ? body.personal_email : body.email) ?? '').trim().toLowerCase();
+  if (!name) return json(400, { error: 'a name is required' });
+  // The email is the sign-in. (A phone may be kept on a joiner's record; nobody signs in by it any more.)
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'a valid email is required: it is the sign-in' });
+  if (kind === 'joiner' && body.phone && !normaliseMobile(String(body.phone))) return json(400, { error: 'phone must be a 10-digit Indian mobile number' });
+
+  const asCaller = { apikey: anon, authorization: `Bearer ${token}`, 'content-type': 'application/json', 'content-profile': 'app' };
+  const asService = { apikey: service, authorization: `Bearer ${service}`, 'content-type': 'application/json', prefer: 'return=representation' };
+  const rpc = (fn: string, args: unknown) => fetch(`${url}/rest/v1/rpc/${fn}`, { method: 'POST', headers: asCaller, body: JSON.stringify(args) });
+
+  // 1. The database creates the person, as the caller: its rules decide whether they may.
+  const made = kind === 'joiner'
+    ? await rpc('add_joiner', { p: Object.fromEntries(JOINER_FIELDS.filter((k) => body[k] !== undefined && body[k] !== null && body[k] !== '').map((k) => [k, String(body[k])])) })
+    : await rpc('add_client_viewer', { p_client: String(body.client_id ?? ''), p_name: name, p_email: email });
+  const madeData = await made.json().catch(() => null);
+  if (!made.ok) {
+    const msg = dbMessage(madeData, 'refused');
+    const status = made.status === 401 ? 401
+      : made.status === 403 || /only HR|only the admin|do not manage|sign in first|not allowed/i.test(msg) ? 403
+      : /already exists|seat is taken/i.test(msg) ? 409 : 400;
+    return json(status, { error: msg });
+  }
+  const appUserId = kind === 'joiner' ? String((madeData as { id?: string } | null)?.id ?? '') : String(madeData ?? '');
+  if (!/^[0-9a-f-]{36}$/i.test(appUserId)) return json(502, { error: 'the database did not say whom it created' });
 
   // Taking back what was made. Each removal is checked and tried twice: a login without a user row would block that
-  // phone or e-mail for the next attempt ("already registered"), a row without a login would show as "no login".
+  // e-mail for the next attempt ("already registered"), a row without a login would show as "no login".
   const gone = async (what: string) => {
     for (let i = 0; i < 2; i++) {
       const r = await fetch(what, { method: 'DELETE', headers: asService }).catch(() => null);
@@ -134,13 +140,13 @@ export async function handle(req: Request, env: Env): Promise<Response> {
     }
     return false;
   };
-  const removeRow = () => gone(`${url}/rest/v1/app_users?id=eq.${appUser.id}`);
+  const removeRow = () => gone(`${url}/rest/v1/app_users?id=eq.${appUserId}`);       // its checklist, org facts and assignment go with it
   const removeLogin = (id: string) => gone(`${url}/auth/v1/admin/users/${id}`);
   /** Removes the login (if one was made) and the row; says what, if anything, it could not remove. */
   const takeBack = async (loginId: string | null): Promise<string> => {
     const left: string[] = [];
     if (loginId && !(await removeLogin(loginId))) left.push(`login ${loginId}`);
-    if (!(await removeRow())) left.push(`user row ${appUser.id}`);
+    if (!(await removeRow())) left.push(`user row ${appUserId}`);
     if (left.length === 0) return loginId ? 'both removed' : 'nothing was kept';
     const msg = `COULD NOT REMOVE ${left.join(' and ')}: remove by hand (docs/OPERATIONS.md "A login without a person")`;
     console.error(`create-user: ${msg}`);
@@ -149,25 +155,14 @@ export async function handle(req: Request, env: Env): Promise<Response> {
 
   let loginId: string | null = null;
   try {
-    // 2. Optional slot, also as the caller (slots_write policy: must manage the scope's client).
-    const slot = body.slot as { scope_id?: string; stage_type?: string } | undefined;
-    if (slot?.scope_id && slot?.stage_type) {
-      const s = await fetch(`${url}/rest/v1/slot_assignments`, {
-        method: 'POST', headers: asCaller,
-        body: JSON.stringify({ user_id: appUser.id, scope_id: slot.scope_id, stage_type: slot.stage_type }),
-      });
-      if (!s.ok) { const d = await s.json().catch(() => null); await takeBack(null); return json(403, { error: dbMessage(d, 'slot refused') }); }
-    }
-
-    // 3. The login (service key). Created confirmed and marked, so the linking trigger attaches it to the row.
+    // 2. The login (service key). Created confirmed and marked, so the linking trigger attaches it to the row.
     const password = tempPassword();
-    const cred = email ? { email, password, email_confirm: true } : { phone: phone!.replace('+', ''), password, phone_confirm: true };
     const a = await fetch(`${url}/auth/v1/admin/users`, {
       method: 'POST', headers: asService,
       // app_metadata.grainveda_login: only a login made here (service role) can be linked to a user row (migration 23).
       // user_metadata.must_change_password: the app asks for an own password at first sign-in (the creator knows this one).
-      body: JSON.stringify({ ...cred, app_metadata: { grainveda_login: true },
-        user_metadata: { display_name: displayName, must_change_password: true } }),
+      body: JSON.stringify({ email, password, email_confirm: true, app_metadata: { grainveda_login: true },
+        user_metadata: { display_name: name, must_change_password: true } }),
     });
     const login = await a.json().catch(() => null) as Login | null;
     if (!a.ok || !login?.id) {
@@ -177,22 +172,32 @@ export async function handle(req: Request, env: Env): Promise<Response> {
     }
     loginId = login.id;
 
-    // 4. Linked? The trigger declines without an error, so read the row back and say why if it did.
-    const chk = await fetch(`${url}/rest/v1/app_users?id=eq.${appUser.id}&select=auth_uid,active`, { headers: asService });
+    // 3. Linked? The trigger declines without an error, so read the row back and say why if it did.
+    const chk = await fetch(`${url}/rest/v1/app_users?id=eq.${appUserId}&select=auth_uid,active`, { headers: asService });
     const rows = chk.ok ? (await chk.json().catch(() => null)) as UserRow[] | null : null;
-    const why = chk.ok && Array.isArray(rows) ? whyNotLinked(login, rows[0], appUser.id)
+    const why = chk.ok && Array.isArray(rows) ? whyNotLinked(login, rows[0], appUserId)
       : `the user row could not be read back with the service key (HTTP ${chk.status})`;
     if (why) {
-      console.error(`create-user: login ${login.id} was not linked to user row ${appUser.id}: ${why}`);
+      console.error(`create-user: login ${login.id} was not linked to user row ${appUserId}: ${why}`);
       const cleaned = await takeBack(login.id);
       return json(500, { error: `login created but not linked: ${why}; ${cleaned}` });
     }
 
-    return json(201, { app_user_id: appUser.id, login_id: login.id, sign_in: email ?? phone, temporary_password: password });
+    // 4. The invite. With a sender set up, a note goes to the person (never the password: the creator hands that over).
+    let emailed = false;
+    if (mailConfigured(env)) {
+      const site = (env.APP_URL ?? '').replace(/\/+$/, '');
+      emailed = (await sendMail(env, { to: email, subject: 'Your GrainVeda account is ready',
+        text: `Hello ${name},\n\nYour GrainVeda account is ready. Sign in${site ? ` at ${site}` : ''} with this email address.\n`
+          + 'Your first password will be given to you by the person who set you up; you choose your own when you first sign in.\n' })).ok;
+    }
+    await rpc('note_invite_sent', { p_employee: appUserId, p_how: emailed ? 'email note + password by hand' : 'password by hand' }).catch(() => null);
+
+    return json(201, { app_user_id: appUserId, login_id: login.id, sign_in: email, temporary_password: password, invite_emailed: emailed });
   } catch (e) {
     // A request that broke half-way (the Auth server or the database did not answer) must not leave half a person.
     const what = e instanceof Error ? e.message : String(e);
-    console.error(`create-user: interrupted for user row ${appUser.id}: ${what}`);
+    console.error(`create-user: interrupted for user row ${appUserId}: ${what}`);
     const cleaned = await takeBack(loginId);
     return json(502, { error: `the server did not answer while the person was being created (${what}); ${cleaned}` });
   }

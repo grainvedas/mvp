@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signInWith, signOut, USERS, SCOPES, openSlot, verifyIncoming, reviewAndSave, procure, recordQc, sealLot, apiAs } from './helpers';
+import { signIn, signInWith, signOut, USERS, SCOPES, openSlot, verifyIncoming, reviewAndSave, procure, recordQc, sealLot, apiAs, freshEmail } from './helpers';
 
 // Phase 4 "live season" through the real screens: what goes wrong in a real week and how it is put right.
 const uniq = () => String(Date.now()).slice(-6);
@@ -231,25 +231,32 @@ test('A pending grading run corrected to "split" gets its grade lots', async ({ 
   await signOut(page);
 });
 
-test('A new person chooses an own password; the manager resets a forgotten one; a deactivated login opens nothing', async ({ page }) => {
+test('A new person chooses an own password; HR resets a forgotten one; a suspended login opens nothing', async ({ page }) => {
+  // Identity layer (6 Oct 2026): the person is added by HR and signs in with their email; credentials belong to HR,
+  // so the reset and the suspension are HR's too (a manager can do neither any more).
   test.setTimeout(240_000);
   const u = uniq();
-  const name = `Meera ${u}`, phone = `97${u}11`;
+  const name = `Meera ${u}`, mail = freshEmail('meera');
   const mine = `Kalanamak-${u}`, mine2 = `Basmati-${u}`;
   const tempFrom = async () => (await page.getByTestId('temp-password').textContent())!.match(/: (Gv-[A-Za-z0-9_-]+) —/)![1];
 
-  await signIn(page, USERS.cm);
-  await page.goto('/users');
-  await page.getByLabel('Name').fill(name);
-  await page.getByLabel('Mobile').fill(phone);
-  await page.getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByTestId('temp-password')).toContainText(`+91${phone}`);
+  await signIn(page, USERS.hr);
+  await page.goto('/hr/joiners/new');
+  await page.getByLabel('Full name').fill(name);
+  await page.getByLabel('Join date').fill(new Date().toISOString().slice(0, 10));
+  await page.getByLabel('Personal email').fill(mail);
+  await page.getByRole('button', { name: 'Save and create sign-in' }).click();
+  await expect(page.getByTestId('temp-password')).toContainText(mail);
   const temp = await tempFrom();
+  await page.getByRole('link', { name: 'Open their page' }).click();
+  const personUrl = page.url();
   await signOut(page);
 
   // First sign-in with the temporary password: nothing of the app until an own password is chosen.
-  await signInWith(page, phone, temp);
+  await signInWith(page, mail, temp);
   await expect(page.getByTestId('must-change')).toBeVisible();
+  await expect(page.getByTestId('locked-sign-in')).toHaveValue(mail);                     // the sign-in is shown, and not editable
+  await expect(page.getByTestId('locked-sign-in')).toBeDisabled();
   await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
   await page.getByLabel('New password', { exact: true }).fill('short');
   await expect(page.getByTestId('pw-problem')).toContainText('at least 8');
@@ -262,32 +269,31 @@ test('A new person chooses an own password; the manager resets a forgotten one; 
   await page.getByLabel('New password again').fill(mine);
   await page.getByRole('button', { name: 'Set password' }).click();
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
-  await expect(page.getByText('You are not assigned to any stage yet')).toBeVisible();
+  await expect(page.getByTestId('joiner-home')).toContainText(`Welcome, Meera`);          // a joiner's first screen: the checklist, no scope
   await page.getByRole('link', { name: 'My account' }).click();
   await expect(page.getByTestId('account-me')).toContainText(name);
-  await expect(page.getByTestId('account-me')).toContainText('Operator');
+  await expect(page.getByTestId('account-me')).toContainText('Joining');
   await signOut(page);
 
-  await signInWith(page, phone, temp);                                                      // the temporary one is dead
+  await signInWith(page, mail, temp);                                                       // the temporary one is dead
   await expect(page.getByRole('alert')).toContainText('Wrong sign-in details');
-  await signInWith(page, phone, mine);
+  await signInWith(page, mail, mine);
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await expect(page.getByTestId('must-change')).toHaveCount(0);
   await signOut(page);
 
-  // Forgotten: the manager gives a new temporary password. The old one stops working at once.
-  await signIn(page, USERS.cm);
-  await page.goto('/users');
-  const row = page.getByTestId('user-row').filter({ hasText: name });
-  await row.getByTestId('reset-password').click();
-  await row.getByTestId('reset-confirm').click();
-  await expect(page.getByTestId('temp-password')).toContainText(`+91${phone}`);
+  // Forgotten: HR gives a new temporary password. The old one stops working at once.
+  await signIn(page, USERS.hr);
+  await page.goto(personUrl);
+  page.once('dialog', (d) => d.accept());
+  await page.getByTestId('reset-password').click();
+  await expect(page.getByTestId('temp-password')).toContainText(mail);
   const temp2 = await tempFrom();
   expect(temp2).not.toBe(temp);
   await signOut(page);
-  await signInWith(page, phone, mine);
+  await signInWith(page, mail, mine);
   await expect(page.getByRole('alert')).toContainText('Wrong sign-in details');
-  await signInWith(page, phone, temp2);
+  await signInWith(page, mail, temp2);
   await expect(page.getByTestId('must-change')).toBeVisible();
   await page.getByLabel('New password', { exact: true }).fill(mine2);
   await page.getByLabel('New password again').fill(mine2);
@@ -295,23 +301,34 @@ test('A new person chooses an own password; the manager resets a forgotten one; 
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await signOut(page);
 
-  // An operator cannot reset anyone, on the screen or through the function.
+  // Neither an operator nor a manager can reset anyone: on the screen there is no button, and the function refuses.
   await signIn(page, USERS.procurement);
-  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Users' })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'People & access' })).toHaveCount(0);
+  await signOut(page);
+  await signIn(page, USERS.cm);
+  await page.goto(personUrl.replace('/hr/joiners/', '/people/'));
+  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+  await expect(page.getByTestId('profile-actions').getByRole('button', { name: 'Reset password' })).toHaveCount(0);
+  await expect(page.getByTestId('profile-actions').getByRole('button', { name: 'Suspend' })).toHaveCount(0);
+  const asManager = await (await apiAs(page)).rpc('reset_login_allowed', { p_target: personUrl.split('/').pop() });
+  expect(asManager.data, 'may a Client Manager reset this person?').toBe(false);
   await signOut(page);
 
-  // Left the job, or the phone is lost: deactivated. The login still signs in but opens nothing.
-  await signIn(page, USERS.cm);
-  await page.goto('/users');
-  await page.getByTestId('user-row').filter({ hasText: name }).getByRole('button', { name: 'Deactivate' }).click();
-  await expect(page.getByTestId('user-row').filter({ hasText: name })).toContainText('inactive');
+  // Under inquiry, or the phone is lost: suspended by HR. The login still signs in but opens nothing.
+  await signIn(page, USERS.hr);
+  await page.goto(personUrl.replace('/hr/joiners/', '/people/'));
+  await page.getByTestId('profile-actions').getByRole('button', { name: 'Suspend' }).click();
+  await expect(page.getByTestId('confirm-yes')).toBeDisabled();                               // a reason is required
+  await page.getByLabel('Reason').fill('phone lost');
+  await page.getByTestId('confirm-yes').click();
+  await expect(page.locator('.band')).toContainText('Suspended');
   await signOut(page);
-  await signInWith(page, phone, mine2);
-  await expect(page.getByText('no GrainVeda user is linked')).toBeVisible();
+  await signInWith(page, mail, mine2);
+  await expect(page.getByTestId('no-access')).toContainText('This sign-in opens nothing');
   await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
   const api = await apiAs(page);
-  for (const table of ['footprints', 'farmers', 'scopes', 'slot_assignments', 'ledger']) expect(await api.rows(table), `${table} as a deactivated user`).toHaveLength(0);
-  expect((await api.rows('app_users')).map((r) => r.display_name), 'a deactivated user reads only the own row').toEqual([name]);
+  for (const table of ['footprints', 'farmers', 'scopes', 'slot_assignments', 'ledger', 'onboarding_tasks']) expect(await api.rows(table), `${table} as a suspended person`).toHaveLength(0);
+  expect((await api.rows('app_users')).map((r) => r.display_name), 'a suspended person reads only the own row').toEqual([name]);
 });
 
 test('A manager gives a stage to a person and takes it away again', async ({ page }) => {
@@ -326,6 +343,8 @@ test('A manager gives a stage to a person and takes it away again', async ({ pag
   await expect(holders.filter({ hasText: 'Shipment Operator' })).toHaveCount(1);
   await signOut(page);
   await signIn(page, USERS.shipment);
+  // two scopes now: he is asked where he is working, and finds the new stage there
+  await page.locator(`[data-testid="pick-scope"][data-scope="${S}"]`).click();
   await expect(page.locator(`[data-testid="slot-sorting"][data-scope="${S}"]`)).toHaveCount(1);
   await signOut(page);
 

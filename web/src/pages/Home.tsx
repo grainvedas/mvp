@@ -4,15 +4,17 @@
 //   manager / viewer, several     overall: number cards over all scopes and a card per scope; choosing one opens the above
 // Every figure comes from app.pipeline_summary (verified quantities per stage), the open flags and the stage
 // assignments. Nothing here is written, and nothing is kept on the phone: with no network the cards show no figures.
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useI18n } from '../lib/i18n';
 import { rpc, q } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { useAsync } from '../lib/useAsync';
-import { isManager, type Slot, type StageType } from '../lib/types';
+import { isManager, NO_RIGHTS, type Slot, type StageType } from '../lib/types';
+import type { Roster } from '../lib/people';
 import { Empty, Badge } from '../shell/ui';
-import { useScope, useWide, type ScopeChoice } from '../shell/scope';
+import { useScope, useWide, worksInOneScope, type ScopeChoice } from '../shell/scope';
+import { JoinerHome, NoAssignment } from './onboarding/Onboarding';
 import { stageIcon } from '../engine/icons';
 import { kg, humanise, dateTime, num } from '../lib/format';
 
@@ -41,15 +43,34 @@ export function scopeFigures(rows: PipeRow[]) {
 /** Stages of a chain that nobody holds (the gate stage counts: someone must seal). */
 export const unassigned = (chain: StageType[], held: StageType[]) => chain.filter((s) => !held.includes(s));
 
+/**
+ * Pure: which first screen a person gets (identity layer). In order: a joiner not yet active sees their checklist;
+ * HR with no scope of their own goes to the pipeline; an employee nobody has assigned sees the calm holding screen;
+ * someone who only holds stages in several scopes picks one; then the scope screens as before.
+ */
+export type FirstScreen = 'joiner' | 'hr' | 'unassigned' | 'pick' | 'stages' | 'scope' | 'overall';
+export function firstScreen(w: { status?: string; external?: boolean; hr: boolean; admin: boolean; assign: boolean; scopes: { whole: boolean }[]; current: { whole: boolean } | null }): FirstScreen {
+  if (!w.external && (w.status === 'invited' || w.status === 'onboarding')) return 'joiner';
+  // nothing to work in yet: a manager or a client's login gets the (empty) overview, HR its own work, anyone else is told to wait
+  if (w.scopes.length === 0) return w.admin || w.assign || w.external ? 'overall' : w.hr ? 'hr' : 'unassigned';
+  if (w.current) return w.current.whole ? 'scope' : 'stages';
+  return w.scopes.some((s) => s.whole) ? 'overall' : 'pick';
+}
+
 export function Home() {
   const { ctx } = useAuth();
   const { scopes, current } = useScope();
   const wide = useWide();
   const me = ctx!.user!;
+  const can = me.can ?? { ...NO_RIGHTS, admin: me.role === 'admin' };
+  const screen = firstScreen({ status: me.status, external: me.external, hr: can.hr, admin: can.admin, assign: can.assign || isManager(me.role), scopes, current });
+  if (screen === 'joiner') return <JoinerHome />;
+  if (screen === 'hr') return <Navigate to="/hr" replace />;
+  if (screen === 'unassigned') return <NoAssignment />;
   return (
     <div>
-      {!wide && scopes.length > 1 && <ScopePicker />}
-      {me.role === 'operator' ? <OperatorHome /> : current ? <ScopeHome scope={current} /> : <OverallHome />}
+      {!wide && scopes.length > 1 && screen !== 'pick' && <ScopePicker />}
+      {screen === 'pick' ? <WorkPicker /> : screen === 'stages' ? <OperatorHome /> : screen === 'scope' ? <ScopeHome scope={current!} /> : <OverallHome />}
     </div>
   );
 }
@@ -58,14 +79,40 @@ export function Home() {
 function ScopePicker() {
   const { t } = useI18n();
   const { scopes, current, choose } = useScope();
+  const single = worksInOneScope(scopes);
   return (
     <div className="field">
       <label htmlFor="scope-pick">{t('scope.label')}</label>
       <select id="scope-pick" value={current?.id ?? ''} onChange={(e) => choose(e.target.value === '' ? null : e.target.value)} data-testid="scope-switcher">
-        <option value="">{t('scope.overall')}</option>
+        <option value="">{t(single ? 'scope.choose' : 'scope.overall')}</option>
         {scopes.map((s) => <option key={s.id} value={s.id}>{s.label}{s.status === 'draft' ? ` ${t('scope.setup')}` : ''}</option>)}
       </select>
     </div>
+  );
+}
+
+/** More than one assignment: where are you working now? One scope at a time; changing is one tap. */
+function WorkPicker() {
+  const { ctx } = useAuth();
+  const { t } = useI18n();
+  const { scopes, choose } = useScope();
+  const me = ctx!.user!;
+  const stages = (id: string) => ctx!.slots.filter((s) => s.scope_id === id).map((s) => t(`stage.${s.stage_type}`, undefined, s.stage_label));
+  const clients = [...new Set(scopes.map((s) => s.client_name))];
+  return (
+    <>
+      <div className="band"><div><h1>{t('home.hello', { name: me.display_name })}</h1><div className="sub">{t('pick.sub', { n: scopes.length })}</div></div></div>
+      <h2 className="section-title">{t('pick.title')}</h2>
+      {clients.map((c) => (
+        <div key={c}>
+          {clients.length > 1 && <h3>{c}</h3>}
+          <div className="pick-list" data-testid="work-picker">{scopes.filter((s) => s.client_name === c).map((s) => (
+            <button key={s.id} type="button" onClick={() => choose(s.id)} data-testid="pick-scope" data-scope={s.id}>
+              <strong>{s.label}</strong>
+              <span className="small muted">{clients.length === 1 ? `${s.client_name} · ` : ''}{stages(s.id).join(', ') || t('oprole.export_manager')}{s.status === 'draft' ? ` · ${t('scope.setup')}` : ''}</span>
+            </button>))}</div>
+        </div>))}
+    </>
   );
 }
 
@@ -74,7 +121,7 @@ function ScopePicker() {
 function OperatorHome() {
   const { ctx } = useAuth();
   const { t } = useI18n();
-  const { current } = useScope();
+  const { current, scopes, choose } = useScope();
   const me = ctx!.user!;
   const slots = current ? ctx!.slots.filter((s) => s.scope_id === current.id) : ctx!.slots;
   const wide = useWide();
@@ -85,6 +132,7 @@ function OperatorHome() {
         <div><h1>{t('home.hello', { name: me.display_name })}</h1>
           <div className="sub">{t(`role.${me.role}`)}{current ? ` · ${current.label}` : ''}</div></div>
       </div>
+      {scopes.length > 1 && worksInOneScope(scopes) && <p><button className="secondary" onClick={() => choose(null)} data-testid="change-scope">{t('pick.change')}</button></p>}
       {slots.length > 0 && <h2 className="section-title">{t('home.your_stages')}</h2>}
       <div className="stage-cards">{slots.map((s) => <StageCard key={`${s.scope_id}-${s.stage_type}`} slot={s} userId={me.id} compact={compact} />)}</div>
       {ctx!.slots.length === 0 && <Empty>{t('home.no_slots')}</Empty>}
@@ -159,7 +207,7 @@ function OverallHome() {
           <div className="sub">{t('home.scopes_crops', { n: scopes.length, m: crops })}</div></div>
         <div className="side">{me.display_name}<br />{t(`role.${me.role}`)}</div>
       </div>
-      {isManager(me.role) && <LedgerHealth />}
+      {(me.can?.assign ?? isManager(me.role)) && <LedgerHealth />}
       <div className="stats" data-testid="stats">
         <Stat value={String(live.length)} label={t('home.kpi_active')} sub={t('home.kpi_setup', { n: scopes.filter((s) => s.status === 'draft').length })} />
         <Stat value={pipes.data ? kg(sum((x) => x.procured)) : '…'} label={t('home.kpi_volume')} sub={t('home.kpi_volume_sub')} />
@@ -194,20 +242,20 @@ function Stat({ value, label, sub }: { value: string; label: string; sub?: strin
 
 // ---------------------------------------------------------------------------------------------------------------
 // Managers and viewers: one scope
-interface SlotRow { id: string; user_id: string; stage_type: StageType }
+interface SlotRow { id: string; user_id: string; stage_type: StageType; name: string }
 function ScopeHome({ scope }: { scope: ScopeChoice }) {
   const { ctx } = useAuth();
   const { t } = useI18n();
   const { scopes, choose } = useScope();
   const navigate = useNavigate();
   const me = ctx!.user!;
-  const manager = isManager(me.role);
+  const manager = scope.manage;                              // of THIS scope (a person may manage one and only read another)
   const draft = scope.status === 'draft';
   const pipe = useAsync(() => draft ? Promise.resolve([] as PipeRow[]) : rpc<PipeRow[]>('pipeline_summary', { p_scope: scope.id }), [scope.id, draft]);
   const flags = useAsync(() => q(supabase.from('flags').select('id,footprints!inner(scope_id)').eq('status', 'open').eq('footprints.scope_id', scope.id)) as unknown as Promise<{ id: string }[]>, [scope.id]);
-  const slots = useAsync(() => q(supabase.from('slot_assignments').select('id,user_id,stage_type').eq('scope_id', scope.id)) as Promise<SlotRow[]>, [scope.id]);
-  const users = useAsync(() => scope.client_id ? q(supabase.from('app_users').select('id,display_name').eq('client_id', scope.client_id)) as Promise<{ id: string; display_name: string }[]>
-    : Promise.resolve([]), [scope.client_id]);
+  // Who holds which stage: asked of the roster (the names of people are no longer readable client by client).
+  const roster = useAsync(() => rpc<Roster>('scope_roster', { p_scope: scope.id }), [scope.id]);
+  const slots = { data: roster.data ? roster.data.stages.flatMap((st) => st.holders.map((h) => ({ id: h.assignment_id, user_id: h.employee_id, stage_type: st.stage, name: h.name }) as SlotRow)) : undefined };
   const label = (s: string) => t(`stage.${s}`, undefined, humanise(s));
   const rows = pipe.data ?? [];
   const f = scopeFigures(rows);
@@ -215,10 +263,10 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
   const queue: { key: string; text: string; to: string; action: string }[] = [];
   if (f.pending > 0) queue.push({ key: 'pending', text: t('home.q_pending', { n: f.pending }), to: `/work/${scope.id}/${f.bottleneck!.stage}?tab=records`, action: t('home.q_review') });
   if (slots.data && open.length > 0 && !draft) queue.push({ key: 'slots', text: t('home.q_slots', { n: open.length, stages: open.slice(0, 3).map(label).join(', ') }),
-    to: `/scopes/${scope.id}?step=people`, action: manager ? t('home.q_assign') : t('home.view') });
+    to: `/scopes/${scope.id}/roster`, action: manager ? t('home.q_assign') : t('home.view') });
   if ((flags.data?.length ?? 0) > 0) queue.push({ key: 'flags', text: t('home.q_flags', { n: flags.data!.length }), to: manager ? '/flags' : `/dashboard/${scope.id}`, action: t('home.view') });
   const by = (stage: string) => rows.find((r) => r.stage === stage);
-  const holder = (stage: StageType) => (slots.data ?? []).filter((s) => s.stage_type === stage).map((s) => users.data?.find((u) => u.id === s.user_id)?.display_name ?? '…');
+  const holder = (stage: StageType) => (slots.data ?? []).filter((s) => s.stage_type === stage).map((s) => s.name);
   return (
     <>
       <div className="band">
@@ -270,7 +318,8 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
           <div className="row" style={{ marginBottom: 14 }}>
             <Link className="btn secondary" to={`/dashboard/${scope.id}`} data-testid="dashboard-link">{t('home.full_dashboard')}</Link>
             <Link className="btn secondary" to={`/scopes/${scope.id}`}>{t('home.manage_scope')}</Link>
-            {me.role !== 'client_view' && <Link className="btn secondary" to="/farmers/new">{t('home.add_farmer')}</Link>}
+            <Link className="btn secondary" to={`/scopes/${scope.id}/roster`} data-testid="roster-link">{t('roster.title')}</Link>
+            {manager && <Link className="btn secondary" to="/farmers/new">{t('home.add_farmer')}</Link>}
             <button className="secondary" onClick={() => navigate('/farmers')}>{t('nav.farmers')}</button>
           </div>
           {slots.data && (

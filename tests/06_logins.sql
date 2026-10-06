@@ -3,26 +3,53 @@ begin;
 select t.as_service();
 
 -- ---------------------------------------------------------------------------
--- Migration 10: app_users write rules for signed-in callers (seed placeholders: auth_uid = id)
+-- Who may write app_users directly (migration 10, replaced by migrations 31–32). Seed placeholders: auth_uid = id.
+-- People are made by HR onboarding; status, system role and access change through their own functions. What is left
+-- to a direct write is a person's name, phone and email, and only for the admin, HR and (client logins) the client's manager.
 -- ---------------------------------------------------------------------------
 select t.as_user(t.u('03'));   -- Client Manager, Prasaadam
-select t.fails(format($q$ update public.app_users set role = 'admin' where id = %L $q$, t.u('03')),
-               'your own role', 'guard: client manager cannot make themselves admin');
-select t.fails(format($q$ update public.app_users set role = 'client_manager' where id = %L $q$, t.u('05')),
-               'ranked below', 'guard: client manager cannot promote an operator to client manager');
-select t.fails(format($q$ update public.app_users set auth_uid = gen_random_uuid() where id = %L $q$, t.u('05')),
-               'login linking', 'guard: client manager cannot point a user at a login');
-select t.fails($q$ insert into public.app_users (auth_uid, role, display_name, client_id)
-                   values (gen_random_uuid(), 'operator', 'Planted', '00000000-0000-4000-8000-000000000201') $q$,
-               'login linking', 'guard: a new user row cannot carry a login');
+update public.app_users set role = 'admin' where id = t.u('03');
+update public.app_users set system_role = 'admin' where id = t.u('03');
+update public.app_users set display_name = 'Renamed' where id = t.u('05');
 update public.app_users set active = false where id = t.u('08');
-select t.ok((select not active from public.app_users where id = t.u('08')), 'guard: client manager can still deactivate an operator');
+select t.as_service();
+select t.ok((select role = 'client_manager' and system_role = 'operational' from public.app_users where id = t.u('03')),
+            'guard: a client manager cannot make themselves admin (no row is theirs to update)');
+select t.ok((select display_name = 'Procurement Op (field)' from public.app_users where id = t.u('05'))
+            and (select active from public.app_users where id = t.u('08')),
+            'guard: a client manager no longer edits or deactivates the people working under them');
+select t.as_user(t.u('03'));
+select t.fails($q$ insert into public.app_users (role, display_name, client_id)
+                   values ('operator', 'Planted', '00000000-0000-4000-8000-000000000201') $q$,
+               'permission denied', 'guard: nobody inserts a person directly any more');
 
 select t.as_user(t.u('01'));   -- Admin
-update public.app_users set role = 'client_view' where id = t.u('12');
-select t.ok((select role from public.app_users where id = t.u('12')) = 'client_view', 'guard: admin can change another user''s role');
+select t.fails(format($q$ update public.app_users set role = 'client_view' where id = %L $q$, t.u('12')),
+               'only name, phone and email', 'guard: not even the admin sets a role by hand: it follows from assignments');
+select t.fails(format($q$ update public.app_users set system_role = 'hr_admin' where id = %L $q$, t.u('12')),
+               'only name, phone and email', 'guard: nor a system role (app.set_system_role, app.appoint_hr_admin)');
 select t.fails(format($q$ update public.app_users set active = false where id = %L $q$, t.u('01')),
-               'your own role', 'guard: admin cannot deactivate themselves');
+               'only name, phone and email', 'guard: nor a status, his own included');
+select t.fails(format($q$ update public.app_users set auth_uid = gen_random_uuid() where id = %L $q$, t.u('05')),
+               'only name, phone and email', 'guard: nor point a person at a login');
+update public.app_users set display_name = 'Mill Operator (Basti)' where id = t.u('08');
+select t.ok((select display_name from public.app_users where id = t.u('08')) = 'Mill Operator (Basti)', 'guard: the admin corrects a name');
+
+select t.as_user(t.u('17'));   -- HR resource
+update public.app_users set display_name = 'Mill Operator' where id = t.u('08');
+update public.app_users set display_name = 'Not Veda' where id = t.u('01');
+update public.app_users set display_name = 'Not Asha' where id = t.u('16');
+select t.as_service();
+select t.ok((select display_name from public.app_users where id = t.u('08')) = 'Mill Operator'
+            and (select display_name from public.app_users where id = t.u('01')) = 'Veda (Admin)'
+            and (select display_name from public.app_users where id = t.u('16')) = 'Asha (HR Admin)',
+            'guard: an HR resource corrects an operational person''s name, not the admin''s, not the HR Admin''s');
+
+-- The service role (scripts, seeds) keeps the old switch: off means suspended. And a summary column is never hand-set.
+update public.app_users set active = false where id = t.u('08');
+select t.ok((select status = 'suspended' and not active from public.app_users where id = t.u('08')), 'status: the old "active" switch, off, is a suspension');
+select t.fails(format($q$ update public.app_users set role = 'client_view' where id = %L $q$, t.u('12')),
+               'summary of the person''s assignments', 'summary: role, client and states cannot be set by hand, by anyone');
 
 -- ---------------------------------------------------------------------------
 -- Migration 9: unique phone and email, normalised

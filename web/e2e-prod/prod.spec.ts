@@ -43,7 +43,7 @@ test('Offline start: after one online sign-in the app opens with no network and 
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await page.reload();                                                    // now controlled by the worker
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-  await page.getByTestId('slot-procurement').filter({ hasText: /· Gorakhpur(?! mandi)/ }).click();
+  await openSlot(page, 'procurement', SCOPES.gorakhpur);
   await expect(page.getByRole('button', { name: /Ram Achal/ })).toBeVisible();
 
   await context.setOffline(true);

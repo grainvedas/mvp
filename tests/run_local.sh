@@ -37,6 +37,32 @@ elif $PSQL -d "$PDB" -f supabase/seeds/02_kalanamak_demo.sql >/dev/null 2>"/tmp/
 elif grep -q 'demo seed refused' "/tmp/gv_prod_seed.$$"; then echo "ok   production: the demo seed refuses to run"
 else fail=1; echo "FAILED   the demo seed failed for another reason"; cat "/tmp/gv_prod_seed.$$"; fi
 rm -f "/tmp/gv_prod_seed.$$"; dropdb --if-exists "$PDB"
+# Upgrade path: what a project already in use gets. The database as it stood before the identity layer (migrations up
+# to 30, the demo people and their stages), then the later migrations on top, each in ONE transaction as
+# `supabase db push` runs them, then the whole suite again. A migration that moves existing rows is never exercised by
+# the fresh build above: on 6 Oct 2026 migration 31 passed every test and would have stopped on any database with a
+# stage row in it.
+echo "test     upgrade path (migrations 1-30 and the demo data first, then 31 onwards on top, then every test again)"
+UDB="${DB}_upgrade"
+dropdb --if-exists "$UDB"; createdb "$UDB"
+up_ok=1
+QUIET="env PGOPTIONS=-cclient_min_messages=warning $PSQL"
+later() { case "$(basename "$1")" in 2026100[6-9]*|202610[1-9]*|20261[1-2]*|202[7-9]*) return 0;; *) return 1;; esac; }
+$QUIET -d "$UDB" -f tests/00_local_auth_shim.sql || up_ok=0
+for f in supabase/migrations/*.sql; do later "$f" && continue; $QUIET -1 -d "$UDB" -f "$f" || up_ok=0; done
+for f in supabase/seeds/0[1-5]*.sql; do $QUIET -d "$UDB" -f "$f" || up_ok=0; done
+for f in supabase/migrations/*.sql; do later "$f" || continue
+  $QUIET -1 -d "$UDB" -f "$f" || { up_ok=0; echo "FAILED   upgrade: $f does not apply to a database in use"; }; done
+for f in supabase/seeds/0[6-9]*.sql; do [ -e "$f" ] || continue; $QUIET -d "$UDB" -f "$f" || up_ok=0; done
+n_up=0
+if [ $up_ok -eq 1 ]; then
+  for f in tests/0[1-9]*.sql tests/[1-9]*.sql; do [ -e "$f" ] || continue
+    if $QUIET -d "$UDB" -f "$f"; then n_up=$((n_up+1)); else up_ok=0; echo "FAILED   upgrade: $f on the upgraded database"; fi
+  done
+fi
+if [ $up_ok -eq 1 ]; then echo "ok   upgrade: the later migrations apply to a database in use, and all $n_up test files pass on it"
+else fail=1; echo "FAILED   upgrade path"; fi
+dropdb --if-exists "$UDB"
 # Four sessions at once: ledger appends and Farmer IDs under concurrency. Last, because it commits into the scratch DB.
 echo "test     tests/concurrency (4 parallel sessions)"
 $PSQL -d "$DB" -f tests/concurrency/setup.sql || fail=1

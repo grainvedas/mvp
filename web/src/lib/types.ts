@@ -113,15 +113,38 @@ export interface Slot {
 export interface ScopeSummary {
   scope_id: string; client_id: string; client_name: string; crop_name: string; season_code: string;
   geography: string; status: string; chain: StageType[];
+  /** Migration 32. manage: the person manages this scope. whole: they read all of it (managers, the client's login, an export manager). */
+  state_id?: string; state_name?: string; manage?: boolean; whole?: boolean;
+}
+// Identity layer (migrations 31–33). Two things grant access: the system role and the assignments. `role` is the
+// summary the database keeps for display and the menu; no screen decides what may be DONE from it.
+export type SystemRole = 'admin' | 'hr_admin' | 'hr_resource' | 'operational';
+export type EmployeeStatus = 'invited' | 'onboarding' | 'active' | 'suspended' | 'offboarded';
+export type EmploymentType = 'full_time' | 'intern' | 'contract' | 'consultant';
+export type Lens = 'scope' | 'client' | 'state';
+export type OpRole = 'operator' | 'export_manager' | 'client_account' | 'client_viewer' | 'state_supervisor';
+/** What the signed-in person may open, as the database says it (never worked out in the app from the role). */
+export interface Can { admin: boolean; hr: boolean; hr_admin: boolean; assign: boolean; state_lens: boolean }
+export interface MyAssignment {
+  id: string; lens: Lens; op_role: OpRole; scope_id: string | null; client_id: string | null; client_name: string | null;
+  state_id: string | null; state_name: string | null; stages: StageType[]; posting: string | null; season_code: string | null;
+  ends_on: string | null; label: string;
 }
 export interface MyContext {
   user: null | {
     id: string; role: Role; display_name: string; email: string | null; phone: string | null;
     client_id: string | null; client_name: string | null; state_ids: string[];
+    /** Absent on a server before migration 32: treated as an active operational person with no extra rights. */
+    system_role?: SystemRole; status?: EmployeeStatus; external?: boolean; join_date?: string | null; can?: Can;
   };
   slots: Slot[];
   scopes: ScopeSummary[];
+  assignments?: MyAssignment[];
+  /** The once-a-day sign-in code is switched on and today's has not been entered yet: nothing else is open. */
+  needs_daily_code?: boolean;
+  onboarding?: { total: number; open: number } | null;
 }
+export const NO_RIGHTS: Can = { admin: false, hr: false, hr_admin: false, assign: false, state_lens: false };
 
 export interface Farmer {
   id: string; farmer_code: string | null; client_id: string; scope_ids: string[];

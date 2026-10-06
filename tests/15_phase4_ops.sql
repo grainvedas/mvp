@@ -97,23 +97,40 @@ begin
 end $$;
 
 -- 6 · who may reset whose password ----------------------------------------------------------------------------------
+-- Migration 32: credentials belong to HR. The admin resets anyone but himself; HR within its reach; a client's own
+-- login by whoever manages that client. A manager no longer resets the people working under them: one person may
+-- work for two clients, and a reset is a way in.
 do $$
 declare other_cm uuid;
 begin
   insert into public.app_users (role, display_name, email, client_id) values ('client_manager', 'Other CM', 'other.cm@test', '00000000-0000-4000-8000-000000000202')
   returning id into other_cm;
   perform t.as_user(t.u('01'));
-  perform t.ok(app.reset_login_allowed(t.u('02')) and app.reset_login_allowed(t.u('05')) and not app.reset_login_allowed(t.u('01')),
+  perform t.ok(app.reset_login_allowed(t.u('02')) and app.reset_login_allowed(t.u('05')) and app.reset_login_allowed(t.u('16'))
+               and not app.reset_login_allowed(t.u('01')),
                'reset: the admin may reset anyone but himself');
+  perform t.as_user(t.u('16'));
+  perform t.ok(app.reset_login_allowed(t.u('05')) and app.reset_login_allowed(t.u('03')) and app.reset_login_allowed(t.u('02'))
+               and app.reset_login_allowed(t.u('17')),
+               'reset: the HR Admin may reset operational people (managers included) and HR resources');
+  perform t.ok(not app.reset_login_allowed(t.u('01')) and not app.reset_login_allowed(t.u('16')) and not app.reset_login_allowed(t.u('04')),
+               'reset: but not the admin, not herself, and not a client''s own login');
+  perform t.as_user(t.u('17'));
+  perform t.ok(app.reset_login_allowed(t.u('05')) and app.reset_login_allowed(other_cm)
+               and not app.reset_login_allowed(t.u('16')) and not app.reset_login_allowed(t.u('01')) and not app.reset_login_allowed(t.u('17')),
+               'reset: an HR resource may reset operational people; not the HR Admin, the admin or himself');
   perform t.as_user(t.u('02'));
-  perform t.ok(app.reset_login_allowed(t.u('03')) and app.reset_login_allowed(t.u('05')) and app.reset_login_allowed(other_cm),
-               'reset: a State Manager may reset the managers and operators of clients in his state');
-  perform t.ok(not app.reset_login_allowed(t.u('01')) and not app.reset_login_allowed(t.u('02')), 'reset: but not the admin, and not himself');
+  perform t.ok(app.reset_login_allowed(t.u('04')), 'reset: a State Manager may reset the client login of a client homed in his state');
+  perform t.ok(not app.reset_login_allowed(t.u('03')) and not app.reset_login_allowed(t.u('05')) and not app.reset_login_allowed(other_cm)
+               and not app.reset_login_allowed(t.u('01')) and not app.reset_login_allowed(t.u('02')),
+               'reset: but no employee any more: not the managers or operators in his state, not the admin, not himself');
   perform t.as_user(t.u('03'));
-  perform t.ok(app.reset_login_allowed(t.u('05')) and app.reset_login_allowed(t.u('04')), 'reset: a Client Manager may reset his client''s operators and Client View');
-  perform t.ok(not app.reset_login_allowed(t.u('02')) and not app.reset_login_allowed(t.u('01')) and not app.reset_login_allowed(other_cm)
-               and not app.reset_login_allowed(t.u('12')) and not app.reset_login_allowed(t.u('03')),
-               'reset: not the State Manager, the admin, another Client Manager, another client''s operator, or himself');
+  perform t.ok(app.reset_login_allowed(t.u('04')), 'reset: a Client Manager may reset his client''s own login');
+  perform t.ok(not app.reset_login_allowed(t.u('05')) and not app.reset_login_allowed(t.u('02')) and not app.reset_login_allowed(t.u('01'))
+               and not app.reset_login_allowed(other_cm) and not app.reset_login_allowed(t.u('12')) and not app.reset_login_allowed(t.u('03')),
+               'reset: not his operators, the State Manager, the admin, another Client Manager, another client''s operator, or himself');
+  perform t.as_user(other_cm);
+  perform t.ok(not app.reset_login_allowed(t.u('04')), 'reset: another client''s manager cannot reset this client''s login');
   perform t.as_user(t.u('05'));
   perform t.ok(not app.reset_login_allowed(t.u('06')) and not app.reset_login_allowed(t.u('05')), 'reset: an operator resets nobody');
   perform t.as_user(t.u('04'));

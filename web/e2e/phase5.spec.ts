@@ -288,7 +288,7 @@ test('On a 390 px phone: a small header that says who is signed in, and no page 
   await page.setViewportSize({ width: 390, height: 844 });
   await softly(page.getByTestId('whoami')).toHaveText('Prasaadam Client Manager', { useInnerText: true });   // the role gives way to the name
   await page.goto(`/scopes/${SCOPES.siddharthnagar}?step=people`);
-  await expect(page.getByRole('button', { name: '+ new person' }).first()).toBeVisible();
+  await expect(page.getByRole('combobox', { name: /^Assign/ }).first()).toBeVisible();
   await fits('people of a scope');                                      // was 454 px wide
   await signOut(page);
 });

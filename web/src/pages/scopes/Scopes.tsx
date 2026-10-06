@@ -1,18 +1,23 @@
 // S7 scope list · S8 scope wizard (season + place → crop → chain with live problems → people) · scope view
+// Identity layer (6 Oct 2026): a scope has its own state (a client may work in several); the People step gives stages
+// to people from the pool HR has made (pages/people: RosterEditor) and no longer creates anybody.
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { rpc, q, callFunction } from '../../lib/api';
+import { rpc, q } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { humanise } from '../../lib/format';
 import { isManager, type StageDefinition, type StageType } from '../../lib/types';
+import { RosterEditor } from '../people/People';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 
-interface ScopeRow { id: string; client_id: string; crop_id: string; season_code: string; geography: string; chain: StageType[]; status: string; activated_at: string | null }
+interface ScopeRow { id: string; client_id: string; crop_id: string; season_code: string; geography: string; chain: StageType[]; status: string; activated_at: string | null;
+  state_id?: string; season_end?: string | null }
 interface Crop { id: string; name: string; code: string; allowed_stages: StageType[] }
-interface Client { id: string; name: string; code: string }
+interface Client { id: string; name: string; code: string; state_id?: string }
+interface StateRow { id: string; name: string }
 
 export function ScopeList() {
   const { t } = useI18n();
@@ -20,14 +25,15 @@ export function ScopeList() {
   return (
     <div>
       <h1><span aria-hidden="true">🎯 </span>{t('scopes.title')}</h1>
-      {isManager(ctx!.user!.role) && <p><Link className="btn" to="/scopes/new">{t('scopes.new')}</Link></p>}
+      {(ctx!.user!.can?.assign ?? isManager(ctx!.user!.role)) && <p><Link className="btn" to="/scopes/new">{t('scopes.new')}</Link></p>}
       {ctx!.scopes.length === 0 ? <Empty /> : (
         <div className="card table-wrap"><table>
-          <thead><tr><th>Client</th><th>Crop</th><th>Season</th><th>Place</th><th>Chain</th><th>{t('common.status')}</th></tr></thead>
+          <thead><tr><th>Client</th><th>{t('lens.state')}</th><th>Crop</th><th>Season</th><th>Place</th><th>Chain</th><th>{t('common.status')}</th><th /></tr></thead>
           <tbody>{ctx!.scopes.map((s) => (
-            <tr key={s.scope_id}><td>{s.client_name}</td><td>{s.crop_name}</td><td>{s.season_code}</td>
+            <tr key={s.scope_id}><td>{s.client_name}</td><td>{s.state_name ?? ''}</td><td>{s.crop_name}</td><td>{s.season_code}</td>
               <td><Link to={`/scopes/${s.scope_id}`}>{s.geography}</Link></td>
-              <td className="small">{s.chain.map((x) => t(`stage.${x}`, undefined, humanise(x))).join(' → ')}</td><td><Badge value={s.status} /></td></tr>
+              <td className="small">{s.chain.map((x) => t(`stage.${x}`, undefined, humanise(x))).join(' → ')}</td><td><Badge value={s.status} /></td>
+              <td>{(s.whole ?? true) && <Link className="small" to={`/scopes/${s.scope_id}/roster`}>{t('roster.title')}</Link>}</td></tr>
           ))}</tbody>
         </table></div>
       )}
@@ -48,7 +54,8 @@ export function ScopeWizard() {
   const { ctx, refresh } = useAuth();
   const nav = useNavigate();
   const me = ctx!.user!;
-  const clients = useAsync(() => q(supabase.from('clients').select('id,name,code').order('name')) as Promise<Client[]>, []);
+  const clients = useAsync(() => q(supabase.from('clients').select('id,name,code,state_id').order('name')) as Promise<Client[]>, []);
+  const states = useAsync(() => q(supabase.from('states').select('id,name').order('name')) as Promise<StateRow[]>, []);
   const crops = useAsync(() => q(supabase.from('crops').select('id,name,code,allowed_stages').order('name')) as Promise<Crop[]>, []);
   const defs = useAsync(() => q(supabase.from('stage_definitions').select('*').order('sort_order')) as Promise<StageDefinition[]>, []);
   const existing = useAsync(() => id ? q(supabase.from('scopes').select('*').eq('id', id).single()) as Promise<ScopeRow> : Promise.resolve(null), [id]);
@@ -56,6 +63,8 @@ export function ScopeWizard() {
   const [clientId, setClientId] = useState(me.client_id ?? '');
   const [season, setSeason] = useState('KH26');
   const [geo, setGeo] = useState('');
+  const [stateId, setStateId] = useState('');              // '' = the client's home state (the database fills it in)
+  const [seasonEnd, setSeasonEnd] = useState('');
   const [cropId, setCropId] = useState('');
   const [entry, setEntry] = useState<StageType>('procurement');
   const [villageBatch, setVillageBatch] = useState(false);
@@ -70,6 +79,7 @@ export function ScopeWizard() {
     const s = existing.data;
     if (!s) return;
     setClientId(s.client_id); setSeason(s.season_code); setGeo(s.geography); setCropId(s.crop_id);
+    setStateId(s.state_id ?? ''); setSeasonEnd(s.season_end ?? '');
     const c = s.chain, qi = c.indexOf('qc');
     setEntry(c[0]); setVillageBatch(c.includes('village_batch'));
     const proc = (x: StageType) => defs.data?.find((d) => d.stage_type === x)?.is_processing;
@@ -85,9 +95,12 @@ export function ScopeWizard() {
     return () => clearTimeout(h);
   }, [chain, cropId]);
 
-  if (clients.loading || crops.loading || defs.loading || existing.loading) return <Loading />;
+  if (clients.loading || crops.loading || defs.loading || existing.loading || states.loading) return <Loading />;
   const s = existing.data;
   const frozen = !!s && s.status !== 'draft';
+  // Does the signed-in person manage THIS scope? (new scope: they would not be here otherwise; the database decides at save)
+  const canManage = s ? (ctx!.scopes.find((x) => x.scope_id === s.id)?.manage ?? isManager(me.role)) : true;
+  const homeState = clients.data?.find((c) => c.id === clientId)?.state_id ?? '';
   const crop = crops.data?.find((c) => c.id === cropId);
   const processing = (defs.data ?? []).filter((d) => d.is_processing && crop?.allowed_stages.includes(d.stage_type));
   const label = (x: StageType) => defs.data?.find((d) => d.stage_type === x)?.label ?? humanise(x);
@@ -96,7 +109,8 @@ export function ScopeWizard() {
   };
 
   const saveDraft = () => act.run(async () => {
-    const row = { client_id: clientId, crop_id: cropId, season_code: season.trim().toUpperCase(), geography: geo.trim(), chain };
+    const row = { client_id: clientId, crop_id: cropId, season_code: season.trim().toUpperCase(), geography: geo.trim(), chain,
+      ...(stateId || homeState ? { state_id: stateId || homeState } : {}), season_end: seasonEnd || null };
     const saved = s ? await q(supabase.from('scopes').update(row).eq('id', s.id).select().single()) as ScopeRow
                     : await q(supabase.from('scopes').insert({ ...row, status: 'draft' }).select().single()) as ScopeRow;
     await refresh();
@@ -123,6 +137,9 @@ export function ScopeWizard() {
           <Field label="Season code" hint="two letters + year, e.g. KH26 for Kharif 2026" htmlFor="wz-season">
             <input id="wz-season" value={season} onChange={(e) => setSeason(e.target.value.toUpperCase())} maxLength={4} /></Field>
           <Field label="Geography" hint="district, block or mandi" htmlFor="wz-geo"><input id="wz-geo" value={geo} onChange={(e) => setGeo(e.target.value)} /></Field>
+          <Field label={t('lens.state')} hint={t('wizard.state_hint')} htmlFor="wz-state"><select id="wz-state" value={stateId || homeState} onChange={(e) => setStateId(e.target.value)}>
+            {(states.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}{x.id === homeState ? ` (${t('wizard.home_state')})` : ''}</option>)}</select></Field>
+          <Field label={t('wizard.season_end')} hint={t('wizard.season_end_hint')} htmlFor="wz-end"><input id="wz-end" type="date" value={seasonEnd} onChange={(e) => setSeasonEnd(e.target.value)} /></Field>
           <button disabled={!clientId || !/^[A-Z]{2}[0-9]{2}$/.test(season) || !geo.trim()} onClick={() => setStep(2)}>{t('common.next')}</button>
         </div>
       )}
@@ -161,92 +178,14 @@ export function ScopeWizard() {
       {step === 4 && s && (
         <div className="card">
           <div className="alert info"><strong>Chain:</strong> {s.chain.map(label).join(' → ')}</div>
-          <SlotAssigner scope={s} label={label} canManage={isManager(me.role)} />
+          <h3>{t('wizard.step4')}</h3>
+          <RosterEditor scopeId={s.id} />
           <ErrorBox error={act.error} />
-          {s.status === 'draft' && isManager(me.role) && <div className="row"><button className="secondary" onClick={() => setStep(3)}>{t('common.back')}</button>
+          {s.status === 'draft' && canManage && <div className="row"><button className="secondary" onClick={() => setStep(3)}>{t('common.back')}</button>
             <button className="gold" onClick={activate} disabled={act.busy}>{t('wizard.activate')}</button></div>}
-          {s.status !== 'draft' && <p className="small"><Link to="/">{t('nav.home')}</Link></p>}
+          {s.status !== 'draft' && <p className="small"><Link to="/">{t('nav.home')}</Link> · <Link to={`/scopes/${s.id}/roster`}>{t('roster.title')}</Link></p>}
         </div>
       )}
-    </div>
-  );
-}
-
-interface UserRow { id: string; display_name: string; role: string; phone: string | null; client_id: string | null; active: boolean }
-interface SlotRow { id: string; user_id: string; stage_type: StageType }
-
-/**
- * Who holds each stage. Only a manager of the client may change it (the database decides); anyone else who can open the
- * scope, a client viewer for one, sees the names and no controls. Before, the controls were drawn for everyone.
- * Laid out as a grid so that it folds to one column on a phone; the table roles keep it a table for a screen reader
- * (and for the tests, which find a stage by its row).
- */
-function SlotAssigner({ scope, label, canManage }: { scope: ScopeRow; label: (x: StageType) => string; canManage: boolean }) {
-  const { t } = useI18n();
-  // every operator of the client, active or not: a deactivated person still holding a stage must be shown by name
-  const users = useAsync(() => q(supabase.from('app_users').select('id,display_name,role,phone,client_id,active')
-    .eq('client_id', scope.client_id).eq('role', 'operator').order('display_name')) as Promise<UserRow[]>, [scope.client_id]);
-  const slots = useAsync(() => q(supabase.from('slot_assignments').select('id,user_id,stage_type').eq('scope_id', scope.id)) as Promise<SlotRow[]>, [scope.id]);
-  const act = useAction();
-  const [newUser, setNewUser] = useState<{ stage: StageType; name: string; phone: string; email: string } | null>(null);
-  const [created, setCreated] = useState<string | null>(null);
-  if (users.loading || slots.loading) return <Loading />;
-  const assign = (stage: StageType, userId: string) => act.run(async () => {
-    await q(supabase.from('slot_assignments').insert({ user_id: userId, scope_id: scope.id, stage_type: stage }).select()); await slots.reload();
-  });
-  // Taking a stage away from a person (migration 25). On an active scope the database writes it to the ledger.
-  const remove = (slot: SlotRow, name: string) => act.run(async () => {
-    if (!window.confirm(t('wizard.remove_confirm', { name, stage: label(slot.stage_type) }))) return;
-    const gone = await q(supabase.from('slot_assignments').delete().eq('id', slot.id).select()) as SlotRow[];
-    if (gone.length === 0) throw new Error(t('wizard.remove_refused'));
-    await slots.reload();
-  });
-  const create = () => act.run(async () => {
-    const r = await callFunction<{ temporary_password: string; sign_in: string }>('create-user', {
-      role: 'operator', display_name: newUser!.name, phone: newUser!.phone || undefined, email: newUser!.email || undefined, client_id: scope.client_id,
-      slot: { scope_id: scope.id, stage_type: newUser!.stage } });
-    setCreated(t('users.temp_password', { who: r.sign_in, pw: r.temporary_password }));
-    setNewUser(null); await users.reload(); await slots.reload();
-  });
-  return (
-    <div>
-      <h3>{t('wizard.step4')}</h3>
-      {created && <div className="alert ok" data-testid="temp-password">{created}</div>}
-      <div className="slots" role="table" aria-label={t('wizard.step4')} data-testid="slots">{scope.chain.map((stage) => {
-        const assigned = (slots.data ?? []).filter((x) => x.stage_type === stage);
-        return (
-          <div className="slot" role="row" key={stage}><div role="cell"><strong>{label(stage)}</strong></div>
-            <div role="cell">{assigned.length === 0 && <span className="muted">{t('wizard.nobody')}</span>}
-              {assigned.map((a) => {
-                const u = users.data?.find((x) => x.id === a.user_id);
-                const name = u?.display_name ?? 'manager';
-                return (
-                  <div key={a.id} className="row" data-testid={`slot-holder-${stage}`}>
-                    <span>{name}{u && !u.active && <> <Badge value="closed" label={t('wizard.inactive')} /></>}</span>
-                    {canManage && <button className="secondary small-btn" aria-label={`${t('wizard.remove')}: ${name} · ${label(stage)}`} onClick={() => void remove(a, name)}>{t('wizard.remove')}</button>}
-                  </div>
-                );
-              })}</div>
-            {canManage && <div className="row slot-controls" role="cell">
-              <select aria-label={`Assign ${label(stage)}`} defaultValue="" onChange={(e) => { if (e.target.value) void assign(stage, e.target.value); e.target.value = ''; }}>
-                <option value="">Assign existing…</option>
-                {(users.data ?? []).filter((u) => u.active && !assigned.some((a) => a.user_id === u.id)).map((u) => <option key={u.id} value={u.id}>{u.display_name}</option>)}
-              </select>
-              <button className="secondary" onClick={() => setNewUser({ stage, name: '', phone: '', email: '' })}>+ new person</button>
-            </div>}</div>
-        );
-      })}</div>
-      {newUser && (
-        <div className="card">
-          <h3>New operator for {label(newUser.stage)}</h3>
-          <Field label="Name" htmlFor="nu-name"><input id="nu-name" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} /></Field>
-          <Field label="Email (for sign-in, optional)" htmlFor="nu-email"><input id="nu-email" type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} /></Field>
-          <Field label="Mobile (optional)" htmlFor="nu-phone"><input id="nu-phone" type="tel" value={newUser.phone} onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })} /></Field>
-          <div className="row"><button className="secondary" onClick={() => setNewUser(null)}>{t('common.cancel')}</button>
-            <button onClick={create} disabled={act.busy || !newUser.name.trim() || (!newUser.phone.trim() && !newUser.email.trim())}>{t('common.create')}</button></div>
-        </div>
-      )}
-      <ErrorBox error={act.error} />
     </div>
   );
 }

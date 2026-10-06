@@ -12,14 +12,24 @@ $db = if ($env:DB) { $env:DB } else { 'grainveda_test' }
 $bin = if ($env:PGBIN) { $env:PGBIN } else { Split-Path (Get-Command psql.exe).Source }
 $env:PGCLIENTENCODING = 'UTF8'
 
+# The rows psql prints are discarded (| Out-Null): left in, they became part of this function's answer, the answer was a
+# list instead of true/false, a list counts as true, and a test file that printed one row before it failed was
+# reported as passed. Until 6 Oct 2026 this runner said ALL TESTS PASSED whatever the test files did (FIX_LIST fault
+# 36). Notices, warnings and errors are not rows: they are still shown.
 function Invoke-Psql($file) {
-  & "$bin\psql.exe" -v ON_ERROR_STOP=1 -q -d $db -f $file
+  & "$bin\psql.exe" -v ON_ERROR_STOP=1 -q -d $db -f $file | Out-Null
   return $LASTEXITCODE -eq 0
 }
 
 & "$bin\dropdb.exe" --if-exists $db; if ($LASTEXITCODE -ne 0) { exit 1 }
 & "$bin\createdb.exe" $db;          if ($LASTEXITCODE -ne 0) { exit 1 }
 if (-not (Invoke-Psql 'tests/00_local_auth_shim.sql')) { exit 1 }
+# Self-test of this runner (FIX_LIST fault 36): a file that prints a row and then fails must be seen as failed.
+$probe = Join-Path $env:TEMP 'gv_runner_probe.sql'
+Set-Content -Path $probe -Value "select 'runner self-test' as probe;", 'select gv_runner_probe_fails_on_purpose();'
+Write-Output 'test     runner self-test (the ERROR line that follows is the test: a failing file must fail this runner)'
+if (Invoke-Psql $probe) { Write-Output 'FAILED   runner self-test: a failing file was reported as passed'; exit 1 }
+Remove-Item $probe
 foreach ($f in Get-ChildItem supabase/migrations/*.sql | Sort-Object Name) {
   Write-Output "migrate  supabase/migrations/$($f.Name)"; if (-not (Invoke-Psql $f.FullName)) { exit 1 }
 }
@@ -39,7 +49,7 @@ if (-not (Invoke-Psql 'tests/remote_t1_rollback.sql')) { $fail = $true; Write-Ou
 Write-Output 'test     production build (no demo data; the demo seed must refuse)'
 $pdb = "${db}_prod"
 function Invoke-PsqlOn($database, $file) {
-  & "$bin\psql.exe" -v ON_ERROR_STOP=1 -q -d $database -f $file
+  & "$bin\psql.exe" -v ON_ERROR_STOP=1 -q -d $database -f $file | Out-Null
   return $LASTEXITCODE -eq 0
 }
 & "$bin\dropdb.exe" --if-exists $pdb
@@ -62,6 +72,37 @@ else {
   else { $fail = $true; Write-Output 'FAILED   the demo seed failed for another reason'; Write-Output $demoOut }
 }
 & "$bin\dropdb.exe" --if-exists $pdb
+# Upgrade path: what a project already in use gets. The database as it stood before the identity layer (migrations up
+# to 30, the demo people and their stages), then the later migrations on top, each in ONE transaction as
+# `supabase db push` runs them, then the whole suite again. (The .sh twin of this file says why.)
+Write-Output 'test     upgrade path (migrations 1-30 and the demo data first, then 31 onwards on top, then every test again)'
+$udb = "${db}_upgrade"
+function Invoke-PsqlQuiet($database, $file, [switch]$OneTransaction) {
+  $env:PGOPTIONS = '-cclient_min_messages=warning'
+  if ($OneTransaction) { & "$bin\psql.exe" -v ON_ERROR_STOP=1 -q -1 -d $database -f $file | Out-Null } else { & "$bin\psql.exe" -v ON_ERROR_STOP=1 -q -d $database -f $file | Out-Null }
+  $ok = $LASTEXITCODE -eq 0
+  Remove-Item Env:PGOPTIONS
+  return $ok
+}
+& "$bin\dropdb.exe" --if-exists $udb
+& "$bin\createdb.exe" $udb
+$upOk = Invoke-PsqlQuiet $udb 'tests/00_local_auth_shim.sql'
+$migrations = Get-ChildItem supabase/migrations/*.sql | Sort-Object Name
+foreach ($f in $migrations | Where-Object { $_.Name -lt '20261006' }) { if ($upOk) { $upOk = Invoke-PsqlQuiet $udb $f.FullName -OneTransaction } }
+foreach ($f in Get-ChildItem supabase/seeds/*.sql | Where-Object { $_.Name -match '^0[1-5]' } | Sort-Object Name) { if ($upOk) { $upOk = Invoke-PsqlQuiet $udb $f.FullName } }
+foreach ($f in $migrations | Where-Object { $_.Name -ge '20261006' }) {
+  if ($upOk) { $upOk = Invoke-PsqlQuiet $udb $f.FullName -OneTransaction; if (-not $upOk) { Write-Output "FAILED   upgrade: supabase/migrations/$($f.Name) does not apply to a database in use" } }
+}
+foreach ($f in Get-ChildItem supabase/seeds/*.sql | Where-Object { $_.Name -match '^0[6-9]' } | Sort-Object Name) { if ($upOk) { $upOk = Invoke-PsqlQuiet $udb $f.FullName } }
+$nUp = 0
+if ($upOk) {
+  foreach ($f in Get-ChildItem tests/*.sql | Where-Object { $_.Name -match '^[0-9]' -and $_.Name -notmatch '^00' } | Sort-Object Name) {
+    if (Invoke-PsqlQuiet $udb $f.FullName) { $nUp++ } else { $upOk = $false; Write-Output "FAILED   upgrade: tests/$($f.Name) on the upgraded database" }
+  }
+}
+if ($upOk) { Write-Output "ok   upgrade: the later migrations apply to a database in use, and all $nUp test files pass on it" }
+else { $fail = $true; Write-Output 'FAILED   upgrade path' }
+& "$bin\dropdb.exe" --if-exists $udb
 # Four sessions at once: ledger appends and Farmer IDs under concurrency. Last, because it commits into the scratch DB.
 Write-Output 'test     tests/concurrency (4 parallel sessions)'
 if (-not (Invoke-Psql 'tests/concurrency/setup.sql')) { $fail = $true }

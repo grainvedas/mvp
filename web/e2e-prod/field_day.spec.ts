@@ -1,5 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
-import { signIn, USERS, apiAs } from '../e2e/helpers';
+import { signIn, USERS, SCOPES, openSlot, apiAs } from '../e2e/helpers';
 import { loadEnv } from '../../scripts/lib/env.mjs';
 
 // A day in the field, against the BUILT app with its service worker.
@@ -12,7 +12,6 @@ process.env.ENV_FILE ??= '.env.stack';
 const env = loadEnv() as Record<string, string>;
 const API = new URL(env.SUPABASE_URL).origin;
 const OP = { key: '305', phone: '0000000005' };
-const GORAKHPUR = /· Gorakhpur(?! mandi)/;
 
 /** As if the hour were over: the token kept on the phone is past its time. */
 async function ageTheToken(page: Page) {
@@ -45,7 +44,7 @@ async function atHomeWithNetwork(page: Page) {
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await page.reload();
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-  await page.getByTestId('slot-procurement').filter({ hasText: GORAKHPUR }).click();
+  await openSlot(page, 'procurement', SCOPES.gorakhpur);        // five scopes: the operator says where they are working today; the phone remembers
   await expect(page.getByRole('button', { name: /Ram Achal/ })).toBeVisible();
 }
 
@@ -220,34 +219,42 @@ test('Sign out with no network signs out on this phone, after a warning, and lea
   await context.setOffline(false);
 });
 
-test('Lost phone: once the person is deactivated, the phone gets nothing more and erases its offline copy at the next contact', async ({ page, browser }) => {
+// Since the identity layer (6 Oct 2026) it is HR who cuts a lost phone off: Suspend. A manager's direct change of a
+// person is no longer possible at all (the database lets the API change a name, a phone and an email, nothing else).
+test('Lost phone: once the person is suspended, the phone gets nothing more and erases its offline copy at the next contact', async ({ page, browser }) => {
   test.setTimeout(180_000);
   await atHomeWithNetwork(page);
   const kept = await keptForOffline(page);
   expect(kept.some((k) => k.includes(':farmers:'))).toBe(true);
 
   const office = await browser.newContext();
-  const manager = await office.newPage();
-  await signIn(manager, USERS.cm);
-  const api = await apiAs(manager);
+  const desk = await office.newPage();
+  await signIn(desk, USERS.cm);
+  let api = await apiAs(desk);
   const person = (await api.rows('app_users')).find((u) => String(u.phone ?? '').endsWith(OP.phone));
   expect(person, 'the Client Manager sees the operator').toBeTruthy();
+  // the old way, a manager switching the person off through the API: nothing happens any more
+  await api.update('app_users', `id=eq.${person!.id}`, { active: false });
+  expect((await api.rows('app_users', `id=eq.${person!.id}`))[0].active, 'a manager cannot switch a person off').toBe(true);
+  expect((await api.rpc('suspend_person', { p_employee: person!.id, p_reason: 'phone lost' })).ok, 'nor suspend them').toBe(false);
+  await signIn(desk, USERS.hr);
+  api = await apiAs(desk);
   try {
-    const off = await api.update('app_users', `id=eq.${person!.id}`, { active: false });
+    const off = await api.rpc('suspend_person', { p_employee: person!.id, p_reason: 'phone lost' });
     expect(off.ok, JSON.stringify(off.data)).toBe(true);
 
     await page.reload();                                                   // the lost phone is opened, with a network
-    await expect(page.getByText('no GrainVeda user is linked')).toBeVisible();
+    await expect(page.getByTestId('no-access')).toContainText('This sign-in opens nothing', { useInnerText: true });
     await expect.poll(() => keptForOffline(page), { message: 'the farmer list and forms are erased from the phone' }).toEqual([]);
     const phoneApi = await apiAs(page);
     for (const table of ['footprints', 'farmers', 'scopes', 'ledger']) expect(await phoneApi.rows(table), table).toHaveLength(0);
   } finally {
-    const on = await api.update('app_users', `id=eq.${person!.id}`, { active: true });
+    const on = await api.rpc('reinstate_person', { p_employee: person!.id });
     expect(on.ok, JSON.stringify(on.data)).toBe(true);
     await office.close();
   }
   await page.reload();
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();          // active again: the same login works
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();          // reinstated: the same login works
 });
 
 test('A save whose answer is lost on the way back is not made twice', async ({ page, context }) => {

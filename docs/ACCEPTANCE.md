@@ -46,8 +46,10 @@ What each test proves, in the PRD's words:
 
 Open the staging address in Chrome on an Android phone. Passwords are in `.env.demo-logins` on Antigravity's computer.
 Operators sign in on the **Phone** tab with `+91 00000 000NN` (or on the **Email** tab, if they were given an email); managers on the **Email** tab.
-On the first screen every stage a person holds is a card, "My stage: Procurement" with the scope's name under it.
-"Procurement · Siddharthnagar" below means: tap that card. (On a laptop the same stage is also in the menu on the left
+The demo operators hold stages in several places, so after signing in they are asked **Where are you working now?**
+Tap the place; the first screen then shows a card per stage held there, "My stage: Procurement" with the scope's name
+under it. "Procurement · Siddharthnagar" below means: choose Siddharthnagar, then tap that card. For the next place:
+**Change where I am working**. The phone remembers the last choice. (On a laptop the same stage is also in the menu on the left
 under **Operations**, once the scope is chosen in the **Scope** box of the top bar.) A record's status chip reads
 **Pending verification** until the next stage has verified it, then **Approved**.
 

@@ -1,4 +1,4 @@
-// The demo logins, keyed by the last three digits of their app_users id (seeds 02, 03, 04).
+// The demo logins, keyed by the last three digits of their app_users id (seeds 02, 03, 04, 05, 06).
 // Managers sign in by email + password, operators by phone + password (development only: no SMS needed).
 // Production operators will use phone OTP once DLT registration is done (execution plan, workstream D).
 export const DEMO_USERS = [
@@ -17,6 +17,11 @@ export const DEMO_USERS = [
   { key: '313', role: 'operator',       name: 'Lot Inward Operator',        phone: '+910000000013' },
   { key: '314', role: 'operator',       name: 'Shipment Operator',          phone: '+910000000014' },
   { key: '315', role: 'operator',       name: 'Village Batch Operator',     phone: '+910000000015' },
+  // Identity layer (seed 06): the HR seats, an employee with no assignment yet, a joiner on the way in.
+  { key: '316', role: 'hr_admin',       name: 'Asha (HR Admin)',            email: 'grainvedas+hradmin@gmail.com' },
+  { key: '317', role: 'hr_resource',    name: 'Imran (HR)',                 email: 'grainvedas+hr@gmail.com' },
+  { key: '318', role: 'unassigned',     name: 'Ravi Kumar',                 email: 'grainvedas+ravi@gmail.com' },
+  { key: '319', role: 'joiner',         name: 'Meera Joshi',                email: 'grainvedas+meera@gmail.com' },
 ];
 
 export const appUserId = (key) => `00000000-0000-4000-8000-000000000${key}`;

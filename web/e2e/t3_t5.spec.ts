@@ -170,7 +170,7 @@ test('T5: an operator works only at the assigned stage of the assigned scope; fa
 
   // …and another client's operator sees nothing at all of this client.
   await signIn(page, USERS.otherClient);
-  await expect(page.getByText('You are not assigned to any stage yet')).toBeVisible();
+  await expect(page.getByTestId('no-assignment')).toContainText('A manager will assign you to your work soon');   // nobody has assigned him: the calm screen
   api = await apiAs(page);
   for (const table of ['footprints', 'farmers', 'scopes', 'qc_verdicts', 'qr_seals', 'flags', 'ledger']) {
     expect(await api.rows(table), `${table} as another client's operator`).toHaveLength(0);

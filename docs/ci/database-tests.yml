@@ -71,7 +71,7 @@ jobs:
         run: ENV_FILE=.env.stack node scripts/create_demo_logins.mjs
       - name: permissions + T1 with real logins
         run: ENV_FILE=.env.stack node tests/remote_rls.mjs --t1
-      - name: create-user and reset-password Edge Functions (own password, reset, sessions ended, sign-up cannot become a user)
+      - name: create-user, reset-password and daily-code Edge Functions (joiner, client login, HR store, own password, reset, offboard, sign-up cannot become a user, the sign-in code)
         run: ENV_FILE=.env.stack node tests/remote_create_user.mjs
       - name: Auth settings (informational on the stack; the same script FAILS on a production project with sign-up open)
         run: ENV_FILE=.env.stack node tests/remote_auth_settings.mjs || true

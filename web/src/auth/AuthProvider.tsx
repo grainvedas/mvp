@@ -25,9 +25,10 @@ const SIGN_OUT_WAIT_MS = 4000;
 // weeks; managers work on shared office computers. Counted from the last sign-in with a password, not from the last
 // token refresh. The server-side limit for everyone is the project's "time-box user sessions" setting (docs/DEPLOY.md).
 export const SESSION_HOURS = { manager: 12, operator: 24 * 30 } as const;
-export function sessionExpired(role: Role, lastSignInAt: string | null | undefined, now = Date.now()): boolean {
+export function sessionExpired(role: Role, lastSignInAt: string | null | undefined, now = Date.now(), systemRole: string = 'operational'): boolean {
   if (!lastSignInAt) return false;
-  const hours = role === 'operator' ? SESSION_HOURS.operator : SESSION_HOURS.manager;
+  // The long session is for people who only hold stages. HR and the admin read people's records: the short one.
+  const hours = role === 'operator' && systemRole === 'operational' ? SESSION_HOURS.operator : SESSION_HOURS.manager;
   return now - new Date(lastSignInAt).getTime() > hours * 3600_000;
 }
 
@@ -104,14 +105,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [load]);
 
   const role = ctx?.user?.role;
+  const systemRole = ctx?.user?.system_role ?? 'operational';
   const lastSignIn = session?.user.last_sign_in_at;
   useEffect(() => {
     if (!role || !lastSignIn) return;
-    const check = () => { if (sessionExpired(role, lastSignIn)) void signOut(); };
+    const check = () => { if (sessionExpired(role, lastSignIn, Date.now(), systemRole)) void signOut(); };
     check();
     const t = window.setInterval(check, 60_000);
     return () => window.clearInterval(t);
-  }, [role, lastSignIn, signOut]);
+  }, [role, systemRole, lastSignIn, signOut]);
 
   const value: Auth = {
     session, ctx, loading, error,

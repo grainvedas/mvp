@@ -1,7 +1,8 @@
 # Rules for coding agents (Antigravity IDE, Claude, Cursor, …) working in this repo
 
 You are working on the GrainVeda MVP, built from the PRD: https://claude.ai/code/artifact/28bf2d7b-66e0-4580-a6c7-5b12a85eefeb
-Phases 0 to 4 are built and tested on a local stand-in. Do not weaken a database rule to make a screen easier.
+Phases 0 to 4 and the identity layer (Phase 5, 6 October 2026: `docs/IDENTITY_DESIGN.md`) are built and tested on a
+local stand-in. Do not weaken a database rule to make a screen easier.
 Where things stand: `README.md`. What is known to be missing: `docs/FIX_LIST.md`.
 **The interface has the prototype's look and frame** (decision G8 = B, Veda, 4 October 2026; it replaced A of the same
 morning). What the forms ask for is still this system's: do not add the prototype's fields or screens without a new
@@ -33,10 +34,29 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
    Use the same derivation the server uses (`app.reconcile` rules, PRD §7) — port it, do not reinvent it.
 9. **Logins are made by service code only**: the `create-user` and `reset-password` Edge Functions,
    `scripts/bootstrap_admin.mjs`, `scripts/create_demo_logins.mjs`. A public sign-up never becomes a GrainVeda user
-   (migration 23). The service key never reaches the browser or git. A person signs in by **email or phone + password**
-   (managers email; operators either — 5 Oct 2026); `create-user` requires at least one of the two. No SMS is sent.
-10. **Two systems.** Production is the project marked by `supabase/seeds/production/10_reference.sql`. Any script that
-    writes demo data or runs a destructive check calls `assertNotProduction` first. Demo seeds 02–05 never go there.
+   (migration 23). The service key never reaches the browser or git. Every person HR adds signs in by **email +
+   password**; the demo operators of seeds 02 to 05 keep phone sign-ins. No SMS is sent, and no mail unless a sender
+   is configured (none is).
+10. **HR creates a person; a manager gives access. Never both in one act** (identity layer, migrations 31 to 33).
+    - A person is written only by the functions of migration 33 (`app.add_joiner`, `app.add_client_viewer`, the
+      lifecycle functions). The API may not insert into `app_users` and may update only name, phone and email.
+      `role`, `client_id`, `state_ids` are a **summary the database writes** from the assignments: never read them
+      to decide access, never write them.
+    - Access is the **union** of a person's live assignments (`public.assignments`: scope / client / state) plus the
+      system role. HR's system roles grant people records and nothing else: no rule may let HR assign.
+    - **A rule about a record asks about the scope in hand**: `app.manages_scope(person, scope)`,
+      `app.manages_client`, `app.acts_in_scope`. Never "is this person a manager" on its own
+      (`is_gateway_role(user_role_of(x))`): a manager of client A who holds a stage for client B is not a manager in
+      B. `tests/24_union_access.sql` builds that person; a new record function needs its case there.
+    - An assignment only moves forward (given, stages changed, ended, replaced). `audit_log` is append-only. A person
+      is never deleted: suspended, or offboarded and re-hired on the same record.
+    - Identity and bank numbers are checked in full in the browser (`web/src/lib/people.ts`) and only their **last
+      four characters** are sent or stored. Never add a column, a log line or a request that carries the full number.
+      HR documents live in the private store `hr-docs`, readable by HR and the admin only.
+    - The once-a-day sign-in code is built and **off**. `app.current_user_id()` is gated by it: use that function
+      (not `auth.uid()`) for "who is signed in" in any rule, or the gate has a hole.
+11. **Two systems.** Production is the project marked by `supabase/seeds/production/10_reference.sql`. Any script that
+    writes demo data or runs a destructive check calls `assertNotProduction` first. Demo seeds 02–06 never go there.
 
 ## The phone (web app): what must stay true
 
@@ -48,6 +68,9 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
 - **Every save of a record goes through `insertOnce(row, saveId)`** (`web/src/offline/outbox.ts`), with one id from the
   first tap, whether it is sent at once or kept on the phone first. Never insert into `footprints` any other way: a
   save whose answer is lost would be stored twice. A new kind of write that can be retried needs its own such id.
+- **`useAsync().reload` loads what is on screen now.** It is handed to buttons and rows, and an action can finish
+  after the person changed tab or filter; the hook keeps the newest loader for that (`web/tests/use_async.test.tsx`).
+  Do not hold a list's loader in a closure of your own.
 - A request that can leave an operator stuck is bounded: reads of forms use `cached()` (the phone's copy after 8 s on a
   dead link), the maths step `within()`, saves 30 s, photo uploads 240 s. What is kept on the phone is cleared on every
   sign-out and when the server no longer knows the person; if you keep something new there, add it to
@@ -78,7 +101,11 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   below that the phone frame. Every colour is a token at the top of `styles.css` (the prototype's values; text pairs
   hold 4.5:1): never a colour written into a component. The frame is `shell/Layout.tsx`; the scope in force is
   `useScope()` from `shell/scope.tsx` ("Overall" when a person has several scopes and has chosen none), never a second
-  piece of state. First screens are `pages/Home.tsx`; their figures come from `app.pipeline_summary` through
+  piece of state. Which first screen a person gets is the pure `firstScreen()` in `pages/Home.tsx` (joiner, HR,
+  nobody assigned, pick a place, stages, scope, overall); the menu is `NAV` in `shell/Layout.tsx`, shown by what the
+  server says the person may do (`me.can`), not by the role word. A scope carries `manage` and `whole` per person.
+  People who only hold stages work in ONE scope at a time (the picker; a rule of the screens, the API follows the
+  union). First screens are `pages/Home.tsx`; their figures come from `app.pipeline_summary` through
   `scopeFigures()`: do not count records in the browser.
 - **A form's sections are data.** Each field in `supabase/seeds/01_stage_definitions.sql` carries `"section"`: display
   only, the database does not read it. A new section name needs `section.<name>` in both dictionaries and a pictogram
@@ -105,7 +132,25 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   each role that may insert.
 - **Demo data hides set-up faults.** What a seed puts in place was never made through the screens. Anything a real
   client needs before its first lot (client, manager, scope, people, farmer) has to be made in a test the way a
-  person makes it: `e2e/phase7.spec.ts` "A brand-new client, set up from the screens only".
+  person makes it: `e2e/phase7.spec.ts` "A brand-new client from nothing: HR adds the people, managers give them
+  access, the first lot is sealed".
+- **A migration that writes rows of its own** (migration 31: the standard joining checklist) is also in every backup:
+  the restore drill empties what the migrations filled before it loads the data, and `docs/RESTORE.md` says the same
+  for a hosted restore. Run `node scripts/restore_drill.mjs` after adding such a migration. **A new kind of ledger
+  block** needs its line in `tests/remote_ledger_audit.sql`, or the audit reports it as a block without a counterpart.
+- **A migration that moves or rewrites existing rows must be run on a database that has rows.** Every test builds
+  from nothing, where the tables are still empty when the migration runs: on 6 October migration 31 passed 870
+  checks and would have stopped on staging at its first `update` (an older trigger refused it). The "upgrade path"
+  step of `tests/run_local.*` builds the database as it stood before the identity layer, with the demo people,
+  applies the later migrations one transaction each, and runs every test again. A new migration after 33 is applied
+  in that second group automatically; if it changes what an OLDER migration left behind, move the cut-off.
+- **Run the whole thing from a clean build before calling it done**: `scripts/collect_release_evidence.sh --fresh`.
+  On 6 October the per-file runs were all green and the full run found four faults (ledger audit, restore drill, a
+  test that used a closed route, a stale list reload).
+- **A test runner needs a control too.** `tests/run_local.ps1` printed `ALL TESTS PASSED` for nine days whatever the
+  test files did: in PowerShell a function returns everything printed inside it, the rows psql printed made the answer
+  a list, and a list is "true". It now discards the rows and begins with a self-test that must fail. When you write
+  or change a runner, a CI step or a gate script, make it fail once on purpose and read its last line and exit code.
 - **A fix needs a test that failed before the fix.** Reproduce first (a failing test, or a probe of the app as it is), then
   fix. If the old behaviour passes your new test, you have hardened something, not fixed a fault: say so
   (`docs/FIX_LIST.md` keeps the two apart). A check that cannot fail proves nothing: give every new check a negative control.
@@ -121,8 +166,9 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
 - When a test fails, first decide whether the rule or the test is wrong. Rules trace to the PRD sections named in the SQL comments.
 - **The server functions are a third deploy, apart from the database and the app.** When a migration changes what a
   function must send or may rely on (migration 23 did: logins need `app_metadata.grainveda_login`), or a function
-  changes what the app relies on, raise `VERSION` in all three `supabase/functions/*/handler.ts` and `FUNCTIONS_NEEDED`
-  in `web/src/lib/api.ts` (`web/tests/functions.test.ts` holds them together), and say in the run-sheet that step A6
+  changes what the app relies on, raise `VERSION` in all four `supabase/functions/*/handler.ts` (`create-user`,
+  `reset-password`, `ledger-check`, `daily-code`) and `FUNCTIONS_NEEDED` in `web/src/lib/api.ts`
+  (`web/tests/functions.test.ts` holds them together), and say in the run-sheet that the functions step (Phase 5 D4)
   has to be repeated. A step that makes two things in two systems (a person's row, then a login) takes both back on
   every way out, checks that the removal happened, and says why the second step failed: "created but not linked"
   with no reason cost a day (FIX_LIST fault 32). When you write a prompt for another agent, name every step, not the

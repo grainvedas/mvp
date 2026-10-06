@@ -26,7 +26,27 @@ insert into allowed values
   ('anon', 'environment'), ('authenticated', 'environment'), ('authenticated', 'lot_markets'), ('authenticated', 'scope_activity'),
   ('authenticated', 'reset_login_allowed'), ('authenticated', 'report_client_error'), ('authenticated', 'check_ledger_now'),
   -- Phase 4 (migration 24)
-  ('authenticated', 'seal_source');
+  ('authenticated', 'seal_source'),
+  -- Identity layer (migration 32): helpers the access policies evaluate as the caller; each answers only about the caller
+  ('authenticated', 'is_admin'), ('authenticated', 'is_hr'), ('authenticated', 'is_hr_admin'), ('authenticated', 'hr_may_manage'),
+  ('authenticated', 'holds_op_role'), ('authenticated', 'can_assign'), ('authenticated', 'i_manage_scope'),
+  ('authenticated', 'manages_scope_row'), ('authenticated', 'sees_scope_row'), ('authenticated', 'sees_whole_scope'),
+  ('authenticated', 'acts_in_scope'), ('authenticated', 'farmer_write'), ('authenticated', 'i_verify_farmers'),
+  ('authenticated', 'manages_viewer'),
+  -- Identity layer (migration 33): onboarding, assignment, lifecycle, the screens' reads, the sign-in code
+  ('authenticated', 'add_joiner'), ('authenticated', 'note_invite_sent'), ('authenticated', 'note_login_reset'), ('authenticated', 'add_client_viewer'),
+  ('authenticated', 'mark_first_login'), ('authenticated', 'activate_joiner'), ('authenticated', 'my_onboarding'),
+  ('authenticated', 'register_hr_file'), ('authenticated', 'complete_task'), ('authenticated', 'reopen_task'),
+  ('authenticated', 'add_hr_note'), ('authenticated', 'set_goals'), ('authenticated', 'update_joiner'),
+  ('authenticated', 'hr_pipeline'), ('authenticated', 'joiner_detail'),
+  ('authenticated', 'assignment_warnings'), ('authenticated', 'assign'), ('authenticated', 'set_stages'),
+  ('authenticated', 'end_preview'), ('authenticated', 'end_assignment'), ('authenticated', 'reassign'),
+  ('authenticated', 'suspend_person'), ('authenticated', 'reinstate_person'), ('authenticated', 'offboard_preview'),
+  ('authenticated', 'offboard_person'), ('authenticated', 'rehire_person'), ('authenticated', 'set_system_role'),
+  ('authenticated', 'appoint_hr_admin'),
+  ('authenticated', 'people_directory'), ('authenticated', 'employee_profile'), ('authenticated', 'scope_roster'),
+  ('authenticated', 'state_overview'), ('authenticated', 'bootstrap_seats'), ('authenticated', 'audit_feed'),
+  ('authenticated', 'daily_code_state'), ('authenticated', 'verify_daily_code'), ('authenticated', 'set_daily_code');
 
 do $$
 declare r record; leaks text := '';
@@ -50,6 +70,11 @@ select t.ok(not has_function_privilege('authenticated', 'app.ledger_append(uuid,
             'api surface: signed-in users cannot write the ledger directly');
 select t.ok(not has_function_privilege('authenticated', 'app.next_farmer_code(uuid)', 'execute'),
             'api surface: signed-in users cannot burn Farmer IDs');
+select t.ok(not has_function_privilege('authenticated', 'app.issue_daily_code(uuid)', 'execute')
+            and not has_function_privilege('authenticated', 'app.audit(text, uuid, jsonb, boolean)', 'execute')
+            and not has_function_privilege('authenticated', 'app.eff_assignments(uuid)', 'execute')
+            and not has_function_privilege('authenticated', 'app.manages_scope(uuid, uuid)', 'execute'),
+            'api surface: signed-in users cannot draw a sign-in code, write the audit log, or ask about another person''s access');
 select t.ok(has_function_privilege('anon', 'app.public_lot_journey(text)', 'execute'),
             'api surface: the public verify page still works for anonymous visitors');
 

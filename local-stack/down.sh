@@ -2,7 +2,7 @@
 # Stops the local stack started by local-stack/up.sh.
 cd "$(dirname "$0")"
 pids=""
-for s in gateway functions storage postgrest auth; do
+for s in gateway functions storage mail postgrest auth; do
   [ -f "run/$s.pid" ] && { p=$(cat "run/$s.pid"); kill "$p" 2>/dev/null && pids="$pids $p"; rm -f "run/$s.pid"; }
 done
 # An auth server whose pid was not recorded (an interrupted start) would keep answering on the same port and keep

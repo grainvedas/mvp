@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local stand-in for the Supabase project: Postgres + Supabase Auth + PostgREST + local Edge Function runner, all behind
+# Local stand-in for the Supabase project: Postgres + Supabase Auth + PostgREST + local Edge Function runner + a mail stand-in, all behind
 # one URL (http://127.0.0.1:54321) exactly like https://<ref>.supabase.co. For end-to-end tests and front-end work
 # without touching the live project. Linux/macOS (CI runs it on ubuntu). Storage is a small stand-in (storage.mjs) that
 # keeps files on disk and lets the real evidence policies decide who may write and read them.
@@ -74,6 +74,13 @@ nohup "$BIN/postgrest" > "$RUN/postgrest.log" 2>&1 & echo $! > "$RUN/postgrest.p
 # 5. Edge Functions (local runner) + gateway
 LEDGER_CHECK_TOKEN=$(node -e "console.log(require('crypto').randomBytes(24).toString('hex'))")
 export SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" FUNCTIONS_PORT=54332 LEDGER_CHECK_TOKEN
+# A mail stand-in (local-stack/mail.mjs), so the invite note and the once-a-day sign-in code can be tested. The live
+# projects have NO sender (decision 5 Oct 2026); STACK_NO_MAIL=1 starts the stack the same way, without one.
+if [ "${STACK_NO_MAIL:-}" != 1 ]; then
+  export MAIL_API_KEY=local-mail-key MAIL_PORT=54334
+  nohup node local-stack/mail.mjs > "$RUN/mail.log" 2>&1 & echo $! > "$RUN/mail.pid"
+  export MAIL_API_URL=http://127.0.0.1:54334/emails MAIL_FROM='GrainVeda <no-reply@grainveda.test>' APP_URL=http://127.0.0.1:5173
+fi
 nohup node --experimental-strip-types --no-warnings local-stack/functions.mjs > "$RUN/functions.log" 2>&1 & echo $! > "$RUN/functions.pid"
 STORAGE_JWT_SECRET="$SECRET" STORAGE_DIR="$RUN/storage" nohup node local-stack/storage.mjs > "$RUN/storage.log" 2>&1 & echo $! > "$RUN/storage.pid"
 nohup node local-stack/gateway.mjs > "$RUN/gateway.log" 2>&1 & echo $! > "$RUN/gateway.pid"
@@ -89,5 +96,6 @@ LEDGER_CHECK_TOKEN=$LEDGER_CHECK_TOKEN
 VITE_SUPABASE_URL=http://127.0.0.1:54321
 VITE_SUPABASE_ANON_KEY=$ANON_KEY
 SUPABASE_DB_URL=postgresql://$PGUSER@$DBHOST:$PGPORT/$DB
+MAIL_OUTBOX_URL=${MAIL_API_URL:+http://127.0.0.1:54334/outbox}
 ENV
 echo "LOCAL STACK UP  http://127.0.0.1:54321  (keys in .env.stack)"

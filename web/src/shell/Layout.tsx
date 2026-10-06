@@ -7,27 +7,42 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useI18n, type Lang } from '../lib/i18n';
 import { humanise } from '../lib/format';
-import type { Role } from '../lib/types';
+import { NO_RIGHTS, type Can, type Role } from '../lib/types';
 import { useOutbox } from '../offline/useOutbox';
 import { stageIcon } from '../engine/icons';
 import { CrashCard, ErrorBoundary } from './ErrorBoundary';
-import { ScopeProvider, shownScope, useScope, useWide } from './scope';
+import { ScopeProvider, shownScope, useScope, useWide, worksInOneScope } from './scope';
 
-type Section = 'overview' | 'registry' | 'system';
-const NAV: { to: string; key: string; icon: string; section: Section; roles: Role[] | 'farmer-slot' }[] = [
-  { to: '/', key: 'nav.home', icon: '📊', section: 'overview', roles: ['admin', 'state_manager', 'client_manager', 'client_view', 'operator'] },
-  { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾', section: 'registry', roles: 'farmer-slot' },
-  { to: '/scopes', key: 'nav.scopes', icon: '🎯', section: 'registry', roles: ['admin', 'state_manager', 'client_manager', 'client_view'] },
-  { to: '/users', key: 'nav.users', icon: '👤', section: 'registry', roles: ['admin', 'state_manager', 'client_manager'] },
-  { to: '/clients', key: 'nav.clients', icon: '🏢', section: 'registry', roles: ['admin', 'state_manager'] },
-  { to: '/crops', key: 'nav.crops', icon: '🌿', section: 'registry', roles: ['admin'] },
-  { to: '/states', key: 'nav.states', icon: '📍', section: 'registry', roles: ['admin'] },
-  { to: '/flags', key: 'nav.flags', icon: '🚩', section: 'system', roles: ['admin', 'state_manager', 'client_manager'] },
-  { to: '/health', key: 'nav.health', icon: '🩺', section: 'system', roles: ['admin', 'state_manager'] },
+type Section = 'overview' | 'registry' | 'people' | 'system';
+/** What the menu needs to know about the person. `can` comes from the server (identity layer); the role is the summary. */
+export interface NavWho { role: Role; can: Can; farmerSlot: boolean; joiner: boolean; employee: boolean }
+export const NAV: { to: string; key: string; icon: string; section: Section; show: (w: NavWho) => boolean }[] = [
+  { to: '/', key: 'nav.home', icon: '📊', section: 'overview', show: () => true },
+  { to: '/onboarding', key: 'nav.onboarding', icon: '✅', section: 'overview', show: (w) => w.joiner },
+  { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾', section: 'registry', show: (w) => w.role !== 'operator' || w.farmerSlot },
+  { to: '/scopes', key: 'nav.scopes', icon: '🎯', section: 'registry', show: (w) => w.role !== 'operator' },
+  { to: '/clients', key: 'nav.clients', icon: '🏢', section: 'registry', show: (w) => w.role === 'admin' || w.role === 'state_manager' },
+  { to: '/crops', key: 'nav.crops', icon: '🌿', section: 'registry', show: (w) => w.can.admin },
+  { to: '/states', key: 'nav.states', icon: '📍', section: 'registry', show: (w) => w.can.admin },
+  // People: HR makes them, managers assign them. Two different jobs, two different entries.
+  { to: '/hr', key: 'nav.hr', icon: '🧑‍💼', section: 'people', show: (w) => w.can.hr },
+  { to: '/people', key: 'nav.people', icon: '👥', section: 'people', show: (w) => w.can.hr || w.can.assign },
+  { to: '/state', key: 'nav.state', icon: '🗺', section: 'people', show: (w) => w.can.state_lens },
+  { to: '/flags', key: 'nav.flags', icon: '🚩', section: 'system', show: (w) => w.can.assign },
+  { to: '/health', key: 'nav.health', icon: '🩺', section: 'system', show: (w) => w.can.state_lens },
+  { to: '/system/seats', key: 'nav.seats', icon: '🪑', section: 'system', show: (w) => w.can.admin },
+  { to: '/system/audit', key: 'nav.audit', icon: '📜', section: 'system', show: (w) => w.can.hr_admin },
 ];
 
 /** "Prasaadam Client Manager" → "PC": the first letters of the first two words, as in the prototype's top bar. */
 export const initials = (name: string) => name.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+/** The word shown beside a person's name: the system role when it is one of the seats, else the summary role. */
+export function roleWord(me: { role: Role; system_role?: string; status?: string; external?: boolean }, t: (k: string, v?: Record<string, string | number>, f?: string) => string): string {
+  if (me.system_role && me.system_role !== 'operational' && me.system_role !== 'admin') return t(`sysrole.${me.system_role}`);
+  if (!me.external && (me.status === 'invited' || me.status === 'onboarding')) return t('pstatus.onboarding');
+  return t(`role.${me.role}`, undefined, humanise(me.role));
+}
 
 export function Layout() {
   return <ScopeProvider><Frame /></ScopeProvider>;
@@ -50,16 +65,19 @@ function Frame() {
     await signOut();                                       // also forgets what was kept on this phone for offline work
   };
   const farmerSlot = !!ctx?.slots.some((s) => s.stage_type === 'procurement' || s.stage_type === 'village_batch');
-  const visible = NAV.filter((n) => me && (n.roles === 'farmer-slot'
-    ? me.role !== 'operator' || farmerSlot
-    : n.roles.includes(me.role)));
+  const can = me?.can ?? { ...NO_RIGHTS, admin: me?.role === 'admin', assign: !!me && ['admin', 'state_manager', 'client_manager'].includes(me.role),
+    state_lens: me?.role === 'admin' || me?.role === 'state_manager' };      // a server from before migration 32 sends no `can`
+  const who: NavWho | null = me ? { role: me.role, can, farmerSlot, employee: !me.external,
+    joiner: !me.external && ((ctx?.onboarding?.open ?? 0) > 0 || me.status === 'invited' || me.status === 'onboarding') } : null;
+  const visible = NAV.filter((n) => who && n.show(who));
   const inSection = (s: Section) => visible.filter((n) => n.section === s);
   // The scope the frame shows: the one this page belongs to (a stage page, a scope's dashboard), else the chosen one.
   const shown = shownScope(scopes, current, pathname);
-  // Operations: the stages of that scope. A manager or viewer gets its whole chain, an operator the stages held there.
-  const stages = !shown || !me ? [] : me.role === 'operator'
+  // Operations: the stages of that scope. Whoever reads it whole gets its chain; whoever holds stages there, those.
+  const stages = !shown || !me ? [] : !shown.whole
     ? ctx!.slots.filter((s) => s.scope_id === shown.id).map((s) => s.stage_type)
     : shown.status === 'draft' ? [] : shown.chain;
+  const single = worksInOneScope(scopes);                  // only holds stages: one scope at a time, no "Overall"
   const item = (to: string, icon: string, label: string, end = false) => (
     <NavLink key={to} to={to} end={end}><span className="sb-icon" aria-hidden="true">{icon}</span>{label}</NavLink>);
   const section = (key: string, items: ReactElement[]) => items.length === 0 ? null : (
@@ -78,12 +96,12 @@ function Frame() {
         {wide && scopes.length > 1 && (
           <label className="tb-scope">{t('scope.label')}
             <select aria-label={t('scope.choose')} value={shown?.id ?? ''} onChange={(e) => pick(e.target.value)} data-testid="scope-switcher">
-              <option value="">{t('scope.overall')}</option>
+              <option value="">{t(single ? 'scope.choose' : 'scope.overall')}</option>
               {scopes.map((s) => <option key={s.id} value={s.id}>{s.label}{s.status === 'draft' ? ` ${t('scope.setup')}` : ''}</option>)}
             </select>
           </label>)}
         <span className="spacer" />
-        {me && <span className="small who" data-testid="whoami"><span className="who-name">{me.display_name}</span><span className="who-role"><span className="dot-sep"> · </span>{t(`role.${me.role}`, undefined, humanise(me.role))}</span></span>}
+        {me && <span className="small who" data-testid="whoami"><span className="who-name">{me.display_name}</span><span className="who-role"><span className="dot-sep"> · </span>{roleWord(me, t)}</span></span>}
         {me && <NavLink to="/account" className="tb-av" aria-label={t('nav.account')} title={t('nav.account')}>{initials(me.display_name)}</NavLink>}
         <select aria-label="Language" value={lang} onChange={(e) => setLang(e.target.value as Lang)} style={{ width: 'auto' }}>
           <option value="en">English</option>
@@ -98,6 +116,7 @@ function Frame() {
         <nav className="nav" aria-label="Main">
           {section('nav.section_overview', inSection('overview').map((n) => item(n.to, n.icon, t(n.key), n.to === '/')))}
           {section('nav.section_registry', inSection('registry').map((n) => item(n.to, n.icon, t(n.key))))}
+          {section('nav.section_people', inSection('people').map((n) => item(n.to, n.icon, t(n.key))))}
           {section('nav.section_operations', stages.map((s) => item(`/work/${shown!.id}/${s}`, stageIcon(s), t(`stage.${s}`, undefined, humanise(s)))))}
           {section('nav.section_system', inSection('system').map((n) => item(n.to, n.icon, t(n.key))))}
           {section('nav.section_support', [

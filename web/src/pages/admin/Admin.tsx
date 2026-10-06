@@ -1,14 +1,14 @@
-// S3 states · S4 clients · S5 users · S6 crop registry · open flags
-import { useEffect, useState, type FormEvent } from 'react';
+// S3 states · S4 clients · S6 crop registry · open flags
+// (S5 "Users & Roles" is gone: people are added by HR and given access on the People screens, pages/hr and pages/people.)
+import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { q, callFunction, functionState } from '../../lib/api';
+import { q } from '../../lib/api';
 import { toAppError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
-import { useAuth } from '../../auth/AuthProvider';
 import { dateTime, humanise } from '../../lib/format';
-import { ROLE_RANK, type QualityParam, type Role, type StageDefinition, type StageType } from '../../lib/types';
+import type { QualityParam, StageDefinition, StageType } from '../../lib/types';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 
 interface State { id: string; name: string; code: string }
@@ -39,6 +39,7 @@ export function States() {
               <button type="button" className="danger" disabled={row.busy} onClick={() => void remove(s)}>Delete</button>
             </form>
           : <>{s.name} <span className="mono">{s.code}</span>
+              <Link className="small" to={`/state/${s.id}`}>{t('state.title')}</Link>
               <button className="secondary" onClick={() => setEditing({ ...s })}>{t('common.edit')}</button></>}
         </li>))}</ul>}</div>
       <form className="card row" onSubmit={add}>
@@ -78,81 +79,6 @@ export function Clients() {
           {['exporter', 'fpo', 'brand', 'grainveda'].map((x) => <option key={x} value={x}>{humanise(x)}</option>)}</select></Field>
         <Field label="State" htmlFor="cl-state"><select id="cl-state" value={f.state_id} onChange={(e) => setF({ ...f, state_id: e.target.value })} required>
           <option value="">—</option>{states.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-        <ErrorBox error={act.error} /><button disabled={act.busy}>{t('common.create')}</button>
-      </form>
-    </div>
-  );
-}
-
-interface UserRow { id: string; display_name: string; role: Role; email: string | null; phone: string | null; client_id: string | null; state_ids: string[]; active: boolean; auth_uid: string | null }
-
-export function Users() {
-  const { t } = useI18n();
-  const { ctx } = useAuth();
-  const me = ctx!.user!;
-  const list = useAsync(() => q(supabase.from('app_users').select('*').order('role').order('display_name')) as Promise<UserRow[]>, []);
-  const clients = useAsync(() => q(supabase.from('clients').select('id,name').order('name')) as Promise<{ id: string; name: string }[]>, []);
-  const states = useAsync(() => q(supabase.from('states').select('*').order('name')) as Promise<State[]>, []);
-  const creatable = (['state_manager', 'client_manager', 'client_view', 'operator'] as Role[]).filter((r) => me.role === 'admin' || ROLE_RANK[r] < ROLE_RANK[me.role]);
-  const [f, setF] = useState({ role: creatable[creatable.length - 1] ?? 'operator', display_name: '', email: '', phone: '', client_id: me.client_id ?? '', state_id: '' });
-  const [msg, setMsg] = useState<string | null>(null);
-  // The two server functions this page needs are deployed apart from the app: say so here if they were left behind,
-  // before somebody fills in the form (4 Oct 2026: "New user" failed every time on staging, with no cause named).
-  const fns = useAsync(async () => {
-    const names = ['create-user', 'reset-password'];
-    const states = await Promise.all(names.map((n) => functionState(n)));
-    return names.flatMap((n, i) => states[i] === 'outdated' ? [t('users.fn_old', { name: n })] : states[i] === 'missing' ? [t('users.fn_none', { name: n })] : []);
-  }, []);
-  const [resetting, setResetting] = useState<string | null>(null);     // the user whose reset is waiting for a second tap
-  const act = useAction();                                             // the "new user" form
-  const row = useAction();                                             // deactivate / reset on a row of the list
-  useEffect(() => { if (!f.client_id && clients.data?.length) setF((s) => ({ ...s, client_id: clients.data![0].id })); }, [clients.data, f.client_id]);
-  const add = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
-    const body = { role: f.role, display_name: f.display_name, email: f.email || undefined, phone: f.phone || undefined,
-      client_id: f.role === 'state_manager' ? null : f.client_id, state_ids: f.role === 'state_manager' && f.state_id ? [f.state_id] : [] };
-    const r = await callFunction<{ sign_in: string; temporary_password: string }>('create-user', body);
-    setMsg(t('users.temp_password', { who: r.sign_in, pw: r.temporary_password }));
-    setF({ ...f, display_name: '', email: '', phone: '' }); await list.reload();
-  }); };
-  const toggle = (u: UserRow) => row.run(async () => { await q(supabase.from('app_users').update({ active: !u.active }).eq('id', u.id).select()); await list.reload(); });
-  // Forgotten password or lost phone: a new temporary password, shown once to the manager. The database decides who
-  // may reset whom (app.reset_login_allowed); the person must choose an own password at the next sign-in.
-  const reset = (u: UserRow) => row.run(async () => {
-    setMsg(null);
-    try {
-      const r = await callFunction<{ sign_in: string; temporary_password: string }>('reset-password', { app_user_id: u.id });
-      setMsg(t('users.temp_password', { who: r.sign_in, pw: r.temporary_password }));
-    } finally { setResetting(null); }
-  });
-  const linked = (u: UserRow) => !!u.auth_uid && u.auth_uid !== u.id;
-  return (
-    <div><h1><span aria-hidden="true">👤 </span>{t('users.title')}</h1>
-      {!!fns.data?.length && <div className="alert warn" role="status" data-testid="functions-warning">{t('users.fn_warning', { what: fns.data.join('; ') })}</div>}
-      <div className="card table-wrap">{list.loading ? <Loading /> : (
-        <table><thead><tr><th>Name</th><th>Role</th><th>Sign-in</th><th>Client</th><th>Login</th><th></th></tr></thead>
-          <tbody>{list.data?.map((u) => <tr key={u.id} data-testid="user-row"><td>{u.display_name}</td><td>{humanise(u.role)}</td><td className="small">{u.email ?? u.phone}</td>
-            <td>{clients.data?.find((c) => c.id === u.client_id)?.name ?? '—'}</td>
-            <td>{linked(u) ? <Badge value="active" label="linked" /> : <Badge value="draft" label="no login" />}{!u.active && <Badge value="closed" label="inactive" />}</td>
-            <td>{u.id !== me.id && (me.role === 'admin' || ROLE_RANK[u.role] < ROLE_RANK[me.role]) && <div className="row">
-              <button className="secondary" onClick={() => void toggle(u)}>{u.active ? t('users.deactivate') : t('users.activate')}</button>
-              {u.active && linked(u) && (resetting === u.id
-                ? <button className="danger" disabled={row.busy} onClick={() => void reset(u)} data-testid="reset-confirm">{t('users.reset_sure')}</button>
-                : <button className="secondary" onClick={() => setResetting(u.id)} data-testid="reset-password">{t('users.reset_password')}</button>)}
-            </div>}</td></tr>)}</tbody></table>)}</div>
-      {msg && <div className="alert ok" data-testid="temp-password">{msg}</div>}
-      <ErrorBox error={row.error} />
-      <form className="card" onSubmit={add}>
-        <h2>{t('users.new')}</h2>
-        <Field label="Role" htmlFor="u-role"><select id="u-role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}>
-          {creatable.map((r) => <option key={r} value={r}>{humanise(r)}</option>)}</select></Field>
-        <Field label="Name" htmlFor="u-name"><input id="u-name" value={f.display_name} onChange={(e) => setF({ ...f, display_name: e.target.value })} required /></Field>
-        <Field label={f.role === 'operator' ? 'Email (for sign-in, optional)' : 'Email'} htmlFor="u-email"><input id="u-email" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} required={f.role !== 'operator'} /></Field>
-        <Field label={f.role === 'operator' ? 'Mobile (optional)' : 'Mobile (optional)'} htmlFor="u-phone"><input id="u-phone" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
-        {f.role === 'state_manager'
-          ? <Field label="State" htmlFor="u-state"><select id="u-state" value={f.state_id} onChange={(e) => setF({ ...f, state_id: e.target.value })} required>
-              <option value="">—</option>{states.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-          : !me.client_id && <Field label="Client" htmlFor="u-client"><select id="u-client" value={f.client_id} onChange={(e) => setF({ ...f, client_id: e.target.value })}>
-              {clients.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>}
         <ErrorBox error={act.error} /><button disabled={act.busy}>{t('common.create')}</button>
       </form>
     </div>

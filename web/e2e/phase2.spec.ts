@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signOut, expectNoSideScroll } from './helpers';
+import { signIn, signOut, expectNoSideScroll, openSlotAt } from './helpers';
 
 // Phase 2 through the real screens: T4 (7 people, 2 buyers, labels), T2 (grading split), Village Batch.
 const op = (key: string, n: string) => ({ key, phone: `00000000${n}` });
@@ -7,11 +7,8 @@ const P = { proc: op('305', '05'), qc: op('306', '06'), qr: op('307', '07'), mil
   grade: op('310', '10'), comm: op('311', '11'), ship: op('314', '14'), vb: op('315', '15') };
 const uniq = () => String(Date.now()).slice(-5);
 
-async function open(page: Page, stage: string, place: string) {
-  await page.getByTestId(`slot-${stage}`).filter({ hasText: new RegExp(`· ${place}(?! mandi)`) }).click();
-  await page.getByRole('tablist').waitFor();
-  await expectNoSideScroll(page);
-}
+// A person who holds stages in several scopes works in one at a time (identity layer): the helper picks the place first.
+const open = openSlotAt;
 async function verifyIncoming(page: Page, code: string) {
   await page.getByTestId('incoming-row').filter({ hasText: code }).click();
   for (const box of await page.getByRole('checkbox').all()) await box.check();

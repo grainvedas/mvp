@@ -1,18 +1,18 @@
-// Edge Function logic: a manager resets the password of someone they manage (Phase 4: operators sign in by phone and
-// password until SMS is registered, so "forgot my password" needs a person, not an e-mail).
+// Edge Function logic: reset someone's password ("forgot my password" needs a person while there is no mail sender).
 // Runtime-neutral like create-user: Supabase runs it through index.ts (Deno.serve); the local stack runs it with Node.
 //
-// Who may reset whom is NOT decided here: app.reset_login_allowed() makes a real, no-op UPDATE of the target row AS
-// THE CALLER, so the users_update policy and the app_users guard (migration 10) are the rule. Only the Auth admin call
-// needs the service key, and it runs after the database has said yes.
+// Who may reset whom is NOT decided here: app.reset_login_allowed(), asked AS THE CALLER, is the rule (migration 32):
+// the admin anyone but himself; HR the people within its reach; a client's own login by whoever manages that client.
+// A manager no longer resets the people working under them. Only the Auth admin call needs the service key, and it
+// runs after the database has said yes. Every reset is one line in the audit log (app.note_login_reset).
 //
 // POST { app_user_id }
 // 200  { app_user_id, sign_in, temporary_password }   (shown once, to the manager; the user must set an own password)
 
 type Env = Record<string, string | undefined>;
 
-/** The build of the three functions; the same value as in create-user/handler.ts (a unit test holds them together). */
-export const VERSION = '2026-10-05';
+/** The build of the four functions; the same value as in create-user/handler.ts (a unit test holds them together). */
+export const VERSION = '2026-10-06';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -66,7 +66,7 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   const row = await fetch(`${url}/rest/v1/app_users?id=eq.${target}&select=auth_uid,phone,email,active`, { headers: asService });
   const u = ((await row.json().catch(() => [])) as Array<{ auth_uid: string | null; phone: string | null; email: string | null; active: boolean }>)[0];
   if (!u) return json(404, { error: 'user not found' });
-  if (!u.active) return json(409, { error: 'this user is deactivated; activate them first' });
+  if (!u.active) return json(409, { error: 'this person is suspended or has left; reinstate them first' });
   const login = u.auth_uid ? await fetch(`${url}/auth/v1/admin/users/${u.auth_uid}`, { headers: asService }) : null;
   if (!login || !login.ok) return json(409, { error: 'this user has no login yet' });
   const meta = ((await login.json().catch(() => ({}))) as { user_metadata?: Record<string, unknown> }).user_metadata ?? {};
@@ -81,5 +81,11 @@ export async function handle(req: Request, env: Env): Promise<Response> {
     const d = (await put.json().catch(() => null)) as { msg?: string; message?: string } | null;
     return json(502, { error: d?.msg ?? d?.message ?? 'password could not be reset' });
   }
+  // 4. One audit line, written as the caller (best effort: the reset itself has happened).
+  await fetch(`${url}/rest/v1/rpc/note_login_reset`, {
+    method: 'POST',
+    headers: { apikey: anon, authorization: `Bearer ${token}`, 'content-type': 'application/json', 'content-profile': 'app' },
+    body: JSON.stringify({ p_target: target }),
+  }).catch(() => null);
   return json(200, { app_user_id: target, sign_in: u.email ?? u.phone, temporary_password: password });
 }

@@ -1,6 +1,8 @@
-// The scope a person is working in (prototype: the "Scope:" switcher in the top bar). A manager or viewer chooses among
-// the scopes they can read; an operator among the scopes they hold a stage in. "Overall" means none is chosen. With
-// one scope only there is nothing to choose: that scope is the one. The choice is kept on this device, per person.
+// The scope a person is working in (prototype: the "Scope:" switcher in the top bar). Everyone chooses among the scopes
+// their assignments open (identity layer, migration 32): for each the server says whether they manage it, read the
+// whole of it, or hold stages in it. "Overall" means none is chosen; it exists only for someone who reads at least
+// one scope whole. A person who only holds stages works in ONE scope at a time and picks it after signing in.
+// With one scope only there is nothing to choose: that scope is the one. The choice is kept on this device, per person.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import type { StageType } from '../lib/types';
@@ -8,6 +10,8 @@ import type { StageType } from '../lib/types';
 export interface ScopeChoice {
   id: string; label: string; client_id: string | null; client_name: string; status: string; chain: StageType[];
   crop_name: string | null; season_code: string | null; geography: string | null;
+  /** manage: may assign, withdraw, override there. whole: reads every stage (a manager, the client's login, an export manager). */
+  manage: boolean; whole: boolean; state_name?: string | null;
 }
 interface ScopeCtx { scopes: ScopeChoice[]; current: ScopeChoice | null; choose: (id: string | null) => void }
 const Ctx = createContext<ScopeCtx>({ scopes: [], current: null, choose: () => {} });
@@ -16,17 +20,23 @@ const storageKey = (userId: string) => `grainveda-scope:${userId}`;
 
 /** Pure: which scopes a person can work in, from what the server says about them. */
 export function scopeChoices(ctx: { user: { role: string } | null; slots: { scope_id: string; scope_label: string; client_name: string; chain: StageType[]; scope_status: string }[];
-  scopes: { scope_id: string; client_id: string; client_name: string; crop_name: string; season_code: string; geography: string; status: string; chain: StageType[] }[] } | null): ScopeChoice[] {
+  scopes: { scope_id: string; client_id: string; client_name: string; crop_name: string; season_code: string; geography: string; status: string; chain: StageType[];
+    manage?: boolean; whole?: boolean; state_name?: string }[] } | null): ScopeChoice[] {
   if (!ctx?.user) return [];
-  if (ctx.user.role !== 'operator') {
-    return ctx.scopes.filter((s) => s.status !== 'closed').map((s) => ({ id: s.scope_id, label: `${s.crop_name} · ${s.season_code} · ${s.geography}`,
-      client_id: s.client_id, client_name: s.client_name, status: s.status, chain: s.chain, crop_name: s.crop_name, season_code: s.season_code, geography: s.geography }));
-  }
+  // A server from before migration 32 does not say manage / whole: there the one role decided both.
+  const oldManage = ctx.user.role !== 'operator' && ctx.user.role !== 'client_view', oldWhole = ctx.user.role !== 'operator';
+  const listed = ctx.scopes.filter((s) => s.status !== 'closed').map((s) => ({ id: s.scope_id, label: `${s.crop_name} · ${s.season_code} · ${s.geography}`,
+    client_id: s.client_id, client_name: s.client_name, status: s.status, chain: s.chain, crop_name: s.crop_name, season_code: s.season_code, geography: s.geography,
+    manage: s.manage ?? oldManage, whole: s.whole ?? oldWhole, state_name: s.state_name ?? null }));
+  if (listed.length > 0 || ctx.user.role !== 'operator') return listed;
   const seen = new Map<string, ScopeChoice>();
   for (const s of ctx.slots) if (!seen.has(s.scope_id)) seen.set(s.scope_id, { id: s.scope_id, label: s.scope_label, client_id: null, client_name: s.client_name,
-    status: s.scope_status, chain: s.chain, crop_name: null, season_code: null, geography: null });
+    status: s.scope_status, chain: s.chain, crop_name: null, season_code: null, geography: null, manage: false, whole: false });
   return [...seen.values()];
 }
+
+/** Pure: does this person only hold stages (reads no scope whole)? Then they work in one scope at a time. */
+export const worksInOneScope = (scopes: ScopeChoice[]) => scopes.length > 0 && scopes.every((s) => !s.whole);
 
 /** Pure: the scope in force. One scope: that one. Several: the stored choice if it is still there, else none ("Overall"). */
 export function currentScope(scopes: ScopeChoice[], stored: string | null): ScopeChoice | null {

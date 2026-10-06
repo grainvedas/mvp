@@ -4,11 +4,11 @@ import { useI18n, type Lang } from '../lib/i18n';
 import { toAppError, type AppError } from '../lib/errors';
 import { ErrorBox, Field } from '../shell/ui';
 
-// Sign-in: email + password, or phone + password. Managers use email; operators use whichever their login was made
-// with (email or phone — 5 Oct 2026). The two tabs choose which credential to type; the role is read after sign-in.
+// Sign-in: email + password. Since the identity layer (6 Oct 2026) every person HR adds signs in with their personal
+// email, so that tab comes first. The phone tab stays for the logins made with a phone number before that.
 export function SignIn() {
   const { t, lang, setLang } = useI18n();
-  const [mode, setMode] = useState<'email' | 'phone'>('phone');
+  const [mode, setMode] = useState<'email' | 'phone'>('email');
   const [id, setId] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -40,8 +40,8 @@ export function SignIn() {
         </div>
         {!configured && <div className="alert error">{t('signin.not_configured')}</div>}
         <div className="tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={mode === 'phone'} className={mode === 'phone' ? 'active' : ''} onClick={() => setMode('phone')}>{t('signin.by_phone')}</button>
           <button type="button" role="tab" aria-selected={mode === 'email'} className={mode === 'email' ? 'active' : ''} onClick={() => setMode('email')}>{t('signin.by_email')}</button>
+          <button type="button" role="tab" aria-selected={mode === 'phone'} className={mode === 'phone' ? 'active' : ''} onClick={() => setMode('phone')}>{t('signin.by_phone')}</button>
         </div>
         <form onSubmit={submit}>
           <Field label={mode === 'email' ? t('signin.email') : t('signin.phone')} htmlFor="signin-id">

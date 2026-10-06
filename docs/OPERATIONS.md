@@ -6,37 +6,49 @@ saved. If a step here does not match what you see, write it into `docs/FIX_LIST.
 
 ## Who does what
 
-| Role | Signs in with | Sees | Does |
-|---|---|---|---|
-| Admin (Veda) | e-mail | everything | states, crops and their limits, clients, State Managers; Health page; backups |
-| State Manager | e-mail | clients of the state | verifies farmers and issues Farmer IDs; changes or deactivates a verified farmer; Health page |
-| Client Manager | e-mail | the client's scopes | opens scopes, assigns people to stages, resets passwords, overrides an export verdict, withdraws wrong records, resolves flags |
-| Client View | e-mail | the client's scopes, read-only | dashboards, journey export, can raise a flag |
-| Operator | phone | own stage and the stage directly behind it | records at the own stage, verifies what arrives |
+Since 6 October 2026 two things are separate: **HR adds a person, once**; **a manager gives that person access**, as
+assignments. A person can hold several assignments; what they see is all of them together.
 
-Managers are signed out 12 hours after signing in; operators stay signed in for 30 days on their phone.
-A manager may act at any stage when needed. The ledger marks such an act as supervisory, with the manager's name.
+| Who | How they got it | Sees | Does |
+|---|---|---|---|
+| Admin (Veda) | the root seat (`scripts/bootstrap_admin.mjs`) | everything | states, crops and their limits, clients; gives a State Manager their state; appoints the HR Admin; Seats; Health; backups |
+| HR Admin (one seat) | appointed by the admin under **Seats** | people's records, nothing of the lots | adds joiners, runs the joining checklist, changes checklist templates, makes HR staff, suspends / offboards / re-hires, resets passwords, reads the audit log |
+| HR | added by HR; system role **HR** | people's records | as the HR Admin, except templates, the audit log and other HR people |
+| State Manager | the admin assigns **a state** | every scope in that state, whichever the client | verifies farmers; gives a client's account to its manager; assigns people in the state; Health |
+| Client Manager | a manager assigns **a client's account** | every scope of that client, in every state | opens scopes, assigns people to stages, overrides an export verdict, withdraws wrong records, resolves flags, makes the client's read-only login |
+| Export manager | assigned on **one scope** with that role | the whole of that scope, read-only | records only at the stages ticked for them (usually Commercial and Shipment) |
+| Operator | assigned **a scope and stages** | own stage and the stage directly behind it | records at the own stage, verifies what arrives |
+| Client login | made by the client's manager under **People & access → Client logins** | the client's scopes, read-only | dashboards, journey export, can raise a flag. Not an employee: no HR record |
+
+**HR never gives access. A manager never creates a person.** Org facts (job title, designation, department,
+employment type, who someone reports to) describe a person and open nothing: a "Manager" by designation manages
+nothing until someone gives them a client's account or a state.
+
+People who only hold stages stay signed in for 30 days on their phone; everyone else (managers, HR, admin) is signed
+out 12 hours after signing in. A manager may act at any stage of a scope they manage; the ledger marks such an act as
+supervisory, with the manager's name.
 
 ## Start of a season
 
 1. Admin: **Crop Registry** → check the quality limits (domestic and export). Limits are copied into a scope when it is
    activated; changing them later does not change running scopes.
-2. Admin: **Users & Roles** → State Manager. State Manager or admin: **Users & Roles** → Client Manager for the client.
-3. Client Manager: **Season Scopes → New scope** → season and place → crop → chain → **People**: one person per stage, a
-   different person at neighbouring stages (nobody verifies a lot they recorded). **+ new person** makes the login and
-   shows a temporary password once: give it in person.
-4. **Activate scope**. From here the chain, the place and the limits are frozen; people can still be assigned and
-   removed, and each such change is written to the ledger.
-5. Farmers: operators or managers add them (**Farmers → New farmer**, or **Import from Excel**), then
+2. HR: **HR · Joiners → Add joiner** for every person who will work this season, managers included. The temporary
+   password is shown once: give it in person. The person signs in, chooses an own password and does the joining
+   checklist; when it is complete (or HR presses **Mark as joined**) they are an employee.
+3. Admin: **People & access** → the State Manager → **Assign → A state**. State Manager (or admin): the Client
+   Manager → **Assign → A client's account**.
+4. Client Manager: **Season Scopes → New scope** → season, place, **state** (the client's home state unless chosen
+   otherwise), optional season end → crop → chain → **People**: pick a person from the pool for each stage, a different
+   person at neighbouring stages (nobody verifies a lot they recorded). Someone missing from the pool: ask HR.
+5. **Activate scope**. From here the chain, the place, the state and the limits are frozen; people can still be
+   assigned and removed. Each such change is in the audit log.
+6. Farmers: operators or managers add them (**Farmers → New farmer**, or **Import from Excel**), then
    **Submit for verification**. The State Manager verifies; only then does the farmer get a Farmer ID and appear at
    Procurement.
 
-Every new person: first sign-in with the temporary password → the app asks for an own password (8 characters or
-more) before anything else.
-
-An operator can be given a **mobile number or an email** to sign in with (whichever you enter when you create them;
-both is fine). A number is easier to tap in the field; an email works even where the Phone provider is not switched on
-in Supabase. They sign in on the matching tab (**Phone** or **Email**). Managers always use email.
+Every person HR adds signs in with their **email** and the temporary password, and the app asks for an own password
+(8 characters or more) before anything else. No mail and no SMS is sent unless a mail sender has been set up
+(`docs/RUNSHEET_phase5.md` part F).
 
 ## Every day
 
@@ -53,24 +65,63 @@ in Supabase. They sign in on the matching tab (**Phone** or **Email**). Managers
 
 | Situation | Who | Do |
 |---|---|---|
-| Forgot the password | Client Manager (State Manager for a Client Manager, admin for a State Manager) | **Users & Roles** → the person → **Reset password** → tap again to confirm → a new temporary password is shown once. The old password stops working at once; a phone that is still signed in with it is signed out within the hour (to cut a phone off at once: Deactivate) |
-| Phone lost or stolen | the same | **Users & Roles → Deactivate** first: from that moment the lost phone gets nothing more from the database and can save nothing, and the copy it keeps for offline work is erased the next time that phone reaches the server. Until then that copy can still be read on the phone itself (for a Procurement operator: the client's farmer list with phone numbers), so **every operator phone needs a screen lock**. When the person has a phone again: **Activate**, then **Reset password**. Saves that were still waiting on the lost phone are lost; the person records those lots again from the paper slip |
-| Left the job | Client Manager | **Users & Roles → Deactivate**. Their records stay, with their name |
-| Works at another stage now | Client Manager | **Season Scopes** → the scope → People → **Remove** at the old stage, **Assign existing…** at the new one. Both acts are in the ledger |
-| A stage has nobody for a day | Client Manager | assign a second person to that stage, or do the step yourself (it is recorded as supervisory) |
+| A new person | HR | **HR · Joiners → Add joiner**. Then a manager assigns them (**People & access → Assign**) |
+| Signed in and sees "A manager will assign you to your work soon" | a manager of the scope | Nobody has assigned them yet. **People & access** → tick **Unassigned only** → **Assign** |
+| Assigned, but sees only the joining checklist | HR | They are not marked as joined. The joiner's page → finish the checklist, or **Mark as joined** |
+| Forgot the password | HR or the admin (the client's manager for a client login) | **People & access** → the person → **Reset password** → a new temporary password is shown once. The old one stops working |
+| Phone lost or stolen | HR or the admin | The person's profile → **Suspend** first: from that moment the lost phone gets nothing more from the database and can save nothing, and the copy it keeps for offline work is erased the next time that phone reaches the server. Then **Reset password**, and **Reinstate** when they have a phone again |
+| Under inquiry, on long leave | HR or the admin | **Suspend** with a reason. Every assignment is kept; **Reinstate** brings everything back |
+| Left the job | HR or the admin | **Offboard**: exit date, reason, final settlement, Form 16 reference. Every assignment ends and the sign-in opens nothing. Their records stay, with their name. The person is never deleted |
+| Comes back next season | HR | The same person's profile → **Re-hire**: same record, same sign-in, a fresh checklist. Old assignments stay ended; a manager gives new ones |
+| Works at another stage now | a manager of the scope | The person's profile → **Change stages**; or the scope's **Roster** → **Remove** at the old stage, pick them at the new one |
+| Moves to another scope | a manager of both scopes | The person's profile → **Move** on the assignment: the old one ends, a new one begins. The screen says beforehand if a stage would be left with nobody |
+| A stage has nobody for a day | a manager of the scope | **Roster** → pick a second person for that stage, or do the step yourself (it is recorded as supervisory) |
+| Works in several places | — | After signing in they choose where they are working, and can change it with one tap. Assigning says so beforehand ("Already working at another place this season"): a warning, not a refusal |
+| Why can this person see that? | HR, a manager, the admin | **People & access** → the person: the coloured boxes (system role, assignments) are everything that gives them access. A manager sees only the assignments inside what they manage; others show as "+1 elsewhere" |
 
-Nobody can reset their own password this way, and nobody can reset someone ranked above them. To change your own:
-**My account → Change password**.
+Nobody can reset their own password this way. To change your own: **My account → Change password**.
+An assignment is never reopened or rewritten: it is given, changed, ended or replaced, and the ended ones stay on the
+profile. Every one of these acts is a line in **System → Audit log** (HR Admin and admin).
 
-### When "New user" or "Reset password" does not work
+### Seats, and break glass
+
+- **Admin (root).** Sees everything. The last active admin cannot be suspended, offboarded or given another role.
+- **HR Admin: exactly one.** The admin gives the seat under **System → Seats**; the previous holder becomes HR. If the
+  holder leaves, the seat is vacant until the admin fills it. HR staff may add other HR staff; each such case is
+  flagged in the audit log.
+- **Break glass: every admin is locked out** (password and email both lost). Nothing in the app can help, by design.
+  Whoever holds the database's service key runs, from the repository:
+  `$env:ENV_FILE='.env.production'; node scripts/bootstrap_admin.mjs --email <address> --name "<name>" --additional; Remove-Item Env:ENV_FILE`.
+  The temporary password is written to `.env.admin-login` (not shown). The act is in the audit log as
+  "took the admin seat at set-up". Afterwards: sign in, choose an own password, delete that file, and offboard the
+  admin who was locked out if they are gone for good.
+
+### HR documents and identity numbers
+
+A joiner types the PAN, Aadhaar or account number in full; the phone checks it (format, check digit) and sends only
+the **last four characters**. Nothing else of the number exists anywhere in the system. The photo or scan goes to a
+private store: HR and the admin can open it from the joiner's page; the joiner sees its name and cannot open it again;
+no manager can see it at all. A wrong upload is not replaced: HR reopens the task (**Reopen**, with a reason) and the
+joiner does it again; both files stay.
+
+### The once-a-day sign-in code
+
+Built and switched **off**. When on: after the password, a six-digit code goes to the person's email, once per
+calendar day (India time); it works for ten minutes. It needs a mail sender (`docs/RUNSHEET_phase5.md` part F) and
+every person who signs in to have an email: **System → Seats** shows both, and the switch names the people without
+one. To switch it off again: the same card. If the mail service is down while it is on, nobody new can sign in that
+day: the admin who is still signed in switches it off; if nobody is, the database owner runs
+`update public.app_meta set value = 'off' where key = 'daily_code';` in the SQL editor.
+
+### When "Add joiner" or "Reset password" does not work
 
 | What the screen says | It means | Do |
 |---|---|---|
-| A yellow line above the list: "Creating people and resetting passwords will not work on this system yet: …" | The server functions were not deployed with the last update of the database or the app. Nothing is wrong with what anybody entered | Admin (with Antigravity): run-sheet Phase 4 step A6, then `node scripts/check_functions.mjs` must end with `FUNCTIONS DEPLOYED AND CURRENT` |
-| "The server is not up to date with this app…" or "A part of the server is not installed…" after **Create** or **Reset** | The same | The same. Then try again: nothing was kept from the failed attempt |
-| "Login created but not linked: …; both removed" | The database did not accept the new login for this person. The words after the colon say why (another person has the same phone or e-mail; the person was deactivated meanwhile; …). The login and the person were removed again | Correct what the reason names and create the person again |
+| A yellow line on the Add joiner page: "Creating people and resetting passwords will not work on this system yet: …" | The server functions were not deployed with the last update of the database or the app. Nothing is wrong with what anybody entered | Admin (with Antigravity): run-sheet Phase 5 step D4 (all four functions), then `node scripts/check_functions.mjs` must end with `FUNCTIONS DEPLOYED AND CURRENT` |
+| "The server is not up to date with this app…" or "A part of the server is not installed…" after **Save and create sign-in** or **Reset password** | The same | The same. Then try again: nothing was kept from the failed attempt |
+| "Login created but not linked: …; both removed" | The database did not accept the new login for this person. The words after the colon say why (another person has the same phone or e-mail; the person was suspended meanwhile; …). The login and the person were removed again | Correct what the reason names and create the person again |
 | "… COULD NOT REMOVE login …" | A login without a person stayed behind (the Auth server did not answer the delete). It opens nothing, but it holds that phone number or e-mail: the next attempt says "already registered" | **A login without a person:** admin: `node scripts/check_logins.mjs` lists them, `node scripts/check_logins.mjs --remove` deletes them. The same list is in the Supabase dashboard → Edge Functions → create-user → Logs, with the reason |
-| "A user with this phone or email already exists" for somebody who is not in the list | As the line above, or a person who is deactivated (deactivated people are in the list, marked inactive) | `node scripts/check_logins.mjs` |
+| "A user with this phone or email already exists" for somebody who is not in the list | As the line above, or a person who was suspended or has left (**People & access**, status **Suspended** or **Left**: a person who left is re-hired on the same record, not added again) | `node scripts/check_logins.mjs` |
 
 ## A record is wrong
 
@@ -146,7 +197,7 @@ puts a warning on the record ("phone clock not plausible").
 | The record went through, its photo did not | The photo waits on the phone with the save and is attached when the network is back |
 | The database refuses a save at sync | It stays on the phone marked "needs attention", with the reason; the operator taps **Fix and save again** |
 | Sign out with no network | Allowed, after a warning: nobody can sign in again until the network is back. Waiting saves stay on that phone and go out when the same person signs in there again |
-| The manager reset the password, or deactivated the person, while the phone was out of reach | When the phone is back in coverage it shows the sign-in screen (reset) or "no GrainVeda user is linked" (deactivated). Nothing it captured meanwhile is sent without a valid login; after a reset the saves go out once the person signs in with the new password |
+| The password was reset, or the person was suspended or offboarded, while the phone was out of reach | When the phone is back in coverage it shows the sign-in screen (reset) or "This sign-in opens nothing…" (suspended, left). Nothing it captured meanwhile is sent without a valid login; after a reset the saves go out once the person signs in with the new password |
 
 ## Farmers
 

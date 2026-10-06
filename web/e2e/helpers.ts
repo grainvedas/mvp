@@ -26,7 +26,12 @@ export const USERS = {
   procurement: op('305', '05'), qc: op('306', '06'), qr: op('307', '07'), mill: op('308', '08'), sorting: op('309', '09'),
   grading: op('310', '10'), commercial: op('311', '11'), otherClient: op('312', '12'), lotInward: op('313', '13'),
   shipment: op('314', '14'), villageBatch: op('315', '15'),
+  // identity layer (seed 06): the HR seats, an employee nobody has assigned yet, a joiner on the way in
+  hrAdmin: { key: '316', email: 'grainvedas+hradmin@gmail.com' }, hr: { key: '317', email: 'grainvedas+hr@gmail.com' },
+  ravi: { key: '318', email: 'grainvedas+ravi@gmail.com' }, meera: { key: '319', email: 'grainvedas+meera@gmail.com' },
 } as const;
+export const PEOPLE = { ravi: '00000000-0000-4000-8000-000000000318', meera: '00000000-0000-4000-8000-000000000319',
+  procurement: '00000000-0000-4000-8000-000000000305', qc: '00000000-0000-4000-8000-000000000306', sorting: '00000000-0000-4000-8000-000000000309' } as const;
 
 /** Demo scopes (seeds 02, 04, 05): fixed ids, so a test names the scope and not a label that another scope's label contains. */
 const scope = (n: string) => `00000000-0000-4000-8000-0000000004${n}`;
@@ -39,25 +44,70 @@ export const SCOPES = {
   bansiBatch: scope('06'),       //     procurement → village batch → QC → QR
 } as const;
 
-export async function signIn(page: Page, u: Who) {
+/** Type a demo person's sign-in and password and press the button; what opens next is for the test to say. */
+export async function signInOnly(page: Page, u: Who) {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.goto('/');
-  if (u.email) await page.getByRole('tab', { name: /Email/ }).click();
+  // Email is the first tab since the identity layer (every person HR adds signs in by email); the demo operators
+  // of the earlier seeds still have phone logins.
+  if (!u.email) await page.getByRole('tab', { name: /Phone/ }).click();
   await page.getByLabel(u.email ? 'Email' : 'Phone').fill(u.email ?? `91${u.phone}`);
   await page.getByLabel('Password').fill(passwords[u.key]);
   await page.getByRole('button', { name: 'Sign in' }).click();
+}
+export async function signIn(page: Page, u: Who) {
+  await signInOnly(page, u);
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 }
 
-/** Sign in with a password the test itself was shown (a new user's temporary password, or one it has just set). */
-export async function signInWith(page: Page, phone: string, password: string) {
+/** Sign in with a password the test itself was shown (a new person's temporary password, or one it has just set). */
+export async function signInWith(page: Page, signIn: string, password: string) {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.goto('/');
-  await page.getByLabel('Phone').fill(phone);
+  const byEmail = signIn.includes('@');
+  if (!byEmail) await page.getByRole('tab', { name: /Phone/ }).click();
+  await page.getByLabel(byEmail ? 'Email' : 'Phone').fill(signIn);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
+}
+
+/** A new login starts with the temporary password its creator saw: choose an own one, as the app demands. */
+export async function setOwnPassword(page: Page, password: string) {
+  await expect(page.getByTestId('must-change')).toBeVisible();
+  await page.getByLabel('New password', { exact: true }).fill(password);
+  await page.getByLabel('New password again').fill(password);
+  await page.getByRole('button', { name: 'Set password' }).click();
+  await expect(page.getByTestId('must-change')).toBeHidden();
+}
+
+/** A fresh email address for a person a test creates (the stack is shared by every test of a run). */
+export const freshEmail = (who: string) => `${who}.${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}@example.test`;
+
+/** Today as the server counts it (Asia/Kolkata): a join date typed as "today" must be the server's today at any hour. */
+export const todayIST = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+
+/**
+ * HR's whole act for one person (signed in as HR or the admin): the form, the temporary password shown once, the
+ * joiner's own page. Returns the person's id, that password, and what the confirmation said.
+ */
+export async function addJoiner(page: Page, p: { name: string; email: string; type?: string; title?: string; systemRole?: string }) {
+  await page.goto('/hr/joiners/new');
+  await page.getByLabel('Full name').fill(p.name);
+  await page.getByLabel('Join date').fill(todayIST());
+  await page.getByLabel('Personal email').fill(p.email);
+  if (p.type) await page.getByLabel('Employment type').selectOption(p.type);
+  if (p.title) await page.getByLabel('Job title').fill(p.title);
+  if (p.systemRole) await page.getByLabel('System role').selectOption(p.systemRole);
+  await page.getByRole('button', { name: 'Save and create sign-in' }).click();
+  await expect(page.getByTestId('temp-password')).toContainText(p.email);
+  const temp = (await page.getByTestId('temp-password').textContent())!.match(/: (Gv-[A-Za-z0-9_-]+) —/)![1];
+  const said = await page.getByTestId('joiner-made').innerText();
+  await page.getByRole('link', { name: 'Open their page' }).click();
+  await expect(page.getByRole('heading', { name: p.name })).toBeVisible();
+  const id = new URL(page.url()).pathname.split('/').pop()!;
+  return { id, temp, said };
 }
 
 export async function signOut(page: Page) {
@@ -70,11 +120,32 @@ export async function expectNoSideScroll(page: Page) {
   await expect.poll(() => page.evaluate(() => window.innerWidth - document.documentElement.clientWidth)).toBe(0);
 }
 
-/** Open one of my stages from the home screen, by scope id. */
+/**
+ * Open one of my stages from the home screen, by scope id. A person who holds stages in several scopes works in one
+ * at a time (identity layer): after signing in they pick where they are working, and change it with one tap.
+ */
 export async function openSlot(page: Page, stage: string, scopeId: string) {
-  await page.locator(`[data-testid="slot-${stage}"][data-scope="${scopeId}"]`).click();
+  const card = page.locator(`[data-testid="slot-${stage}"][data-scope="${scopeId}"]`);
+  const pick = page.locator(`[data-testid="pick-scope"][data-scope="${scopeId}"]`);
+  const change = page.getByTestId('change-scope');
+  if (!/\/$/.test(new URL(page.url()).pathname)) await page.goto('/');
+  await expect(card.or(pick).or(change).first()).toBeVisible();
+  if (!(await card.isVisible())) {
+    if (!(await pick.isVisible())) await change.click();
+    await pick.click();
+  }
+  await card.click();
   await page.getByRole('tablist').waitFor();
   await expectNoSideScroll(page);
+}
+
+/** The demo scopes by the place a person reads on the screen. */
+const PLACES: Record<string, string> = { Siddharthnagar: SCOPES.siddharthnagar, Gorakhpur: SCOPES.gorakhpur, Basti: SCOPES.basti,
+  'Gorakhpur mandi': SCOPES.gorakhpurMandi, 'Basti mill': SCOPES.bastiMill, 'Bansi batch': SCOPES.bansiBatch };
+/** Open one of my stages by the place's name (the older tests name places, not ids). */
+export async function openSlotAt(page: Page, stage: string, place: string) {
+  if (!PLACES[place]) throw new Error(`no demo scope is called "${place}"`);
+  await openSlot(page, stage, PLACES[place]);
 }
 
 export async function verifyIncoming(page: Page, code: string) {
@@ -151,6 +222,8 @@ export async function apiAs(page: Page) {
     /** Supabase Storage as this person: ask for a signed URL of a stored file, or try to upload one. */
     signedUrl: (path: string) => storage('POST', `object/sign/evidence/${path}`, JSON.stringify({ expiresIn: 60 })),
     upload: (path: string, bytes: Buffer, type: string) => storage('POST', `object/evidence/${path}`, bytes, type),
+    /** The same question of any store (the private HR documents are in `hr-docs`). */
+    signedUrlIn: (bucket: string, path: string) => storage('POST', `object/sign/${bucket}/${path}`, JSON.stringify({ expiresIn: 60 })),
     rows: async (table: string, query = '') => {
       const r = await call('GET', `${table}?select=*${query ? `&${query}` : ''}`);
       if (!r.ok) throw new Error(`reading ${table} failed: ${r.status} ${JSON.stringify(r.data)}`);
@@ -163,3 +236,30 @@ export async function apiAs(page: Page) {
 }
 
 export const refusal = (r: { data: unknown }) => String((r.data as { message?: string } | null)?.message ?? JSON.stringify(r.data));
+
+/**
+ * LOCAL STACK ONLY. The once-a-day sign-in code cannot be switched on from the screen while the demo operators sign in
+ * by phone (the switch refuses, and a test shows that). To show the code screen itself, the switch is set the way a
+ * database owner would set it, and put back. Null on any system that is not the local stack: nothing here may touch
+ * staging or production, where the code stays off.
+ */
+export function localStack() {
+  const cfg = supabaseConfig();
+  const outbox = (cfg.env as Record<string, string | undefined>).MAIL_OUTBOX_URL;
+  if (!/^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(cfg.url) || !cfg.service || !outbox) return null;
+  const raw = (method: string, path: string, body?: unknown, extra: Record<string, string> = {}) => fetch(`${cfg.url}/rest/v1/${path}`, { method,
+    headers: { apikey: cfg.service!, authorization: `Bearer ${cfg.service}`, 'content-type': 'application/json', ...extra }, body: body === undefined ? undefined : JSON.stringify(body) });
+  return {
+    signInCode: async (on: boolean) => {
+      const r = await raw('POST', 'app_meta', { key: 'daily_code', value: on ? 'on' : 'off' }, { prefer: 'resolution=merge-duplicates' });
+      if (!r.ok) throw new Error(`the sign-in code switch could not be set: ${r.status}`);
+    },
+    forgetCodes: async () => { await raw('DELETE', 'daily_code_passes?day=gte.2000-01-01'); await raw('DELETE', 'daily_codes?issued_at=gte.2000-01-01'); },
+    /** The code in the latest message to this address (the local mail stand-in keeps what was "sent"). */
+    codeFor: async (email: string) => {
+      const box = (await (await fetch(`${outbox}?to=${encodeURIComponent(email)}`)).json()) as { subject: string }[];
+      return /(\d{6}) is your GrainVeda sign-in code/.exec(box.at(-1)?.subject ?? '')?.[1] ?? null;
+    },
+    emptyOutbox: () => fetch(outbox, { method: 'DELETE' }),
+  };
+}

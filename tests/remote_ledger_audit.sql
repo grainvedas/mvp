@@ -7,7 +7,8 @@
 --       could call app.ledger_append), nor
 --   (b) a record that was changed underneath its block: an evidence fingerprint rewritten in public.attachments, a
 --       record without its 'create' block, a seal whose hash is not the ledger's.
--- This audit checks both directions. It knows every kind of block written up to migration 27.
+-- This audit checks both directions. It knows every kind of block written up to migration 33, and needs migration 31
+-- on the project (it reads public.assignments): push the migrations first.
 with blocks as (
   select l.seq, l.event::text as event, l.footprint_id, l.scope_id, l.actor, l.hash, l.created_at, l.payload,
     case l.event::text
@@ -28,6 +29,11 @@ with blocks as (
             then exists (select 1 from public.flags fl where fl.id::text = l.payload->>'flag_id' and fl.footprint_id = l.footprint_id)
           when l.payload->>'act' in ('slot_assigned', 'slot_removed', 'slots_at_activation')
             then exists (select 1 from public.scopes s where s.id = l.scope_id and s.status <> 'draft')
+          -- identity layer (migration 31): who was given, or lost, a client's account, a state, or an export manager's view
+          when l.payload->>'act' = 'assignment_given'
+            then exists (select 1 from public.assignments a where a.id::text = l.payload->>'assignment_id' and a.employee_id::text = l.payload->>'user_id')
+          when l.payload->>'act' = 'assignment_ended'
+            then exists (select 1 from public.assignments a where a.id::text = l.payload->>'assignment_id' and a.employee_id::text = l.payload->>'user_id' and not a.active)
           when l.payload->>'kind' in ('farmer_verified', 'farmer_changed')
             then exists (select 1 from public.farmers fm where fm.id::text = l.payload->>'farmer_id')
           when l.payload->>'kind' in ('user_created', 'user_changed')

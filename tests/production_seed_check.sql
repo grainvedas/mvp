@@ -9,3 +9,8 @@ select t.ok((select count(*) from public.app_users) = 0 and (select count(*) fro
 select t.ok((select count(*) from public.stage_definitions) = 16, 'production: all 16 stage definitions are present');
 select t.ok((select count(*) from public.ledger) = 0 and not exists (select 1 from app.verify_ledger()), 'production: the ledger starts empty and verifies');
 select t.ok((select jsonb_array_length(quality_params) from public.crops where code = 'KNM') = 3, 'production: Kalanamak carries its three quality limits');
+select t.ok((select count(*) from public.onboarding_templates where is_default and active) = 1
+            and (select count(*) from public.template_tasks) = 8 and (select count(*) from public.template_tasks where statutory) = 1,
+            'production: the standard joining checklist is in place (eight tasks, one statutory)');
+select t.ok(not app.daily_code_on() and (select count(*) from public.assignments) = 0 and (select count(*) from public.audit_log) = 0,
+            'production: the once-a-day sign-in code is off; no assignment and no audit line exist yet');

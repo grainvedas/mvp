@@ -1,6 +1,6 @@
 -- READ-ONLY smoke check for a Supabase project after `db push` + seeds. Safe on production: no writes.
 -- Run: psql "$SUPABASE_DB_URL" -f tests/remote_smoke.sql   (or paste into Dashboard → SQL Editor)
--- Every row must start with OK (24 rows). The same file serves staging (demo seed expected) and production (demo
+-- Every row must start with OK (30 rows). The same file serves staging (demo seed expected) and production (demo
 -- seed forbidden): the 'environment' row says which one it found, from app.environment() (migration 23).
 -- API exposure of the `app` schema is not checked here: hosted Supabase keeps that setting in PostgREST's config, which
 -- SQL cannot read. Prove it with tests/remote_api_check.ps1 (REST call with the public key).
@@ -115,6 +115,55 @@ union all
 select 'a new client can be read back', case when exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'clients'
                                                            and policyname = 'clients_read_by_row' and cmd = 'SELECT')
                                       then 'OK' else 'MISSING: nobody can add a client from the screen (push migration 30)' end
+union all
+select 'identity layer objects',  case when to_regclass('public.assignments') is not null and to_regclass('public.audit_log') is not null
+                                        and to_regclass('public.employee_org') is not null and to_regclass('public.onboarding_tasks') is not null
+                                        and to_regprocedure('app.add_joiner(jsonb)') is not null and to_regprocedure('app.manages_scope(uuid, uuid)') is not null
+                                        and to_regprocedure('app.offboard_person(uuid, date, text, text, text)') is not null
+                                        and exists (select 1 from pg_trigger where not tgisinternal and tgname = 'audit_log_no_change')
+                                        and exists (select 1 from public.onboarding_templates where is_default)
+                                      then 'OK' else 'MISSING (push migrations 31–33)' end
+union all
+select 'people moved to assignments', case when to_regclass('public.assignments') is null then 'MISSING (push migrations 31–33)' else
+                                      (xpath('/row/r/text()', query_to_xml($q$
+                                        select case
+                                          when exists (select 1 from public.slot_assignments sa where not exists
+                                                        (select 1 from public.assignments a where a.id = sa.assignment_id and a.active))
+                                            then 'BROKEN: a stage is held without a live assignment'
+                                          when exists (select 1 from public.app_users u where u.role = 'state_manager' and not exists
+                                                        (select 1 from public.assignments a where a.employee_id = u.id and a.active and a.lens = 'state'))
+                                            or exists (select 1 from public.app_users u where u.role = 'client_manager' and not exists
+                                                        (select 1 from public.assignments a where a.employee_id = u.id and a.active and a.op_role = 'client_account'))
+                                            or exists (select 1 from public.app_users u where u.role = 'admin' and u.system_role <> 'admin')
+                                            then 'BROKEN: a person''s summary role has no assignment behind it'
+                                          else 'OK ' || (select count(*) from public.assignments where active) || ' live assignments' end as r$q$, false, true, '')))[1]::text end
+union all
+select 'the two seats',          case when to_regclass('public.assignments') is null then 'MISSING (push migrations 31–33)' else
+                                      (xpath('/row/r/text()', query_to_xml($q$
+                                        select case when (select count(*) from public.app_users where system_role = 'admin' and status = 'active') = 0
+                                                      and (select count(*) from public.app_users) > 0 then 'NO ACTIVE ADMIN'
+                                                    else 'OK ' || (select count(*) from public.app_users where system_role = 'admin' and status = 'active') || ' admin, HR Admin seat '
+                                                         || case when exists (select 1 from public.app_users where system_role = 'hr_admin' and status <> 'offboarded')
+                                                                 then 'filled' else 'VACANT (the admin appoints under System → Seats)' end end as r$q$, false, true, '')))[1]::text end
+union all
+select 'manager rules ask about the scope', case when to_regprocedure('app.withdraw_footprint(uuid, text)') is null then 'MISSING (push all migrations)'
+                                      when position('is_gateway_role' in pg_get_functiondef(to_regprocedure('app.withdraw_footprint(uuid, text)'))) = 0
+                                       and position('is_gateway_role' in pg_get_functiondef(to_regprocedure('app.qc_verdicts_guard()'))) = 0
+                                      then 'OK' else 'OLD: a manager of one client is a manager wherever they hold a stage (push migration 32)' end
+union all
+select 'people written only by their actions', case when not has_table_privilege('authenticated', 'public.app_users', 'insert')
+                                        and to_regclass('public.assignments') is not null
+                                        and not has_table_privilege('authenticated', 'public.assignments', 'insert')
+                                        and not has_table_privilege('authenticated', 'public.assignments', 'update')
+                                        and not has_table_privilege('authenticated', 'public.audit_log', 'insert')
+                                        and not has_table_privilege('authenticated', 'public.employee_docs', 'update')
+                                        and not has_function_privilege('authenticated', 'app.issue_daily_code(uuid)', 'execute')
+                                      then 'OK' else 'OPEN (push migrations 31–33)' end
+union all
+select 'once-a-day sign-in code', case when to_regprocedure('app.daily_code_on()') is null then 'MISSING (push migration 32)'
+                                      when (xpath('/row/r/text()', query_to_xml('select app.daily_code_on() as r', false, true, '')))[1]::text = 'true'
+                                      then 'OK ON: every sign-in needs today''s code (a sender must be working)'
+                                      else 'OK off (decision 5 Oct 2026: until a sender exists)' end
 union all
 select 'nightly ledger check',   case when to_regclass('cron.job') is null then 'NO pg_cron: see RUNSHEET_phase3 step 5'
                                       when (xpath('/row/n/text()', query_to_xml(

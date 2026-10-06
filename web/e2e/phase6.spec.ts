@@ -21,9 +21,10 @@ test.describe('on a laptop', () => {
     expect(Math.round(n.width)).toBe(220); expect(n.x).toBe(0);
     expect(m.x).toBeGreaterThanOrEqual(220); expect(n.y).toBeGreaterThanOrEqual(tb.y + tb.height - 1);
     expect(Math.round(tb.height), 'top bar, px').toBeLessThanOrEqual(56);
-    for (const s of ['Overview', 'Registry', 'System', 'Support']) await expect(nav.getByText(s, { exact: true })).toBeVisible();
-    for (const l of ['Dashboard', 'Farmers', 'Season Scopes', 'Users & Roles', 'Flags & Disputes', 'My account']) await expect(nav.getByRole('link', { name: l })).toBeVisible();
+    for (const s of ['Overview', 'Registry', 'People', 'System', 'Support']) await expect(nav.getByText(s, { exact: true })).toBeVisible();
+    for (const l of ['Dashboard', 'Farmers', 'Season Scopes', 'People & access', 'Flags & Disputes', 'My account']) await expect(nav.getByRole('link', { name: l })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Crop Registry' })).toHaveCount(0);          // an admin's item
+    await expect(nav.getByRole('link', { name: 'HR · Joiners' })).toHaveCount(0);           // HR's item: a manager assigns people, HR makes them
     // who, for whom
     await expect(page.getByTestId('tb-context')).toHaveText('GrainVeda (Prasaadam trade scope)');
     await expect(page.getByTestId('whoami')).toContainText('Prasaadam Client Manager');
@@ -31,7 +32,7 @@ test.describe('on a laptop', () => {
     await expect(top.getByRole('link', { name: 'My account' })).toHaveText('PC');           // initials
     // every kind of page fits the window
     await noSideScroll(page, 'dashboard');
-    for (const [name, heading] of [['Farmers', 'Farmers'], ['Season Scopes', 'Season Scopes'], ['Users & Roles', 'Users & Roles'], ['Flags & Disputes', 'Flags & Disputes'], ['My account', 'My account']] as const) {
+    for (const [name, heading] of [['Farmers', 'Farmers'], ['Season Scopes', 'Season Scopes'], ['People & access', 'People & access'], ['Flags & Disputes', 'Flags & Disputes'], ['My account', 'My account']] as const) {
       await nav.getByRole('link', { name }).click();
       await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
       await expect(nav.getByRole('link', { name })).toHaveClass(/active/);
@@ -39,7 +40,7 @@ test.describe('on a laptop', () => {
     }
     await signOut(page);
     await signIn(page, USERS.admin);
-    for (const l of ['Clients', 'Crop Registry', 'States', 'Health']) await expect(nav.getByRole('link', { name: l })).toBeVisible();
+    for (const l of ['Clients', 'Crop Registry', 'States', 'Health', 'HR · Joiners', 'State overview', 'Seats', 'Audit log']) await expect(nav.getByRole('link', { name: l })).toBeVisible();
     await signOut(page);
   });
 
@@ -106,7 +107,8 @@ test.describe('on a laptop', () => {
 
   test('A stage form is in two columns under section headings; lists and pickers take the whole width', async ({ page }) => {
     await signIn(page, USERS.procurement);
-    await page.locator(`[data-testid="slot-procurement"][data-scope="${SCOPES.siddharthnagar}"]`).click();
+    await expect(page.getByTestId('work-picker')).toBeVisible();                           // five scopes: the first screen asks where
+    await page.goto(`/work/${SCOPES.siddharthnagar}/procurement`);                         // a stage opened by its address, with no place chosen
     await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');
     await page.getByRole('button', { name: /Sita Devi/ }).click();
     const form = page.locator('form');
@@ -126,7 +128,8 @@ test.describe('on a laptop', () => {
     await expect(nav.getByRole('link', { name: 'Procurement (farm-gate)' })).toHaveClass(/active/);
     await page.getByRole('link', { name: '← Back to dashboard' }).click();
     await expect(page.getByTestId('scope-switcher')).toHaveValue('');                      // the choice itself did not change
-    await expect(page.locator('.stage-card')).toHaveCount(5);
+    // someone who holds stages in five scopes works in one at a time: with none chosen, the first screen asks which
+    await expect(page.getByTestId('work-picker').getByTestId('pick-scope')).toHaveCount(5);
     await expect(nav.getByText('Operations', { exact: true })).toHaveCount(0);
     await signOut(page);
   });
@@ -136,7 +139,7 @@ test.describe('on a laptop', () => {
     const card = page.locator('.signin-box');
     await expect(card.getByRole('heading', { name: 'Sign in' })).toBeVisible();
     await expect(card).toContainText('Controlled Traceability Platform');
-    await expect(card).toContainText('Forgot your password? Ask your manager to reset it.');
+    await expect(card).toContainText('Forgot your password? Ask HR to reset it.');           // HR resets passwords since the identity layer
     await expect(card).toContainText('GrainVeda Private Limited');
     const b = await box(page, card);
     expect(b.width).toBeLessThanOrEqual(380);
@@ -150,12 +153,17 @@ test.describe('on a phone', () => {
 
   test('The same screens fold to one column: scope selector on the first screen, sections stacked, cards compact', async ({ page }) => {
     await signIn(page, USERS.procurement);
-    // five stages held: the cards come without their lists, so the first screen stays short
-    await expect(page.locator('.stage-card')).toHaveCount(5);
-    await expect(page.locator('.stage-card .runs')).toHaveCount(0);
+    // stages held in five scopes: the first screen asks where he is working now (one scope at a time), one tap each
+    await expect(page.getByTestId('work-picker').getByTestId('pick-scope')).toHaveCount(5);
+    await expect(page.locator('.stage-card')).toHaveCount(0);
     await expect(page.locator('header.topbar').getByTestId('scope-switcher')).toHaveCount(0);      // not in the top bar
-    await page.locator('main').getByTestId('scope-switcher').selectOption(SCOPES.siddharthnagar);
+    await noSideScroll(page, 'where are you working');
+    await page.locator(`[data-testid="pick-scope"][data-scope="${SCOPES.siddharthnagar}"]`).click();
     await expect(page.locator('.stage-card')).toHaveCount(1);
+    await page.getByTestId('change-scope').click();                                              // and changing is one tap
+    await expect(page.getByTestId('work-picker')).toBeVisible();
+    await page.locator('main').getByTestId('scope-switcher').waitFor({ state: 'detached' });
+    await page.locator(`[data-testid="pick-scope"][data-scope="${SCOPES.siddharthnagar}"]`).click();
     await expect(page.getByText('My recent records')).toBeVisible();
     await noSideScroll(page, 'operator first screen');
     await page.getByTestId('slot-procurement').click();

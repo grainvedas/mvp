@@ -35,7 +35,7 @@ cannot reach its database, whatever the host. Mitigation that keeps working: a c
 now; it is one build and one deploy when needed.
 
 Also dated: Supabase is retiring the old `anon` / `service_role` keys (announced for late 2026). The app and scripts
-already accept the new publishable / secret keys under the same variable names; the three Edge Functions read
+already accept the new publishable / secret keys under the same variable names; the four Edge Functions read
 `SB_PUBLISHABLE_KEY` / `SB_SECRET_KEY` if set (`supabase secrets set`). Nothing to do until Supabase gives a date for
 this project.
 
@@ -64,14 +64,14 @@ Vercel's schema and no comment: any other property fails the deploy before the b
 | What | How it gets there | How to see what is there |
 |---|---|---|
 | Database rules | `supabase db push` | `supabase db push --linked --dry-run` lists nothing; `tests/remote_smoke.sql` |
-| Server functions (`create-user`, `reset-password`, `ledger-check`) | `supabase functions deploy …` (run-sheet A6, C6) | `node scripts/check_functions.mjs`: `FUNCTIONS DEPLOYED AND CURRENT` |
-| The app | a push to GitHub `main` (Vercel), or `wrangler deploy` | the app itself: the Users page shows a yellow warning when the functions are older than the app needs |
+| Server functions (`create-user`, `reset-password`, `ledger-check`, `daily-code`) | `supabase functions deploy …` (run-sheet Phase 5 D4; Phase 4 C6) | `node scripts/check_functions.mjs`: `FUNCTIONS DEPLOYED AND CURRENT` |
+| The app | a push to GitHub `main` (Vercel), or `wrangler deploy` | the app itself: the Add joiner page shows a yellow warning when the functions are older than the app needs |
 
 A function left behind does not fail loudly. On 4 October 2026 the staging database was at migration 29 and
 `create-user` was the build of 1 October: the database no longer linked the logins that build makes, and every new
 person ended in "login created but not linked; both removed" (`docs/FIX_LIST.md` item 17, fault 32). **After every
 `db push`: deploy the functions and run `node scripts/check_functions.mjs`.** The functions say which build they are in
-the header `x-grainveda-function` (a date); `VERSION` in the three `handler.ts` files and `FUNCTIONS_NEEDED` in
+the header `x-grainveda-function` (a date); `VERSION` in the four `handler.ts` files and `FUNCTIONS_NEEDED` in
 `web/src/lib/api.ts` are raised together when a function changes in a way the database or the app depends on.
 
 ## Production, step by step
@@ -85,20 +85,20 @@ explanation of each step.
    `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL` (Connect → Session pooler),
    `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. The last two repeat the first two: they are the only ones the app
    build reads.
-3. **Database**: link the CLI to the production project, `supabase db push` (29 migrations), then
-   `supabase/seeds/01_stage_definitions.sql` and `supabase/seeds/production/10_reference.sql`. Never seeds 02–05.
+3. **Database**: link the CLI to the production project, `supabase db push` (33 migrations), then
+   `supabase/seeds/01_stage_definitions.sql` and `supabase/seeds/production/10_reference.sql`. Never seeds 02–06.
    Then link the CLI back to staging.
 4. **Dashboard settings**: API → exposed schemas: add `app`. Authentication → Sign In / Providers: "Allow new users
    to sign up" OFF, anonymous sign-ins OFF, e-mail confirmation ON, phone provider set up exactly as on staging
    (operators sign in with phone + password; where the Phone provider is not enabled, create operators with an email
    instead — they sign in with email + password, no SMS). Sessions: time-box 720 hours (30 days). Password
-   minimum 8. Keep "Secure password change" OFF: operators have no e-mail to receive a re-authentication code.
+   minimum 8. Keep "Secure password change" OFF: no mail sender is set up, so a re-authentication code could not be delivered.
    With sign-up off, nobody can make a login for themselves; the settings check then reports an "auto-confirm"
    setting as a note, not a failure.
-5. **Functions and secrets**: `supabase functions deploy create-user`, `reset-password`, and
+5. **Functions and secrets**: `supabase functions deploy create-user`, `reset-password`, `daily-code`, and
    `ledger-check --no-verify-jwt`; a new `LEDGER_CHECK_TOKEN` for production (`scripts/make_ledger_token.mjs` with
    `ENV_FILE=.env.production`), uploaded with `supabase secrets set --env-file .env.functions.production`.
-6. **Checks, read-only**: `tests/remote_smoke.sql` (24 rows; "environment" must say `OK production`, "demo data" must
+6. **Checks, read-only**: `tests/remote_smoke.sql` (30 rows; "environment" must say `OK production`, "demo data" must
    say `OK production: no demo people or scopes`), `ENV_FILE=.env.production node tests/remote_auth_settings.mjs`
    (must end `AUTH SETTINGS PASSED`; on production an open setting is a failure, not a warning).
 7. **First admin**: `ENV_FILE=.env.production node scripts/bootstrap_admin.mjs --email <Veda's address> --name "Veda"`.
@@ -106,8 +106,11 @@ explanation of each step.
    asks, delete the file.
 8. **App**: `cd web; npm run build:production; npx wrangler deploy --env production`. Add the custom domain in the
    Cloudflare dashboard. Check the headers on the real address.
-9. **In the app, as admin**: State Manager(s) → Client Manager → the scope (chain, people) → farmers (form or Excel) →
-   activate. Every person gets a temporary password in person and chooses an own one at first sign-in.
+9. **In the app** (`docs/RUNSHEET_phase5.md` part F, step C13): the admin adds the person who will be HR Admin and
+   appoints them under **Seats**; HR adds everyone else; the admin gives each State Manager their state; a State
+   Manager gives the client's account to its manager; that manager opens the scope and gives the stages; farmers
+   (form or Excel); activate. Every person gets a temporary password in person and chooses an own one at first
+   sign-in. People HR adds sign in by email: the Phone provider is not needed for them.
 10. **Before the first real lot**: one off-platform backup and one restore drill (`docs/RESTORE.md`); the uptime
     monitor on `…/functions/v1/ledger-check?evidence=1` with the production token; Health page → "Check the ledger now".
 
@@ -119,7 +122,7 @@ explanation of each step.
 | ☐ | Decisions G1 to G5 taken | `docs/FIX_LIST.md` |
 | ☐ | Secrets of the development phase rotated (database password, service key, access token) | `docs/RUNSHEET_2026-10-01_security_and_phase0.md` |
 | ☐ | Production project: Pro, Mumbai | Dashboard |
-| ☐ | 29 migrations, seed 01, production seed; no demo data | smoke check 23/23 |
+| ☐ | 33 migrations, seed 01, production seed; no demo data | smoke check 30/30 |
 | ☐ | Sign-up off, anonymous off | `remote_auth_settings.mjs`: PASSED |
 | ☐ | Functions deployed, token set, monitor green | monitor's first check |
 | ☐ | First admin signed in with an own password; `.env.admin-login` deleted | — |
@@ -136,5 +139,5 @@ explanation of each step.
 | Daily | admin | Health page: ledger check green, no new problems from phones, nothing waiting more than 2 days |
 | Weekly | admin | `node scripts/backup.mjs` with `ENV_FILE=.env.production`; move the folder to the encrypted drive |
 | Quarterly | admin | Restore drill; log kept |
-| On staff change | Client Manager | Users → Deactivate; Scope → People → Remove / assign |
+| On staff change | HR; the scope's manager | HR: People & access → Suspend or Offboard. Manager: the person's profile or the scope's Roster → change stages, move, end (`docs/OPERATIONS.md` "People") |
 | On a new app version | Antigravity | staging first: migrations, build, acceptance run twice; then production |

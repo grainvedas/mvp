@@ -60,12 +60,14 @@ select t.ok((select count(*) from public.footprints where lot_closed) = (select 
 
 -- Client manager: full client access, may activate a scope and override QC
 select t.as_user(t.u('03'));
-select t.ok((select count(*) from public.scopes) = 6, 'client_manager: sees the client''s 6 scopes (seeds 02, 04, 05)');
-select t.ok((select count(*) from public.app_users) = 12, 'client_manager: sees the client''s 12 users (self, client_view, 10 operators)');
+select t.ok((select count(*) from public.scopes) = 7, 'client_manager: sees the client''s 7 scopes (seeds 02, 04, 05, and the Assam one of seed 06)');
+-- Migration 32: people are no longer "of a client". Whoever assigns reads the pool of employees (18) and the client's own login (1).
+select t.ok((select count(*) from public.app_users) = 19, 'client_manager: reads the pool of employees and the client''s own login');
 
 -- State manager: sees UP clients (both), not Assam
 select t.as_user(t.u('02'));
 select t.ok((select count(*) from public.clients) = 2, 'state_manager: sees both UP clients');
+select t.ok((select count(*) from public.scopes) = 6, 'state_manager: sees the 6 scopes in UP, not the same client''s scope in Assam');
 
 -- Anonymous: nothing, except the public journey RPC (tested in 05)
 select t.as_anon();
