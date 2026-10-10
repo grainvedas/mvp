@@ -930,7 +930,7 @@ export const en: Record<string, string> = {
   'seats.title': 'Seats',
   'seats.sub': 'The two seats everything starts from.',
   'seats.admin': 'Admin (root)',
-  'seats.admin_note': 'Sees everything and may assign any scope. The last active admin cannot be suspended, offboarded or given another role.',
+  'seats.admin_note': 'Sees everything; creates states, seats State Managers and the HR Admin; runs no stage, farmer, client or scope. The last active admin cannot be suspended, offboarded or given another role.',
   'seats.break_glass': 'If every admin is locked out:',
   'seats.break_glass_note': 'the owner of the database creates a new admin with scripts/bootstrap_admin.mjs (docs/OPERATIONS.md, "Break glass"). Nothing in the app can do it.',
   'seats.hr_admin': 'HR Admin (exactly one)',

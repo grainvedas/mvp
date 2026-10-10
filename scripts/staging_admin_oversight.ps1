@@ -140,7 +140,7 @@ $tested = [ordered]@{
   'tests/remote_smoke.sql' = '66e069c427f83c7666a042280e565a9c9744744fd866423222cb6acd242d7dad'
   'tests/remote_ledger_audit.sql' = '7f51601f01166f33145cefdd13ef92009c0390edf337c1c5167646e5d820f8d5'
 }
-$appListHash = '825584481a607ee1e76ee36ed9a91482fe55c4c020584898c74630e7f6306b93'
+$appListHash = 'e2dac89acb5652b46f8cd4172e6e501229a07e6dd7b70355969b363e734c162f'
 $changed = @()
 foreach ($path in $tested.Keys) {
   if (-not (Test-Path (Join-Path $root $path))) { $changed += "$path (missing)"; continue }

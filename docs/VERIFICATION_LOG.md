@@ -1368,3 +1368,15 @@ Run by Veda (`staging-admin-oversight.cmd`, the words typed: `ADMIN OVERSIGHT`).
   negative control (a record with its block removed) is still found.
 - S3 **NOT RUN**: the staging app is still the old build (its admin screens offer acts the database now refuses).
 
+### Second run on staging: 10 October 2026, 09:30 (record `staging-admin-oversight-20261010-093047.log`): `RESULT: ADMIN OVERSIGHT ON STAGING`
+
+- S0 **OK** (nothing waiting: migration 34 already in) · S1 **NOT RUN** (already pushed).
+- S2 **OK**: smoke 31 of 31; ledger audit (fixed, FIX_LIST 37) `NO FINDINGS (27 blocks, 5 records, 1 seals, 0 evidence
+  files checked)`; `NO LOGIN WITHOUT A PERSON` (3 logins, 3 people); four functions current. In the system: 2 states,
+  2 clients, 2 scopes, 2 farmers (both made before migration 34, so without a state: K38), 5 records, 1 seal, 27
+  ledger blocks, HR Admin seat filled.
+- S3 **OK**: 52 files committed, `a455b25..355bfc7 main -> main`; Vercel builds staging from it.
+
+NOT run / not known: the deployed app has not been looked at (the sandbox cannot reach it); the run-sheet's
+"Afterwards" steps are Veda's.
+
