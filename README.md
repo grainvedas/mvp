@@ -16,6 +16,7 @@ PRD (living doc): https://claude.ai/code/artifact/28bf2d7b-66e0-4580-a6c7-5b12a8
 | 3 Offline, Hindi, dashboards, exports, nightly ledger check | done | `docs/RUNSHEET_phase3.md` |
 | 4 Deploy, acceptance, restore drill, handover | done on the local stack | `docs/RUNSHEET_phase4.md` |
 | 5 Identity and authorization layer (HR onboarding, assignments, lifecycle, seats, audit log) | done on the local stack, 6 Oct 2026 | `docs/RUNSHEET_phase5.md` |
+| The admin oversees (migration 34: overview, ledger page, two farmer verifications; no override) | done on the local stack, 10 Oct 2026 | `docs/RUNSHEET_admin_oversight.md`, when Veda says so |
 
 Which run-sheets have been completed on the hosted project is recorded in `docs/VERIFICATION_LOG.md` by whoever runs
 them; step A2 of the Phase 4 run-sheet shows it at a glance (the migrations still to be pushed).
@@ -40,14 +41,21 @@ state); what a person sees is the union. The Users & Roles page is gone: **HR ·
 replace it. On staging since 6 October 2026 (database, functions, app: run-sheet part D); part E of
 `docs/RUNSHEET_phase5.md`, by a person through the screens, is still to do.
 
+**The admin oversees and runs nothing** (Veda, 10 October 2026; FIX_LIST G15). The admin's first screen is the
+platform overview; the admin creates states, seats State Managers and the HR Admin, reads the whole ledger, and adds
+joiners only while the HR Admin seat is empty. Crops and clients are the State Manager's; a farmer is verified by the
+Client Manager and then, by location, by the State Manager of its state. There is no override. **In the repository
+only**: `staging-admin-oversight.cmd` puts it on staging and pushes to the main branch, so it waits for Veda's say-so.
+
 **The practice system starts empty** (decision of 6 October 2026): `docs/RUNSHEET_fresh_start.md` empties it to one
-admin (`staging-fresh-start.cmd`) and then lists the first day in the app: state, crop, client, HR seat, people,
-scope, farmer, first lot. No demo data is on staging after that; the demo seeds are for the local stack and CI.
+admin (`staging-fresh-start.cmd`) and then lists the first day in the app, in Veda's order once migration 34 is
+there: state, HR seat, people, State Manager, crop, client, scope, farmer (two steps), first lot. No demo data is on staging after that; the demo seeds are for the local stack and CI.
 
 ## Read this first
 
 | You are | Read |
 |---|---|
+| Veda, about to put the admin's oversight on staging | `docs/RUNSHEET_admin_oversight.md` |
 | Antigravity IDE, about to put the identity layer on staging | `docs/RUNSHEET_phase5.md` |
 | Antigravity IDE, about to put Phase 4 on the hosted project | `docs/RUNSHEET_phase4.md`, then `docs/DEPLOY.md` |
 | Anyone asking who may see or do what, and why | `docs/IDENTITY_DESIGN.md` |
@@ -99,6 +107,7 @@ supabase/
     20261006000100_identity_schema    Phase 5: status and system role, assignments, HR records, checklist, audit log
     20261006000200_union_access       every access rule reads the system role and the live assignments (the union)
     20261006000300_people_lifecycle   the actions: add joiner, assign, move, end, suspend, offboard, re-hire, seats, code
+    20261010000100_admin_oversight    the admin oversees: overview, whole ledger, State Manager's crops and clients, farmers verified twice
   seeds/
     01_stage_definitions.sql       the one stage registry (16 stage types): forms, hand-off checks
     02 … 06                        demo data for staging and tests (06: HR seats, a joiner, an unassigned employee). They refuse production
@@ -106,9 +115,9 @@ supabase/
   functions/                       Edge Functions: create-user, reset-password, ledger-check, daily-code (one build)
 tests/
   00_local_auth_shim.sql           LOCAL ONLY: stands in for Supabase Auth
-  01 … 27_*.sql, concurrency/      the database suite (plain SQL assertions; 23 to 27: the identity layer)
+  01 … 28_*.sql, concurrency/      the database suite (plain SQL assertions; 23 to 27: the identity layer; 28: the admin oversees)
   run_local.sh / run_local.ps1     rebuilds a scratch database and runs all of it
-  remote_smoke.sql                 read-only check of a hosted project (30 rows)
+  remote_smoke.sql                 read-only check of a hosted project (31 rows)
   remote_ledger_audit.sql          read-only: every ledger block has a real counterpart, and the reverse
   remote_rls.mjs                   permissions with real logins through the API (refuses production)
   remote_auth_settings.mjs         read-only: who can get a login

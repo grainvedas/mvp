@@ -21,8 +21,8 @@ export const NAV: { to: string; key: string; icon: string; section: Section; sho
   { to: '/onboarding', key: 'nav.onboarding', icon: '✅', section: 'overview', show: (w) => w.joiner },
   { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾', section: 'registry', show: (w) => w.role !== 'operator' || w.farmerSlot },
   { to: '/scopes', key: 'nav.scopes', icon: '🎯', section: 'registry', show: (w) => w.role !== 'operator' },
-  { to: '/clients', key: 'nav.clients', icon: '🏢', section: 'registry', show: (w) => w.role === 'admin' || w.role === 'state_manager' },
-  { to: '/crops', key: 'nav.crops', icon: '🌿', section: 'registry', show: (w) => w.can.admin },
+  { to: '/clients', key: 'nav.clients', icon: '🏢', section: 'registry', show: (w) => w.role === 'admin' || w.role === 'state_manager' || w.can.state_lens },   // the State Manager onboards; the admin reads
+  { to: '/crops', key: 'nav.crops', icon: '🌿', section: 'registry', show: (w) => w.can.admin || w.can.state_lens },   // the State Manager's; the admin reads
   { to: '/states', key: 'nav.states', icon: '📍', section: 'registry', show: (w) => w.can.admin },
   // People: HR makes them, managers assign them. Two different jobs, two different entries.
   { to: '/hr', key: 'nav.hr', icon: '🧑‍💼', section: 'people', show: (w) => w.can.hr },
@@ -31,7 +31,8 @@ export const NAV: { to: string; key: string; icon: string; section: Section; sho
   { to: '/flags', key: 'nav.flags', icon: '🚩', section: 'system', show: (w) => w.can.assign },
   { to: '/health', key: 'nav.health', icon: '🩺', section: 'system', show: (w) => w.can.state_lens },
   { to: '/system/seats', key: 'nav.seats', icon: '🪑', section: 'system', show: (w) => w.can.admin },
-  { to: '/system/audit', key: 'nav.audit', icon: '📜', section: 'system', show: (w) => w.can.hr_admin },
+  { to: '/system/ledger', key: 'nav.ledger', icon: '🔗', section: 'system', show: (w) => w.can.admin },
+  { to: '/system/audit', key: 'nav.audit', icon: '📜', section: 'system', show: (w) => w.can.audit ?? w.can.hr_admin },
 ];
 
 /** "Prasaadam Client Manager" → "PC": the first letters of the first two words, as in the prototype's top bar. */

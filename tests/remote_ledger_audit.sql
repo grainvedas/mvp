@@ -50,9 +50,16 @@ findings as (
   select seq, event, footprint_id::text as subject, created_at, 'BLOCK WITHOUT A REAL COUNTERPART' as finding
     from blocks where not has_counterpart
   union all
+  -- A record's first block is 'create', or 'supervisory' when a manager made it at a stage they do not hold
+  -- (app.footprints_after_insert). The audit knew only 'create' until 10 Oct 2026, when the admin's test lot on
+  -- staging (made as admin, holding no stage) was reported as five records without their block.
   select null, 'create', f.id::text, f.created_at, 'RECORD WITHOUT ITS CREATE BLOCK'
     from public.footprints f
-   where f.status <> 'legacy' and not exists (select 1 from public.ledger l where l.footprint_id = f.id and l.event::text = 'create')
+   where f.status <> 'legacy'
+     and not exists (select 1 from public.ledger l where l.footprint_id = f.id and l.event::text = 'create')
+     and not exists (select 1 from public.ledger l where l.footprint_id = f.id and l.event::text = 'supervisory'
+                       and l.seq = (select min(l2.seq) from public.ledger l2 where l2.footprint_id = f.id)
+                       and l.payload->>'id' = f.id::text)
   union all
   select null, 'seal', q.footprint_id::text, q.sealed_at, 'SEAL WHOSE HASH IS NOT IN THE LEDGER'
     from public.qr_seals q

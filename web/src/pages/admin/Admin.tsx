@@ -1,4 +1,6 @@
 // S3 states · S4 clients · S6 crop registry · open flags
+// Migration 34 (Veda, 10 Oct 2026): states stay the admin's; clients and crops are the State Manager's (a client in a
+// state they hold; crops are shared by every state). The admin reads both.
 // (S5 "Users & Roles" is gone: people are added by HR and given access on the People screens, pages/hr and pages/people.)
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -10,6 +12,8 @@ import { useI18n } from '../../lib/i18n';
 import { dateTime, humanise } from '../../lib/format';
 import type { QualityParam, StageDefinition, StageType } from '../../lib/types';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
+import { useAuth } from '../../auth/AuthProvider';
+import { isStateManager } from '../../lib/rights';
 
 interface State { id: string; name: string; code: string }
 interface Client { id: string; name: string; code: string; type: string; state_id: string }
@@ -55,6 +59,10 @@ export function States() {
 
 export function Clients() {
   const { t } = useI18n();
+  const { ctx } = useAuth();
+  const sm = isStateManager(ctx);
+  // the states this State Manager holds: a client is onboarded in one of them
+  const mine = new Set((ctx?.assignments ?? []).filter((a) => a.lens === 'state' && a.state_id).map((a) => a.state_id!));
   const states = useAsync(() => q(supabase.from('states').select('*').order('name')) as Promise<State[]>, []);
   const list = useAsync(() => q(supabase.from('clients').select('*').order('name')) as Promise<Client[]>, []);
   const [f, setF] = useState({ name: '', code: '', type: 'exporter', state_id: '' });
@@ -71,16 +79,18 @@ export function Clients() {
         <table><thead><tr><th>Name</th><th>Code</th><th>Type</th><th>State</th></tr></thead>
           <tbody>{list.data?.map((c) => <tr key={c.id}><td>{c.name}</td><td className="mono">{c.code}</td><td>{humanise(c.type)}</td>
             <td>{states.data?.find((s) => s.id === c.state_id)?.name}</td></tr>)}</tbody></table>)}</div>
-      <form className="card" onSubmit={add}>
-        <h2>{t('common.create')}</h2>
+      {!sm && <p className="small muted" data-testid="clients-readonly">{t('clients.sm_only')}</p>}
+      {sm && <form className="card" onSubmit={add} data-testid="client-form">
+        <h2>{t('clients.onboard')}</h2>
         <Field label="Name" htmlFor="cl-name"><input id="cl-name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required /></Field>
         <Field label="Code" hint="2–6 capitals, used in every footprint code" htmlFor="cl-code"><input id="cl-code" value={f.code} onChange={(e) => setF({ ...f, code: e.target.value })} required maxLength={6} /></Field>
         <Field label="Type" htmlFor="cl-type"><select id="cl-type" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
           {['exporter', 'fpo', 'brand', 'grainveda'].map((x) => <option key={x} value={x}>{humanise(x)}</option>)}</select></Field>
         <Field label="State" htmlFor="cl-state"><select id="cl-state" value={f.state_id} onChange={(e) => setF({ ...f, state_id: e.target.value })} required>
-          <option value="">—</option>{states.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+          <option value="">—</option>{states.data?.filter((s) => mine.has(s.id)).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
         <ErrorBox error={act.error} /><button disabled={act.busy}>{t('common.create')}</button>
-      </form>
+        <p className="small muted">{t('clients.next_step')}</p>
+      </form>}
     </div>
   );
 }
@@ -99,6 +109,8 @@ export function limitInput(text: string): number | null {
 
 export function Crops() {
   const { t } = useI18n();
+  const { ctx } = useAuth();
+  const sm = isStateManager(ctx);                          // the State Manager makes and changes crops; others read
   const list = useAsync(() => q(supabase.from('crops').select('*').order('name')) as Promise<CropRow[]>, []);
   const defs = useAsync(() => q(supabase.from('stage_definitions').select('*').eq('is_processing', true).order('sort_order')) as Promise<StageDefinition[]>, []);
   const [edit, setEdit] = useState<CropRow | null>(null);
@@ -124,11 +136,13 @@ export function Crops() {
   const limitsOpen = Object.values(typed).some((x) => limitInput(x) === null);   // not a number yet ("12.", empty): cannot be saved
   return (
     <div><h1><span aria-hidden="true">🌿 </span>{t('crops.title')}</h1>
+      {!sm && <p className="small muted" data-testid="crops-readonly">{t('crops.sm_only')}</p>}
       <div className="card">{list.loading ? <Loading /> : <ul>{list.data?.map((c) => (
-        <li key={c.id} className="row">{c.name} <span className="mono">{c.code}</span> {c.gi_tag && <Badge value="verified" label={c.gi_tag} />}
-          <button className="secondary" onClick={() => setEdit(structuredClone(c))}>{t('common.edit')}</button></li>))}</ul>}
-        {!edit && <button onClick={() => setEdit(structuredClone(blank))}>{t('common.create')}</button>}</div>
-      {edit && (
+        <li key={c.id} className="row" data-testid="crop-row">{c.name} <span className="mono">{c.code}</span> {c.gi_tag && <Badge value="verified" label={c.gi_tag} />}
+          {sm ? <button className="secondary" onClick={() => setEdit(structuredClone(c))}>{t('common.edit')}</button>
+            : <span className="small muted">{c.quality_params.map((p) => `${p.label} ${p.operator === '<=' ? '≤' : '≥'} ${p.domestic_limit}/${p.export_limit}${p.unit ?? ''}`).join(' · ')}</span>}</li>))}</ul>}
+        {sm && !edit && <button onClick={() => setEdit(structuredClone(blank))}>{t('common.create')}</button>}</div>
+      {sm && edit && (
         <div className="card">
           <div className="grid">
             <Field label="Name" htmlFor="cr-name"><input id="cr-name" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>

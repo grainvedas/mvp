@@ -17,6 +17,7 @@ import { AddJoiner, HrPipeline, JoinerPage, Templates } from './pages/hr/Hr';
 import { Checklist, Goals, TaskPage, Welcome } from './pages/onboarding/Onboarding';
 import { AssignPage, Directory, ProfilePage, RosterPage, StateOverview } from './pages/people/People';
 import { AuditLog, Seats } from './pages/system/System';
+import { Ledger } from './pages/system/Ledger';
 import { DailyCode } from './auth/DailyCode';
 import { rpc } from './lib/api';
 import { Health } from './pages/admin/Health';
@@ -71,6 +72,7 @@ function Private() {
         <Route path="state/:id" element={<StateOverview />} />
         <Route path="system/seats" element={<Seats />} />
         <Route path="system/audit" element={<AuditLog />} />
+        <Route path="system/ledger" element={<Ledger />} />
         <Route path="clients" element={<Clients />} />
         <Route path="states" element={<States />} />
         <Route path="crops" element={<Crops />} />

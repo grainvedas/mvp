@@ -81,13 +81,14 @@ select t.ok((select override->>'authoriser' from public.qc_verdicts where footpr
 -- Farmer verification and Farmer IDs (migrations 11, 12)
 -- ---------------------------------------------------------------------------
 select t.as_service();
-insert into public.farmers (id, client_id, scope_ids, status, name, guardian_name, village, district, phone, land_area_acres, created_by)
+-- reviewed_by: the Client Manager's first verification (migration 34), already done for these three
+insert into public.farmers (id, client_id, scope_ids, status, name, guardian_name, village, district, phone, land_area_acres, created_by, reviewed_by)
 values ('00000000-0000-4000-8000-000000000591', '00000000-0000-4000-8000-000000000201', array[t.scope('01')], 'under_review',
-        'Kamla Devi', 'Shri Ramesh', 'Bansi', 'Siddharthnagar', '+919000000091', 1.5, t.u('05')),
+        'Kamla Devi', 'Shri Ramesh', 'Bansi', 'Siddharthnagar', '+919000000091', 1.5, t.u('05'), t.u('03')),
        ('00000000-0000-4000-8000-000000000592', '00000000-0000-4000-8000-000000000201', array[t.scope('01')], 'under_review',
-        'Raju Prasad', 'Shri Mohan', 'Itwa', 'Siddharthnagar', '+919000000092', 2.0, t.u('05')),
+        'Raju Prasad', 'Shri Mohan', 'Itwa', 'Siddharthnagar', '+919000000092', 2.0, t.u('05'), t.u('03')),
        ('00000000-0000-4000-8000-000000000593', '00000000-0000-4000-8000-000000000201', array[t.scope('01')], 'under_review',
-        'Phoolmati', 'Shri Lallan', 'Naugarh', 'Siddharthnagar', '+919000000093', 0.8, t.u('05'));
+        'Phoolmati', 'Shri Lallan', 'Naugarh', 'Siddharthnagar', '+919000000093', 0.8, t.u('05'), t.u('03'));
 
 select t.as_user(t.u('05'));   -- procurement operator (has the farmers module)
 select t.fails(format($q$ update public.farmers set status = 'active', verified_by = %L where id = %L $q$,
@@ -95,7 +96,7 @@ select t.fails(format($q$ update public.farmers set status = 'active', verified_
                'signed-in user', 'farmer: an operator cannot activate a farmer by naming the State Manager');
 select t.fails(format($q$ update public.farmers set status = 'active', verified_by = %L where id = %L $q$,
                       t.u('05'), '00000000-0000-4000-8000-000000000591'),
-               'State Manager or admin', 'farmer: an operator cannot verify a farmer');
+               'only a State Manager', 'farmer: an operator cannot verify a farmer');
 select t.fails($q$ insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, farmer_code)
                    values ('00000000-0000-4000-8000-000000000201', 'draft', 'X', 'Y', 'Z', 'W', '+919000000099', 1, 'PRSDM-F-0099') $q$,
                'set by verification', 'farmer: an operator cannot create a farmer that already has a Farmer ID');

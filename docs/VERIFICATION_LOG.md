@@ -1269,3 +1269,102 @@ NOT run / not known:
 - The script under Windows PowerShell 5.1: its helpers are the ones `staging_phase5.ps1` ran with on that computer
   three times; the question it asks (`Read-Host`) is new there.
 - The copy in `backups\` cannot be loaded back (limit K36).
+
+### The fresh start on staging: 6 October 2026, 16:29 (record `staging-fresh-start-20261006-162930.log`)
+
+Run by Veda (`staging-fresh-start.cmd`, the words typed: `EMPTY STAGING`); one run, `RESULT: FRESH START DONE`.
+- F0 **OK**: 7 files the rehearsed ones; linked to `zogkrhgzatplarimbmxk`; `environment=staging`; no migration
+  waiting. **Before: 31 people, 31 logins, 4 states, 2 crops, 4 clients, 10 scopes, 25 farmers, 6 records, 2 sealed
+  lots, 95 ledger blocks, 27 audit lines.**
+- F1 **OK**: `ROWS COPIED: 347 rows of 33 tables` → `backups\fresh-start-20261006T110000Z`.
+- F2 **OK**: emptied in one transaction; read back: 0 people, 0 states, crops, clients, scopes, farmers, records,
+  seals, ledger blocks, audit lines; 16 stage definitions, 8 checklist tasks; audit guard on. (So `supabase db
+  query` ran the whole file, and the owner could set the audit guard aside and put it back.)
+- F3 **OK**: `logins removed: 31 left: 0`; `store evidence: empty`; `store hr-docs: empty` (Supabase Auth and
+  Storage, the services the rehearsal had only stand-ins for).
+- F4 **OK**: `ADMIN CREATED AND LINKED: Veda <grainvedas+admin@gmail.com>`; temporary password in
+  `.env.admin-login`, not in the record.
+- F5 **OK**: 1 person, 1 login, 1 active admin, nothing else; **smoke 30 of 30 `OK`** (`OK fresh start (2026-10-06
+  16:30 IST): 0 crop(s), made in the app`, `OK staging: fresh start, no demo data`, `OK 1 admin, HR Admin seat
+  VACANT`, `nightly ledger check OK`); ledger audit `NO FINDINGS (1 blocks, 0 records, 0 seals, 0 evidence files
+  checked)`; `NO LOGIN WITHOUT A PERSON`; four functions `ok … build 2026-10-06`, `FUNCTIONS DEPLOYED AND CURRENT`
+  (the first time all four: the ledger-check token was set earlier in the day).
+- F6 **OK**: 18 files committed, `01dcd0a..a455b25 main -> main`.
+
+NOT run / not known:
+- **Nobody has signed in to the emptied system yet.** The first sign-in with the temporary password and the whole
+  first day (part 2 of `docs/RUNSHEET_fresh_start.md`) are Veda's; they ran here on the local stack only.
+- The app was rebuilt by Vercel from `a455b25` (no app file changed); the deployment was not looked at.
+
+## 2026-10-10 — The admin oversees (decision G15, migration 34): built and rehearsed on the local stack
+
+Brief "GrainVeda MVP — Admin role changes" (Veda, 10 October), override removed, her set-up order. All of it ran on
+the local stack (PostgreSQL 16, PostgREST, Supabase Auth) and in a Chromium with a phone profile (Pixel 7) and at
+1366 px. **Nothing of it is on staging** (open item 28).
+
+Ran:
+- **Database**: `tests/run_local.sh` → `ALL TESTS PASSED`; 964 `ok` lines; `ok upgrade: the later migrations apply to a
+  database in use, and all 28 test files pass on it`; production build: the demo seed refuses. The two `LEDGER CHECK
+  FAILED` warnings are the test that alters a block on purpose. New `tests/28_admin_oversight.sql`: every act the
+  admin lost is refused, every act kept still works, the two farmer steps, the HR seat filled and vacant, the
+  overview's figures against the tables, the ledger page and its refusal for anyone else. **Controls**: eight
+  deliberately broken versions of the rules (the admin back in `manages_place`, `eff_assignments` counting an admin's
+  assignments, `may_assign` giving the admin a client, `farmer_write`, `hr_may_manage`, the clients and crops rules,
+  the two-step trigger), each caught by it.
+- **Unit tests**: 208 passed (193 before; new `web/tests/admin_oversight.test.ts`: first screen, rights, menu, the
+  farmer buttons, the counts that must agree, the role guide in both languages, every ledger event named). Type check
+  clean; `npm run build:ci` builds.
+- **Screens**: the default suite **57 passed (10.3 min)**, then phases 5, 6 and 9 again after the last style fix
+  (21 passed); `playwright.prod.config.ts` 14 passed (the built
+  app, field day); the first day from nothing in Veda's order (`e2e-fresh/fresh_start.spec.ts`, rewritten): 1 passed,
+  from an emptied stack to a sealed lot, then the admin's overview, a client read-only, and the ledger.
+- **Faults found by these runs and fixed before delivery**: the overview was 30 px wider than a phone (the volume
+  cards' grid took the width of its widest table); with a single scope in the system the admin could never reach the
+  overview (the one scope was always chosen for everyone; a run of the first-day test found it); the event
+  "override" was renamed on the record page by the new ledger words (T3 caught it; it says "Override" again).
+  Seen only by looking at pictures at 390 and 1366 px: the open number card was dark green text on dark green (the
+  app's button colour); it is white like the others now.
+- **The counting faults of the brief**, with a control: the scope screen's queue title now shows the same number as
+  its card; with the title put back to "number of lines", `phase6` "Scope selector" fails (`Expected "Your action
+  queue (9)", Received "(2)"`). Every stage with nobody is named (the list was cut at three); no screen test reaches a
+  scope with four open stages, so that part was checked by reading only.
+- **Migration 34 on a practice system made the old way**: the stack built at migration 33, emptied
+  (`local-stack/fresh_start.sh`), then the first day of 6 October run with the app as it was then (the admin made the
+  state, crop and client, gave the client's account, verified the farmer; a lot sealed and its QR issued); then, as
+  the admin under the old rules, a second client, a scope for it, and the admin holding every stage of it and one
+  stage of the first. Migration 34 applied in one transaction on top: smoke 31 rows (30 `OK`; the 31st is pg_cron,
+  absent locally), ledger audit `NO FINDINGS (29 blocks, 3 records, 1 seals, …)`. Read as the admin: overview 2
+  clients, 2 active scopes, 1 QR, **3 stages with nobody** (the admin's own stages count as nobody now, as they should);
+  ledger 29 blocks; the admin holds no stage. Through the new screens at phone width: the overview, both client cards,
+  a scope read-only, the sealed lot's ledger block and record, the farmer, and the public page of the QR.
+  (In this rehearsal the lot was sealed by stage people, not by the admin alone as on staging.)
+- **`scripts/staging_admin_oversight.ps1`** under PowerShell 7 with stand-ins for `supabase`, `node` and `cmd` and a
+  real git remote: the whole run (`RESULT: ADMIN OVERSIGHT ON STAGING`), and a stop at the right step with the right
+  words for: wrong words typed, a project that says production, another migration waiting, a failed push, a migration
+  still waiting after the push, a broken smoke row, a missing smoke row, an audit finding, a changed app file, a new
+  app file, a changed migration, the wrong project, a `.env` file in git; and `-NoGit`, a second run, the nightly
+  check not scheduled (listed, does not stop), old server functions (listed, does not stop).
+- `scripts/staging_fresh_start.ps1` (smoke list now 31 rows, new file hash) rerun on its stand-in: a full run and a
+  second run, both `RESULT: FRESH START DONE`.
+
+NOT run / not known:
+- **Nothing on staging.** Migration 34 is not pushed, the app is not pushed (both wait for Veda's say-so: the push
+  goes to the main branch). Staging still lets the admin do everything.
+- Windows PowerShell 5.1 for the new script (its helpers are those of the two scripts that ran there).
+- The new Hindi strings (about 130) have been read by nobody who will use them (K43).
+- Veda's own test records on staging were not looked at; the rehearsal above stands in for them.
+
+### First run on staging: 10 October 2026, 09:16 (record `staging-admin-oversight-20261010-091627.log`)
+
+Run by Veda (`staging-admin-oversight.cmd`, the words typed: `ADMIN OVERSIGHT`).
+- S0 **OK**: tested files; app 84 files the tested ones; `environment=staging`; exactly migration 34 waiting.
+- S1 **OK**: `Applying migration 20261010000100_admin_oversight.sql... Finished`; dry run afterwards: up to date.
+- S2 **STOPPED**: smoke **31 of 31 `OK`** (`the admin oversees` OK; `the two seats`: 1 admin, HR Admin seat filled;
+  nightly check OK). The ledger audit named five records `RECORD WITHOUT ITS CREATE BLOCK`. Read with
+  `release-evidence/q_findings.sql`: Veda's test lot `TEST-KNM-KH26-P/M/QC/PK/QR-0001` (client "Test Client",
+  Siddharthnagar), made by Veda as admin 06:09–06:13 IST, each with `supervisory` blocks and a `close`, the last with
+  its `seal`. **A fault of the audit (FIX_LIST 37), not of the ledger**: a record made by a manager who does not hold
+  the stage is ledgered as `supervisory`. Reproduced on the local stack with a Client Manager's record; fixed; the
+  negative control (a record with its block removed) is still found.
+- S3 **NOT RUN**: the staging app is still the old build (its admin screens offer acts the database now refuses).
+

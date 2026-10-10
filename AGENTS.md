@@ -189,6 +189,14 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
 - **The first day from nothing is a test of its own**: `web/e2e-fresh/fresh_start.spec.ts` (after
   `local-stack/fresh_start.sh`; `playwright.fresh.config.ts`). A change to the States, Crops, Clients, Seats, Add
   joiner, Assign or scope screens has to keep it green: it is the only test in which nothing was seeded.
+- **The admin oversees and runs nothing** (migration 34, Veda 10 October 2026; `docs/IDENTITY_DESIGN.md` "Who may do
+  what" has her set-up order). The admin reads everything, creates states, seats State Managers and the HR Admin, runs
+  the ledger check, and adds joiners only while the HR Admin seat is empty. No stage act, farmer act, client, crop,
+  scope or roster change: the database refuses them and no screen offers them. There is **no override** (Veda: "it
+  will create confusion"): do not add one without her say-so. A screen decides a button from `web/src/lib/rights.ts`
+  (`oversees`, `managesScope`, `holdsClientAccount`, `supervisesState`, `isStateManager`), never from
+  `role === 'admin'` or `isManager(role)`. A farmer is verified twice: Client Manager, then the State Manager of the
+  farmer's state, two different people.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.
 
 ## Stack (PRD §10)

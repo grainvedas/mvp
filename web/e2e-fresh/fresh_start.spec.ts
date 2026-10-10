@@ -16,9 +16,9 @@ const adminLogin = () => {
   return { email: /^ADMIN_EMAIL=(.+)$/m.exec(text)![1].trim(), temp: /^ADMIN_TEMPORARY_PASSWORD=(.+)$/m.exec(text)![1].trim() };
 };
 const u = Date.now().toString().slice(-6);
-const PW = { admin: `Admin-${u}-first`, hr: `Hr-${u}-first`, manager: `Manager-${u}-first`, buy: `Kharid-${u}-first`, lab: `Jaanch-${u}-first`, seal: `Mohar-${u}-first` };
+const PW = { admin: `Admin-${u}-first`, hr: `Hr-${u}-first`, sm: `State-${u}-first`, manager: `Manager-${u}-first`, buy: `Kharid-${u}-first`, lab: `Jaanch-${u}-first`, seal: `Mohar-${u}-first` };
 
-test('From an empty system to the first sealed lot: state, crop, client, HR seat, people, scope, farmer, lot', async ({ page }) => {
+test('From an empty system to the first sealed lot, in Veda\'s order: state, HR seat, people, State Manager, crop, client, scope, farmer (two steps), lot, then the admin\'s overview', async ({ page }) => {
   test.setTimeout(600_000);
   const admin = adminLogin();
   const main = page.locator('main');
@@ -37,25 +37,96 @@ test('From an empty system to the first sealed lot: state, crop, client, HR seat
     await expect(page.locator('.alert.ok', { hasText: 'Verified' })).toBeVisible();
   };
 
-  // 1. The admin's first sign-in: the temporary password, an own password, and a first screen that copes with nothing
+  // Veda's order (10 Oct 2026): 1 the admin creates the state · 2 the admin adds the first HR person and gives them the
+  // HR Admin seat · 3 HR adds everyone else · 4 the admin seats the State Manager · 5 the State Manager makes the crop,
+  // onboards the client and gives the Client Manager its account · 6 the Client Manager builds the scope and its roster
+  // · 7 the Client Manager adds and verifies the farmer, the State Manager verifies its location · 8 buy, test, seal.
+
+  // 0. The admin's first sign-in: the temporary password, an own password, the overview of an empty system
   await signInWith(page, admin.email, admin.temp);
   await setOwnPassword(page, PW.admin);
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Platform overview' })).toBeVisible();
+  await expect(page.getByTestId('role-guide')).toContainText('You oversee the whole platform');
+  await expect(page.getByTestId('setup-checklist')).toContainText('0 of 3 done');
   await expect(page.locator('.alert.error')).toHaveCount(0);
-  for (const path of ['/people', '/scopes', '/farmers', '/hr', '/state', '/system/audit', '/flags']) {
+  for (const path of ['/people', '/scopes', '/farmers', '/hr', '/state', '/system/audit', '/system/ledger', '/flags', '/clients', '/crops']) {
     await page.goto(path);
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
     await expect(main.locator('.alert.error'), `an error on ${path} of an empty system`).toHaveCount(0);
   }
+  // what the admin no longer does is not offered
+  await page.goto('/clients');
+  await expect(page.getByTestId('clients-readonly')).toBeVisible();
+  await expect(page.getByTestId('client-form')).toHaveCount(0);
+  await page.goto('/crops');
+  await expect(page.getByTestId('crops-readonly')).toBeVisible();
+  await expect(main.getByRole('button', { name: 'Create' })).toHaveCount(0);
 
-  // 2. A state
+  // 1. A state
   await page.goto('/states');
   await page.getByPlaceholder('State name').fill('Uttar Pradesh');
   await page.getByPlaceholder('Code (e.g. BR)').fill('up');
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(main.locator('li', { hasText: 'Uttar Pradesh' })).toContainText('UP');
+  await page.goto('/');
+  await expect(page.getByTestId('setup-checklist')).toContainText('1 of 3 done');
 
-  // 3. A crop with its three limits (decimals must stay decimals) and the processing stages it may go through
+  // 2. Nobody is HR yet: the admin adds the first HR person, marks them joined, and gives them the HR Admin seat
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /HR · Joiners/ })).toBeVisible();
+  const hr = { name: `Asha HR ${u}`, email: freshEmail('hr') };
+  const hrMade = await addJoiner(page, { ...hr, type: 'full_time', title: 'HR Lead', systemRole: 'hr_resource' });
+  await page.getByTestId('activate').click();
+  await expect(page.getByTestId('activate')).toHaveCount(0);
+  await page.goto('/system/seats');
+  await expect(page.getByTestId('seat-vacant')).toBeVisible();
+  await page.locator('#seat-pick').selectOption(hrMade.id);
+  await expect(page.locator('#seat-pick option:checked')).toHaveText(`${hr.name} (HR)`);
+  page.once('dialog', (d) => d.accept());
+  await page.getByTestId('appoint').click();
+  await expect(page.getByTestId('seat-hr-admin')).toContainText(hr.name);
+  await expect(page.getByTestId('seat-vacant')).toHaveCount(0);
+  await page.goto('/');
+  await expect(page.getByTestId('setup-checklist')).toContainText('2 of 3 done');
+  await signOut(page);
+
+  // 3. The HR Admin: own password, then everyone else, as identities only (whatever their domain)
+  await signInWith(page, hr.email, hrMade.temp);
+  await setOwnPassword(page, PW.hr);
+  const who = {
+    sm: { name: `State Lead ${u}`, email: freshEmail('statelead'), type: 'full_time', title: 'State Manager' },
+    manager: { name: `Client Lead ${u}`, email: freshEmail('manager'), type: 'full_time', title: 'Client Lead' },
+    buy: { name: `Kharid ${u}`, email: freshEmail('kharid'), type: 'contract', title: 'Field Associate' },
+    lab: { name: `Jaanch ${u}`, email: freshEmail('jaanch'), type: 'contract', title: 'Lab Technician' },
+    seal: { name: `Mohar ${u}`, email: freshEmail('mohar'), type: 'contract', title: 'Field Associate' },
+  };
+  const made: Record<string, { id: string; temp: string }> = {};
+  for (const [k, p] of Object.entries(who)) {
+    made[k] = await addJoiner(page, p);
+    await page.getByTestId('activate').click();
+    await expect(page.getByTestId('activate')).toHaveCount(0);
+  }
+  await signOut(page);
+
+  // 4. The admin seats the State Manager: a state is all the admin gives; HR · Joiners has left the admin's menu
+  await signInWith(page, admin.email, PW.admin);
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /HR · Joiners/ })).toHaveCount(0);
+  await page.goto(`/people/${made.sm.id}`);
+  await page.getByTestId('give-assignment').click();
+  await expect(page.getByRole('tab', { name: "A client's account" })).toHaveCount(0);
+  await page.getByLabel('State', { exact: true }).selectOption({ label: 'Uttar Pradesh' });
+  await page.getByTestId('assign-save').click();
+  await expect(page.getByTestId('assignment')).toContainText('Uttar Pradesh');
+  await page.goto('/');
+  await expect(page.getByTestId('setup-checklist')).toContainText('3 of 3 done');
+  await signOut(page);
+
+  // 5. The State Manager: the crop with its three limits (decimals stay decimals) and processing stages; the client;
+  //    the client's account to the Client Manager
+  await signInWith(page, who.sm.email, made.sm.temp);
+  await setOwnPassword(page, PW.sm);
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await page.goto('/crops');
   await page.getByRole('button', { name: 'Create' }).click();
   await page.getByLabel('Name').fill('Kalanamak rice');
@@ -78,7 +149,6 @@ test('From an empty system to the first sealed lot: state, crop, client, HR seat
   await expect(page.locator('tbody tr').nth(2).getByLabel('export limit')).toHaveValue('0.5');
   await page.getByRole('button', { name: 'Cancel' }).click();
 
-  // 4. The first client
   await page.goto('/clients');
   await page.locator('form').getByLabel('Name').fill('Prasaadam');
   await page.locator('form').getByLabel('Code').fill('prsdm');
@@ -86,41 +156,6 @@ test('From an empty system to the first sealed lot: state, crop, client, HR seat
   await page.locator('form').getByRole('button', { name: 'Create' }).click();
   await expect(page.getByRole('row').filter({ hasText: 'Prasaadam' })).toContainText('PRSDM');
 
-  // 5. Nobody is HR yet: the admin adds the first HR person, marks them joined, and gives them the HR Admin seat
-  const hr = { name: `Asha HR ${u}`, email: freshEmail('hr') };
-  const hrMade = await addJoiner(page, { ...hr, type: 'full_time', title: 'HR Lead', systemRole: 'hr_resource' });
-  await page.getByTestId('activate').click();
-  await expect(page.getByTestId('activate')).toHaveCount(0);
-  await page.goto('/system/seats');
-  await expect(page.getByTestId('seat-vacant')).toBeVisible();
-  await page.locator('#seat-pick').selectOption(hrMade.id);
-  await expect(page.locator('#seat-pick option:checked')).toHaveText(`${hr.name} (HR)`);
-  page.once('dialog', (d) => d.accept());
-  await page.getByTestId('appoint').click();
-  await expect(page.getByTestId('seat-hr-admin')).toContainText(hr.name);
-  await expect(page.getByTestId('seat-vacant')).toHaveCount(0);
-  await signOut(page);
-
-  // 6. The HR Admin: own password, then four people, as identities only
-  await signInWith(page, hr.email, hrMade.temp);
-  await setOwnPassword(page, PW.hr);
-  const who = {
-    manager: { name: `Client Lead ${u}`, email: freshEmail('manager'), type: 'full_time', title: 'Client Lead' },
-    buy: { name: `Kharid ${u}`, email: freshEmail('kharid'), type: 'contract', title: 'Field Associate' },
-    lab: { name: `Jaanch ${u}`, email: freshEmail('jaanch'), type: 'contract', title: 'Lab Technician' },
-    seal: { name: `Mohar ${u}`, email: freshEmail('mohar'), type: 'contract', title: 'Field Associate' },
-  };
-  const made: Record<string, { id: string; temp: string }> = {};
-  for (const [k, p] of Object.entries(who)) {
-    made[k] = await addJoiner(page, p);
-    await page.getByTestId('activate').click();
-    await expect(page.getByTestId('activate')).toHaveCount(0);
-  }
-  await signOut(page);
-
-  // 7. The admin gives one of them the client's account (there is no State Manager yet; the admin may give anything)
-  await signInWith(page, admin.email, PW.admin);
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await page.goto(`/people/${made.manager.id}`);
   await page.getByTestId('give-assignment').click();
   await page.getByRole('tab', { name: "A client's account" }).click();
@@ -129,7 +164,7 @@ test('From an empty system to the first sealed lot: state, crop, client, HR seat
   await expect(page.getByTestId('assignment')).toContainText('Prasaadam');
   await signOut(page);
 
-  // 8. The Client Manager: a scope with the shortest chain, a person at each stage, activate; then a farmer
+  // 6. The Client Manager: a scope with the shortest chain, a person at each stage, activate
   await signInWith(page, who.manager.email, made.manager.temp);
   await setOwnPassword(page, PW.manager);
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
@@ -151,28 +186,33 @@ test('From an empty system to the first sealed lot: state, crop, client, HR seat
   await page.getByRole('button', { name: 'Activate scope' }).click();
   await expect(page.getByRole('heading', { name: /Siddharthnagar/ })).toContainText('Active');
 
+  // 7. The Client Manager adds the farmer and verifies it once (step 1) …
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(`Ramkali ${u}`);
   await page.getByLabel('Father / husband name *').fill('Shri Bhola');
   await page.getByLabel('Village *').fill('Bansi');
   await page.getByLabel('District *').fill('Siddharthnagar');
+  await expect(page.getByTestId('farmer-state').locator('option:checked')).toHaveText('Uttar Pradesh');
   await page.getByLabel('Mobile number *').fill(`94${u}41`);
   await page.getByLabel('Land (acres) *').fill('2');
-  await page.getByRole('button', { name: 'Submit for verification' }).click();
+  await page.getByTestId('farmer-save-verify').click();
   await expect(page.getByRole('heading', { name: 'Farmers' })).toBeVisible();
   await signOut(page);
 
-  // 9. The admin verifies the farmer: the very first Farmer ID of the system
-  await signInWith(page, admin.email, PW.admin);
+  //    … then the State Manager of Uttar Pradesh verifies its location: the very first Farmer ID of the system
+  await signInWith(page, who.sm.email, PW.sm);
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await page.goto('/farmers');
   await page.getByRole('tab', { name: 'Ready to verify' }).click();
-  await page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` }).getByRole('button', { name: 'Verify and issue Farmer ID' }).click();
+  const row = page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` });
+  await expect(row).toContainText('Bansi, Siddharthnagar, Uttar Pradesh');
+  await expect(row).toContainText(`Verified by Client Lead ${u}`);
+  await row.getByTestId('farmer-step2').click();
   await page.getByRole('tab', { name: 'Active', exact: true }).click();
   await expect(page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` })).toContainText('PRSDM-F-0001');
   await signOut(page);
 
-  // 10. Buy, test against the limits typed in step 3, seal
+  // 8. Buy, test against the limits the State Manager typed in step 5, seal
   await signInWith(page, who.buy.email, made.buy.temp);
   await setOwnPassword(page, PW.buy);
   await page.getByTestId('slot-procurement').click();
@@ -205,9 +245,28 @@ test('From an empty system to the first sealed lot: state, crop, client, HR seat
   const qr = (await page.getByTestId('sealed').textContent())!.match(/GV-[0-9A-F]{12}/)![0];
   await signOut(page);
 
-  // 11. Anyone with the QR code: the public page of the first lot
+  // 9. Anyone with the QR code: the public page of the first lot
   await page.goto(`/verify/${qr}`);
   await expect(page.locator('main, body').first()).toContainText(`Ramkali ${u}`);
   await expect(page.locator('main, body').first()).toContainText('Bansi');
   await expect(page.locator('body')).not.toContainText(`94${u}41`);
+
+  // 10. The admin watches: the overview counts what was made; a client opens read-only; the ledger lists every block
+  await signInWith(page, admin.email, PW.admin);
+  await expect(page.getByRole('heading', { name: 'Platform overview' })).toBeVisible();
+  await expect(page.getByTestId('ov-tile-clients')).toContainText('1');
+  await expect(page.getByTestId('ov-tile-scopes')).toContainText('1');
+  const card = page.getByTestId('ov-client').filter({ hasText: 'Prasaadam' });
+  await expect(card).toContainText('1 of 1');
+  await expect(card.locator('dd').nth(1)).not.toHaveText(/^0\b/);         // volume procured: the lot bought in step 8
+  await expect(card.locator('dd').nth(2)).toHaveText('1');                // QR issued
+  await card.getByTestId('ov-open-client').click();
+  await expect(page.getByTestId('readonly-banner')).toContainText('Viewing Prasaadam — read-only');
+  await page.getByTestId('readonly-exit').click();
+  await expect(page.getByTestId('readonly-banner')).toHaveCount(0);
+  await page.goto('/system/ledger');
+  await expect(page.getByTestId('ledger-row').first()).toBeVisible();
+  await page.getByTestId('ledger-event').selectOption('seal');
+  await expect(page.getByTestId('ledger-total')).toHaveText('Blocks: 1');
+  await signOut(page);
 });

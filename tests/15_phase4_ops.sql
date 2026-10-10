@@ -106,9 +106,11 @@ begin
   insert into public.app_users (role, display_name, email, client_id) values ('client_manager', 'Other CM', 'other.cm@test', '00000000-0000-4000-8000-000000000202')
   returning id into other_cm;
   perform t.as_user(t.u('01'));
-  perform t.ok(app.reset_login_allowed(t.u('02')) and app.reset_login_allowed(t.u('05')) and app.reset_login_allowed(t.u('16'))
-               and not app.reset_login_allowed(t.u('01')),
-               'reset: the admin may reset anyone but himself');
+  -- Migration 34: with the HR Admin seat filled, resetting people is HR's; the admin resets the HR Admin (and admins).
+  perform t.ok(app.reset_login_allowed(t.u('16')) and not app.reset_login_allowed(t.u('01')),
+               'reset: the admin may reset the HR Admin, not himself');
+  perform t.ok(not app.reset_login_allowed(t.u('02')) and not app.reset_login_allowed(t.u('05')) and not app.reset_login_allowed(t.u('04')),
+               'reset: with the HR Admin seat filled the admin resets no operational person and no client login (oversight, migration 34)');
   perform t.as_user(t.u('16'));
   perform t.ok(app.reset_login_allowed(t.u('05')) and app.reset_login_allowed(t.u('03')) and app.reset_login_allowed(t.u('02'))
                and app.reset_login_allowed(t.u('17')),

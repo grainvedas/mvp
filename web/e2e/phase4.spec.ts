@@ -375,15 +375,24 @@ test('A verified farmer is changed only by the State Manager; deactivated farmer
   await page.getByLabel('District *').fill('Siddharthnagar');
   await page.getByLabel('Mobile number *').fill(`94${u}31`);
   await page.getByLabel('Land (acres) *').fill('1.5');
-  await page.getByRole('button', { name: 'Submit for verification' }).click();
+  await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(page.getByRole('heading', { name: 'Farmers' })).toBeVisible();
+  await signOut(page);
+
+  // two verifications (migration 34): the Client Manager, then the State Manager of the farmer's state
+  await signIn(page, USERS.cm);
+  await page.goto('/farmers');
+  await page.getByRole('tab', { name: 'Drafts', exact: true }).click();
+  await page.getByTestId('farmer-row').filter({ hasText: name }).getByTestId('farmer-step1').click();
+  await page.getByRole('tab', { name: 'Ready to verify' }).click();
+  await expect(page.getByTestId('farmer-row').filter({ hasText: name })).toBeVisible();
   await signOut(page);
 
   await signIn(page, USERS.sm);
   await page.goto('/farmers');
   await page.getByLabel('Client').selectOption({ label: 'GrainVeda (Prasaadam trade scope)' });
   await page.getByRole('tab', { name: 'Ready to verify' }).click();
-  await page.getByTestId('farmer-row').filter({ hasText: name }).getByRole('button', { name: 'Verify and issue Farmer ID' }).click();
+  await page.getByTestId('farmer-row').filter({ hasText: name }).getByTestId('farmer-step2').click();
   await page.getByRole('tab', { name: 'Active', exact: true }).click();
   const row = page.getByTestId('farmer-row').filter({ hasText: name });
   await expect(row).toContainText(/PRSDM-F-\d{4}/);

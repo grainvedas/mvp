@@ -213,25 +213,41 @@ select t.ok(app.is_my_stage(t.u('05'), t.scope('01'), 'procurement'), 'lapsed: t
 
 -- 7 · farmers: who issues a Farmer ID ---------------------------------------------------------------------------------------------
 do $$
-declare f uuid;
+declare f uuid; assam uuid := (select state_id from public.scopes where id = pg_temp.f('sa'));
 begin
+  -- Migration 34: a farmer belongs to a state the client works in (Prasaadam: UP, and Assam through scope sa); step 1 is
+  -- the Client Manager's, step 2 the State Manager OF THAT STATE, checking the location.
   perform t.as_user(t.u('05'));
-  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, status)
-  values ('00000000-0000-4000-8000-000000000201', 'Union Farmer', 'Father', 'Bansi', 'Siddharthnagar', '+919812300001', 2, 'under_review') returning id into f;
+  perform t.fails($q$ insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, status)
+     values ('00000000-0000-4000-8000-000000000201', 'X', 'Y', 'Z', 'W', '+919812300009', 2, 'under_review') $q$,
+     'added as a draft', 'farmers: nobody adds a farmer already "verified once": a farmer starts as a draft');
+  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, status, state_id)
+  values ('00000000-0000-4000-8000-000000000201', 'Union Farmer', 'Father', 'Kokrajhar', 'Kokrajhar', '+919812300001', 2, 'draft',
+          assam) returning id into f;
+  perform t.ok((select state_id from public.farmers where id = f) = assam, 'farmers: the farmer is put in Assam, a state the client works in');
+  perform t.fails(format('select app.submit_farmer(%L)', f), 'Client Manager of this client verifies', 'farmers: step 1 is not the operator''s');
+  perform t.as_user(pg_temp.f('AS'));
+  perform t.fails(format('select app.submit_farmer(%L)', f), 'Client Manager of this client verifies', 'farmers: nor the State Manager''s');
   perform t.as_user(t.u('03'));
+  perform t.ok((app.submit_farmer(f)).reviewed_by = t.u('03'), 'farmers: the Client Manager verifies (step 1)');
   perform t.fails(format('select app.verify_farmer(%L)', f), 'State Manager', 'farmers: the client''s account cannot issue a Farmer ID');
   perform t.as_user(pg_temp.f('M'));
   perform t.ok((select count(*) from public.farmers where id = f) = 0, 'farmers: the other client''s manager does not see the farmer at all');
+  perform t.as_user(t.u('02'));
+  perform t.fails(format('select app.verify_farmer(%L)', f), 'State Manager of Assam', 'farmers: the State Manager of UP does not verify a farmer of Assam');
+  perform t.as_user(t.u('01'));
+  perform t.fails(format('select app.verify_farmer(%L)', f), 'not waiting', 'farmers: the admin verifies nobody (oversight)');
   perform t.as_user(pg_temp.f('AS'));
-  perform t.ok((app.verify_farmer(f)).farmer_code is not null, 'farmers: a supervisor of a state the client works in issues it');
+  perform t.ok((app.verify_farmer(f)).farmer_code is not null, 'farmers: the State Manager of the farmer''s state issues the Farmer ID (step 2)');
   perform t.as_service();
 end $$;
 
 -- 8 · the admin -----------------------------------------------------------------------------------------------------------------------
 select t.as_user(t.u('01'));
-select t.ok((select count(*) from public.scopes) = (select count(*) from public.scopes) and (select count(*) from public.scopes) >= 11
-            and (select count(*) from public.app_users) >= 23 and (select bool_and((s->>'manage')::boolean) from jsonb_array_elements(app.my_context()->'scopes') s),
-            'admin: every scope, every person, manages all');
+select t.ok((select count(*) from public.scopes) >= 11 and (select count(*) from public.app_users) >= 23
+            and (select bool_and((s->>'whole')::boolean and not (s->>'manage')::boolean) from jsonb_array_elements(app.my_context()->'scopes') s)
+            and jsonb_array_length(app.my_context()->'scopes') >= 11,
+            'admin: sees every scope and every person, whole, and manages none (oversight, migration 34)');
 select t.as_service();
 select t.ok((select count(*) from app.verify_ledger()) = 0, 'the chain still verifies');
 

@@ -40,7 +40,8 @@ test.describe('on a laptop', () => {
     }
     await signOut(page);
     await signIn(page, USERS.admin);
-    for (const l of ['Clients', 'Crop Registry', 'States', 'Health', 'HR · Joiners', 'State overview', 'Seats', 'Audit log']) await expect(nav.getByRole('link', { name: l })).toBeVisible();
+    for (const l of ['Clients', 'Crop Registry', 'States', 'Health', 'State overview', 'Seats', 'Ledger', 'Audit log']) await expect(nav.getByRole('link', { name: l })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'HR · Joiners' })).toHaveCount(0);         // the HR Admin seat is filled: HR adds people
     await signOut(page);
   });
 
@@ -85,6 +86,9 @@ test.describe('on a laptop', () => {
     await expect(stats.nth(0)).toContainText(`${kgText(Number(first.kg_out))} kg`);
     await expect(stats.nth(3).locator('.stat-val')).toHaveText(String(qr.records));
     await expect(page.getByTestId('action-queue')).toContainText(`${pending} record(s) waiting to be verified by the next stage`);
+    // the card and the queue's title count the same things (10 Oct 2026: the card said 4, the title "(1)")
+    const queued = (await stats.nth(1).locator('.stat-val').textContent())!.trim();
+    await expect(page.getByTestId('action-queue').locator('h2')).toHaveText(`Your action queue (${queued})`);
     const flow = page.getByTestId('season-flow').locator('li');
     await expect(flow).toHaveCount(3);
     await expect(flow.nth(0)).toContainText(`✓ ${first.verified}`);

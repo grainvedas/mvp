@@ -2,7 +2,7 @@
 
 Source: the build prompt "GrainVeda — Identity & Authorization Layer" (Veda, 5 October 2026). This note says how it
 was built on top of the existing system, what was decided on the way, and what changed for the people who use it.
-Migrations 31, 32, 33. Run-sheet: `docs/RUNSHEET_phase5.md`. Known limits: `docs/FIX_LIST.md` K23 to K34. Open decisions: G10 to G13 there.
+Migrations 31, 32, 33; the admin's part changed by migration 34 (10 October 2026, below). Run-sheet: `docs/RUNSHEET_phase5.md`. Known limits: `docs/FIX_LIST.md` K23 to K34. Open decisions: G10 to G13 there.
 
 ## The idea in four lines
 
@@ -75,20 +75,52 @@ functions asked the global question. Each now asks about the scope in hand (`app
 `tests/24_union_access.sql` builds exactly that person and holds every one of those functions to the right answer;
 four deliberately broken versions of the rules were each caught by it.
 
-## Who may do what
+## Who may do what (since migration 34, 10 October 2026)
+
+Veda, 10 October 2026: "Admin is oversight only. The Admin watches the operation and uses the dashboard to make
+strategic decisions." Override was dropped ("it will create confusion"): what the admin may not do, the admin cannot
+do, in the screens and in the database alike. The order a system is set up in (Veda's words, kept as the reference):
+
+1. Admin creates the state.
+2. Admin adds the first HR person and gives them the HR Admin seat.
+3. HR Admin adds the people, including the future State Manager, client manager, operator, HR and all users
+   irrespective of domain.
+4. Admin seats the State Manager.
+5. State Manager creates crop and onboard the client and gives the Client Manager the client's account.
+6. Client Manager builds the scope and assign role to user once user are onboarded by HR.
+7. Client Manager adds the farmer and verify once then State Manager verifies the farmer again by Location only (as
+   farmer should be part of that state).
+8. Operators buy, test and seal.
 
 | Act | Who | Function |
 |---|---|---|
-| Add a person (identity, sign-in, checklist) | HR Admin, HR resource, admin | `app.add_joiner` through the `create-user` server function |
-| Add a client's read-only login | whoever manages that client | `app.add_client_viewer` (same server function) |
-| Give, change, move, end an assignment | admin: any · state supervisor: scopes in the state, and client accounts of clients homed there · client account: scopes of the client · **HR: never** | `app.assign`, `set_stages`, `reassign`, `end_assignment` |
-| Give the state lens | admin only | `app.assign` |
-| Mark as joined, suspend, reinstate, offboard, re-hire | HR Admin, HR resource, admin (an HR resource does not manage HR people or admins) | `app.activate_joiner`, `suspend_person`, `reinstate_person`, `offboard_person`, `rehire_person` |
-| Reset a password | HR and the admin for employees; whoever manages the client for its login | `reset-password` server function |
-| System role | admin: any · HR Admin: operational ↔ HR resource | `app.set_system_role` |
+| Read everything (overview, every scope, record, farmer, client, crop, roster, the whole ledger) | admin | `app.platform_overview`, `app.ledger_page`, the table rules |
+| States | admin | table rules |
+| Seat a State Manager (the state lens) | admin only; it is **all** the admin gives | `app.assign` |
 | HR Admin seat | admin only; exactly one seat | `app.appoint_hr_admin` |
-| Checklist templates | HR Admin (and the admin) | table rules |
+| Add a person (identity, sign-in, checklist) | HR Admin, HR resource; the admin **only while the HR Admin seat is empty** | `app.add_joiner` through `create-user` |
+| Mark as joined, suspend, reinstate, offboard, re-hire | HR Admin, HR resource (not on HR people or admins); the admin on the HR Admin and on admins, and on anyone while the seat is empty | `app.activate_joiner`, `suspend_person`, … |
+| Checklist templates | HR Admin; the admin while the seat is empty | table rules |
+| Crops | State Manager (any: a crop is shared by every state) | table rules |
+| Clients (create, edit) | State Manager, in a state they hold | table rules |
+| Give a client's account | State Manager, for clients of the state | `app.assign` |
+| Scopes (create, chain, activate), rosters, scope assignments | Client Manager of the client; State Manager of the scope's state | `app.assign`, table rules |
+| Add a farmer, import farmers | Client Manager, State Manager, stage people of Procurement or Village Batch; always as a **draft** | table rules, `app.import_farmers` |
+| Farmer, step 1 (draft → waiting) | **Client Manager of the client** (recorded as `reviewed_by`) | `app.submit_farmer` |
+| Farmer, step 2 (location, Farmer ID) | **State Manager of the farmer's state**, never the person of step 1 | `app.verify_farmer` |
+| Send a farmer back | a State Manager of a state the client works in (step 1 is then done again) | `app.send_back_farmer` |
+| Stage work (record, verify, seal), withdraw, verdict override, resolve a flag | the people and managers of the scope; **never the admin** | the record functions |
+| Raise a flag | anyone who reads the record, the admin too | table rules |
+| Reset a password | HR for employees (the admin while the seat is empty, and for the HR Admin and admins); whoever manages the client for its login | `reset-password` |
+| System role | admin: any but HR Admin · HR Admin: operational ↔ HR resource | `app.set_system_role` |
 | Read the audit log | HR Admin and the admin | `app.audit_feed` |
+| Run the ledger check | the admin | `app.check_ledger_now` |
+
+An assignment held by an admin grants nothing (`app.eff_assignments` leaves it out), and an admin cannot be given one:
+otherwise the admin could seat themselves as State Manager and do it all again. Farmers made before migration 34 have
+no state: their step 2 stays as it was (a State Manager of a state the client works in), with no step 1 required.
+Tests: `tests/28_admin_oversight.sql` (the database), `web/tests/admin_oversight.test.ts` (the screens' rules),
+`web/e2e/phase9.spec.ts` and `web/e2e-fresh/fresh_start.spec.ts` (through the screens, the second in Veda's order).
 
 The last active admin cannot be suspended, offboarded or given another role. If every admin is locked out, nothing in
 the app can help: the database owner runs `scripts/bootstrap_admin.mjs` (`docs/OPERATIONS.md` "Break glass").

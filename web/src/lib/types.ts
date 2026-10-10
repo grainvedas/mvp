@@ -124,7 +124,11 @@ export type EmploymentType = 'full_time' | 'intern' | 'contract' | 'consultant';
 export type Lens = 'scope' | 'client' | 'state';
 export type OpRole = 'operator' | 'export_manager' | 'client_account' | 'client_viewer' | 'state_supervisor';
 /** What the signed-in person may open, as the database says it (never worked out in the app from the role). */
-export interface Can { admin: boolean; hr: boolean; hr_admin: boolean; assign: boolean; state_lens: boolean }
+export interface Can {
+  admin: boolean; hr: boolean; hr_admin: boolean; assign: boolean; state_lens: boolean;
+  /** Migration 34: the admin oversees (reads everything, runs no operation); who reads the audit log; is the HR Admin seat filled. */
+  oversee?: boolean; audit?: boolean; hr_seat_filled?: boolean;
+}
 export interface MyAssignment {
   id: string; lens: Lens; op_role: OpRole; scope_id: string | null; client_id: string | null; client_name: string | null;
   state_id: string | null; state_name: string | null; stages: StageType[]; posting: string | null; season_code: string | null;
@@ -151,6 +155,8 @@ export interface Farmer {
   status: 'draft' | 'under_review' | 'active' | 'inactive';
   name: string; guardian_name: string; village: string; district: string; phone: string; land_area_acres: number;
   extra: Record<string, unknown>; photo_consent: boolean; created_at: string;
+  /** Migration 34: the farmer's state, and the Client Manager's first verification (step 1). Absent before it. */
+  state_id?: string | null; reviewed_by?: string | null; reviewed_at?: string | null;
 }
 
 export interface FootprintDetail {

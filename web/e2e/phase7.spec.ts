@@ -74,12 +74,24 @@ test('Server functions left behind: the Add joiner page says so, and a failed sa
 // FIX_LIST fault 33 (5 October 2026, reported by Veda from the deployed app): Admin → Clients → Create answered "Not
 // allowed for your role or stage." for the admin. No client had ever been created from the screen: the demo clients
 // come from a seed. The read rule on clients could not see a row in the statement that inserts it (migration 30).
-test('An admin adds a client from the screen; a State Manager adds one in the own state', async ({ page }) => {
+// Since migration 34 (Veda, 10 October 2026) the State Manager onboards clients, in a state they hold; the admin reads.
+test('A State Manager adds a client from the screen, in the own state; the admin is offered no form', async ({ page }) => {
   test.setTimeout(120_000);
   const u = uniq(); const code = `C${u.slice(-4)}`; const name = `Terai Exports ${u}`;
   await signIn(page, USERS.admin);
   await page.goto('/clients');
+  await expect(page.getByTestId('clients-readonly')).toBeVisible();
+  await expect(page.getByTestId('client-form')).toHaveCount(0);
+  // the old one-form "Users" page is gone: its address lands on People & access, which creates nobody
+  await page.goto('/users');
+  await expect(page.getByRole('heading', { name: /People & access/ })).toBeVisible();
+  await expect(page.getByLabel('Role', { exact: true })).toHaveCount(0);
+  await signOut(page);
+
+  await signIn(page, USERS.sm);
+  await page.goto('/clients');
   const form = page.locator('form');
+  await expect(form.getByLabel('State').locator('option', { hasText: 'Assam' })).toHaveCount(0);   // only the states the manager holds
   await form.getByLabel('Name').fill(name);
   await form.getByLabel('Code').fill(code.toLowerCase());                       // typed small: stored in capitals
   await form.getByLabel('Type').selectOption('exporter');
@@ -98,29 +110,21 @@ test('An admin adds a client from the screen; a State Manager adds one in the ow
   await form.getByRole('button', { name: 'Create' }).click();
   await expect(form.getByRole('alert')).toContainText('This already exists');
   await expect(page.getByRole('row').filter({ hasText: code })).toHaveCount(1);
-  // the old one-form "Users" page is gone: its address lands on People & access, which creates nobody
-  await page.goto('/users');
-  await expect(page.getByRole('heading', { name: /People & access/ })).toBeVisible();
-  await expect(page.getByLabel('Role', { exact: true })).toHaveCount(0);
-  await signOut(page);
-
-  await signIn(page, USERS.sm);
-  await page.goto('/clients');
   await form.getByLabel('Name').fill(`Purvanchal FPO ${u}`);
   await form.getByLabel('Code').fill(`F${u.slice(-4)}`);
   await form.getByLabel('Type').selectOption('fpo');
   await form.getByLabel('State').selectOption({ label: 'Uttar Pradesh' });
   await form.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByRole('row').filter({ hasText: `Purvanchal FPO ${u}` })).toBeVisible();
-  await expect(page.getByRole('row').filter({ hasText: name })).toBeVisible();   // the admin's new client, same state
+  await expect(page.getByRole('row').filter({ hasText: name })).toBeVisible();   // the first one, same state
   await signOut(page);
 });
 
 // Everything before this test ran on demo data that a seed puts in place: the client, its scopes and its people were
 // never made from the screens. This is that path from nothing, through the screens only, in the order the identity
-// layer prescribes: the admin makes the client; HR adds four people (and gives them nothing); the State Manager gives
-// one of them the client's account; that manager opens a scope and gives the other three their stages; a farmer; the
-// first lot to its public page.
+// order Veda set (10 October 2026): the State Manager makes the client; HR adds four people (and gives them nothing);
+// the State Manager gives one of them the client's account; that manager opens a scope and gives the other three their
+// stages; a farmer verified by that manager and then by the State Manager; the first lot to its public page.
 test('A brand-new client from nothing: HR adds the people, managers give them access, the first lot is sealed', async ({ page }) => {
   test.setTimeout(420_000);
   const u = uniq(); const code = `N${u.slice(-4)}`; const client = `Naya Client ${u}`;
@@ -139,8 +143,8 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
     await expect(page.locator('.alert.ok', { hasText: 'Verified' })).toBeVisible();
   };
 
-  // 1. the admin: the client
-  await signIn(page, USERS.admin);
+  // 1. the State Manager: the client
+  await signIn(page, USERS.sm);
   await page.goto('/clients');
   await page.locator('form').getByLabel('Name').fill(client);
   await page.locator('form').getByLabel('Code').fill(code);
@@ -217,7 +221,8 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   await page.getByRole('button', { name: 'Activate scope' }).click();
   await expect(page.getByRole('heading', { name: new RegExp(`Maharajganj ${u}`) })).toContainText('Active');
 
-  // 6. the manager registers a farmer; the State Manager verifies; the Farmer ID carries the new client's code
+  // 6. the manager registers a farmer and verifies it (step 1); the State Manager verifies its location (step 2); the
+  //    Farmer ID carries the new client's code
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(`Ramkali ${u}`);
   await page.getByLabel('Father / husband name *').fill('Shri Bhola');
@@ -225,14 +230,15 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   await page.getByLabel('District *').fill('Maharajganj');
   await page.getByLabel('Mobile number *').fill(`94${u}41`);
   await page.getByLabel('Land (acres) *').fill('2');
-  await page.getByRole('button', { name: 'Submit for verification' }).click();
+  await page.getByTestId('farmer-save-verify').click();
   await expect(page.getByRole('heading', { name: 'Farmers' })).toBeVisible();
   await signOut(page);
   await signIn(page, USERS.sm);
   await page.goto('/farmers');
   await page.getByLabel('Client').selectOption({ label: client });
   await page.getByRole('tab', { name: 'Ready to verify' }).click();
-  await page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` }).getByRole('button', { name: 'Verify and issue Farmer ID' }).click();
+  await expect(page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` })).toContainText(`Verified by Naya Manager ${u}`);
+  await page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` }).getByTestId('farmer-step2').click();
   await page.getByRole('tab', { name: 'Active', exact: true }).click();
   await expect(page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` })).toContainText(new RegExp(`${code}-F-0001`));
   await signOut(page);

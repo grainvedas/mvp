@@ -95,10 +95,10 @@ Part C of `docs/RUNSHEET_phase4.md` stays the sequence. What this phase changes 
 
 | Step there | Now |
 |---|---|
-| C4 | **33** migrations, the last `20261006000300_people_lifecycle` |
+| C4 | **34** migrations, the last `20261010000100_admin_oversight` (added 10 October 2026, decision G15) |
 | C5 | unchanged. **Never seeds 02–06** |
 | C6 | **four** functions: add `supabase functions deploy daily-code` |
-| C8 | 30 rows `OK`; `once-a-day sign-in code` says off |
+| C8 | 31 rows `OK`; `once-a-day sign-in code` says off; `the admin oversees` OK |
 | C10 | unchanged: `scripts/bootstrap_admin.mjs` makes the first admin. It is also the **break-glass** tool: with `--additional` it makes another admin when every admin is locked out (`docs/OPERATIONS.md`) |
 | C13 | Veda, in the app, in this order: **HR · Joiners → Add joiner** for the person who will be HR Admin (system role **HR**) → **Seats → Appoint** that person → from then on HR adds people. The admin gives each State Manager their state (**People & access → profile → Assign → A state**). A State Manager gives a client's account to its manager. That manager opens the scope and gives the stages. Then farmers, then **Activate** |
 

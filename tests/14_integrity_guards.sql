@@ -224,9 +224,11 @@ begin
   perform t.as_user(t.u('07')); perform app.verify_footprint(q2);
   insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload) values (t.scope('01'), c, 'qr_activation', q2, t.u('07'), '{}') returning id into qr;
   seal := app.seal_lot(qr);
-  perform t.as_user(t.u('01'));
-  perform t.fails(format('select app.withdraw_footprint(%L, %L)', qr, 'x'), 'sealed lot cannot be withdrawn', 'F7 a sealed lot cannot be withdrawn, even by the admin');
+  perform t.as_user(t.u('03'));   -- the scope's Client Manager (since migration 34 the admin does no record work at all)
+  perform t.fails(format('select app.withdraw_footprint(%L, %L)', qr, 'x'), 'sealed lot cannot be withdrawn', 'F7 a sealed lot cannot be withdrawn, even by the scope''s manager');
   perform t.fails(format('select app.withdraw_footprint(%L, %L)', q2, 'x'), 'withdraw those first', 'F7 nor any record behind a sealed lot');
+  perform t.as_user(t.u('01'));
+  perform t.fails(format('select app.withdraw_footprint(%L, %L)', qr, 'x'), 'only a manager', 'F7 the admin withdraws nothing (oversight, migration 34)');
 
   -- a withdrawn Village Batch gives its farmer lots back
   perform t.as_service();
@@ -289,7 +291,9 @@ begin
   perform t.ok(r.created_at = now(), 'R1 a new farmer cannot be back-dated');
   update public.farmers set village = 'Bansi', photo_consent = true where id = d returning * into r;
   perform t.ok(r.village = 'Bansi' and r.photo_consent, 'the operator still edits his own draft, consent included');
+  perform t.as_user(t.u('03'));   -- step 1 is the Client Manager's (migration 34)
   perform app.submit_farmer(d);
+  perform t.as_user(t.u('05'));
   perform t.fails(format('update public.farmers set village = ''Changed after submit'' where id = %L', d), 'only a State Manager', 'R1 a submitted farmer is not edited by the operator while it waits for verification');
   perform t.as_user(t.u('03'));
   perform t.fails('update public.farmers set name = ''Someone Else'' where id = ' || f1, 'only a State Manager', 'R1 a Client Manager cannot rename a verified farmer either');

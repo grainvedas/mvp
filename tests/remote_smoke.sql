@@ -1,6 +1,6 @@
 -- READ-ONLY smoke check for a Supabase project after `db push` + seeds. Safe on production: no writes.
 -- Run: psql "$SUPABASE_DB_URL" -f tests/remote_smoke.sql   (or paste into Dashboard → SQL Editor)
--- Every row must start with OK (30 rows). The same file serves staging (demo seed expected) and production (demo
+-- Every row must start with OK (31 rows; the last, the nightly check, is how the project is set up). The same file serves staging (demo seed expected) and production (demo
 -- seed forbidden): the 'environment' row says which one it found, from app.environment() (migration 23).
 -- API exposure of the `app` schema is not checked here: hosted Supabase keeps that setting in PostgREST's config, which
 -- SQL cannot read. Prove it with tests/remote_api_check.ps1 (REST call with the public key).
@@ -175,6 +175,15 @@ select 'once-a-day sign-in code', case when to_regprocedure('app.daily_code_on()
                                       when (xpath('/row/r/text()', query_to_xml('select app.daily_code_on() as r', false, true, '')))[1]::text = 'true'
                                       then 'OK ON: every sign-in needs today''s code (a sender must be working)'
                                       else 'OK off (decision 5 Oct 2026: until a sender exists)' end
+union all
+select 'the admin oversees',     case when to_regprocedure('app.platform_overview()') is null or to_regprocedure('app.hr_seat_filled()') is null
+                                        or to_regprocedure('app.ledger_page(text, uuid, uuid, uuid, boolean, integer, integer)') is null
+                                      then 'MISSING (push migration 34)'
+                                      when exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'crops' and policyname = 'crops_admin')
+                                        or not exists (select 1 from pg_trigger where tgname = 'farmers_z1_two_steps' and not tgisinternal)
+                                        or position('<> ''admin''' in pg_get_functiondef(to_regprocedure('app.eff_assignments(uuid)'))) = 0
+                                      then 'OLD: the admin still runs operations (push migration 34)'
+                                      else 'OK oversight only; crops are the State Manager''s; farmers verified twice' end
 union all
 select 'nightly ledger check',   case when to_regclass('cron.job') is null then 'NO pg_cron: see RUNSHEET_phase3 step 5'
                                       when (xpath('/row/n/text()', query_to_xml(

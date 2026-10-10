@@ -8,7 +8,8 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { kg, dateTime, humanise, num, shortHash } from '../../lib/format';
-import { isManager, type Footprint, type FootprintDetail, type QualityParam, type StageForm, type Withdrawal } from '../../lib/types';
+import { oversees, managesScope } from '../../lib/rights';
+import { type Footprint, type FootprintDetail, type QualityParam, type StageForm, type Withdrawal } from '../../lib/types';
 import { Badge, ErrorBox, Loading, Field } from '../../shell/ui';
 import { uploadEvidence } from '../../engine/evidence';
 import { EVIDENCE_ACCEPT } from '../../engine/widgets';
@@ -40,7 +41,11 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
   const when = capturedAt(f);
   // A lot that has not reached the lab has no result yet: say nothing rather than "pending · pending".
   const noLabYet = !r.qc && !r.market_verdict.overridden && r.market_verdict.domestic === 'pending' && r.market_verdict.export === 'pending';
-  const mine = f.status === 'pending' && (f.created_by === me.id || isManager(me.role));
+  // Who manages THIS record's scope (withdraw, verdict override, resolve a flag): the server's answer per scope. The admin
+  // oversees: reads the record, raises a flag, does nothing else to it (migration 34).
+  const watch = oversees(ctx);
+  const boss = managesScope(ctx, f.scope_id);
+  const mine = f.status === 'pending' && !watch && (f.created_by === me.id || boss);
   // Records whose save derived something elsewhere (a verdict, a batch, grade lots) are not edited in place (migration 22)
   const frozen = f.stage_type === 'qc' || f.stage_type === 'village_batch' || f.is_grade_lot || f.split_into_grades;
   const canCorrect = mine && !frozen;
@@ -75,14 +80,14 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
         </div>
         {mine && frozen && <p className="hint">{t('record.fix_by_withdraw')}</p>}
       </div>
-      <WithdrawalInfo f={f} canRecord={me.role !== 'client_view'} />
-      {isManager(me.role) && (f.status === 'pending' || f.status === 'verified') && !r.seal && <WithdrawPanel f={f} onDone={reload} />}
-      {r.qc && <QcPanel detail={r} onChange={reload} canOverride={isManager(me.role)} params={form?.quality_params ?? []} />}
+      <WithdrawalInfo f={f} canRecord={me.role !== 'client_view' && !watch} />
+      {boss && (f.status === 'pending' || f.status === 'verified') && !r.seal && <WithdrawPanel f={f} onDone={reload} />}
+      {r.qc && <QcPanel detail={r} onChange={reload} canOverride={boss} params={form?.quality_params ?? []} />}
       {r.seal && <SealPanel code={r.seal.qr_code} hash={r.seal.ledger_hash} batch={r.seal.batch_codes} />}
-      {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && <FinishSeal f={f} onDone={reload} />}
+      {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && !watch && <FinishSeal f={f} onDone={reload} />}
       {r.attachments.length > 0 && <Attachments detail={r} />}
-      {me.role !== 'client_view' && f.status !== 'superseded' && <AddEvidence f={f} onDone={reload} />}
-      <Flags detail={r} onChange={reload} canResolve={isManager(me.role)} canRaise />
+      {me.role !== 'client_view' && !watch && f.status !== 'superseded' && <AddEvidence f={f} onDone={reload} />}
+      <Flags detail={r} onChange={reload} canResolve={boss} canRaise />
       <div className="card">
         <h2>{t('record.ledger')}</h2>
         <div className="table-wrap"><table>

@@ -1,15 +1,21 @@
--- Migration 30: an admin and a State Manager create a client and get the row back (INSERT … RETURNING under RLS).
+-- Migration 30: a State Manager creates a client (and, until migration 34, the admin) and get the row back (INSERT … RETURNING under RLS).
 -- Before it: "new row violates row-level security policy for table clients" for both, though both may create one.
 begin;
 select t.as_service();
 do $$
 declare r public.clients; n int;
 begin
+  -- Migration 34: clients are the State Manager's; the admin reads them all and creates none.
   perform t.as_user(t.u('01'));                                         -- admin
+  perform t.fails($q$ insert into public.clients (name, code, type, state_id) values ('Admin Client', 'ADMC', 'exporter', '00000000-0000-4000-8000-000000000002') $q$,
+    'row-level security', 'oversight: the admin cannot create a client');
+  perform t.as_service();
   insert into public.clients (name, code, type, state_id) values ('Returning Exports', 'RTEX', 'exporter', '00000000-0000-4000-8000-000000000002')
     returning * into r;
-  perform t.ok(r.id is not null and r.code = 'RTEX', 'admin creates a client and reads it back');
-  perform t.ok((select count(*) from public.clients where id = r.id) = 1, 'admin sees the new client in the list');
+  perform t.as_user(t.u('01'));
+  perform t.ok((select count(*) from public.clients where id = r.id) = 1, 'admin sees every client, in any state');
+  update public.clients set name = 'Renamed by the admin' where id = r.id;
+  perform t.ok((select name from public.clients where id = r.id) = 'Returning Exports', 'oversight: the admin cannot rename a client');
 
   perform t.as_user(t.u('02'));                                         -- State Manager of Uttar Pradesh
   perform t.ok((select count(*) from public.clients where id = r.id) = 0, 'a State Manager does not see a client of another state');

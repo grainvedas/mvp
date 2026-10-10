@@ -365,3 +365,34 @@ tr.gap-row > td:first-child { border-left: 4px solid var(--red); }
 .horizons { display: grid; grid-template-columns: 1fr; gap: 12px; }
 @media (min-width: 900px) { .horizons { grid-template-columns: repeat(3, 1fr); } }
 .ok-text { color: var(--green); font-weight: 600; }
+
+/* Migration 34 · the admin's overview, the role guide, the ledger page (10 Oct 2026). Phone first; one hue for bars. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+button.linkish, button.linkish:hover { background: none; border: none; padding: 0; min-height: 0; color: var(--g600); text-decoration: underline; font: inherit; cursor: pointer; text-align: left; }
+button.stat.stat-btn { display: block; width: 100%; max-width: none; text-align: left; font: inherit; color: inherit; background: #fff; cursor: pointer; min-height: var(--tap);
+  padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius); }
+button.stat.stat-btn:hover, button.stat.stat-btn.open { background: #fff; color: inherit; border-color: var(--g400); }
+button.stat.stat-btn.open { border-color: var(--g600); box-shadow: inset 0 -3px 0 var(--g400); }
+.guide { margin-bottom: var(--gap); }
+.guide-hd { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.guide-hd h2 { margin: 0 0 6px; font-size: 1rem; }
+.guide-list { margin: 0 0 8px; padding-left: 20px; } .guide-list li { margin: 2px 0; }
+.setup { border-top: 1px solid var(--border); padding-top: 8px; }
+.setup ol { list-style: none; padding: 0; margin: 6px 0 0; } .setup li { padding: 4px 0; } .setup li.done { color: var(--green); }
+.ov-panel h2 { margin: 0 0 8px; font-size: 1rem; }
+.ov-hd { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ov-state { display: flex; align-items: center; gap: 6px; } .ov-state select { min-width: 160px; }
+.ov-state-name { margin: 12px 0 6px; font-size: .95rem; color: var(--g700); }
+.ov-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; margin: 8px 0; }
+.ov-facts dt { font-size: .75rem; color: var(--muted); } .ov-facts dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ov-list { margin: 0; padding-left: 18px; } .ov-list li { margin: 4px 0; } .ov-list li.sub-item { list-style: circle; margin-left: 14px; font-size: .9rem; }
+/* minmax(0, …): a grid column is otherwise as wide as its widest table, and the page got 30 px wider than a phone */
+.ov-volumes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: var(--gap); }
+@media (min-width: 900px) { .ov-volumes { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.ov-bars .bar { display: flex; gap: 2px; height: 10px; min-width: 80px; background: var(--grey-bg); border-radius: 4px; overflow: hidden; }
+.ov-bars .seg { display: block; height: 100%; }
+.ov-bars .seg.done, .legend .key.done { background: var(--g500); }
+.ov-bars .seg.pending, .legend .key.pending { background: var(--g200); }
+.legend .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-left: 8px; }
+.readonly-banner { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.scope-cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }

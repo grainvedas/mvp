@@ -18,6 +18,7 @@ import { NO_RIGHTS, type EmployeeStatus, type Lens, type OpRole, type StageType,
 import { filterPeople, lensTone, stagesAfter, type AssignmentInfo, type DirectoryFilter, type DirectoryPerson, type Profile,
   type Roster, type StateOverviewData, type Warning } from '../../lib/people';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
+import { oversees } from '../../lib/rights';
 import { AccessBadges, Confirm, OrgLine, StatusBadge, TempPassword, WarningList, useStageName } from './shared';
 
 interface Named { id: string; name: string }
@@ -72,7 +73,7 @@ export function Directory() {
                 <Link className="btn secondary" to={`/people/${p.id}/assign`} aria-label={`${t('assign.title')}: ${p.name}`}>{t('assign.title')}</Link>}</td>
             </tr>))}</tbody>
         </table></div>)}
-      {f.kind === 'client_logins' && can.assign && <NewClientLogin clients={clients.data ?? []} done={() => void list.reload()} />}
+      {f.kind === 'client_logins' && can.assign && !oversees(ctx) && <NewClientLogin clients={clients.data ?? []} done={() => void list.reload()} />}
       {can.hr && <p className="small muted">{t('people.hr_hint')} <Link to="/hr/joiners/new">{t('hr.add_joiner')}</Link></p>}
       {!can.hr && <p className="small muted">{t('people.missing_hint')}</p>}
     </div>
@@ -290,7 +291,9 @@ export function AssignPage() {
   const clients = useClients();
   const states = useStates();
   const scopes = useMemo(() => (ctx?.scopes ?? []).filter((s) => s.manage && s.status !== 'closed'), [ctx]);
-  const [lens, setLens] = useState<Lens>('scope');
+  // The admin seats State Managers and gives nothing else (migration 34); a State Manager gives a client's account.
+  const watch = oversees(ctx);
+  const [lens, setLens] = useState<Lens>(watch ? 'state' : 'scope');
   const [target, setTarget] = useState(search.get('scope') ?? '');
   const [role, setRole] = useState<OpRole>('operator');
   const [stages, setStages] = useState<StageType[]>(search.get('stage') ? [search.get('stage') as StageType] : []);
@@ -310,7 +313,7 @@ export function AssignPage() {
   if (!person.data) return <ErrorBox error={person.error} />;
   const who = person.data.identity;
   const sc = scopes.find((s) => s.scope_id === target);
-  const lenses: Lens[] = ['scope', ...(can.admin || can.state_lens ? ['client' as Lens] : []), ...(can.admin ? ['state' as Lens] : [])];
+  const lenses: Lens[] = watch ? ['state'] : ['scope', ...(can.state_lens ? ['client' as Lens] : [])];
   const ready = !!target && (lens !== 'scope' || role === 'export_manager' || stages.length > 0);
   const submit = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
     await rpc('assign', { p_employee: id, p_lens: lens, p_target: target, p_op_role: opRole, p_stages: lens === 'scope' ? stages : [], p_posting: posting, p_ends_on: endsOn || null });

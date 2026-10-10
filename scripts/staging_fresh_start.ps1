@@ -133,8 +133,8 @@ $tested = [ordered]@{
   'scripts/fresh_start/clear_logins_and_files.mjs' = 'ee076f96fca5a3f295b0e0e083f4fbdd13e1307eec85a904c4ada96a6024ab72'
   'scripts/bootstrap_admin.mjs' = 'fa32a16a249955dd9719acde0f5eab732c3da4ec7705e2ae61c7ffea307c4917'
   'scripts/lib/env.mjs' = 'a9c0b9a30647e1443d37da26a7b445313ba4ac78c40e01ec6e436e5e54869ee2'
-  'tests/remote_smoke.sql' = '93322ba5f88ad34d13b359179bd71aefc8835df8164e890829c3a7781ff903d2'
-  'tests/remote_ledger_audit.sql' = 'a8b970bdf46f6561cc8019dc70598cfe35201671ac4634c5fba284c350033608'
+  'tests/remote_smoke.sql' = '66e069c427f83c7666a042280e565a9c9744744fd866423222cb6acd242d7dad'
+  'tests/remote_ledger_audit.sql' = '7f51601f01166f33145cefdd13ef92009c0390edf337c1c5167646e5d820f8d5'
 }
 $changed = @()
 foreach ($path in $tested.Keys) {
@@ -266,7 +266,7 @@ $checks = @('extensions', 'schema app', 'tables (15)', 'RLS on every table', 'st
   'auth.uid mapping', 'public journey rpc', 'phase 3 objects', 'phase 4 objects', 'phase 4 triggers', 'ledger read by stage',
   'direct writes closed', 'evidence in the ledger', 'public page data', 'capture time, verdict preview',
   'a new client can be read back', 'identity layer objects', 'people moved to assignments', 'the two seats',
-  'manager rules ask about the scope', 'people written only by their actions', 'once-a-day sign-in code', 'nightly ledger check')
+  'manager rules ask about the scope', 'people written only by their actions', 'once-a-day sign-in code', 'the admin oversees', 'nightly ledger check')
 Run "$sb db query --linked -f tests/remote_smoke.sql"
 if ($script:Code -ne 0) { Stop-Run 'F5' 'the smoke check could not be run' }
 $text = $script:Out
@@ -291,7 +291,7 @@ for ($i = 0; $i -lt $present.Count; $i++) {
   $first = ($first -replace '[^A-Za-z0-9).]+$', '')
   if ($seg -cmatch '^OK\b') { $okCount++ } elseif ($standing -contains $x) { $warn += "$x = $first" } else { $bad += "$x = $first" }
 }
-Say "  smoke rows read: $($present.Count) of 30, OK: $okCount"
+Say "  smoke rows read: $($present.Count) of 31, OK: $okCount"
 foreach ($w in $warn) { Say "  NOT OK (standing, does not stop): $w" }
 foreach ($b in $bad) { Say "  NOT OK: $b" }
 if ($missing.Count -gt 0) { Stop-Run 'F5' ("smoke rows not found in the output: " + ($missing -join ', ')) }
@@ -306,7 +306,7 @@ if ($script:Out -notmatch 'NO LOGIN WITHOUT A PERSON') { Stop-Run 'F5' "'NO LOGI
 Run 'node scripts/check_functions.mjs'
 $fn = 'FUNCTIONS DEPLOYED AND CURRENT'
 if ($script:Out -notmatch $fn) { $fn = 'NOT all current (read the lines above; not caused by the fresh start)' ; Say "  NOT OK (does not stop): the server functions are $fn" }
-$smokeNote = "smoke $okCount of 30 OK (fresh start, no demo data)"
+$smokeNote = "smoke $okCount of 31 OK (fresh start, no demo data)"
 if ($warn.Count -gt 0) { $smokeNote += '; NOT OK (standing): ' + ($warn -join ' ; ') }
 Say '  ok  smoke, ledger audit, logins'
 Mark 'F5' 'OK' "one person, one login, one admin; $smokeNote; $auditLine; NO LOGIN WITHOUT A PERSON; functions: $fn"

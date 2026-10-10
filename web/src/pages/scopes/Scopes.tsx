@@ -10,6 +10,7 @@ import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { humanise } from '../../lib/format';
 import { isManager, type StageDefinition, type StageType } from '../../lib/types';
+import { oversees } from '../../lib/rights';
 import { RosterEditor } from '../people/People';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 
@@ -25,7 +26,8 @@ export function ScopeList() {
   return (
     <div>
       <h1><span aria-hidden="true">🎯 </span>{t('scopes.title')}</h1>
-      {(ctx!.user!.can?.assign ?? isManager(ctx!.user!.role)) && <p><Link className="btn" to="/scopes/new">{t('scopes.new')}</Link></p>}
+      {oversees(ctx) ? <p className="small muted" data-testid="scopes-readonly">{t('scopes.admin_reads')}</p>
+        : (ctx!.user!.can?.assign ?? isManager(ctx!.user!.role)) && <p><Link className="btn" to="/scopes/new">{t('scopes.new')}</Link></p>}
       {ctx!.scopes.length === 0 ? <Empty /> : (
         <div className="card table-wrap"><table>
           <thead><tr><th>Client</th><th>{t('lens.state')}</th><th>Crop</th><th>Season</th><th>Place</th><th>Chain</th><th>{t('common.status')}</th><th /></tr></thead>
@@ -99,7 +101,21 @@ export function ScopeWizard() {
   const s = existing.data;
   const frozen = !!s && s.status !== 'draft';
   // Does the signed-in person manage THIS scope? (new scope: they would not be here otherwise; the database decides at save)
-  const canManage = s ? (ctx!.scopes.find((x) => x.scope_id === s.id)?.manage ?? isManager(me.role)) : true;
+  const canManage = s ? (ctx!.scopes.find((x) => x.scope_id === s.id)?.manage ?? isManager(me.role)) : !oversees(ctx);
+  // Someone who reads this scope but does not manage it (the admin, a viewer): what it is, and who holds what. No editor.
+  if (!canManage) return (
+    <div data-testid="scope-readonly">
+      <p className="small"><Link to="/scopes">{t('scopes.title')}</Link></p>
+      <h1>{s ? `${crops.data?.find((c) => c.id === s.crop_id)?.name ?? ''} · ${s.season_code} · ${s.geography}` : t('scopes.new')} {s && <Badge value={s.status} />}</h1>
+      <div className="alert info">{t(s ? 'scopes.read_only' : 'scopes.admin_reads')}</div>
+      {s && <div className="card">
+        <p><strong>{t('ov.c_client')}:</strong> {clients.data?.find((c) => c.id === s.client_id)?.name ?? '—'} · <strong>{t('lens.state')}:</strong> {states.data?.find((x) => x.id === s.state_id)?.name ?? '—'}</p>
+        <p><strong>Chain:</strong> {s.chain.map((x) => defs.data?.find((d) => d.stage_type === x)?.label ?? humanise(x)).join(' → ')}</p>
+        <p className="small"><Link to={`/scopes/${s.id}/roster`}>{t('roster.title')}</Link>{s.status !== 'draft' && <> · <Link to={`/dashboard/${s.id}`}>{t('dash.open')}</Link></>}</p>
+        <h3>{t('wizard.step4')}</h3>
+        <RosterEditor scopeId={s.id} />
+      </div>}
+    </div>);
   const homeState = clients.data?.find((c) => c.id === clientId)?.state_id ?? '';
   const crop = crops.data?.find((c) => c.id === cropId);
   const processing = (defs.data ?? []).filter((d) => d.is_processing && crop?.allowed_stages.includes(d.stage_type));

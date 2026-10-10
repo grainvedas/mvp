@@ -1,4 +1,8 @@
-// S9 farmer list · S10 farmer form · S12 verification (State Manager) — S11 import lives in FarmerImport.tsx
+// S9 farmer list · S10 farmer form · S12 verification — S11 import lives in FarmerImport.tsx
+// Two verifications (migration 34, Veda 10 Oct 2026): the Client Manager verifies a draft (step 1); the State Manager of
+// the farmer's state then verifies its location and issues the Farmer ID (step 2), never the same person. Stage people
+// save drafts only. The admin reads farmers and changes none. The database refuses all of this on its own; the buttons
+// below only follow it.
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { rpc, q } from '../../lib/api';
@@ -7,6 +11,7 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import type { Farmer } from '../../lib/types';
+import { holdsClientAccount, isStateManager, oversees, supervisesState, type Ctx } from '../../lib/rights';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { date } from '../../lib/format';
 
@@ -38,21 +43,25 @@ export function FarmerList() {
   const { ctx } = useAuth();
   const me = ctx!.user!;
   const { clientId, picker } = useClientChoice();
-  const [tab, setTab] = useState<'draft' | 'under_review' | 'active' | 'inactive'>(me.role === 'state_manager' ? 'under_review' : 'active');
+  const watch = oversees(ctx);
+  const cm = holdsClientAccount(ctx, clientId);
+  const [tab, setTab] = useState<'draft' | 'under_review' | 'active' | 'inactive'>(isStateManager(ctx) ? 'under_review' : cm ? 'draft' : 'active');
   const [search, setSearch] = useState('');
   const list = useAsync(async () => {
     if (!clientId) return [] as Farmer[];
-    let r = supabase.from('farmers').select('*').eq('client_id', clientId).eq('status', tab).order('created_at', { ascending: false }).limit(500);
+    let r = supabase.from('farmers').select('*,state:states(name),reviewer:app_users!farmers_reviewed_by_fkey(display_name)').eq('client_id', clientId).eq('status', tab).order('created_at', { ascending: false }).limit(500);
     const s = search.trim();
     if (s) r = r.or(`name.ilike.%${s}%,village.ilike.%${s}%,farmer_code.ilike.%${s}%,phone.ilike.%${s}%`);
     return await q(r) as Farmer[];
   }, [clientId, tab, search]);
-  const canEdit = me.role !== 'client_view';
-  const isSM = me.role === 'state_manager' || me.role === 'admin';
+  const canEdit = me.role !== 'client_view' && !watch;
+  const isSM = isStateManager(ctx) || watch;                // who sees the "inactive" tab
   return (
     <div>
       <h1><span aria-hidden="true">👨‍🌾 </span>{t('farmers.title')}</h1>
       {picker}
+      {watch && <p className="small muted" data-testid="farmers-readonly">{t('farmers.admin_reads')}</p>}
+      {!watch && !cm && canEdit && <p className="small muted" data-testid="farmers-draft-note">{t('farmers.drafts_only')}</p>}
       <div className="row" style={{ marginBottom: 12 }}>
         {canEdit && <Link className="btn" to="/farmers/new">{t('farmers.new')}</Link>}
         {canEdit && <Link className="btn secondary" to="/farmers/import">{t('farmers.import')}</Link>}
@@ -75,7 +84,7 @@ export function FarmerList() {
               <td>{f.name}<div className="muted small">{f.guardian_name}</div>
                 {typeof f.extra?.sent_back_reason === 'string' && <div className="small" style={{ color: 'var(--warn)' }}>{t('farmers.sent_back')}: {f.extra.sent_back_reason as string}</div>}</td>
               <td className="mono">{f.farmer_code ?? '—'}</td><td>{f.village}</td><td className="hide-mobile">{f.phone}</td><td className="hide-mobile num">{f.land_area_acres}</td>
-              <td><FarmerActions farmer={f} isSM={isSM} canEdit={canEdit} onDone={list.reload} /></td>
+              <td><FarmerActions farmer={f} canEdit={canEdit} onDone={list.reload} /></td>
             </tr>
           ))}</tbody>
         </table></div>
@@ -84,31 +93,58 @@ export function FarmerList() {
   );
 }
 
-function FarmerActions({ farmer, isSM, canEdit, onDone }: { farmer: Farmer; isSM: boolean; canEdit: boolean; onDone: () => void }) {
+/** The farmer row as the list reads it: with its state's name and the name of whoever did step 1 (when readable). */
+type FarmerRow = Farmer & { state?: { name: string } | null; reviewer?: { display_name: string } | null };
+
+type FarmerStep = Pick<Farmer, 'client_id' | 'status' | 'state_id' | 'reviewed_by'>;
+/** Pure: who may do what to this farmer now, from the server's own context. */
+export function farmerRights(ctx: Ctx, f: FarmerStep) {
+  const me = ctx?.user?.id;
+  // farmers made before migration 34 have no state: any State Manager of a state the client works in, as before
+  const sm = f.state_id ? supervisesState(ctx, f.state_id) : isStateManager(ctx);
+  return {
+    step1: f.status === 'draft' && holdsClientAccount(ctx, f.client_id),
+    step2: f.status === 'under_review' && sm && (!f.reviewed_by || f.reviewed_by !== me),
+    sameHands: f.status === 'under_review' && sm && !!f.reviewed_by && f.reviewed_by === me,
+    sendBack: f.status === 'under_review' && sm,
+    afterwards: (f.status === 'active' || f.status === 'inactive') && sm,
+  };
+}
+
+function FarmerActions({ farmer, canEdit, onDone }: { farmer: FarmerRow; canEdit: boolean; onDone: () => void }) {
   const { t } = useI18n();
+  const { ctx } = useAuth();
   const act = useAction();
   const [reason, setReason] = useState('');
   const [sending, setSending] = useState(false);
+  const r = farmerRights(ctx, farmer);
   if (farmer.status === 'draft' && canEdit) return (
     <div className="row">
       <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>
-      <button onClick={() => act.run(async () => { await rpc('submit_farmer', { p_farmer: farmer.id }); onDone(); })} disabled={act.busy}>{t('farmers.submit')}</button>
+      {r.step1 ? <button onClick={() => act.run(async () => { await rpc('submit_farmer', { p_farmer: farmer.id }); onDone(); })} disabled={act.busy} data-testid="farmer-step1">{t('farmers.verify_step1')}</button>
+        : <span className="small muted">{t('farmers.waits_cm')}</span>}
       <ErrorBox error={act.error} />
     </div>
   );
-  if (farmer.status === 'under_review' && isSM) return (
-    <div className="stack">
-      <div className="row">
-        <button onClick={() => act.run(async () => { await rpc('verify_farmer', { p_farmer: farmer.id }); onDone(); })} disabled={act.busy}>{t('farmers.verify')}</button>
-        <button className="secondary" onClick={() => setSending(!sending)}>{t('farmers.send_back')}</button>
+  if (r.step2 || r.sameHands) return (
+    <div className="stack" data-testid="farmer-step2-box">
+      <div className="small">
+        <div>{t('farmers.location', { village: farmer.village, district: farmer.district, state: farmer.state?.name ?? '—' })}</div>
+        <div className="muted">{farmer.reviewed_at ? t('farmers.step1_by', { name: farmer.reviewer?.display_name ?? t('farmers.the_cm'), at: date(farmer.reviewed_at) }) : t('farmers.step1_legacy')}</div>
       </div>
+      {r.sameHands ? <div className="small" style={{ color: 'var(--warn)' }}>{t('farmers.same_hands')}</div> : (
+        <div className="row">
+          <button onClick={() => act.run(async () => { await rpc('verify_farmer', { p_farmer: farmer.id }); onDone(); })} disabled={act.busy} data-testid="farmer-step2">{t('farmers.verify_step2')}</button>
+          <button className="secondary" onClick={() => setSending(!sending)}>{t('farmers.send_back')}</button>
+        </div>)}
       {sending && <div className="row"><input aria-label={t('farmers.send_back_reason')} placeholder={t('farmers.send_back_reason')} value={reason} onChange={(e) => setReason(e.target.value)} />
         <button className="secondary" disabled={!reason.trim() || act.busy} onClick={() => act.run(async () => { await rpc('send_back_farmer', { p_farmer: farmer.id, p_reason: reason }); onDone(); })}>{t('farmers.send_back')}</button></div>}
       <ErrorBox error={act.error} />
     </div>
   );
-  // After verification only a State Manager (or admin) changes a farmer; every change is a ledger block (migration 22).
-  if (isSM && (farmer.status === 'active' || farmer.status === 'inactive')) {
+  if (farmer.status === 'under_review') return <span className="small muted">{t('farmers.waits_sm', { state: farmer.state?.name ?? '—' })}</span>;
+  // After verification only the State Manager changes a farmer; every change is a ledger block (migration 22).
+  if (r.afterwards) {
     const flip = farmer.status === 'active' ? 'inactive' : 'active';
     return (
       <div className="row">
@@ -127,9 +163,24 @@ export function FarmerForm() {
   const { id } = useParams();
   const { t } = useI18n();
   const nav = useNavigate();
-  const { clientId, picker } = useClientChoice();
+  const { ctx } = useAuth();
+  const { clientId: chosenClient, picker } = useClientChoice();
   const [f, setF] = useState({ name: '', guardian_name: '', village: '', district: '', phone: '', land_area_acres: '', photo_consent: false, notes: '' });
   const [status, setStatus] = useState<Farmer['status']>('draft');
+  const [ownClient, setOwnClient] = useState<string | null>(null);      // an existing farmer's client
+  const [stateId, setStateId] = useState('');
+  const clientId = ownClient ?? chosenClient;
+  const watch = oversees(ctx);
+  const cm = holdsClientAccount(ctx, clientId);
+  // The states the client works in (its home state and its scopes' states): a farmer belongs to one of them.
+  const states = useAsync(async () => {
+    if (!clientId) return [] as { id: string; name: string }[];
+    const c = await q(supabase.from('clients').select('state_id,states(id,name)').eq('id', clientId).maybeSingle()) as unknown as { state_id: string; states: { id: string; name: string } | null } | null;
+    const sc = await q(supabase.from('scopes').select('states(id,name)').eq('client_id', clientId)) as unknown as { states: { id: string; name: string } | null }[];
+    const all = [c?.states, ...sc.map((x) => x.states)].filter((x): x is { id: string; name: string } => !!x);
+    return [...new Map(all.map((x) => [x.id, x])).values()];
+  }, [clientId]);
+  useEffect(() => { if (!id && !stateId && states.data?.length) setStateId(states.data[0].id); }, [id, stateId, states.data]);
   const [extra, setExtra] = useState<Record<string, unknown>>({});     // everything else kept in farmers.extra (import columns, photo)
   const act = useAction();
   useEffect(() => {
@@ -137,6 +188,8 @@ export function FarmerForm() {
     q(supabase.from('farmers').select('*').eq('id', id).single()).then((r) => {
       const x = r as unknown as Farmer;
       setStatus(x.status);
+      setOwnClient(x.client_id);
+      setStateId(x.state_id ?? '');
       setExtra(x.extra ?? {});
       setF({ name: x.name, guardian_name: x.guardian_name, village: x.village, district: x.district, phone: x.phone,
         land_area_acres: String(x.land_area_acres), photo_consent: x.photo_consent, notes: String(x.extra?.notes ?? '') });
@@ -148,7 +201,8 @@ export function FarmerForm() {
     const digits = f.phone.replace(/[^0-9]/g, '');
     const phone = digits.length === 10 ? `+91${digits}` : f.phone;
     const row = { name: f.name.trim(), guardian_name: f.guardian_name.trim(), village: f.village.trim(), district: f.district.trim(), phone,
-      land_area_acres: Number(f.land_area_acres), photo_consent: f.photo_consent, extra: (() => { const e = { ...extra }; if (f.notes) e.notes = f.notes; else delete e.notes; return e; })() };
+      land_area_acres: Number(f.land_area_acres), photo_consent: f.photo_consent,
+      ...(status === 'draft' && stateId ? { state_id: stateId } : {}), extra: (() => { const e = { ...extra }; if (f.notes) e.notes = f.notes; else delete e.notes; return e; })() };
     const saved = id
       ? await q(supabase.from('farmers').update(row).eq('id', id).select().single()) as Farmer
       : await q(supabase.from('farmers').insert({ ...row, client_id: clientId, status: 'draft' }).select().single()) as Farmer;
@@ -162,12 +216,20 @@ export function FarmerForm() {
     <div className="card" style={{ maxWidth: 560 }}>
       <h1>{id ? t('common.edit') : t('farmers.new')}</h1>
       {!id && picker}
+      {watch && <div className="alert info" data-testid="farmers-readonly">{t('farmers.admin_reads')}</div>}
       {status !== 'draft' && <div className="alert info" data-testid="farmer-verified-note">{t(farmerNote(status))}</div>}
+      {status === 'draft' && !cm && !watch && <p className="small muted" data-testid="farmers-draft-note">{t('farmers.drafts_only')}</p>}
       <form onSubmit={(e) => submit(e, false)}>
         {input('name', t('farmer.name'))}
         {input('guardian_name', t('farmer.guardian'))}
         {input('village', t('farmer.village'))}
         {input('district', t('farmer.district'))}
+        {(states.data?.length ?? 0) > 0 && (
+          <Field label={`${t('farmer.state')} *`} hint={t('farmer.state_hint')} htmlFor="farmer-state">
+            <select id="farmer-state" value={stateId} onChange={(e) => setStateId(e.target.value)} disabled={status !== 'draft'} data-testid="farmer-state">
+              {states.data!.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </Field>)}
         {input('phone', t('farmer.mobile'), { type: 'tel', inputMode: 'tel' })}
         {input('land_area_acres', t('farmer.land'), { inputMode: 'decimal' })}
         <details><summary>{t('farmer.optional')}</summary>
@@ -175,10 +237,11 @@ export function FarmerForm() {
         </details>
         <label className="check"><input type="checkbox" checked={f.photo_consent} onChange={set('photo_consent')} />{t('farmers.consent')}</label>
         <ErrorBox error={act.error} />
-        <div className="row">
-          <button type="submit" className="secondary" disabled={act.busy}>{t('common.save')}</button>
-          {status === 'draft' && <button type="button" disabled={act.busy} onClick={(e) => submit(e as unknown as FormEvent, true)}>{t('farmers.submit')}</button>}
-        </div>
+        {!watch && (
+          <div className="row">
+            <button type="submit" className="secondary" disabled={act.busy}>{t(status === 'draft' ? 'farmers.save_draft' : 'common.save')}</button>
+            {status === 'draft' && cm && <button type="button" disabled={act.busy} onClick={(e) => submit(e as unknown as FormEvent, true)} data-testid="farmer-save-verify">{t('farmers.save_verify')}</button>}
+          </div>)}
       </form>
     </div>
   );

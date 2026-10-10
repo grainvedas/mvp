@@ -2,6 +2,7 @@
 //   operator                      "Hi {name}" and one "My stage" card per stage held: what is waiting, own recent records
 //   manager / viewer, one scope   number cards, action queue, season flow stage by stage, team table
 //   manager / viewer, several     overall: number cards over all scopes and a card per scope; choosing one opens the above
+//   admin                         the platform overview (pages/admin/Overview.tsx); a scope opened from it is read-only
 // Every figure comes from app.pipeline_summary (verified quantities per stage), the open flags and the stage
 // assignments. Nothing here is written, and nothing is kept on the phone: with no network the cards show no figures.
 import { Link, Navigate, useNavigate } from 'react-router-dom';
@@ -15,8 +16,11 @@ import type { Roster } from '../lib/people';
 import { Empty, Badge } from '../shell/ui';
 import { useScope, useWide, worksInOneScope, type ScopeChoice } from '../shell/scope';
 import { JoinerHome, NoAssignment } from './onboarding/Onboarding';
+import { AdminOverview, ReadOnlyBanner } from './admin/Overview';
+import { LedgerHealth, Stat } from './dashboard/parts';
+import { oversees } from '../lib/rights';
 import { stageIcon } from '../engine/icons';
-import { kg, humanise, dateTime, num } from '../lib/format';
+import { kg, humanise, num } from '../lib/format';
 
 export interface PipeRow { stage: string; chain_pos: number; records: number; pending: number; verified: number; kg_out: number; kg_available: number }
 
@@ -40,6 +44,9 @@ export function scopeFigures(rows: PipeRow[]) {
   };
 }
 
+/** The number an action queue stands for: the sum of its lines, shown on the card and in the title alike. */
+export const queueCount = (q: { n: number }[]) => q.reduce((s, x) => s + Number(x.n), 0);
+
 /** Stages of a chain that nobody holds (the gate stage counts: someone must seal). */
 export const unassigned = (chain: StageType[], held: StageType[]) => chain.filter((s) => !held.includes(s));
 
@@ -48,9 +55,11 @@ export const unassigned = (chain: StageType[], held: StageType[]) => chain.filte
  * HR with no scope of their own goes to the pipeline; an employee nobody has assigned sees the calm holding screen;
  * someone who only holds stages in several scopes picks one; then the scope screens as before.
  */
-export type FirstScreen = 'joiner' | 'hr' | 'unassigned' | 'pick' | 'stages' | 'scope' | 'overall';
-export function firstScreen(w: { status?: string; external?: boolean; hr: boolean; admin: boolean; assign: boolean; scopes: { whole: boolean }[]; current: { whole: boolean } | null }): FirstScreen {
+export type FirstScreen = 'joiner' | 'hr' | 'unassigned' | 'pick' | 'stages' | 'scope' | 'overall' | 'oversight';
+export function firstScreen(w: { status?: string; external?: boolean; hr: boolean; admin: boolean; oversee?: boolean; assign: boolean; scopes: { whole: boolean }[]; current: { whole: boolean } | null }): FirstScreen {
   if (!w.external && (w.status === 'invited' || w.status === 'onboarding')) return 'joiner';
+  // the admin oversees (migration 34): the platform overview, or the one scope opened from it (read-only)
+  if (w.oversee) return w.current ? 'scope' : 'oversight';
   // nothing to work in yet: a manager or a client's login gets the (empty) overview, HR its own work, anyone else is told to wait
   if (w.scopes.length === 0) return w.admin || w.assign || w.external ? 'overall' : w.hr ? 'hr' : 'unassigned';
   if (w.current) return w.current.whole ? 'scope' : 'stages';
@@ -63,14 +72,14 @@ export function Home() {
   const wide = useWide();
   const me = ctx!.user!;
   const can = me.can ?? { ...NO_RIGHTS, admin: me.role === 'admin' };
-  const screen = firstScreen({ status: me.status, external: me.external, hr: can.hr, admin: can.admin, assign: can.assign || isManager(me.role), scopes, current });
+  const screen = firstScreen({ status: me.status, external: me.external, hr: can.hr, admin: can.admin, oversee: oversees(ctx), assign: can.assign || isManager(me.role), scopes, current });
   if (screen === 'joiner') return <JoinerHome />;
   if (screen === 'hr') return <Navigate to="/hr" replace />;
   if (screen === 'unassigned') return <NoAssignment />;
   return (
     <div>
       {!wide && scopes.length > 1 && screen !== 'pick' && <ScopePicker />}
-      {screen === 'pick' ? <WorkPicker /> : screen === 'stages' ? <OperatorHome /> : screen === 'scope' ? <ScopeHome scope={current!} /> : <OverallHome />}
+      {screen === 'oversight' ? <AdminOverview /> : screen === 'pick' ? <WorkPicker /> : screen === 'stages' ? <OperatorHome /> : screen === 'scope' ? <ScopeHome scope={current!} /> : <OverallHome />}
     </div>
   );
 }
@@ -236,9 +245,7 @@ function OverallHome() {
   );
 }
 
-function Stat({ value, label, sub }: { value: string; label: string; sub?: string }) {
-  return <div className="stat"><div className="stat-val">{value}</div><div className="stat-label">{label}</div>{sub && <div className="stat-sub">{sub}</div>}</div>;
-}
+
 
 // ---------------------------------------------------------------------------------------------------------------
 // Managers and viewers: one scope
@@ -250,6 +257,7 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
   const navigate = useNavigate();
   const me = ctx!.user!;
   const manager = scope.manage;                              // of THIS scope (a person may manage one and only read another)
+  const watch = oversees(ctx);                               // the admin: the same screen, read-only, in the words of someone watching
   const draft = scope.status === 'draft';
   const pipe = useAsync(() => draft ? Promise.resolve([] as PipeRow[]) : rpc<PipeRow[]>('pipeline_summary', { p_scope: scope.id }), [scope.id, draft]);
   const flags = useAsync(() => q(supabase.from('flags').select('id,footprints!inner(scope_id)').eq('status', 'open').eq('footprints.scope_id', scope.id)) as unknown as Promise<{ id: string }[]>, [scope.id]);
@@ -260,11 +268,14 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
   const rows = pipe.data ?? [];
   const f = scopeFigures(rows);
   const open = unassigned(scope.chain, (slots.data ?? []).map((s) => s.stage_type));
-  const queue: { key: string; text: string; to: string; action: string }[] = [];
-  if (f.pending > 0) queue.push({ key: 'pending', text: t('home.q_pending', { n: f.pending }), to: `/work/${scope.id}/${f.bottleneck!.stage}?tab=records`, action: t('home.q_review') });
-  if (slots.data && open.length > 0 && !draft) queue.push({ key: 'slots', text: t('home.q_slots', { n: open.length, stages: open.slice(0, 3).map(label).join(', ') }),
+  // Each line carries how many things it stands for; the card and the title both show the sum (they disagreed: "4" on
+  // the card, "(1)" on the list, 10 Oct 2026). Every stage with nobody is named, not the first three.
+  const queue: { key: string; n: number; text: string; to: string; action: string }[] = [];
+  if (f.pending > 0) queue.push({ key: 'pending', n: f.pending, text: t('home.q_pending', { n: f.pending }), to: `/work/${scope.id}/${f.bottleneck!.stage}?tab=records`, action: t(watch ? 'home.view' : 'home.q_review') });
+  if (slots.data && open.length > 0 && !draft) queue.push({ key: 'slots', n: open.length, text: t('home.q_slots', { n: open.length, stages: open.map(label).join(', ') }),
     to: `/scopes/${scope.id}/roster`, action: manager ? t('home.q_assign') : t('home.view') });
-  if ((flags.data?.length ?? 0) > 0) queue.push({ key: 'flags', text: t('home.q_flags', { n: flags.data!.length }), to: manager ? '/flags' : `/dashboard/${scope.id}`, action: t('home.view') });
+  if ((flags.data?.length ?? 0) > 0) queue.push({ key: 'flags', n: flags.data!.length, text: t('home.q_flags', { n: flags.data!.length }), to: manager || watch ? '/flags' : `/dashboard/${scope.id}`, action: t('home.view') });
+  const queueTotal = queueCount(queue);
   const by = (stage: string) => rows.find((r) => r.stage === stage);
   const holder = (stage: StageType) => (slots.data ?? []).filter((s) => s.stage_type === stage).map((s) => s.name);
   return (
@@ -273,22 +284,23 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
         <div><h1>{scope.label}</h1><div className="sub">{scope.client_name} · {t('home.n_stages', { n: scope.chain.length })}</div></div>
         <div className="side">{me.display_name}<br />{t(`role.${me.role}`)}</div>
       </div>
-      {scopes.length > 1 && <p><button className="secondary" onClick={() => choose(null)}>{t('home.back_overall')}</button></p>}
+      {watch ? <ReadOnlyBanner text={t('ov.viewing', { name: `${scope.client_name} · ${scope.label}` })} onExit={() => choose(null)} />
+        : scopes.length > 1 && <p><button className="secondary" onClick={() => choose(null)}>{t('home.back_overall')}</button></p>}
       {manager && <LedgerHealth />}
       {draft ? (
-        <div className="card"><p>{t('home.in_setup')}</p><Link className="btn" to={`/scopes/${scope.id}`}>{t('home.set_up')}</Link></div>
+        <div className="card"><p>{t('home.in_setup')}</p><Link className="btn" to={`/scopes/${scope.id}`}>{t(watch ? 'ov.scope_details' : 'home.set_up')}</Link></div>
       ) : (
         <>
           <div className="stats" data-testid="stats">
             <Stat value={pipe.data ? kg(f.procured) : '…'} label={t('home.kpi_procured')} sub={t('home.kpi_procured_sub')} />
-            <Stat value={pipe.data && slots.data ? String(f.pending + open.length + (flags.data?.length ?? 0)) : '…'} label={t('home.kpi_queue')}
+            <Stat value={pipe.data && slots.data ? String(queueTotal) : '…'} label={t(watch ? 'ov.attention' : 'home.kpi_queue')}
               sub={queue.length > 0 ? t('home.kpi_needs_sub') : t('home.all_clear')} />
             <Stat value={pipe.data ? (f.yieldPct === null ? '—' : `${f.yieldPct} %`) : '…'} label={t('home.kpi_yield')} sub={t('home.kpi_yield_sub')} />
             <Stat value={pipe.data ? String(f.completed) : '…'} label={t('home.kpi_completed')} sub={t('home.kpi_completed_sub')} />
           </div>
           {queue.length > 0 ? (
             <div className="card queue" data-testid="action-queue">
-              <h2>{t('home.queue_title', { n: queue.length })}</h2>
+              <h2>{t(watch ? 'ov.queue_title' : 'home.queue_title', { n: queueTotal })}</h2>
               {queue.map((x) => <div className="queue-row" key={x.key}><span>{x.text}</span><Link className="btn secondary" to={x.to}>{x.action}</Link></div>)}
             </div>
           ) : pipe.data && <div className="alert ok" data-testid="action-queue">{t('home.caught_up')}</div>}
@@ -317,7 +329,7 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
           <h2 className="section-title">{t('home.quick')}</h2>
           <div className="row" style={{ marginBottom: 14 }}>
             <Link className="btn secondary" to={`/dashboard/${scope.id}`} data-testid="dashboard-link">{t('home.full_dashboard')}</Link>
-            <Link className="btn secondary" to={`/scopes/${scope.id}`}>{t('home.manage_scope')}</Link>
+            <Link className="btn secondary" to={`/scopes/${scope.id}`}>{t(watch ? 'ov.scope_details' : 'home.manage_scope')}</Link>
             <Link className="btn secondary" to={`/scopes/${scope.id}/roster`} data-testid="roster-link">{t('roster.title')}</Link>
             {manager && <Link className="btn secondary" to="/farmers/new">{t('home.add_farmer')}</Link>}
             <button className="secondary" onClick={() => navigate('/farmers')}>{t('nav.farmers')}</button>
@@ -347,17 +359,4 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
       )}
     </>
   );
-}
-
-interface LedgerCheck { checked_at: string; ok: boolean; blocks: number; first_bad_seq: number | null; problem: string | null; source: string }
-/** Result of the nightly ledger check (migration 21). Silent while it is recent and clean. */
-function LedgerHealth() {
-  const { t } = useI18n();
-  const last = useAsync(async () => ((await q(supabase.from('ledger_checks').select('*').order('checked_at', { ascending: false }).limit(1))) as LedgerCheck[])[0] ?? null, []);
-  if (!last.data) return null;
-  const c = last.data;
-  const stale = Date.now() - new Date(c.checked_at).getTime() > 36 * 3600 * 1000;
-  if (c.ok && !stale) return <p className="small muted banner" data-testid="ledger-health">{t('home.ledger_ok', { n: c.blocks, at: dateTime(c.checked_at) })}</p>;
-  return <div className={`alert ${c.ok ? 'warn' : 'error'} banner`} role="alert" data-testid="ledger-health">
-    {c.ok ? t('home.ledger_stale', { at: dateTime(c.checked_at) }) : t('home.ledger_bad', { seq: c.first_bad_seq ?? '?', problem: c.problem ?? '', at: dateTime(c.checked_at) })}</div>;
 }

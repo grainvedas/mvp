@@ -3,6 +3,7 @@
 // whole of it, or hold stages in it. "Overall" means none is chosen; it exists only for someone who reads at least
 // one scope whole. A person who only holds stages works in ONE scope at a time and picks it after signing in.
 // With one scope only there is nothing to choose: that scope is the one. The choice is kept on this device, per person.
+import { oversees } from '../lib/rights';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import type { StageType } from '../lib/types';
@@ -38,9 +39,11 @@ export function scopeChoices(ctx: { user: { role: string } | null; slots: { scop
 /** Pure: does this person only hold stages (reads no scope whole)? Then they work in one scope at a time. */
 export const worksInOneScope = (scopes: ScopeChoice[]) => scopes.length > 0 && scopes.every((s) => !s.whole);
 
-/** Pure: the scope in force. One scope: that one. Several: the stored choice if it is still there, else none ("Overall"). */
-export function currentScope(scopes: ScopeChoice[], stored: string | null): ScopeChoice | null {
-  if (scopes.length === 1) return scopes[0];
+/** Pure: the scope in force. One scope: that one. Several: the stored choice if it is still there, else none ("Overall").
+ *  The admin (oversee) always starts on the platform overview, also with a single scope: only a scope opened from it
+ *  is in force (with one scope the admin could not reach the overview at all, 10 Oct 2026). */
+export function currentScope(scopes: ScopeChoice[], stored: string | null, oversee = false): ScopeChoice | null {
+  if (scopes.length === 1 && !oversee) return scopes[0];
   return scopes.find((s) => s.id === stored) ?? null;
 }
 
@@ -69,7 +72,7 @@ export function ScopeProvider({ children }: { children: ReactNode }) {
     setStored(id);
     try { if (id) localStorage.setItem(storageKey(userId), id); else localStorage.removeItem(storageKey(userId)); } catch { /* private mode */ }
   }, [userId]);
-  const value = useMemo<ScopeCtx>(() => ({ scopes, current: currentScope(scopes, stored), choose }), [scopes, stored, choose]);
+  const value = useMemo<ScopeCtx>(() => ({ scopes, current: currentScope(scopes, stored, oversees(ctx)), choose }), [scopes, stored, choose, ctx]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

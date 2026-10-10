@@ -465,8 +465,9 @@ test.describe('at a desk', () => {
       await expect(lines.and(page.locator('[data-action="assigned"]'))).toHaveCount(4);          // three given, and the one the move began
       await expect(lines.and(page.locator('[data-action="reassigned"]'))).toContainText('needed at the mill');
     } finally {
-      // leave the demo scopes as they were: the admin ends whatever this person still holds
-      await signIn(page, USERS.admin);
+      // leave the demo scopes as they were: HR ends whatever this person still holds (the admin no longer may, once the
+      // HR Admin seat is filled: migration 34)
+      await signIn(page, USERS.hrAdmin);
       await (await apiAs(page)).rpc('offboard_person', { p_employee: made.id, p_exit_date: todayIST(), p_reason: 'end of test', p_final_settlement: '', p_form16_ref: '' });
       await signOut(page);
     }

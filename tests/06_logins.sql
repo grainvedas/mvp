@@ -23,18 +23,21 @@ select t.fails($q$ insert into public.app_users (role, display_name, client_id)
                    values ('operator', 'Planted', '00000000-0000-4000-8000-000000000201') $q$,
                'permission denied', 'guard: nobody inserts a person directly any more');
 
-select t.as_user(t.u('01'));   -- Admin
+select t.as_user(t.u('16'));   -- HR Admin (since migration 34 the admin no longer edits operational people once this seat is filled)
 select t.fails(format($q$ update public.app_users set role = 'client_view' where id = %L $q$, t.u('12')),
-               'only name, phone and email', 'guard: not even the admin sets a role by hand: it follows from assignments');
+               'only name, phone and email', 'guard: not even HR sets a role by hand: it follows from assignments');
 select t.fails(format($q$ update public.app_users set system_role = 'hr_admin' where id = %L $q$, t.u('12')),
                'only name, phone and email', 'guard: nor a system role (app.set_system_role, app.appoint_hr_admin)');
-select t.fails(format($q$ update public.app_users set active = false where id = %L $q$, t.u('01')),
-               'only name, phone and email', 'guard: nor a status, his own included');
 select t.fails(format($q$ update public.app_users set auth_uid = gen_random_uuid() where id = %L $q$, t.u('05')),
                'only name, phone and email', 'guard: nor point a person at a login');
 update public.app_users set display_name = 'Mill Operator (Basti)' where id = t.u('08');
-select t.ok((select display_name from public.app_users where id = t.u('08')) = 'Mill Operator (Basti)', 'guard: the admin corrects a name');
-
+select t.ok((select display_name from public.app_users where id = t.u('08')) = 'Mill Operator (Basti)', 'guard: the HR Admin corrects a name');
+select t.as_user(t.u('01'));   -- Admin
+select t.fails(format($q$ update public.app_users set active = false where id = %L $q$, t.u('01')),
+               'only name, phone and email', 'guard: nor a status, the admin''s own included');
+update public.app_users set display_name = 'Renamed by the admin' where id = t.u('08');
+select t.ok((select display_name from public.app_users where id = t.u('08')) = 'Mill Operator (Basti)',
+            'oversight (migration 34): with the HR Admin seat filled the admin no longer edits an operational person');
 select t.as_user(t.u('17'));   -- HR resource
 update public.app_users set display_name = 'Mill Operator' where id = t.u('08');
 update public.app_users set display_name = 'Not Veda' where id = t.u('01');

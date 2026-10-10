@@ -141,14 +141,20 @@ select t.as_user(t.u('05'));
 insert into public.farmers (id, client_id, status, name, guardian_name, village, district, phone, land_area_acres)
 values ('00000000-0000-4000-8000-000000000581', '00000000-0000-4000-8000-000000000201', 'draft', 'Rampati', 'Shri Lallan',
         'Bansi', 'Siddharthnagar', '+919000000081', 2);
-select t.ok((app.submit_farmer('00000000-0000-4000-8000-000000000581')).status = 'under_review', 'farmers: operator submits a draft');
+-- Migration 34: the first verification is the Client Manager's (an operator adds the draft, and only that)
+select t.fails($q$ select app.submit_farmer('00000000-0000-4000-8000-000000000581') $q$, 'Client Manager of this client verifies',
+               'farmers: an operator cannot verify a draft (step 1 is the Client Manager''s)');
+select t.as_user(t.u('03'));   -- Client Manager, Prasaadam
+select t.ok((app.submit_farmer('00000000-0000-4000-8000-000000000581')).reviewed_by = t.u('03'), 'farmers: the Client Manager verifies the draft (step 1)');
+select t.as_user(t.u('05'));
 select t.fails($q$ select app.verify_farmer('00000000-0000-4000-8000-000000000581') $q$, 'only a State Manager', 'farmers: operator cannot verify');
 select t.fails($q$ select app.send_back_farmer('00000000-0000-4000-8000-000000000581', 'x') $q$, 'only a State Manager', 'farmers: operator cannot send back');
 select t.as_user(t.u('02'));
 select t.fails($q$ select app.send_back_farmer('00000000-0000-4000-8000-000000000581', '  ') $q$, 'reason is required', 'farmers: send back needs a reason');
 select t.ok((app.send_back_farmer('00000000-0000-4000-8000-000000000581', 'Photo of land record missing')).extra->>'sent_back_reason'
             = 'Photo of land record missing', 'farmers: State Manager sends back with a reason');
-select t.as_user(t.u('05'));
+select t.ok((select reviewed_by is null from public.farmers where id = '00000000-0000-4000-8000-000000000581'), 'farmers: sending back clears step 1');
+select t.as_user(t.u('03'));
 select t.ok((app.submit_farmer('00000000-0000-4000-8000-000000000581')).extra ? 'sent_back_reason' = false, 'farmers: resubmission clears the reason');
 select t.as_user(t.u('02'));
 select t.ok((app.verify_farmer('00000000-0000-4000-8000-000000000581')).farmer_code = 'PRSDM-F-0006', 'farmers: State Manager verification issues PRSDM-F-0006');
@@ -175,9 +181,9 @@ begin
   perform t.ok((res->>'ok')::boolean and (res->>'inserted')::int = 0, 'B4 clean dry run: ok, nothing written');
   res := app.import_farmers('00000000-0000-4000-8000-000000000201', good, false);
   perform t.ok((res->>'inserted')::int = 2, 'B4 clean file imports 2 farmers');
-  perform t.ok((select count(*) from public.farmers where phone in ('+919876500011', '+919876500012') and status = 'under_review'
+  perform t.ok((select count(*) from public.farmers where phone in ('+919876500011', '+919876500012') and status = 'draft'
                 and created_by = t.u('05') and extra->>'imported' = 'true') = 2,
-               'B4 imported farmers are under review, created by the importer, phones normalised to +91');
+               'B4 imported farmers are drafts for the Client Manager to verify (migration 34), created by the importer, phones normalised to +91');
   perform t.ok((select extra->>'aadhaar_last4' from public.farmers where phone = '+919876500011') = '1234',
                'B4 extra columns kept in extra');
   res := app.import_farmers('00000000-0000-4000-8000-000000000201',
