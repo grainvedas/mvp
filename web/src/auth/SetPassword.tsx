@@ -18,8 +18,13 @@ export function passwordProblem(pw: string, again: string): PasswordProblem {
   return null;
 }
 
+/** Who can give a person a new password when they forget it: it depends on the seat (migration 35). */
+export const passwordRuleKey = (systemRole: string | undefined) =>
+  systemRole === 'admin' ? 'account.rule_admin' : systemRole === 'hr_admin' ? 'account.rule_hr_admin' : 'account.rule';
+
 export function PasswordForm({ submitKey = 'account.change_password' }: { submitKey?: string }) {
   const { t } = useI18n();
+  const { ctx } = useAuth();
   const [pw, setPw] = useState('');
   const [again, setAgain] = useState('');
   const [show, setShow] = useState(false);
@@ -50,7 +55,7 @@ export function PasswordForm({ submitKey = 'account.change_password' }: { submit
         <input id="pw-again" type={show ? 'text' : 'password'} value={again} onChange={(e) => setAgain(e.target.value)} autoComplete="new-password" required />
       </Field>
       <label className="check"><input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />{t('account.show')}</label>
-      <p className="hint">{t('account.rule')}</p>
+      <p className="hint" data-testid="pw-rule">{t(passwordRuleKey(ctx?.user?.system_role))}</p>
       {pw.length > 0 && problem === 'short' && <p className="hint" data-testid="pw-problem">{t('account.too_short')}</p>}
       {pw.length >= MIN_PASSWORD && again.length > 0 && problem === 'mismatch' && <p className="hint" data-testid="pw-problem">{t('account.mismatch')}</p>}
       <ErrorBox error={act.error} />

@@ -133,7 +133,7 @@ end $$;
 
 -- 4 · clients, crops, scopes, rosters, assignments ----------------------------------------------------------------------------
 do $$
-declare n int; s uuid; cr uuid; r jsonb;
+declare n int; s uuid; cr uuid; r jsonb; other uuid;
 begin
   -- clients: the State Manager's (tests/22 has the State Manager's side)
   perform t.as_user(t.u('01'));
@@ -178,9 +178,15 @@ begin
   perform t.fails(format('select app.assign(%L, %L, %L, %L)', t.u('18'), 'client', '00000000-0000-4000-8000-000000000201', 'client_account'),
                   'outside what you manage', 'assign: nor a client''s account (the State Manager''s)');
   perform t.fails(format('select app.assign(%L, %L, %L, %L)', t.u('01'), 'state', (select id from public.states order by name limit 1), 'state_supervisor'),
-                  'cannot assign yourself', 'assign: the admin cannot seat himself');
-  r := app.assign(t.u('18'), 'state', (select id from public.states where id <> (select state_id from public.clients where id = '00000000-0000-4000-8000-000000000201') order by name limit 1), 'state_supervisor');
-  perform t.ok(r->'assignment'->>'lens' = 'state', 'control: the admin seats a State Manager (the state lens)');
+                  'outside what you manage', 'assign: the admin cannot seat himself (he gives nothing at all)');
+  -- migration 35: the State Manager seat is the HR Admin's to give (Veda, 10 Oct); the admin gives nothing
+  perform t.fails(format('select app.assign(%L, %L, %L, %L)', t.u('18'), 'state', (select id from public.states order by name limit 1), 'state_supervisor'),
+                  'outside what you manage', 'assign: the admin no longer seats a State Manager (migration 35)');
+  perform t.as_service();
+  other := (select id from public.states where id <> (select state_id from public.clients where id = '00000000-0000-4000-8000-000000000201') order by name limit 1);
+  perform t.as_user(t.u('16'));
+  r := app.assign(t.u('18'), 'state', other, 'state_supervisor');
+  perform t.ok(r->'assignment'->>'lens' = 'state', 'control: the HR Admin seats a State Manager (the state lens)');
   perform t.as_service();
 exception when others then
   perform t.as_service();
@@ -249,8 +255,10 @@ begin
   update public.app_users set status = 'suspended', active = false where id = t.u('16');
   perform t.as_user(t.u('01'));
   perform t.ok((app.my_context()->'user'->'can'->>'hr')::boolean, 'HR: with the seat empty the admin has HR on the menu again');
-  r := app.add_joiner(j);
-  perform t.ok(r is not null, 'HR: with the seat empty the admin adds the first joiner');
+  perform t.fails(format('select app.add_joiner(%L)', j), 'only the person for the HR Admin seat',
+                  'HR: with the seat empty the admin still adds no operational person (migration 35)');
+  r := app.add_joiner(j || jsonb_build_object('system_role', 'hr_resource'));
+  perform t.ok(r is not null, 'HR: with the seat empty the admin adds the person for the HR Admin seat');
   perform t.as_service();
   update public.app_users set status = 'active', active = true where id = t.u('16');
 end $$;

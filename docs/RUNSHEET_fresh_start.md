@@ -47,29 +47,31 @@ one named in it.
 
 ## Part 2 — the first day, in the app (about 50 minutes)
 
-**In Veda's order (10 October 2026, decision G15), once migration 34 is on staging** (`docs/RUNSHEET_admin_oversight.md`).
-Before that, the admin still does everything and the order of 6 October applies (in git history). This is the path
+**In Veda's order (10 October 2026, decisions G15 and G16), once migration 35 is on staging** (`docs/RUNSHEET_admin_two_jobs.md`).
+With migration 34 only, step 5 is the admin's (People & access → the State Manager → Assign → State); before
+migration 34, the admin still does everything and the order of 6 October applies (in git history). This is the path
 `web/e2e-fresh/fresh_start.spec.ts` walks on the local stack, from the same empty state to a sealed lot. Laptop. Each
 new person gets a temporary password shown **once** on the screen where they are made (no mail is sent): note it and
 hand it over.
 
 | # | Who | Do | Expect |
 |---|---|---|---|
-| 1 | You (admin) | Open the app. Sign in with `grainvedas+admin@gmail.com` and your password | **Platform overview**: the role guide, "Setting up: 0 of 3 done", empty cards, no error anywhere |
+| 1 | You (admin) | Open the app. Sign in with `grainvedas+admin@gmail.com` and your password | **Platform overview**: the role guide ("You have two jobs…"), "Setting up: 0 of 3 done", empty cards and charts, no error anywhere |
 | 2 | Admin | **States** → name `Uttar Pradesh`, code `UP` → Create | Listed with `UP`. The checklist says 1 of 3 |
 | 3 | Admin | **HR · Joiners → Add joiner**: the person who will run HR; System role **HR**. Save, note the password. On their page: **Mark as joined**. Then **System → Seats** → Appoint: that person (shown as "name (HR)") → Appoint → confirm | HR Admin seat shows their name. 2 of 3. **HR · Joiners leaves your menu**: from now on HR adds people |
 | 4 | HR Admin | Signs in, sets a password. **Add joiner** for everyone: the State Manager, the Client Manager, one person per stage. **Mark as joined** on each | The form has no client, scope or stage field. Each is Active and Unassigned |
-| 5 | Admin | **People & access** → the State Manager → **Assign** → State `Uttar Pradesh` → Give | The only thing the admin can give is a state. 3 of 3 |
+| 5 | HR Admin | Still signed in: **People & access** → the State Manager → **Assign** → State `Uttar Pradesh` → Give | One choice only, **A state**. The admin's checklist then says 3 of 3 ("The HR Admin seats a State Manager") |
 | 6 | State Manager | Signs in, sets a password. **Crops** → Create: name `Kalanamak rice`, code `KNM`, GI tag `GI 280`, origin. **+ limit** three times: `moisture_pct` / Moisture / `%` / at most / 13 / 12; `broken_pct` / Broken grains / 5 / 3; `foreign_matter_pct` / Foreign matter / 1 / 0.5. Tick the processing stages. Save | Listed with `KNM`. Open it again: 0.5 is still 0.5 |
 | 7 | State Manager | **Clients** → Onboard a client: name, code (2 to 6 capitals, e.g. `PRSDM`), type, state `Uttar Pradesh` → Create. Then **People & access** → the Client Manager → **Assign** → tab **A client's account** → the client → Give | The client is listed; the assignment is listed |
 | 8 | Client Manager | Signs in, sets a password. **Scopes → New**: geography, state, crop, chain → Save draft → a person at each stage → **Activate scope** | "Draft", then all stages covered, then "Active" |
 | 9 | Client Manager | **Farmers → New farmer** (state: Uttar Pradesh) → **Save and verify** | The farmer is under "Ready to verify", "Waiting for the State Manager of Uttar Pradesh" |
 | 10 | State Manager | **Farmers** → Ready to verify: the row shows the village, district, state and who verified it first → **Location verified — issue Farmer ID** | The first Farmer ID: `<client code>-F-0001` |
 | 11 | Stage people | Each signs in, sets a password, and records: buy, test, seal | Lot code `<client>-KNM-<season>-P-0001`; the lab's verdict against the limits of step 6; a QR code `GV-…` and its public page |
-| 12 | Admin | **Dashboard** (the overview): open the client (read-only, Exit), a scope, **Ledger** | The client card counts the lot and the QR; the ledger lists every block, newest first |
+| 12 | Admin | **Overview**: the last 12 weeks, the client (read-only, Exit), a scope; **Pipeline**; **Ledger** | "Procured, last 4 weeks" and "QR issued" count the lot; the client card counts it too; the pipeline runs Procurement → … → QR seal; the ledger lists every block, newest first |
 
 What the admin is no longer offered (and the database refuses): a farmer, a client, a crop, a scope, a roster, a
-record, a client's account; HR acts once the HR Admin seat is filled. There is no override.
+record, a client's account, a State Manager's seat; HR acts and HR files once the HR Admin seat is filled; making an
+admin (break-glass only). There is no override.
 
 ## Rehearsed
 

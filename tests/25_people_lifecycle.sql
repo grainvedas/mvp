@@ -23,7 +23,7 @@ select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"not
 select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in"}') $q$, 'join date is required', 'create: and a join date');
 select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in","phone":"12345","join_date":"2026-11-01"}') $q$, '10-digit', 'create: a phone, if given, must be a mobile number');
 select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"GRAINVEDAS+hr@gmail.com","join_date":"2026-11-01"}') $q$, 'already exists', 'create: the same email twice is refused, whatever the case');
-select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in","join_date":"2026-11-01","system_role":"admin"}') $q$, 'only the admin gives', 'create: HR cannot create an admin');
+select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in","join_date":"2026-11-01","system_role":"admin"}') $q$, 'made only by the database owner', 'create: HR cannot create an admin (nobody can, in the app: migration 35)');
 select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in","join_date":"2026-11-01","system_role":"hr_admin"}') $q$, 'only the admin gives', 'create: nor an HR Admin');
 
 insert into fx (k, j) values ('full', app.add_joiner(jsonb_build_object('full_name', 'Kiran Full', 'personal_email', 'Kiran@Test.in', 'phone', '98123 45601',
@@ -70,7 +70,7 @@ select t.as_service();
 select t.ok((select action = 'hr_resource_created' and not flagged from pg_temp.last_audit(pg_temp.f('hr3'))), 'audit: the HR Admin creating an HR resource is logged, not flagged');
 select t.as_user(t.u('01'));
 select t.fails($q$ select app.add_joiner('{"full_name":"Second HR Admin","personal_email":"hra2@test.in","join_date":"2026-11-01","system_role":"hr_admin"}') $q$,
-               'seat is taken', 'seats: not even the admin creates a second HR Admin');
+               'only HR adds joiners now', 'seats: not even the admin creates a second HR Admin (with the seat filled the admin adds nobody: migration 35)');
 
 -- 2 · who may give which assignment ---------------------------------------------------------------------------------------------
 select t.as_service();
@@ -130,12 +130,15 @@ select t.fails(format($q$ select app.assign(%L, 'state', %L, 'state_supervisor')
 select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{procurement}') $q$, pg_temp.f('full'), '00000000-0000-4000-8000-000000000407'),
                'outside what you manage', 'assign: nor into a scope in another state');
 select t.as_user(t.u('01'));
+select t.fails(format($q$ select app.assign(%L, 'state', %L, 'state_supervisor') $q$, pg_temp.f('hr2'), '00000000-0000-4000-8000-000000000002'),
+               'outside what you manage', 'assign: the admin no longer appoints a state supervisor (migration 35: the HR Admin does)');
+select t.as_user(t.u('16'));
 insert into fx (k, j) values ('a4', app.assign(pg_temp.f('hr2'), 'state', '00000000-0000-4000-8000-000000000002', 'state_supervisor'));
 update fx set id = (j->'assignment'->>'id')::uuid where id is null;
 select t.as_service();
 select t.ok((select role = 'state_manager' and system_role = 'hr_resource' from public.app_users where id = pg_temp.f('hr2'))
-            and (select count(*) from public.ledger where payload->>'act' = 'assignment_given' and payload->>'assignment_id' = pg_temp.f('a4')::text and actor = t.u('01')) = 1,
-            'assign: the admin appoints a state supervisor (a ledger block); the two axes are independent: still an HR resource');
+            and (select count(*) from public.ledger where payload->>'act' = 'assignment_given' and payload->>'assignment_id' = pg_temp.f('a4')::text and actor = t.u('16')) = 1,
+            'assign: the HR Admin appoints a state supervisor (a ledger block); the two axes are independent: still an HR resource');
 select t.ok((select role = 'client_manager' and client_id = '00000000-0000-4000-8000-000000000202' from public.app_users where id = pg_temp.f('intern')),
             'summary: the account of one client who also holds a stage for it is shown as that client''s manager');
 
@@ -284,11 +287,12 @@ select t.ok((select system_role = 'hr_admin' from public.app_users where id = t.
             and (select action = 'hr_admin_appointed' and flagged and detail->>'previous' = 'Asha (HR Admin)' from pg_temp.last_audit(t.u('06'))),
             'seats: the admin moves the HR Admin seat; the previous holder becomes an HR resource; flagged');
 select t.as_user(t.u('01'));
-select app.set_system_role(t.u('17'), 'admin');
-select t.as_service();
-select t.ok((select system_role = 'admin' and role = 'admin' from public.app_users where id = t.u('17'))
-            and (select action = 'system_role_changed' and flagged from pg_temp.last_audit(t.u('17'))),
-            'roles: the admin gives the admin seat; flagged');
+select t.fails(format($q$ select app.set_system_role(%L, 'admin') $q$, t.u('17')), 'cannot give this system role',
+               'roles: nobody gives the admin seat in the app, the admin included (migration 35: break-glass only)');
+select t.as_service();   -- what the break-glass script does (scripts/bootstrap_admin.mjs, with the service key)
+update public.app_users set system_role = 'admin' where id = t.u('17');
+select t.ok((select system_role = 'admin' and role = 'admin' from public.app_users where id = t.u('17')),
+            'roles: the database owner makes a second admin outside the app (as the break-glass script does)');
 select t.as_user(t.u('01'));
 select t.ok(jsonb_array_length(app.bootstrap_seats()->'admins') = 2 and (app.bootstrap_seats()->'hr_admin'->>'name') = 'QC Technician'
             and (app.bootstrap_seats()->'daily_code'->>'on')::boolean = false, 'seats: the Seats screen reads both seats');
@@ -315,7 +319,7 @@ select t.ok((app.state_overview('00000000-0000-4000-8000-000000000001')->>'clien
             'state overview: every scope in the state across clients, with the stages nobody holds');
 select t.fails(format($q$ select app.state_overview(%L) $q$, '00000000-0000-4000-8000-000000000002'), 'no access to this state', 'state overview: not another state');
 select t.as_user(t.u('01'));
-select t.ok((select count(*) from jsonb_array_elements(app.audit_feed(500, true)) l) >= 4
+select t.ok((select count(*) from jsonb_array_elements(app.audit_feed(500, true)) l) >= 3
             and (select bool_and((l->>'flagged')::boolean) from jsonb_array_elements(app.audit_feed(500, true)) l)
             and (select count(*) from jsonb_array_elements(app.audit_feed(500, true)) l where l->>'action' in ('offboarded', 'hr_resource_created', 'hr_admin_appointed')) >= 3,
             'audit: the flagged feed holds the offboarding, the HR resource made by an HR resource, and the seat change');

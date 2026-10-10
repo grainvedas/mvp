@@ -16,7 +16,8 @@ PRD (living doc): https://claude.ai/code/artifact/28bf2d7b-66e0-4580-a6c7-5b12a8
 | 3 Offline, Hindi, dashboards, exports, nightly ledger check | done | `docs/RUNSHEET_phase3.md` |
 | 4 Deploy, acceptance, restore drill, handover | done on the local stack | `docs/RUNSHEET_phase4.md` |
 | 5 Identity and authorization layer (HR onboarding, assignments, lifecycle, seats, audit log) | done on the local stack, 6 Oct 2026 | `docs/RUNSHEET_phase5.md` |
-| The admin oversees (migration 34: overview, ledger page, two farmer verifications; no override) | done on the local stack, 10 Oct 2026 | `docs/RUNSHEET_admin_oversight.md`, when Veda says so |
+| The admin oversees (migration 34: overview, ledger page, two farmer verifications; no override) | on staging since 10 Oct 2026, 09:30 | `docs/RUNSHEET_admin_oversight.md` |
+| The admin's two jobs (migration 35: states and the HR Admin seat; the HR Admin seats State Managers; dashboard, Pipeline, Help) | done on the local stack, 10 Oct 2026 | `docs/RUNSHEET_admin_two_jobs.md`, when Veda says so |
 
 Which run-sheets have been completed on the hosted project is recorded in `docs/VERIFICATION_LOG.md` by whoever runs
 them; step A2 of the Phase 4 run-sheet shows it at a glance (the migrations still to be pushed).
@@ -44,18 +45,24 @@ replace it. On staging since 6 October 2026 (database, functions, app: run-sheet
 **The admin oversees and runs nothing** (Veda, 10 October 2026; FIX_LIST G15). The admin's first screen is the
 platform overview; the admin creates states, seats State Managers and the HR Admin, reads the whole ledger, and adds
 joiners only while the HR Admin seat is empty. Crops and clients are the State Manager's; a farmer is verified by the
-Client Manager and then, by location, by the State Manager of its state. There is no override. **In the repository
-only**: `staging-admin-oversight.cmd` puts it on staging and pushes to the main branch, so it waits for Veda's say-so.
+Client Manager and then, by location, by the State Manager of its state. There is no override. On staging since 10
+October 2026.
+
+**The admin has two jobs** (Veda, 10 October 2026, follow-up; FIX_LIST G16): he creates states and appoints the HR
+Admin; the HR Admin seats State Managers; the admin watches the rest on a dashboard (the last 12 weeks, the pipeline in
+chain order on its own page, lab results, people as numbers) under a menu grouped Watch · Audit · Master data · Access
+· Me. **In the repository only**: `staging-admin-two-jobs.cmd` puts it on staging and pushes to the main branch, so it
+waits for Veda's say-so.
 
 **The practice system starts empty** (decision of 6 October 2026): `docs/RUNSHEET_fresh_start.md` empties it to one
-admin (`staging-fresh-start.cmd`) and then lists the first day in the app, in Veda's order once migration 34 is
+admin (`staging-fresh-start.cmd`) and then lists the first day in the app, in Veda's order once migrations 34 and 35 are
 there: state, HR seat, people, State Manager, crop, client, scope, farmer (two steps), first lot. No demo data is on staging after that; the demo seeds are for the local stack and CI.
 
 ## Read this first
 
 | You are | Read |
 |---|---|
-| Veda, about to put the admin's oversight on staging | `docs/RUNSHEET_admin_oversight.md` |
+| Veda, about to put the admin's two jobs on staging | `docs/RUNSHEET_admin_two_jobs.md` |
 | Antigravity IDE, about to put the identity layer on staging | `docs/RUNSHEET_phase5.md` |
 | Antigravity IDE, about to put Phase 4 on the hosted project | `docs/RUNSHEET_phase4.md`, then `docs/DEPLOY.md` |
 | Anyone asking who may see or do what, and why | `docs/IDENTITY_DESIGN.md` |
@@ -108,6 +115,7 @@ supabase/
     20261006000200_union_access       every access rule reads the system role and the live assignments (the union)
     20261006000300_people_lifecycle   the actions: add joiner, assign, move, end, suspend, offboard, re-hire, seats, code
     20261010000100_admin_oversight    the admin oversees: overview, whole ledger, State Manager's crops and clients, farmers verified twice
+    20261011000100_admin_two_jobs     the admin's two jobs: the HR Admin seats State Managers, HR files are HR's, weekly figures, honest public page
   seeds/
     01_stage_definitions.sql       the one stage registry (16 stage types): forms, hand-off checks
     02 … 06                        demo data for staging and tests (06: HR seats, a joiner, an unassigned employee). They refuse production

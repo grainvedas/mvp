@@ -26,7 +26,7 @@ insert into allowed values
   ('anon', 'environment'), ('authenticated', 'environment'), ('authenticated', 'lot_markets'), ('authenticated', 'scope_activity'),
   ('authenticated', 'reset_login_allowed'), ('authenticated', 'report_client_error'), ('authenticated', 'check_ledger_now'),
   -- migration 34: the admin's dashboard and the whole ledger (both refuse anyone but the admin)
-  ('authenticated', 'platform_overview'), ('authenticated', 'ledger_page'), ('authenticated', 'hr_seat_filled'),
+  ('authenticated', 'platform_overview'), ('authenticated', 'ledger_page'), ('authenticated', 'hr_seat_filled'), ('authenticated', 'acts_as_hr'), ('authenticated', 'admin_trends'),
   -- Phase 4 (migration 24)
   ('authenticated', 'seal_source'),
   -- Identity layer (migration 32): helpers the access policies evaluate as the caller; each answers only about the caller

@@ -396,3 +396,37 @@ button.stat.stat-btn.open { border-color: var(--g600); box-shadow: inset 0 -3px 
 .legend .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-left: 8px; }
 .readonly-banner { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .scope-cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+
+/* migration 35 · the admin's dashboard (charts.tsx): one hue for magnitude (--g500), a lighter step for "waiting",
+   status colours only for pass / fail and always with words; numbers in ink; every chart has its table. */
+.nav .sb-hint { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--g300); }
+.ov-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: var(--gap); }
+@media (min-width: 900px) { .ov-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.ov-grid.charts { margin-top: 0; }
+.ov-grid > .card { margin: 0; }
+.kpis .stat { min-width: 0; }
+.change { white-space: normal; } .change.up, .change.down, .change.flat { color: var(--ink); }
+.chart { margin: 0; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; min-width: 0; }
+.chart-title { font-weight: 600; color: var(--g700); font-size: .9rem; margin-bottom: 4px; }
+.chart-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart-base { stroke: var(--border2); stroke-width: 1; }
+.chart-axis { font-size: 9px; fill: var(--muted); font-family: var(--font); }
+.chart-hit { fill: transparent; }
+.chart-col { fill: var(--g500); }
+.chart-hit:hover + .chart-col, .chart-col:hover { fill: var(--g600); }
+.chart-table summary { cursor: pointer; font-size: .8rem; color: var(--g600); margin-top: 4px; }
+.chart-table table { font-size: .8rem; }
+.hbars { display: grid; gap: 6px; margin: 6px 0; }
+.hbar-row, .pf-row { display: grid; grid-template-columns: minmax(0, 38%) minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: .875rem; }
+.hbar-label { min-width: 0; overflow-wrap: anywhere; }
+.hbar-track { display: flex; gap: 2px; height: 12px; background: var(--grey-bg); border-radius: 4px; overflow: hidden; min-width: 40px; }
+.hbar { display: block; height: 100%; }
+.hbar:last-child { border-radius: 0 4px 4px 0; }
+.hbar.seg-a { background: var(--g500); } .hbar.seg-b { background: var(--g200); }
+.hbar.seg-pass { background: var(--green); } .hbar.seg-fail { background: var(--red); }
+.hbar-val { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+.pf-group { margin: 8px 0; } .pf-row .hbar-val { white-space: normal; text-align: right; }
+@media (max-width: 560px) {
+  .hbar-row, .pf-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .hbar-row .hbar-track, .pf-row .hbar-track { grid-column: 1 / -1; grid-row: 2; }
+}

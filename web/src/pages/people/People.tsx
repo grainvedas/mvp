@@ -18,7 +18,7 @@ import { NO_RIGHTS, type EmployeeStatus, type Lens, type OpRole, type StageType,
 import { filterPeople, lensTone, stagesAfter, type AssignmentInfo, type DirectoryFilter, type DirectoryPerson, type Profile,
   type Roster, type StateOverviewData, type Warning } from '../../lib/people';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
-import { oversees } from '../../lib/rights';
+import { givesAssignments, oversees, seatsStateManagers } from '../../lib/rights';
 import { AccessBadges, Confirm, OrgLine, StatusBadge, TempPassword, WarningList, useStageName } from './shared';
 
 interface Named { id: string; name: string }
@@ -69,7 +69,7 @@ export function Directory() {
               <td><Link to={`/people/${p.id}`}><strong>{p.name}</strong></Link><OrgLine org={p.org} /><div className="small muted">{p.email ?? p.phone ?? ''}</div></td>
               <td><StatusBadge status={p.status} />{!p.has_login && <> <Badge value="draft" label={t('people.no_login')} /></>}</td>
               <td><AccessBadges systemRole={p.system_role} assignments={p.assignments} elsewhere={p.elsewhere} unassigned={p.unassigned && !p.external} /></td>
-              <td>{can.assign && !p.external && p.system_role !== 'admin' && ['invited', 'onboarding', 'active'].includes(p.status) && p.id !== ctx?.user?.id &&
+              <td>{givesAssignments(ctx) && !p.external && p.system_role !== 'admin' && ['invited', 'onboarding', 'active'].includes(p.status) && p.id !== ctx?.user?.id &&
                 <Link className="btn secondary" to={`/people/${p.id}/assign`} aria-label={`${t('assign.title')}: ${p.name}`}>{t('assign.title')}</Link>}</td>
             </tr>))}</tbody>
         </table></div>)}
@@ -291,9 +291,10 @@ export function AssignPage() {
   const clients = useClients();
   const states = useStates();
   const scopes = useMemo(() => (ctx?.scopes ?? []).filter((s) => s.manage && s.status !== 'closed'), [ctx]);
-  // The admin seats State Managers and gives nothing else (migration 34); a State Manager gives a client's account.
-  const watch = oversees(ctx);
-  const [lens, setLens] = useState<Lens>(watch ? 'state' : 'scope');
+  // The HR Admin seats State Managers (a state, nothing else); a State Manager also gives a client's account; the admin
+  // gives nothing (migration 35, Veda 10 Oct).
+  const seatOnly = seatsStateManagers(ctx) && !can.assign;
+  const [lens, setLens] = useState<Lens>(seatOnly ? 'state' : 'scope');
   const [target, setTarget] = useState(search.get('scope') ?? '');
   const [role, setRole] = useState<OpRole>('operator');
   const [stages, setStages] = useState<StageType[]>(search.get('stage') ? [search.get('stage') as StageType] : []);
@@ -313,7 +314,8 @@ export function AssignPage() {
   if (!person.data) return <ErrorBox error={person.error} />;
   const who = person.data.identity;
   const sc = scopes.find((s) => s.scope_id === target);
-  const lenses: Lens[] = watch ? ['state'] : ['scope', ...(can.state_lens ? ['client' as Lens] : [])];
+  if (!givesAssignments(ctx)) return <div className="alert info" data-testid="assign-not-yours">{t('assign.not_yours')}</div>;
+  const lenses: Lens[] = seatOnly ? ['state'] : ['scope', ...(can.state_lens ? ['client' as Lens] : []), ...(seatsStateManagers(ctx) ? ['state' as Lens] : [])];
   const ready = !!target && (lens !== 'scope' || role === 'export_manager' || stages.length > 0);
   const submit = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
     await rpc('assign', { p_employee: id, p_lens: lens, p_target: target, p_op_role: opRole, p_stages: lens === 'scope' ? stages : [], p_posting: posting, p_ends_on: endsOn || null });

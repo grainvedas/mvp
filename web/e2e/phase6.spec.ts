@@ -40,7 +40,11 @@ test.describe('on a laptop', () => {
     }
     await signOut(page);
     await signIn(page, USERS.admin);
-    for (const l of ['Clients', 'Crop Registry', 'States', 'Health', 'State overview', 'Seats', 'Ledger', 'Audit log']) await expect(nav.getByRole('link', { name: l })).toBeVisible();
+    // the admin's own menu, by heading (migration 35, brief part 3)
+    for (const h of ['Watch', 'Audit', 'Access', 'Me']) await expect(nav.getByText(h, { exact: true })).toBeVisible();
+    await expect(nav.getByText(/^Master data/)).toContainText('read-only, States apart');
+    for (const l of ['Overview', 'Pipeline', 'Clients', 'Crops', 'States', 'Health', 'State overview', 'Seats', 'Ledger', 'Audit log', 'My guide', 'Help']) await expect(nav.getByRole('link', { name: l, exact: true })).toBeVisible();
+    for (const path of ['/', '/pipeline', '/help']) { await page.goto(path); await expect(page.getByRole('heading', { level: 1 })).toBeVisible(); await noSideScroll(page, `admin ${path}`); }
     await expect(nav.getByRole('link', { name: 'HR · Joiners' })).toHaveCount(0);         // the HR Admin seat is filled: HR adds people
     await signOut(page);
   });

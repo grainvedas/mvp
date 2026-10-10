@@ -52,7 +52,8 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
       is never deleted: suspended, or offboarded and re-hired on the same record.
     - Identity and bank numbers are checked in full in the browser (`web/src/lib/people.ts`) and only their **last
       four characters** are sent or stored. Never add a column, a log line or a request that carries the full number.
-      HR documents live in the private store `hr-docs`, readable by HR and the admin only.
+      HR documents live in the private store `hr-docs`, readable by HR only (the admin only while the HR Admin seat
+      is empty: `app.acts_as_hr`, migration 35).
     - The once-a-day sign-in code is built and **off**. `app.current_user_id()` is gated by it: use that function
       (not `auth.uid()`) for "who is signed in" in any rule, or the gate has a hole.
 11. **Two systems.** Production is the project marked by `supabase/seeds/production/10_reference.sql`. Any script that
@@ -197,6 +198,13 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   (`oversees`, `managesScope`, `holdsClientAccount`, `supervisesState`, `isStateManager`), never from
   `role === 'admin'` or `isManager(role)`. A farmer is verified twice: Client Manager, then the State Manager of the
   farmer's state, two different people.
+- **The admin has two jobs** (migration 35, Veda 10 October 2026, decision G16): he creates states and appoints the
+  HR Admin; everything else he watches (the overview is a dashboard: `app.platform_overview`, `app.admin_trends`).
+  The **HR Admin seats State Managers** (`app.may_assign`, `seatsStateManagers` / `givesAssignments` in `rights.ts`).
+  The admin sees people as numbers only: never an HR file, ID or bank digits, documents, notes or exits. Nobody makes
+  an admin in the app (break-glass only). The admin's menu is grouped by headings (`ROLE_MENUS` in `shell/Layout.tsx`);
+  another role adopts them by adding its own list. Charts follow `web/src/pages/admin/charts.tsx`: one hue for
+  amounts, status colours only for pass and fail with words, a table under every chart.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.
 
 ## Stack (PRD §10)

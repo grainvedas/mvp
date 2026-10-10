@@ -12,6 +12,9 @@ function writeHidden(role: string, hidden: boolean) {
   try { if (hidden) window.localStorage.setItem(key(role), '1'); else window.localStorage.removeItem(key(role)); } catch { /* private window: not remembered */ }
 }
 
+/** "My guide" in the menu: the guide is shown again on the first screen. */
+export function showGuideAgain(role: string) { writeHidden(role, false); }
+
 /** The lines of a role's guide, in order, as far as they are written. Pure over `t`, so it is tested without a screen. */
 export function guideLines(role: string, t: (k: string, v?: Record<string, string | number>, f?: string) => string): string[] {
   const out: string[] = [];

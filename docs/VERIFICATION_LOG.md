@@ -1380,3 +1380,49 @@ Run by Veda (`staging-admin-oversight.cmd`, the words typed: `ADMIN OVERSIGHT`).
 NOT run / not known: the deployed app has not been looked at (the sandbox cannot reach it); the run-sheet's
 "Afterwards" steps are Veda's.
 
+
+## 2026-10-10 (afternoon) — The admin's two jobs (decision G16, migration 35): built and rehearsed on the local stack
+
+Brief "GrainVeda MVP — Admin role, follow-up" and Veda's answers the same day: no override (items 1a and 1c dropped);
+the admin creates states and appoints the HR Admin, and watches the rest; the HR Admin seats State Managers; people
+as numbers for the admin. **Nothing of it is on staging** (open item 29): it waits for Veda's say-so.
+
+Ran:
+- **Database**: `tests/run_local.sh` → `ALL TESTS PASSED`; **1021** `ok` lines (964 before); `ok upgrade: the later
+  migrations apply to a database in use, and all 29 test files pass on it`; production build: the demo seed refuses.
+  New `tests/29_admin_two_jobs.sql`: joiners and system roles (the admin adds only the HR person, only while the seat
+  is empty; nobody makes an admin in the app), the State Manager seat (the HR Admin's; refused for the admin, an HR
+  resource and a State Manager), HR acts and passwords (the admin: the HR Admin's and another admin's password, nothing
+  else; HR files closed to him once the seat is filled, open while it is empty), the overview's people numbers and the
+  weekly figures against the tables, the public page (`independent` true for a lot checked by different people;
+  false for a lot with a manager's supervisory record and for one where one person recorded two steps in a row, as
+  on staging's GV-9DB7C336D205), the pipeline in chain order (procurement first, QC before milling and packing, the
+  seal last), "Report a problem". **Controls**: five broken versions of the rules (`acts_as_hr`, `hr_may_manage`,
+  `may_assign`, the seat check in `add_joiner`, the journey's `independent`), each caught. Tests 06, 08, 19, 25 and 28
+  adapted to the new rules.
+- **Unit tests**: 220 passed (new `web/tests/admin_two_jobs.test.ts`: the menu by heading, who is offered Assign, Help
+  by role, the password words, the public page's sentence, the dashboard's arithmetic, the Pipeline page's order and
+  no Records column). Type check clean; `npm run build:ci` builds.
+- **Screens**: default suite, 59 tests: **57 passed (11.7 min)**; the 2 others failed on the test's own expectations
+  (the menu word "Crop Registry" is "Crops" in the admin's new menu; a heading that is hidden at phone width was
+  checked as visible) and passed after the specs were corrected (`phase6` and `phase9` again: 12 passed). Built app
+  (`playwright.prod.config.ts`): 14 passed, the public page still under 200 KB on throttled 3G. First day from nothing
+  (`e2e-fresh/fresh_start.spec.ts`, step 4 now the HR Admin's): 1 passed, to a sealed lot, the dashboard counting it
+  and the Pipeline page in chain order.
+- **Looked at** (pictures at 390 and 1366 px, English and Hindi): overview, Pipeline, Help. No sideways scroll.
+- **`scripts/staging_admin_two_jobs.ps1`** under PowerShell 7 with stand-ins for `supabase`, `node`, `cmd` and a real
+  git remote: the whole run (`RESULT: ADMIN TWO JOBS ON STAGING`), a second run (nothing pushed twice), `-NoGit`, and
+  a stop at the right step for: wrong words, a project that says production, another migration waiting, a failed push,
+  the two-jobs check answering OLD, an audit finding, a changed app file. The two-jobs check itself ran on a real
+  database with and without migration 35 (`OK`, `MISSING`).
+
+Found and changed while building:
+- Migration 35 as first written let no admin give another admin a new password, while the brief's wording for My
+  account says "only another admin". Changed: an admin may reset another admin's password (not suspend or offboard
+  him); tested both ways.
+
+NOT run / not known:
+- **Nothing on staging.** Migration 35 is not pushed and the app is not pushed.
+- Windows PowerShell 5.1 for the new script (its helpers are those of the scripts that ran there).
+- About 95 new Hindi strings read by nobody who will use them (K45).
+- The weekly charts on staging's real dates (the demo data put almost everything in the present week).

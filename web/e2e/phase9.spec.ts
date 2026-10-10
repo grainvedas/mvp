@@ -10,7 +10,7 @@ test('The admin\'s overview: guide and checklist, number cards that open their l
   test.setTimeout(120_000);
   await signIn(page, USERS.admin);
   await expect(page.getByRole('heading', { name: 'Platform overview' })).toBeVisible();
-  await expect(page.getByTestId('role-guide')).toContainText('You do not run stages, farmers, clients or scopes');
+  await expect(page.getByTestId('role-guide')).toContainText('You have two jobs: create states, and appoint the HR Admin');
   await expect(page.getByTestId('role-guide')).not.toContainText(/override/i);
   // the demo has a state, an HR Admin and a State Manager: the checklist has ticked itself
   await expect(page.getByTestId('setup-checklist')).toContainText('3 of 3 done');
@@ -44,8 +44,21 @@ test('The admin\'s overview: guide and checklist, number cards that open their l
   for (const h of await page.locator('.ov-state-name').all()) await expect(h).toHaveText('Assam');
   await page.getByTestId('ov-state').selectOption('');
 
-  // pipeline and volume: a table each, nothing wider than the phone
+  // the last 12 weeks: four headline figures, four weekly charts, each with its numbers in a table
+  await expect(page.getByTestId('ov-trends')).toBeVisible();
+  for (const k of ['kg', 'qr', 'farmers', 'lab']) await expect(page.getByTestId(`ov-kpi-${k}`)).toBeVisible();
+  for (const c of ['kg', 'qr', 'farmers', 'flags']) {
+    const chart = page.getByTestId(`chart-${c}`);
+    await expect(chart.locator('svg')).toBeVisible();
+    await expect(chart.locator('details tbody tr')).toHaveCount(12);
+  }
+  // the pipeline in short (the full one is its own page); lab results, people and farmers as charts; volume
   await expect(page.getByTestId('ov-pipeline')).toBeVisible();
+  await expect(page.getByTestId('ov-pipeline')).not.toContainText('Records');
+  await expect(page.getByTestId('ov-quality')).toBeVisible();
+  await expect(page.getByTestId('ov-people')).toContainText('State Managers');
+  await expect(page.getByTestId('ov-people')).toContainText('Numbers only');
+  await expect(page.getByTestId('ov-farmers')).toContainText('Uttar Pradesh');
   await expect(page.getByTestId('ov-vol-state')).toContainText('Uttar Pradesh');
   await expect(page.getByTestId('ov-vol-crop')).toBeVisible();
   await expectNoSideScroll(page);
@@ -88,7 +101,7 @@ test('The admin\'s overview: guide and checklist, number cards that open their l
   await signOut(page);
 });
 
-test('What the admin no longer does is not offered: farmers, clients, crops, scopes, records, HR once the seat is filled; a state is all the admin gives', async ({ page }) => {
+test('What the admin no longer does is not offered: farmers, clients, crops, scopes, records, HR once the seat is filled, no assignment at all', async ({ page }) => {
   test.setTimeout(120_000);
   await signIn(page, USERS.admin);
   // the HR Admin seat is filled in the demo: no HR · Joiners; the ledger is there
@@ -125,11 +138,22 @@ test('What the admin no longer does is not offered: farmers, clients, crops, sco
   await expect(page.getByRole('button', { name: /Withdraw/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Activate and seal' })).toHaveCount(0);
 
-  // People: a state is the only thing the admin gives
+  // People: the admin gives nothing, a state included (migration 35: the HR Admin seats State Managers)
   await page.goto('/people');
-  await page.getByTestId('person-row').filter({ hasText: 'Ravi' }).getByRole('link', { name: /Assign/ }).click();
-  await expect(page.getByRole('tab')).toHaveCount(0);
-  await expect(page.getByLabel('State', { exact: true })).toBeVisible();
+  const ravi = page.getByTestId('person-row').filter({ hasText: 'Ravi' });
+  await expect(ravi).toBeVisible();
+  await expect(ravi.getByRole('link', { name: /Assign/ })).toHaveCount(0);
+  const raviId = ((await (await apiAs(page)).rows('app_users', 'display_name=ilike.Ravi*&select=id')) as { id: string }[])[0].id;
+  await page.goto(`/people/${raviId}`);
+  await expect(page.getByTestId('give-assignment')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'HR record' })).toHaveCount(0);   // no HR file for the admin
+  await page.goto(`/people/${raviId}/assign`);
+  await expect(page.getByTestId('assign-not-yours')).toBeVisible();
+  // HR's pages are not the admin's once the seat is filled: home, whatever the address (brief 2.2)
+  for (const path of ['/hr', '/hr/joiners/new', '/hr/templates', `/hr/joiners/${raviId}`]) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: 'Platform overview' })).toBeVisible();
+  }
   await page.goto('/people');
   await page.getByRole('tab', { name: /Client logins/ }).or(page.getByRole('button', { name: /Client logins/ })).first().click();
   await expect(page.getByRole('form', { name: 'New client login' })).toHaveCount(0);
@@ -207,5 +231,81 @@ test('A farmer, verified twice: the Client Manager first, then the State Manager
   await row.getByTestId('farmer-step2').click();
   await page.getByRole('tab', { name: 'Active', exact: true }).click();
   await expect(page.getByTestId('farmer-row').filter({ hasText: `Sunita ${u}` })).toContainText(/-F-\d{4}/);
+  await signOut(page);
+});
+
+test('The admin\'s menu by heading; the Pipeline page in chain order with no Records column; My guide; Help sends a problem to Health', async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page, USERS.admin);
+  const nav = menu(page);
+  await expect(nav).toHaveAttribute('data-menu', 'admin');
+  // five headings in order (they are shown on a wide screen; on the phone the same links, in the same order)
+  const heads = await nav.locator('.sb-section').allTextContents();
+  expect(heads.map((h) => h.replace(/ · .*/, '').trim()).filter((h) => h !== 'Operations')).toEqual(['Watch', 'Audit', 'Master data', 'Access', 'Me']);
+  expect(heads.find((h) => h.startsWith('Master data'))).toContain('read-only, States apart');
+  for (const name of ['Overview', 'Pipeline', 'State overview', 'Ledger', 'Audit log', 'Health', 'States', 'Clients', 'Crops', 'Farmers', 'People & access', 'Seats', 'My guide', 'Help'])
+    await expect(nav.getByRole('link', { name, exact: true }), name).toBeVisible();
+  await expect(nav.getByRole('link', { name: /Override/i })).toHaveCount(0);
+
+  // Pipeline: every stage of the active chains, procurement first, the seal last, QC before milling; no Records column
+  await nav.getByRole('link', { name: 'Pipeline', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Pipeline', level: 1 })).toBeVisible();
+  await expect(page.getByTestId('pipe-row').first()).toBeVisible();
+  const stages = await page.getByTestId('pipe-row').evaluateAll((rows) => rows.map((r) => r.getAttribute('data-stage')));
+  expect(stages[0]).toBe('procurement');
+  expect(stages[stages.length - 1]).toBe('qr_activation');
+  expect(stages.indexOf('qc')).toBeLessThan(stages.indexOf('milling'));
+  await expect(page.getByTestId('pipe-table').locator('th')).not.toContainText(['Records']);
+  await expect(page.getByTestId('pipe-funnel')).toBeVisible();
+  await expectNoSideScroll(page);
+  // one scope: its own chain
+  await page.getByTestId('pipe-scope').selectOption({ index: 1 });
+  await expect(page.getByText("Order: this scope's own chain.")).toBeVisible();
+  await expect(page.getByTestId('pipe-row').first()).toBeVisible();
+  await expectNoSideScroll(page);
+
+  // My guide: hidden on the overview, back with one click from the menu
+  await nav.getByRole('link', { name: 'Overview', exact: true }).click();
+  await page.getByTestId('guide-hide').click();
+  await expect(page.getByTestId('role-guide')).toHaveCount(0);
+  await nav.getByRole('link', { name: 'My guide', exact: true }).click();
+  await expect(page.getByTestId('role-guide')).toBeVisible();
+
+  // Help: who helps the admin; a problem written here is listed on Health with the phones' own reports
+  await nav.getByRole('link', { name: 'Help', exact: true }).click();
+  await expect(page.getByTestId('help-who')).toContainText('the HR Admin');
+  const text = `The pipeline page looked odd ${Date.now()}`;
+  await page.getByTestId('help-text').fill(text);
+  await page.getByTestId('help-send').click();
+  await expect(page.getByTestId('help-sent')).toBeVisible();
+  await expectNoSideScroll(page);
+  await page.goto('/health');
+  await expect(page.locator('main')).toContainText(text);
+
+  // My account: who gives the admin a forgotten password back (check 2)
+  await page.goto('/account');
+  await expect(page.getByTestId('pw-rule')).toContainText('only another admin');
+
+  // in Hindi
+  await page.getByLabel('Language').selectOption('hi');
+  await expect(nav.locator('.sb-section').first()).toHaveText(hi['menu.watch']);           // headings show on a wide screen
+  await page.goto('/pipeline');
+  await expect(page.getByRole('heading', { name: hi['pipe.title'], level: 1 })).toBeVisible();
+  await page.getByLabel('Language').selectOption('en');
+  await signOut(page);
+});
+
+test('The HR Admin seats a State Manager (a state, nothing else); HR, not the admin, reads HR files; HR Admin\'s password words', async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page, USERS.hrAdmin);
+  await page.goto('/account');
+  await expect(page.getByTestId('pw-rule')).toContainText('only the admin');
+  await page.goto('/people');
+  const ravi = page.getByTestId('person-row').filter({ hasText: 'Ravi' });
+  await ravi.getByRole('link', { name: /Assign/ }).click();
+  await expect(page.getByRole('tab')).toHaveCount(0);                                  // a state only
+  await expect(page.getByLabel('State', { exact: true })).toBeVisible();
+  await expectNoSideScroll(page);
+  // not saved here: the database half (the HR Admin's state seat, refused for the admin) is tests/29_admin_two_jobs.sql
   await signOut(page);
 });

@@ -2,7 +2,7 @@
 // On a laptop (from 900 px): a dark top bar (brand, client, scope selector, who, sign out) and a dark side menu in
 // sections with pictograms. On a phone: the same elements folded into three single lines (strip, top bar, menu row).
 // One <nav aria-label="Main"> in both; only the styling differs, so a link is found the same way at any width.
-import type { ReactElement } from 'react';
+import { Fragment, type ReactElement } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useI18n, type Lang } from '../lib/i18n';
@@ -12,6 +12,7 @@ import { useOutbox } from '../offline/useOutbox';
 import { stageIcon } from '../engine/icons';
 import { CrashCard, ErrorBoundary } from './ErrorBoundary';
 import { ScopeProvider, shownScope, useScope, useWide, worksInOneScope } from './scope';
+import { oversees } from '../lib/rights';
 
 type Section = 'overview' | 'registry' | 'people' | 'system';
 /** What the menu needs to know about the person. `can` comes from the server (identity layer); the role is the summary. */
@@ -34,6 +35,48 @@ export const NAV: { to: string; key: string; icon: string; section: Section; sho
   { to: '/system/ledger', key: 'nav.ledger', icon: '🔗', section: 'system', show: (w) => w.can.admin },
   { to: '/system/audit', key: 'nav.audit', icon: '📜', section: 'system', show: (w) => w.can.audit ?? w.can.hr_admin },
 ];
+
+/**
+ * A role's own sidebar, grouped by the question it answers (Veda, 10 Oct 2026). Only the admin has one so far; another
+ * role adopts the same headings by adding its list here, each seeing only its own pages. The admin's:
+ *   Watch (how is the business doing?) · Audit (can I trust the data?) · Master data (what does the operation run on?
+ *   read-only, States apart) · Access (who can do what?) · Me.
+ */
+export type Heading = 'watch' | 'audit' | 'master' | 'access' | 'me';
+export const HEADINGS: Heading[] = ['watch', 'audit', 'master', 'access', 'me'];
+export interface MenuItem { to: string; key: string; icon: string; show?: (w: NavWho) => boolean }
+export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]> } = {
+  admin: {
+    watch: [
+      { to: '/', key: 'menu.overview', icon: '📊' },
+      { to: '/pipeline', key: 'menu.pipeline', icon: '🔀' },
+      { to: '/state', key: 'nav.state', icon: '🗺' },
+      { to: '/flags', key: 'nav.flags', icon: '🚩' },
+    ],
+    audit: [
+      { to: '/system/ledger', key: 'nav.ledger', icon: '🔗' },
+      { to: '/system/audit', key: 'nav.audit', icon: '📜' },
+      { to: '/health', key: 'nav.health', icon: '🩺' },
+    ],
+    master: [                                              // set-up order: states → clients → crops → scopes → farmers
+      { to: '/states', key: 'nav.states', icon: '📍' },
+      { to: '/clients', key: 'nav.clients', icon: '🏢' },
+      { to: '/crops', key: 'menu.crops', icon: '🌿' },
+      { to: '/scopes', key: 'nav.scopes', icon: '🎯' },
+      { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾' },
+    ],
+    access: [
+      { to: '/people', key: 'nav.people', icon: '👥' },
+      { to: '/system/seats', key: 'nav.seats', icon: '🪑' },
+      { to: '/hr', key: 'nav.hr', icon: '🧑‍💼', show: (w) => w.can.hr },     // only while the HR Admin seat is empty
+    ],
+    me: [
+      { to: '/account', key: 'nav.account', icon: '🔑' },
+      { to: '/guide', key: 'menu.guide', icon: '🧭' },
+      { to: '/help', key: 'menu.help', icon: '💬' },
+    ],
+  },
+};
 
 /** "Prasaadam Client Manager" → "PC": the first letters of the first two words, as in the prototype's top bar. */
 export const initials = (name: string) => name.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -114,6 +157,17 @@ function Frame() {
         <button className="secondary" onClick={() => void leave()}>{t('nav.signout')}</button>
       </header>
       <div className="frame">
+        {who && oversees(ctx) ? (
+        <nav className="nav" aria-label="Main" data-menu="admin">
+          {HEADINGS.map((h) => {
+            const items = ROLE_MENUS.admin[h].filter((m) => !m.show || m.show(who)).map((m) => item(m.to, m.icon, t(m.key), m.to === '/'));
+            return <Fragment key={h}>
+              {items.length > 0 && <div className="sb-section" aria-hidden="true">{t(`menu.${h}`)}{h === 'master' && <span className="sb-hint"> · {t('menu.read_only')}</span>}</div>}
+              {items}
+              {h === 'watch' && stages.length > 0 && section('nav.section_operations', stages.map((s) => item(`/work/${shown!.id}/${s}`, stageIcon(s), t(`stage.${s}`, undefined, humanise(s)))))}
+            </Fragment>;
+          })}
+        </nav>) : (
         <nav className="nav" aria-label="Main">
           {section('nav.section_overview', inSection('overview').map((n) => item(n.to, n.icon, t(n.key), n.to === '/')))}
           {section('nav.section_registry', inSection('registry').map((n) => item(n.to, n.icon, t(n.key))))}
@@ -124,7 +178,7 @@ function Frame() {
             ...(box.items.length > 0 || me?.role === 'operator' ? [item('/outbox', '📥', t('nav.outbox'))] : []),
             ...(me ? [item('/account', '🔑', t('nav.account'))] : []),
           ])}
-        </nav>
+        </nav>)}
         <main><ErrorBoundary key={pathname} fallback={(_e, retry) => <CrashCard retry={retry} />}><Outlet /></ErrorBoundary></main>
       </div>
     </>

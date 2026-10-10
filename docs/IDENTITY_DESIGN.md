@@ -75,6 +75,38 @@ functions asked the global question. Each now asks about the scope in hand (`app
 `tests/24_union_access.sql` builds exactly that person and holds every one of those functions to the right answer;
 four deliberately broken versions of the rules were each caught by it.
 
+## Who may do what (since migration 35, 10 October 2026: the admin's two jobs)
+
+Veda, 10 October 2026, answering the follow-up brief: "admin can only add HR admin. and add state (hence admin has only
+2 jobs) - rest he will just look onto data as admin for making strategic decision". The State Manager seat: "HR Admin
+seats them". HR data: the admin sees people as counts and charts, not HR records. No override ("no override required").
+Her set-up order, with step 4 changed:
+
+1. Admin creates the state.
+2. Admin adds the first HR person and gives them the HR Admin seat (the only person the admin adds, and only while the
+   seat is empty).
+3. HR Admin adds the people, including the future State Manager, client manager, operator, HR and all users.
+4. **HR Admin seats the State Manager** (gives the person a state).
+5. to 8. as below (State Manager: crop, client, client's account; Client Manager: scope, roster, farmer step 1; State
+   Manager of the farmer's state: step 2; operators buy, test and seal).
+
+What changed from the table below (migration 34); everything else stands:
+
+| Act | Who (migration 35) | Function |
+|---|---|---|
+| Seat a State Manager (the state lens) | **the HR Admin only**; she gives no other lens. The admin gives nothing | `app.may_assign`, `app.assign` |
+| Add a person | HR Admin, HR resource; the admin **only the HR person for the empty HR Admin seat** (system role HR). **Nobody adds an admin in the app**: break-glass only (`scripts/bootstrap_admin.mjs`) | `app.add_joiner` |
+| System role | HR Admin: operational ↔ HR resource; the admin only while the HR Admin seat is empty. Nobody makes an admin in the app | `app.set_system_role` |
+| HR acts, HR files (documents, files, notes, exits, goals, joining checklist) | HR; the admin only while the HR Admin seat is empty (`app.acts_as_hr`) | the HR functions, table and storage policies |
+| Reset a password | HR for employees; **the admin for the HR Admin and for another admin** (nobody else resets either; with no other admin, break-glass); whoever manages the client for its login | `app.reset_login_allowed` |
+| Suspend, offboard the HR Admin | nobody; replacing her is moving the seat | `app.hr_may_manage` |
+| People on the admin's overview | numbers only (by system role, State and Client Managers, people on stages, unassigned, joining and checklist %, suspended, left in 90 days, client logins) | `app.platform_overview` (`people`) |
+| Weekly figures for the admin | the admin | `app.admin_trends` |
+| Report a problem (Help) | anyone signed in; the admin reads it on Health | `app.report_client_error` (kind `report`) |
+
+Tests: `tests/29_admin_two_jobs.sql` (the database, with controls), `web/tests/admin_two_jobs.test.ts` (the screens'
+rules), `web/e2e/phase9.spec.ts` and `web/e2e-fresh/fresh_start.spec.ts`.
+
 ## Who may do what (since migration 34, 10 October 2026)
 
 Veda, 10 October 2026: "Admin is oversight only. The Admin watches the operation and uses the dashboard to make

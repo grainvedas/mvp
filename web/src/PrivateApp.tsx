@@ -26,6 +26,15 @@ import { Labels } from './pages/public/Labels';
 import { ScopeDashboard } from './pages/dashboard/ScopeDashboard';
 import { LotTrace } from './pages/trace/LotTrace';
 import { Outbox } from './offline/OutboxPage';
+import { PipelinePage } from './pages/admin/Pipeline';
+import { GuideAgain, Help } from './pages/Help';
+import type { ReactNode } from 'react';
+
+/** HR's screens open only for HR (and the admin while the HR Admin seat is empty): brief 2.2. Anyone else goes home. */
+export function HrOnly({ children }: { children: ReactNode }) {
+  const { ctx } = useAuth();
+  return ctx?.user?.can?.hr ? <>{children}</> : <Navigate to="/" replace />;
+}
 
 function Private() {
   const { session, ctx, loading, error, signOut, refresh } = useAuth();
@@ -60,10 +69,10 @@ function Private() {
         <Route path="onboarding/task/:id" element={<TaskPage />} />
         <Route path="welcome" element={<Welcome />} />
         <Route path="goals" element={<Goals />} />
-        <Route path="hr" element={<HrPipeline />} />
-        <Route path="hr/joiners/new" element={<AddJoiner />} />
-        <Route path="hr/joiners/:id" element={<JoinerPage />} />
-        <Route path="hr/templates" element={<Templates />} />
+        <Route path="hr" element={<HrOnly><HrPipeline /></HrOnly>} />
+        <Route path="hr/joiners/new" element={<HrOnly><AddJoiner /></HrOnly>} />
+        <Route path="hr/joiners/:id" element={<HrOnly><JoinerPage /></HrOnly>} />
+        <Route path="hr/templates" element={<HrOnly><Templates /></HrOnly>} />
         <Route path="people" element={<Directory />} />
         <Route path="people/:id" element={<ProfilePage />} />
         <Route path="people/:id/assign" element={<AssignPage />} />
@@ -83,6 +92,9 @@ function Private() {
         <Route path="outbox" element={<Outbox />} />
         <Route path="account" element={<Account />} />
         <Route path="health" element={<Health />} />
+        <Route path="pipeline" element={<PipelinePage />} />
+        <Route path="help" element={<Help />} />
+        <Route path="guide" element={<GuideAgain />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

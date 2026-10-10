@@ -38,7 +38,8 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   };
 
   // Veda's order (10 Oct 2026): 1 the admin creates the state · 2 the admin adds the first HR person and gives them the
-  // HR Admin seat · 3 HR adds everyone else · 4 the admin seats the State Manager · 5 the State Manager makes the crop,
+  // HR Admin seat · 3 HR adds everyone else · 4 the HR Admin seats the State Manager (Veda, 10 Oct: the admin has two
+  // jobs, states and the HR Admin; "HR Admin seats them") · 5 the State Manager makes the crop,
   // onboards the client and gives the Client Manager its account · 6 the Client Manager builds the scope and its roster
   // · 7 the Client Manager adds and verifies the farmer, the State Manager verifies its location · 8 buy, test, seal.
 
@@ -47,7 +48,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await setOwnPassword(page, PW.admin);
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Platform overview' })).toBeVisible();
-  await expect(page.getByTestId('role-guide')).toContainText('You oversee the whole platform');
+  await expect(page.getByTestId('role-guide')).toContainText('You have two jobs: create states, and appoint the HR Admin');
   await expect(page.getByTestId('setup-checklist')).toContainText('0 of 3 done');
   await expect(page.locator('.alert.error')).toHaveCount(0);
   for (const path of ['/people', '/scopes', '/farmers', '/hr', '/state', '/system/audit', '/system/ledger', '/flags', '/clients', '/crops']) {
@@ -106,20 +107,24 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
     await page.getByTestId('activate').click();
     await expect(page.getByTestId('activate')).toHaveCount(0);
   }
-  await signOut(page);
 
-  // 4. The admin seats the State Manager: a state is all the admin gives; HR · Joiners has left the admin's menu
-  await signInWith(page, admin.email, PW.admin);
-  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /HR · Joiners/ })).toHaveCount(0);
+  // 4. The HR Admin seats the State Manager: a state is all the HR Admin gives (no scope, no client's account)
   await page.goto(`/people/${made.sm.id}`);
   await page.getByTestId('give-assignment').click();
-  await expect(page.getByRole('tab', { name: "A client's account" })).toHaveCount(0);
+  await expect(page.getByRole('tab')).toHaveCount(0);
   await page.getByLabel('State', { exact: true }).selectOption({ label: 'Uttar Pradesh' });
   await page.getByTestId('assign-save').click();
   await expect(page.getByTestId('assignment')).toContainText('Uttar Pradesh');
-  await page.goto('/');
+  await signOut(page);
+
+  //    The admin: the checklist has ticked itself; HR · Joiners has left his menu; he gives the State Manager nothing
+  await signInWith(page, admin.email, PW.admin);
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await expect(page.getByTestId('setup-checklist')).toContainText('3 of 3 done');
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /HR · Joiners/ })).toHaveCount(0);
+  await page.goto(`/people/${made.sm.id}`);
+  await expect(page.getByTestId('axis-assignments')).toContainText('Uttar Pradesh');
+  await expect(page.getByTestId('give-assignment')).toHaveCount(0);
   await signOut(page);
 
   // 5. The State Manager: the crop with its three limits (decimals stay decimals) and processing stages; the client;
@@ -264,6 +269,12 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await expect(page.getByTestId('readonly-banner')).toContainText('Viewing Prasaadam — read-only');
   await page.getByTestId('readonly-exit').click();
   await expect(page.getByTestId('readonly-banner')).toHaveCount(0);
+  // the last 12 weeks count this week's lot; the pipeline page lists the chain in its order
+  await expect(page.getByTestId('ov-kpi-kg').locator('.stat-val')).not.toHaveText(/^0 kg$/);
+  await expect(page.getByTestId('ov-kpi-qr').locator('.stat-val')).toHaveText('1');
+  await page.goto('/pipeline');
+  await expect(page.getByTestId('pipe-row').first()).toHaveAttribute('data-stage', 'procurement');
+  await expect(page.getByTestId('pipe-row').last()).toHaveAttribute('data-stage', 'qr_activation');
   await page.goto('/system/ledger');
   await expect(page.getByTestId('ledger-row').first()).toBeVisible();
   await page.getByTestId('ledger-event').selectOption('seal');

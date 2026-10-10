@@ -14,6 +14,8 @@ export interface JourneyStep {
 }
 export interface Journey {
   qr_code: string; sealed_at: string; ledger_hash: string; batch_codes: string[]; season: string; geography: string;
+  /** true when every step was checked by someone other than who recorded it (migration 35); absent on older servers */
+  independent?: boolean;
   crop: { name: string; gi_tag: string | null; origin: string | null }; client: { name: string; type: string };
   verdict: { domestic: string; export: string; overridden: boolean };
   journey: JourneyStep[];

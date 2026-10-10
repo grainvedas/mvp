@@ -128,6 +128,8 @@ export interface Can {
   admin: boolean; hr: boolean; hr_admin: boolean; assign: boolean; state_lens: boolean;
   /** Migration 34: the admin oversees (reads everything, runs no operation); who reads the audit log; is the HR Admin seat filled. */
   oversee?: boolean; audit?: boolean; hr_seat_filled?: boolean;
+  /** Migration 35: the HR Admin seats State Managers (gives the state lens). */
+  state_seat?: boolean;
 }
 export interface MyAssignment {
   id: string; lens: Lens; op_role: OpRole; scope_id: string | null; client_id: string | null; client_name: string | null;

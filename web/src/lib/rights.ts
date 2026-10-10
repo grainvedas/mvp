@@ -21,3 +21,10 @@ export const isStateManager = (ctx: Ctx) => !oversees(ctx) && (ctx?.assignments 
 /** Manages this scope (its roster, withdrawals, verdict overrides, flags), by the server's own answer. */
 export const managesScope = (ctx: Ctx, scopeId: string | null | undefined) =>
   !!scopeId && !oversees(ctx) && !!(ctx?.scopes ?? []).find((s) => s.scope_id === scopeId)?.manage;
+
+/** Seats State Managers (gives a person a state): the HR Admin, by the server's word (migration 35). */
+export const seatsStateManagers = (ctx: Ctx) => !!ctx?.user?.can?.state_seat;
+
+/** Gives assignments from the People screens: a State or Client Manager (scope, client's account), the HR Admin (a
+ *  state: seats State Managers). Never the admin (Veda, 10 Oct: the admin adds states and the HR Admin, nothing else). */
+export const givesAssignments = (ctx: Ctx) => !oversees(ctx) && (!!ctx?.user?.can?.assign || seatsStateManagers(ctx));

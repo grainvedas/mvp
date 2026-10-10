@@ -10,6 +10,12 @@ const date = (s?: string | null) => (s ? new Date(s).toLocaleDateString('en-IN',
 const kg = (n?: number | null) => (n === null || n === undefined ? '' : `${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg`);
 const pretty = (s: string) => s.replace(/_pct$/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
+/** Pure: the "how this record is kept" sentence. It claims a check by the next person only when the server says every
+ *  step had one (brief 1b): a step recorded and checked by the same person, or recorded by a manager acting for the
+ *  stage, gets the plainer sentence. An older server that does not say gets the sentence that claims no check at all. */
+export const howKey = (independent: boolean | undefined) =>
+  independent === true ? 'pv.how' : independent === false ? 'pv.how_mixed' : 'pv.how_basic';
+
 export function PublicVerify() {
   const { code = '' } = useParams();
   const { t, lang, setLang } = useI18n();
@@ -43,7 +49,7 @@ export function PublicVerify() {
             <h2>{t('pv.journey')}</h2>
             <ol className="pv-timeline">{j.data.journey.map((s) => <Step key={s.code} s={s} />)}</ol>
             <section className="card small">
-              <p>{t('pv.how')}</p>
+              <p data-testid="pv-how">{t(howKey(j.data.independent))}</p>
               <p className="muted">{t('pv.sealed_on', { date: date(j.data.sealed_at) })} · {t('pv.fingerprint')} <span className="mono">{j.data.ledger_hash.slice(0, 16)}…</span></p>
             </section>
           </div>

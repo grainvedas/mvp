@@ -1,8 +1,10 @@
-// The admin's first screen (Veda, 10 Oct 2026: "Admin is oversight only… uses the dashboard to make strategic
-// decisions"). Everything here is read: one call (app.platform_overview) counts the whole platform on the server.
-//   role guide and set-up checklist (ticks itself) · number cards that open their detail · state selector and client
-//   cards grouped by state · a client opened read-only · pipeline · volume by state and by crop.
-// Nothing on this screen writes; the admin's own acts (states, seats, State Managers, ledger check) are on their pages.
+// The admin's first screen (Veda, 10 Oct 2026: "admin has only 2 jobs … rest he will just look onto data … for making
+// strategic decision … like having chart or pictorial visuals of data … full stack dashboard style").
+// Everything here is read: app.platform_overview counts the platform now, app.admin_trends counts it week by week.
+//   role guide and set-up checklist (ticks itself) · number cards that open their detail · the last 12 weeks (four
+//   headline figures with their change, four weekly charts) · pipeline in short (the full one is its own page) · lab
+//   results by crop · people as numbers (never an HR file) · farmers by state · clients by state · volume by state and crop.
+// Nothing on this screen writes; the admin's two acts (states, the HR Admin seat) are on their own pages.
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
@@ -14,6 +16,8 @@ import { Badge, Empty, ErrorBox, Loading } from '../../shell/ui';
 import { RoleGuide } from '../../shell/RoleGuide';
 import { useScope } from '../../shell/scope';
 import { LedgerHealth, StatButton } from '../dashboard/parts';
+import { Bars, Columns, PassFail, changePct } from './charts';
+import type { AppError } from '../../lib/errors';
 
 export interface OverviewClient {
   id: string; name: string; code: string; type: string; state_id: string | null; state_name: string | null;
@@ -29,11 +33,41 @@ export interface Overview {
     flags_list: { id: string; text: string; created_at: string; footprint_id: string; record: string; client: string }[];
   };
   states: { id: string; name: string; code: string; managers: number }[];
-  pipeline: { stage_type: string; label: string; sort_order: number; pending: number; done: number; kg_pending: number; oldest_pending: string | null }[];
+  pipeline: PipelineStage[];
   volume_by_state: { id: string; name: string; kg: number; lots: number; qr: number }[];
   volume_by_crop: { id: string; name: string; unit: string | null; kg: number; lots: number; qr: number }[];
   setup: { states: number; hr_admin: boolean; state_managers: number };
+  people?: People;
 }
+/** One stage over all active scopes; `position` is its average step in the chains that have it (the seal last). */
+export interface PipelineStage {
+  stage_type: string; label: string; sort_order: number; position: number | null;
+  pending: number; done: number; kg_pending: number; kg_done: number; oldest_pending: string | null;
+}
+/** People as numbers only (Veda, 10 Oct: counts and charts, not personal HR records). */
+export interface People {
+  by_role: Record<string, number>; by_status: Record<string, number>; client_logins: number; state_managers: number;
+  client_managers: number; stage_people: number; unassigned: number; joining: number; checklist_pct: number | null; left_90d: number;
+}
+export interface TrendWeek { week: string; kg: number; lots: number; qr: number; farmers_added: number; farmers_verified: number; lab_pass: number; lab_fail: number; flags: number }
+export interface Trends {
+  since: string; weeks: TrendWeek[];
+  kg_by_crop: { id: string; name: string; series: number[]; total: number }[];
+  kg_by_state: { id: string; name: string; series: number[]; total: number }[];
+  quality_by_crop: { id: string; name: string; domestic_pass: number; domestic_fail: number; export_pass: number; export_fail: number }[];
+  farmers_by_state: { name: string; active: number; waiting: number; inactive: number }[];
+}
+
+/** Pure: the short form of the pipeline for the overview — what waits, where most of it waits, since when. */
+export function pipelineInShort(rows: PipelineStage[]) {
+  const waiting = rows.reduce((a, r) => a + Number(r.pending), 0);
+  const most = rows.reduce<PipelineStage | null>((b, r) => (Number(r.pending) > Number(b?.pending ?? 0) ? r : b), null);
+  const oldest = rows.map((r) => r.oldest_pending).filter((x): x is string => !!x).sort()[0] ?? null;
+  return { waiting, most, oldest, stages: rows.length };
+}
+
+/** Pure: a week's label, e.g. "6 Oct". */
+export const weekLabel = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
 /** Pure: the "needs attention" total is the sum of what its panel lists, so the card and the panel never disagree. */
 export const attentionTotal = (a: Overview['attention']) =>
@@ -58,6 +92,7 @@ export function AdminOverview() {
   const me = ctx!.user!;
   const [params, setParams] = useSearchParams();
   const o = useAsync(() => rpc<Overview>('platform_overview'), []);
+  const tr = useAsync(() => rpc<Trends>('admin_trends', { p_weeks: 12 }), []);
   const [panel, setPanel] = useState<Panel>(null);
   const [stateId, setStateId] = useState('');
   const clientId = params.get('client');
@@ -95,6 +130,20 @@ export function AdminOverview() {
           {panel === 'scopes' && <ScopesPanel />}
           {panel === 'attention' && <AttentionPanel d={d} />}
 
+          <Trends12 tr={tr.data} loading={tr.loading} error={tr.error} onRetry={() => void tr.reload()} />
+
+          <div className="ov-hd">
+            <h2 className="section-title">{t('ov.pipeline')}</h2>
+            <Link to="/pipeline" data-testid="ov-to-pipeline">{t('ov.to_pipeline')}</Link>
+          </div>
+          <PipelineShort rows={d.pipeline} />
+
+          <div className="ov-grid">
+            {tr.data && <Quality rows={tr.data.quality_by_crop} />}
+            {d.people && <PeopleNumbers p={d.people} />}
+            {tr.data && <FarmersByState rows={tr.data.farmers_by_state} />}
+          </div>
+
           <div className="ov-hd">
             <h2 className="section-title">{t('ov.by_state')}</h2>
             <label className="ov-state">
@@ -111,9 +160,7 @@ export function AdminOverview() {
               <div className="scope-cards" data-testid="ov-clients">{g.clients.map((c) => <ClientCard key={c.id} c={c} onOpen={() => openClient(c.id)} />)}</div>
             </div>))}
 
-          <h2 className="section-title">{t('ov.pipeline')}</h2>
-          <Pipeline rows={d.pipeline} />
-          <div className="ov-volumes">
+          <div className="ov-grid">
             <Volume title={t('ov.vol_state')} rows={(stateId ? d.volume_by_state.filter((v) => v.id === stateId) : d.volume_by_state)} testId="ov-vol-state" />
             <Volume title={t('ov.vol_crop')} rows={d.volume_by_crop} testId="ov-vol-crop" />
           </div>
@@ -127,14 +174,14 @@ function SetupChecklist({ s }: { s: Overview['setup'] }) {
   const items = [
     { done: Number(s.states) > 0, text: t('ov.setup_state'), to: '/states' },
     { done: !!s.hr_admin, text: t('ov.setup_hr'), to: '/system/seats' },
-    { done: Number(s.state_managers) > 0, text: t('ov.setup_sm'), to: '/people' },
+    { done: Number(s.state_managers) > 0, text: t('ov.setup_sm'), to: null },   // the HR Admin seats them (Veda, 10 Oct)
   ];
   return (
     <div className="setup" data-testid="setup-checklist">
       <div className="small"><strong>{t('ov.setup_title')}</strong> {t('ov.setup_n', { n: items.filter((i) => i.done).length, m: items.length })}</div>
       <ol>{items.map((i) => (
-        <li key={i.to} className={i.done ? 'done' : ''} data-testid="setup-item" data-done={i.done ? 'yes' : 'no'}>
-          <span aria-hidden="true">{i.done ? '✓' : '○'} </span>{i.done ? i.text : <Link to={i.to}>{i.text}</Link>}
+        <li key={i.text} className={i.done ? 'done' : ''} data-testid="setup-item" data-done={i.done ? 'yes' : 'no'}>
+          <span aria-hidden="true">{i.done ? '✓' : '○'} </span>{i.done || !i.to ? i.text : <Link to={i.to}>{i.text}</Link>}
           <span className="visually-hidden"> {i.done ? t('ov.done') : t('ov.to_do')}</span>
         </li>))}</ol>
     </div>
@@ -275,44 +322,129 @@ function AttentionPanel({ d }: { d: Overview }) {
   );
 }
 
-/** Stage by stage over all active scopes: records waiting for the next person, and done. One hue; the table is the chart. */
-function Pipeline({ rows }: { rows: Overview['pipeline'] }) {
+/** The last 12 weeks: four headline figures (the last four weeks, and their change on the four before), four weekly charts. */
+function Trends12({ tr, loading, error, onRetry }: { tr: Trends | null | undefined; loading: boolean; error: AppError | null | undefined; onRetry: () => void }) {
+  const { t } = useI18n();
+  if (!tr) return loading ? <Loading /> : <ErrorBox error={error} onRetry={onRetry} />;
+  const w = tr.weeks ?? [];
+  const labels = w.map((x) => weekLabel(x.week));
+  const col = (k: keyof TrendWeek) => w.map((x) => Number(x[k]) || 0);
+  const last4 = (k: keyof TrendWeek) => col(k).slice(-4).reduce((a, b) => a + b, 0);
+  const pass = col('lab_pass').reduce((a, b) => a + b, 0), fail = col('lab_fail').reduce((a, b) => a + b, 0);
+  const kpis = [
+    { id: 'kg', value: kg(last4('kg')), label: t('ov.k_kg'), ch: changePct(col('kg')) },
+    { id: 'qr', value: num(last4('qr'), 0), label: t('ov.k_qr'), ch: changePct(col('qr')) },
+    { id: 'farmers', value: num(last4('farmers_verified'), 0), label: t('ov.k_farmers'), ch: changePct(col('farmers_verified')) },
+    { id: 'lab', value: pass + fail > 0 ? `${Math.round((pass / (pass + fail)) * 100)}%` : '—', label: t('ov.k_lab'), ch: null, sub: t('chart.pass_fail', { p: pass, f: fail }) },
+  ];
+  return (
+    <section data-testid="ov-trends">
+      <h2 className="section-title">{t('ov.trends', { since: date(tr.since) })}</h2>
+      <div className="stats kpis">{kpis.map((k) => (
+        <div className="stat" key={k.id} data-testid={`ov-kpi-${k.id}`}>
+          <div className="stat-val">{k.value}</div><div className="stat-label">{k.label}</div>
+          <div className="stat-sub">{k.sub ?? (k.ch === null ? t('ov.k_no_base') : <Change pct={k.ch} />)}</div>
+        </div>))}</div>
+      <div className="ov-grid charts">
+        <Columns title={t('ov.c_kg_week')} values={col('kg')} labels={labels} fmt={(v) => kg(v)} testId="chart-kg" />
+        <Columns title={t('ov.c_qr_week')} values={col('qr')} labels={labels} fmt={(v) => num(v, 0)} testId="chart-qr" />
+        <Columns title={t('ov.c_farmers_week')} values={col('farmers_verified')} labels={labels} fmt={(v) => num(v, 0)} testId="chart-farmers" />
+        <Columns title={t('ov.c_flags_week')} values={col('flags')} labels={labels} fmt={(v) => num(v, 0)} testId="chart-flags" />
+      </div>
+    </section>
+  );
+}
+
+/** A change in words and an arrow, never colour alone. */
+function Change({ pct }: { pct: number }) {
+  const { t } = useI18n();
+  const dir = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+  return <span className={`change ${dir}`}><span aria-hidden="true">{dir === 'up' ? '▲' : dir === 'down' ? '▼' : '■'} </span>{t(`ov.k_${dir}`, { p: Math.abs(pct) })}</span>;
+}
+
+/** The pipeline in short: what waits, the stage holding most of it, the oldest; the full stage list is /pipeline. */
+function PipelineShort({ rows }: { rows: PipelineStage[] }) {
   const { t } = useI18n();
   if (rows.length === 0) return <Empty>{t('ov.no_pipeline')}</Empty>;
-  const max = Math.max(1, ...rows.map((r) => Number(r.pending) + Number(r.done)));
+  const s = pipelineInShort(rows);
+  const top = [...rows].filter((r) => Number(r.pending) > 0).sort((a, b) => Number(b.pending) - Number(a.pending)).slice(0, 3);
+  const stage = (r: PipelineStage) => t(`stage.${r.stage_type}`, undefined, r.label);
   return (
-    <div className="table-wrap" data-testid="ov-pipeline"><table className="wide ov-bars">
-      <thead><tr><th>{t('home.col_stage')}</th><th>{t('ov.p_bar')}</th><th className="num">{t('ov.p_pending')}</th><th className="num">{t('ov.p_done')}</th><th className="num">{t('ov.p_kg')}</th><th>{t('ov.p_oldest')}</th></tr></thead>
-      <tbody>{rows.map((r) => {
-        const p = Number(r.pending), dn = Number(r.done);
-        return (
-          <tr key={r.stage_type}>
-            <td>{t(`stage.${r.stage_type}`, undefined, r.label)}</td>
-            <td><div className="bar" title={t('ov.p_title', { p, d: dn })}>
-              <span className="seg done" style={{ width: `${(dn / max) * 100}%` }} /><span className="seg pending" style={{ width: `${(p / max) * 100}%` }} /></div></td>
-            <td className="num">{p}</td><td className="num">{dn}</td><td className="num">{p > 0 ? kg(r.kg_pending) : '—'}</td>
-            <td>{r.oldest_pending ? date(r.oldest_pending) : '—'}</td>
-          </tr>);
-      })}</tbody>
-    </table>
-    <p className="small muted legend"><span className="key done" aria-hidden="true" /> {t('ov.p_done')} <span className="key pending" aria-hidden="true" /> {t('ov.p_pending')}</p></div>
+    <div className="card ov-panel" data-testid="ov-pipeline">
+      <dl className="ov-facts">
+        <div><dt>{t('ov.p_pending')}</dt><dd data-testid="ov-pipe-waiting">{num(s.waiting, 0)}</dd></div>
+        <div><dt>{t('ov.p_most')}</dt><dd>{s.most ? stage(s.most) : '—'}</dd></div>
+        <div><dt>{t('ov.p_oldest')}</dt><dd>{s.oldest ? date(s.oldest) : '—'}</dd></div>
+        <div><dt>{t('ov.p_stages')}</dt><dd>{num(s.stages, 0)}</dd></div>
+      </dl>
+      {top.length > 0 && <Bars testId="ov-pipe-top" fmt={(v) => num(v, 0)} legend={[t('ov.p_done'), t('ov.p_pending')]}
+        rows={top.map((r) => ({ key: r.stage_type, label: stage(r), value: Number(r.done), rest: Number(r.pending), title: t('ov.p_title', { p: r.pending, d: r.done }) }))} />}
+    </div>
+  );
+}
+
+/** Lab results by crop (domestic and export), crops with at least one verdict. */
+function Quality({ rows }: { rows: Trends['quality_by_crop'] }) {
+  const { t } = useI18n();
+  const live = rows.filter((r) => Number(r.domestic_pass) + Number(r.domestic_fail) + Number(r.export_pass) + Number(r.export_fail) > 0);
+  return (
+    <div className="card ov-panel" data-testid="ov-quality">
+      <h2>{t('ov.quality')}</h2>
+      {live.length === 0 ? <Empty>{t('ov.no_quality')}</Empty> : live.map((r) => (
+        <div key={r.id} className="pf-group">
+          <div className="small"><strong>{r.name}</strong></div>
+          <PassFail label={t('ov.domestic')} pass={Number(r.domestic_pass)} fail={Number(r.domestic_fail)} />
+          {Number(r.export_pass) + Number(r.export_fail) > 0 && <PassFail label={t('ov.export')} pass={Number(r.export_pass)} fail={Number(r.export_fail)} />}
+        </div>))}
+    </div>
+  );
+}
+
+/** People as numbers: by system role, joining, leaving, seats. No name, no file, no document. */
+function PeopleNumbers({ p }: { p: People }) {
+  const { t } = useI18n();
+  const roles = ['operational', 'hr_resource', 'hr_admin', 'admin'];
+  const st = p.by_status ?? {};
+  return (
+    <div className="card ov-panel" data-testid="ov-people">
+      <h2>{t('ov.people')}</h2>
+      <Bars testId="ov-people-roles" fmt={(v) => num(v, 0)}
+        rows={roles.map((r) => ({ key: r, label: t(`ov.sr_${r}`), value: Number(p.by_role?.[r] ?? 0) }))} />
+      <dl className="ov-facts">
+        <div><dt>{t('ov.pp_sm')}</dt><dd>{num(p.state_managers, 0)}</dd></div>
+        <div><dt>{t('ov.pp_cm')}</dt><dd>{num(p.client_managers, 0)}</dd></div>
+        <div><dt>{t('ov.pp_stage')}</dt><dd>{num(p.stage_people, 0)}</dd></div>
+        <div><dt>{t('ov.pp_unassigned')}</dt><dd data-testid="ov-pp-unassigned">{num(p.unassigned, 0)}</dd></div>
+        <div><dt>{t('ov.pp_joining')}</dt><dd>{num(p.joining, 0)}{p.checklist_pct !== null && p.checklist_pct !== undefined ? <span className="small muted"> · {t('ov.pp_checklist', { p: p.checklist_pct })}</span> : null}</dd></div>
+        <div><dt>{t('ov.pp_suspended')}</dt><dd>{num(Number(st.suspended ?? 0), 0)}</dd></div>
+        <div><dt>{t('ov.pp_left')}</dt><dd>{num(p.left_90d, 0)}</dd></div>
+        <div><dt>{t('ov.pp_clients')}</dt><dd>{num(p.client_logins, 0)}</dd></div>
+      </dl>
+      <p className="small muted">{t('ov.people_note')}</p>
+    </div>
+  );
+}
+
+/** Farmers by state: verified (active) and waiting for a check. */
+function FarmersByState({ rows }: { rows: Trends['farmers_by_state'] }) {
+  const { t } = useI18n();
+  return (
+    <div className="card ov-panel" data-testid="ov-farmers">
+      <h2>{t('ov.farmers_state')}</h2>
+      {rows.length === 0 ? <Empty /> : <Bars fmt={(v) => num(v, 0)} legend={[t('ov.f_active'), t('ov.f_waiting')]}
+        rows={rows.map((r) => ({ key: r.name, label: r.name, value: Number(r.active), rest: Number(r.waiting), title: t('ov.f_title', { a: r.active, w: r.waiting, i: r.inactive }) }))} />}
+      <p className="small"><Link to="/farmers">{t('ov.to_farmers')}</Link></p>
+    </div>
   );
 }
 
 function Volume({ title, rows, testId }: { title: string; rows: { id: string; name: string; kg: number; lots: number; qr: number }[]; testId: string }) {
   const { t } = useI18n();
-  const max = Math.max(1, ...rows.map((r) => Number(r.kg)));
   return (
     <div className="card ov-panel" data-testid={testId}>
       <h2>{title}</h2>
-      {rows.length === 0 ? <Empty /> : (
-        <div className="table-wrap" style={{ border: 'none' }}><table className="ov-bars">
-          <thead><tr><th>{t('ov.c_name')}</th><th>{t('ov.f_volume')}</th><th className="num">{t('ov.c_lots')}</th><th className="num">{t('ov.f_qr')}</th></tr></thead>
-          <tbody>{rows.map((r) => (
-            <tr key={r.id}><td>{r.name}</td>
-              <td><div className="bar" title={kg(r.kg)}><span className="seg done" style={{ width: `${(Number(r.kg) / max) * 100}%` }} /></div><span className="small">{kg(r.kg)}</span></td>
-              <td className="num">{num(r.lots, 0)}</td><td className="num">{num(r.qr, 0)}</td></tr>))}</tbody>
-        </table></div>)}
+      {rows.length === 0 ? <Empty /> : <Bars fmt={(v) => kg(v)}
+        rows={rows.map((r) => ({ key: r.id, label: <>{r.name}<span className="small muted"> · {t('ov.lots_qr', { l: num(r.lots, 0), q: num(r.qr, 0) })}</span></>, value: Number(r.kg), title: `${r.name}: ${kg(r.kg)}` }))} />}
     </div>
   );
 }

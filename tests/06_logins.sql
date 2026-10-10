@@ -32,9 +32,12 @@ select t.fails(format($q$ update public.app_users set auth_uid = gen_random_uuid
                'only name, phone and email', 'guard: nor point a person at a login');
 update public.app_users set display_name = 'Mill Operator (Basti)' where id = t.u('08');
 select t.ok((select display_name from public.app_users where id = t.u('08')) = 'Mill Operator (Basti)', 'guard: the HR Admin corrects a name');
-select t.as_user(t.u('01'));   -- Admin
-select t.fails(format($q$ update public.app_users set active = false where id = %L $q$, t.u('01')),
-               'only name, phone and email', 'guard: nor a status, the admin''s own included');
+select t.fails(format($q$ update public.app_users set active = false where id = %L $q$, t.u('08')),
+               'only name, phone and email', 'guard: nor a status');
+select t.as_user(t.u('01'));   -- Admin (migration 35: edits no person's row at all while the HR Admin seat is filled)
+update public.app_users set display_name = 'Renamed by himself', active = false where id = t.u('01');
+select t.ok((select display_name <> 'Renamed by himself' and active from public.app_users where id = t.u('01')),
+            'admin two jobs (migration 35): the admin edits no person''s row, his own included (nothing is written)');
 update public.app_users set display_name = 'Renamed by the admin' where id = t.u('08');
 select t.ok((select display_name from public.app_users where id = t.u('08')) = 'Mill Operator (Basti)',
             'oversight (migration 34): with the HR Admin seat filled the admin no longer edits an operational person');
