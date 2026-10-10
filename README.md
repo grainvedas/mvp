@@ -122,7 +122,7 @@ supabase/
     01_stage_definitions.sql       the one stage registry (16 stage types): forms, hand-off checks
     02 … 06                        demo data for staging and tests (06: HR seats, a joiner, an unassigned employee). They refuse production
     production/10_reference.sql    what a real season starts from; marks the project as production
-  functions/                       Edge Functions: create-user, reset-password, ledger-check, daily-code (one build)
+  functions/                       Edge Functions: create-user, reset-password, ledger-check, daily-code, id-numbers (one build)
 tests/
   00_local_auth_shim.sql           LOCAL ONLY: stands in for Supabase Auth
   01 … 28_*.sql, concurrency/      the database suite (plain SQL assertions; 23 to 27: the identity layer; 28: the admin oversees)
@@ -147,13 +147,14 @@ web/
   src/engine/                      ONE generic 8-step stage component, driven by stage_definitions
   src/offline/                     outbox (saves kept on the phone), copy of forms for work without network
   src/lib/keptLogin.ts             who is signed in on this phone, whatever the network says
-  src/lib/i18n.en.ts, i18n.hi.ts   every visible string
+  src/lib/i18n.en.ts, i18n.hi.ts   every visible string (the public page's own words: i18n.public.ts)
   src/engine/values.tsx            how a record's values are shown: a name, a value with its unit, never code text
   src/shell/Layout.tsx, scope.tsx  the frame (top bar, side menu on a laptop) and the scope a person works in
   src/pages/Home.tsx               first screens: checklist, HR pipeline, waiting, pick a place, stage cards, number cards
   src/pages/hr/, onboarding/       HR (pipeline, add joiner, joiner page, templates); the joiner's own phone screens
   src/pages/people/, system/       directory, profile, assign, roster, state overview; seats, audit log
-  src/lib/people.ts                shapes and pure rules of the people screens (number checks: last four only)
+  src/lib/people.ts                shapes and pure rules of the people screens (number checks, checklist order)
+  src/lib/idNumbers.ts             sends a full ID number to the id-numbers function, and nowhere else
   src/styles.css                   ONE style sheet: the prototype's colours as tokens; laptop from 900 px, phone to 600 px
   public/sw.js                     lets the app open with no network
   tests/                           unit tests (vitest)

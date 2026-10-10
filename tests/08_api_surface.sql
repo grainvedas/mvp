@@ -48,7 +48,11 @@ insert into allowed values
   ('authenticated', 'appoint_hr_admin'),
   ('authenticated', 'people_directory'), ('authenticated', 'employee_profile'), ('authenticated', 'scope_roster'),
   ('authenticated', 'state_overview'), ('authenticated', 'bootstrap_seats'), ('authenticated', 'audit_feed'),
-  ('authenticated', 'daily_code_state'), ('authenticated', 'verify_daily_code'), ('authenticated', 'set_daily_code');
+  ('authenticated', 'daily_code_state'), ('authenticated', 'verify_daily_code'), ('authenticated', 'set_daily_code'),
+  -- migration 37: numbers (the id-numbers function asks as the caller whose number it is; recording is service-key only),
+  -- card images (HR's masked yes / no, the image deleted, "PAN card seen"), a shared bank account accepted
+  ('authenticated', 'id_number_target'), ('authenticated', 'accept_shared_bank'), ('authenticated', 'confirm_masked'),
+  ('authenticated', 'note_file_removed'), ('authenticated', 'may_remove_hr_file'), ('authenticated', 'record_card_seen');
 
 do $$
 declare r record; leaks text := '';

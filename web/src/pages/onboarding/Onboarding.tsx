@@ -1,25 +1,30 @@
 // The new hire's own screens (identity layer), made for a phone: the pre-boarding checklist, one task at a time, the
 // first-day page, the 30-60-90 goals, and the calm screen for an employee nobody has assigned yet.
-// Identity and bank numbers are checked in full here, on the device, and only their last four characters are sent.
-import { useState, type FormEvent, type ReactNode } from 'react';
+// Identity and bank numbers are checked here for the person's sake, then sent once to the id-numbers server function,
+// which keeps a check code (HMAC) and the last four characters only (migration 37); nothing here keeps them.
+import { Fragment, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { rpc } from '../../lib/api';
 import { useAction, useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { date } from '../../lib/format';
-import { countdown, last4, masked, progress, taskState, validAadhaar, validAccount, validIfsc, validPan,
-  type Contact, type MyOnboarding, type Task } from '../../lib/people';
+import { countdown, joinWords, joinerTrack, masked, progress, taskState, validAadhaar, validAccount, validIfsc, validPan, waitsFor,
+  type Contact, type IdKind, type MyOnboarding, type Task } from '../../lib/people';
+import { sendIdNumber } from '../../lib/idNumbers';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { FileBox, uploadHrFile, useStageName } from '../people/shared';
 import { Owner, TaskTitle } from '../hr/Hr';
+import { RoleGuide } from '../../shell/RoleGuide';
 
 const useMine = () => useAsync(() => rpc<MyOnboarding>('my_onboarding'), []);
 
 function Join({ o }: { o: MyOnboarding }) {
   const { t } = useI18n();
   const c = countdown(o.days_to_join);
-  return <span data-testid="join-countdown">{t(`mine.${c.key}`, { n: c.n, d: date(o.join_date) })}</span>;
+  // B3: until HR marks the person as joined, the date itself, never "you joined … days ago"
+  const key = joinWords(o.status, o.days_to_join);
+  return <span data-testid="join-countdown">{t(`mine.${key}`, { n: c.n, d: date(o.join_date) })}</span>;
 }
 
 // ── the checklist ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -48,7 +53,7 @@ export function Checklist() {
                 <span className="n" aria-hidden="true">{st === 'done' ? '✓' : st === 'locked' ? '🔒' : k.seq}</span>
                 <div><div className="t-title"><TaskTitle task={k} /></div>
                   <div className="t-sub">{st === 'done' ? t('mine.done') : st === 'ours' ? <><Owner owner={k.owner} /> {t('mine.we_are_on_it')}</>
-                    : st === 'locked' ? t('mine.locked') : t('mine.due', { d: date(k.due_on) })}</div></div>
+                    : st === 'locked' ? t('mine.locked_after', { steps: waitsFor(x.tasks, k).map((w) => w.title).join(', ') }) : t('mine.due', { d: date(k.due_on) })}</div></div>
                 {st === 'open' && <Link className="btn" to={`/onboarding/task/${k.id}`} data-testid="start-task">{t('mine.start')}</Link>}
               </li>);
           })}</ol>)}
@@ -63,6 +68,9 @@ export function Checklist() {
 }
 
 // ── one task ─────────────────────────────────────────────────────────────────────────────────────────────────────
+const blankTask = { ack: false, pan: '', aadhaar: '', bank_name: '', ifsc: '', account: '', nominee: '', relation: '', uan: '', note: '',
+  dob: '', relative_kind: 'father', relative_name: '', present: '', permanent: '', same: false, em_name: '', em_relation: '', em_phone: '' };
+
 export function TaskPage() {
   const { id = '' } = useParams();
   const { t } = useI18n();
@@ -71,7 +79,7 @@ export function TaskPage() {
   const o = useMine();
   const act = useAction();
   const me = ctx!.user!.id;
-  const [f, setF] = useState({ ack: false, pan: '', aadhaar: '', bank_name: '', ifsc: '', account: '', nominee: '', relation: '', uan: '', note: '' });
+  const [f, setF] = useState(blankTask);
   const [file, setFile] = useState<File | null>(null);
   if (o.loading && !o.data) return <Loading />;
   if (!o.data) return <ErrorBox error={o.error} onRetry={() => void o.reload()} />;
@@ -79,21 +87,23 @@ export function TaskPage() {
   if (!task) return <Empty>{t('mine.task_gone')}</Empty>;
   const state = taskState(o.data.tasks, task);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
-  const hasCard = o.data.files.some((x) => x.kind === 'pan' || x.kind === 'aadhaar');
+  const checked = o.data.checked ?? { pan: false, aadhaar: false, uan: false, bank: false };
+  const idOnFile = checked.pan || checked.aadhaar;
 
   // what is wrong with what was typed, in the reader's words; null = may be sent
   const problem = ((): string | null => {
     switch (task.kind) {
       case 'sign': return f.ack ? null : t('mine.need_ack');
       case 'identity':
-        if (!f.pan && !f.aadhaar) return t('mine.need_id');
+        if (!f.pan && !f.aadhaar && !idOnFile) return t('mine.need_id');
         if (f.pan && !validPan(f.pan)) return t('mine.bad_pan');
         if (f.aadhaar && !validAadhaar(f.aadhaar)) return t('mine.bad_aadhaar');
-        return file || hasCard ? null : t('mine.need_card');
+        return null;
+      case 'personal': return personalProblem(f, t);
       case 'bank':
         if (!f.bank_name.trim()) return t('mine.need_bank');
         if (!validIfsc(f.ifsc)) return t('mine.bad_ifsc');
-        return validAccount(f.account) ? null : t('mine.bad_account');
+        return validAccount(f.account) || (checked.bank && !f.account) ? null : t('mine.bad_account');
       case 'nomination':
         if (!f.nominee.trim() || !f.relation.trim()) return t('mine.need_nominee');
         return f.uan && !/^[0-9]{12}$/.test(f.uan.replace(/\s/g, '')) ? t('mine.bad_uan') : null;
@@ -102,26 +112,41 @@ export function TaskPage() {
   })();
 
   const submit = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
-    const kind = { sign: 'offer_letter', identity: f.pan ? 'pan' : 'aadhaar', bank: 'bank_proof', nomination: 'pf_form' }[task.kind as string] ?? 'other';
+    // The numbers go to the id-numbers function, one request each, and are cleared from this page at once (A1).
+    const numbers: [IdKind, string, string?][] = [];
+    if (task.kind === 'identity') { if (f.pan) numbers.push(['pan', f.pan]); if (f.aadhaar) numbers.push(['aadhaar', f.aadhaar]); }
+    if (task.kind === 'bank' && f.account) numbers.push(['bank', f.account, f.ifsc]);
+    if (task.kind === 'nomination' && f.uan) numbers.push(['uan', f.uan]);
+    setF((x) => ({ ...x, pan: '', aadhaar: '', account: '', uan: '' }));
+    for (const [kind, n, ifsc] of numbers) await sendIdNumber(task.id, kind, n, ifsc);
+    const kind = { sign: 'offer_letter', identity: 'aadhaar_masked', bank: 'bank_proof', nomination: 'pf_form' }[task.kind as string] ?? 'other';
     if (file) await uploadHrFile(me, kind, file, task.id);
-    // Only the last four characters of a number leave this device.
     const data: Record<string, unknown> = { note: f.note };
     if (task.kind === 'sign') data.acknowledged = true;
-    if (task.kind === 'identity') { if (f.pan) data.pan_last4 = last4(f.pan); if (f.aadhaar) data.aadhaar_last4 = last4(f.aadhaar); }
-    if (task.kind === 'bank') { data.bank_name = f.bank_name.trim(); data.bank_ifsc = f.ifsc.trim().toUpperCase(); data.bank_last4 = last4(f.account); }
-    if (task.kind === 'nomination') { data.gratuity_nominee = f.nominee.trim(); data.nominee_relation = f.relation.trim(); if (f.uan) data.pf_uan_last4 = last4(f.uan); }
+    if (task.kind === 'bank') data.bank_name = f.bank_name.trim();
+    if (task.kind === 'nomination') { data.gratuity_nominee = f.nominee.trim(); data.nominee_relation = f.relation.trim(); }
+    if (task.kind === 'personal') Object.assign(data, {
+      date_of_birth: f.dob, relative_kind: f.relative_kind, relative_name: f.relative_name.trim(), present_address: f.present.trim(),
+      permanent_address: (f.same ? f.present : f.permanent).trim(), emergency_name: f.em_name.trim(), emergency_relation: f.em_relation.trim(),
+      emergency_phone: f.em_phone.trim() });
     await rpc('complete_task', { p_task: task.id, p_data: data });
     await refresh();                                   // the last task makes the joiner active: the menu changes with it
     nav('/onboarding', { replace: true });
   }); };
 
+  const waits = waitsFor(o.data.tasks, task);
+  const numberBox = (k: 'pan' | 'aadhaar' | 'uan' | 'account', label: string, hint: string | undefined, props: Record<string, unknown>) => (
+    <Field label={label} hint={hint} htmlFor={`t-${k}`}>
+      <input id={`t-${k}`} value={f[k]} onChange={(e) => setF({ ...f, [k]: k === 'pan' ? e.target.value.toUpperCase() : e.target.value })}
+        autoComplete="off" spellCheck={false} data-private="number" {...props} /></Field>);
   return (
     <div style={{ maxWidth: 560 }}>
       <p className="small"><Link to="/onboarding">{t('mine.back')}</Link></p>
       <h1><TaskTitle task={task} /></h1>
       <p className="muted small">{t('mine.due', { d: date(task.due_on) })}{task.statutory ? ` · ${t('hr.statutory')}` : ''}</p>
+      {task.note && state === 'open' && <div className="alert warn" data-testid="task-note">{task.note}</div>}
       {state === 'done' && <div className="alert ok">{t('mine.done')}</div>}
-      {state === 'locked' && <div className="alert info">{t('mine.locked')}</div>}
+      {state === 'locked' && <div className="alert info" data-testid="task-locked">{t('mine.locked_after', { steps: waits.map((w) => w.title).join(', ') })}</div>}
       {state === 'ours' && <div className="alert info">{t('mine.we_are_on_it')}</div>}
       {state === 'open' && (
         <form className="card" onSubmit={submit} aria-label={task.title}>
@@ -131,32 +156,68 @@ export function TaskPage() {
             <label className="check"><input type="checkbox" checked={f.ack} onChange={(e) => setF({ ...f, ack: e.target.checked })} />{t('mine.ack')}</label>
           </>}
           {task.kind === 'identity' && <>
-            <p>{t('mine.identity_body')}</p>
-            <Field label="PAN" hint="ABCDE1234F" htmlFor="t-pan"><input id="t-pan" value={f.pan} onChange={(e) => setF({ ...f, pan: e.target.value.toUpperCase() })} maxLength={10} autoComplete="off" autoCapitalize="characters" /></Field>
-            <Field label="Aadhaar" hint={t('mine.aadhaar_hint')} htmlFor="t-aadhaar"><input id="t-aadhaar" value={f.aadhaar} onChange={set('aadhaar')} inputMode="numeric" maxLength={14} autoComplete="off" /></Field>
-            <FileBox id="t-file" label={t('mine.card_photo')} hint={hasCard ? t('mine.card_already') : undefined} onPick={setFile} />
-            <div className="alert info">{t('mine.last4_note')}</div>
+            <p>{t('mine.identity_body2')}</p>
+            {idOnFile && <p className="small" data-testid="id-on-file">{[checked.pan && `PAN ${masked(o.data.docs.pan_last4)}`, checked.aadhaar && `Aadhaar ${masked(o.data.docs.aadhaar_last4)}`]
+              .filter(Boolean).join(' · ')} · {t('mine.id_on_file')}</p>}
+            {numberBox('pan', 'PAN', 'ABCDE1234F', { maxLength: 10, autoCapitalize: 'characters' })}
+            {numberBox('aadhaar', 'Aadhaar', t('mine.aadhaar_hint'), { inputMode: 'numeric', maxLength: 14 })}
+            <FileBox id="t-file" label={t('mine.masked_aadhaar')} hint={t('common.optional')} onPick={setFile} />
+            <p className="small muted" data-testid="masked-howto">{t('mine.masked_howto')}</p>
+            <div className="alert info">{t('mine.number_note')}</div>
           </>}
+          {task.kind === 'personal' && <PersonalForm f={f} setF={setF} />}
           {task.kind === 'bank' && <>
             <Field label={t('mine.bank_name')} htmlFor="t-bank"><input id="t-bank" value={f.bank_name} onChange={set('bank_name')} /></Field>
             <Field label="IFSC" hint="HDFC0001234" htmlFor="t-ifsc"><input id="t-ifsc" value={f.ifsc} onChange={(e) => setF({ ...f, ifsc: e.target.value.toUpperCase() })} maxLength={11} autoComplete="off" autoCapitalize="characters" /></Field>
-            <Field label={t('mine.account')} htmlFor="t-account"><input id="t-account" value={f.account} onChange={set('account')} inputMode="numeric" autoComplete="off" /></Field>
+            {numberBox('account', t('mine.account'), checked.bank ? `${t('mine.id_on_file')} ${masked(o.data.docs.bank_last4)}` : undefined, { inputMode: 'numeric', maxLength: 22 })}
             <FileBox id="t-file" label={t('mine.bank_proof')} hint={t('common.optional')} onPick={setFile} />
-            <div className="alert info">{t('mine.last4_note')}</div>
+            <div className="alert info">{t('mine.number_note')}</div>
           </>}
           {task.kind === 'nomination' && <>
             <p>{t('mine.nomination_body')}</p>
             <Field label={t('mine.nominee')} htmlFor="t-nominee"><input id="t-nominee" value={f.nominee} onChange={set('nominee')} /></Field>
             <Field label={t('mine.relation')} htmlFor="t-relation"><input id="t-relation" value={f.relation} onChange={set('relation')} /></Field>
-            <Field label="UAN" hint={t('mine.uan_hint')} htmlFor="t-uan"><input id="t-uan" value={f.uan} onChange={set('uan')} inputMode="numeric" maxLength={12} autoComplete="off" /></Field>
+            {numberBox('uan', 'UAN', t('mine.uan_hint'), { inputMode: 'numeric', maxLength: 12 })}
             <FileBox id="t-file" label={t('mine.signed_form')} hint={t('common.optional')} onPick={setFile} />
           </>}
-          {!['sign', 'identity', 'bank', 'nomination'].includes(task.kind) && (
+          {!['sign', 'identity', 'personal', 'bank', 'nomination'].includes(task.kind) && (
             <Field label={t('hr.note')} hint={t('common.optional')} htmlFor="t-note"><input id="t-note" value={f.note} onChange={set('note')} /></Field>)}
           {problem && <p className="hint" data-testid="task-problem">{problem}</p>}
           <ErrorBox error={act.error} />
           <button type="submit" disabled={act.busy || problem !== null} data-testid="task-done">{t('mine.submit')}</button>
         </form>)}
+    </div>
+  );
+}
+
+type TaskForm = typeof blankTask;
+/** Pure: what is missing from the Personal details step, in the reader's words; null = may be sent. */
+export function personalProblem(f: Pick<TaskForm, 'dob' | 'relative_name' | 'present' | 'permanent' | 'same' | 'em_name' | 'em_relation' | 'em_phone'>,
+  t: (k: string) => string): string | null {
+  if (!f.dob) return t('mine.need_dob');
+  if (!f.relative_name.trim()) return t('mine.need_relative');
+  if (!f.present.trim() || (!f.same && !f.permanent.trim())) return t('mine.need_address');
+  if (!f.em_name.trim() || !f.em_relation.trim()) return t('mine.need_emergency');
+  return /^(\+?91)?[6-9][0-9]{9}$/.test(f.em_phone.replace(/[\s-]/g, '')) ? null : t('mine.bad_em_phone');
+}
+
+function PersonalForm({ f, setF }: { f: TaskForm; setF: (x: TaskForm) => void }) {
+  const { t } = useI18n();
+  const set = (k: keyof TaskForm) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  return (
+    <div data-testid="personal-form">
+      <p>{t('mine.personal_body')}</p>
+      <Field label={t('mine.dob')} htmlFor="p-dob"><input id="p-dob" type="date" value={f.dob} onChange={set('dob')} /></Field>
+      <Field label={t('mine.relative_kind')} htmlFor="p-rk"><select id="p-rk" value={f.relative_kind} onChange={set('relative_kind')}>
+        <option value="father">{t('mine.rk_father')}</option><option value="spouse">{t('mine.rk_spouse')}</option></select></Field>
+      <Field label={t(f.relative_kind === 'spouse' ? 'mine.spouse_name' : 'mine.father_name')} htmlFor="p-rn"><input id="p-rn" value={f.relative_name} onChange={set('relative_name')} /></Field>
+      <Field label={t('mine.present_address')} htmlFor="p-pa"><textarea id="p-pa" rows={3} value={f.present} onChange={set('present')} /></Field>
+      <label className="check"><input type="checkbox" checked={f.same} onChange={(e) => setF({ ...f, same: e.target.checked })} data-testid="same-address" />{t('mine.same_address')}</label>
+      {!f.same && <Field label={t('mine.permanent_address')} htmlFor="p-pm"><textarea id="p-pm" rows={3} value={f.permanent} onChange={set('permanent')} /></Field>}
+      <div className="section-title">{t('mine.emergency')}</div>
+      <Field label={t('mine.em_name')} htmlFor="p-en"><input id="p-en" value={f.em_name} onChange={set('em_name')} /></Field>
+      <Field label={t('mine.relation')} htmlFor="p-er"><input id="p-er" value={f.em_relation} onChange={set('em_relation')} /></Field>
+      <Field label={t('mine.em_phone')} htmlFor="p-ep"><input id="p-ep" type="tel" inputMode="tel" value={f.em_phone} onChange={set('em_phone')} /></Field>
     </div>
   );
 }
@@ -189,13 +250,15 @@ export function Welcome() {
           <dt>{t('hr.f_type')}</dt><dd>{x.org.employment_type ? t(`emptype.${x.org.employment_type}`) : '—'}</dd>
         </dl>
       </div>
+      <FirstDayCard o={x} />
       <div className="grid">
         <ContactCard title={t('day1.reports_to')} c={x.reports_to} empty={t('day1.not_set')} />
         <ContactCard title={t('day1.buddy')} c={x.buddy} empty={t('day1.buddy_soon')} />
       </div>
       <div className="card" data-testid="day1-work">
         <div className="section-title" style={{ marginTop: 0 }}>{t('day1.where')}</div>
-        {mine.length === 0 ? <p className="muted">{t(x.status === 'active' ? 'hold.body' : 'day1.after_joining')}</p> : (
+        {mine.length === 0 ? <p className="muted" data-testid="day1-after">{t(joinerTrack(x.system_role) === 'hr' ? (x.status === 'active' ? 'day1.hr_active' : 'day1.after_joining_hr')
+          : (x.status === 'active' ? 'hold.body' : 'day1.after_joining'))}</p> : (
           <ul>{mine.map((a) => <li key={a.id}><strong>{a.label}</strong>{a.stages.length > 0 && <> · {a.stages.map(stage).join(', ')}</>}{a.posting && <span className="muted"> · {a.posting}</span>}</li>)}</ul>)}
       </div>
       <p className="row">
@@ -203,6 +266,21 @@ export function Welcome() {
         <Link className="btn secondary" to="/goals">{t('goals.title')}</Link>
         {mine.length > 0 && <Link className="btn secondary" to="/">{t('nav.home')}</Link>}
       </p>
+    </div>
+  );
+}
+
+/** B6: when and where, who to ask for, what to bring — as HR set it, else the template's defaults. */
+function FirstDayCard({ o }: { o: MyOnboarding }) {
+  const { t } = useI18n();
+  const d = o.first_day;
+  if (!d) return null;
+  const rows: [string, string | null][] = [['day1.when', [d.date ? date(d.date) : null, d.time].filter(Boolean).join(' · ') || null],
+    ['day1.place', d.place], ['day1.ask_for', d.ask_for], ['day1.bring', d.bring]];
+  return (
+    <div className="card" data-testid="first-day">
+      <div className="section-title" style={{ marginTop: 0 }}>{t('day1.details')}</div>
+      <dl className="kv">{rows.map(([k, v]) => <Fragment key={k}><dt>{t(k)}</dt><dd>{v ?? <span className="muted">{t('day1.hr_will_tell')}</span>}</dd></Fragment>)}</dl>
     </div>
   );
 }
@@ -271,7 +349,9 @@ export function JoinerHome() {
           : <p className="muted">{t(p.done === p.total ? 'mine.all_done' : 'mine.waiting_on_us')}</p>}
         <p className="row"><Link className="btn" to="/onboarding">{t('mine.open_checklist')}</Link></p>
       </div>
-      <p className="small muted">{t('mine.no_access_yet')}</p>
+      <RoleGuide role="joiner" />
+      <p className="small muted" data-testid="no-access-yet">{t(joinerTrack(x.system_role) === 'hr' ? 'mine.no_access_yet_hr' : 'mine.no_access_yet')}</p>
+      <p className="small"><Link to="/help" data-testid="joiner-help">{t('menu.help')}</Link></p>
       {x.docs.pan_last4 && <p className="small muted">PAN {masked(x.docs.pan_last4)}</p>}
     </div>
   );

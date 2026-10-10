@@ -16,6 +16,7 @@ import { handle, whyNotLinked, VERSION } from '../../supabase/functions/create-u
 import { VERSION as RESET_VERSION, handle as handleReset } from '../../supabase/functions/reset-password/handler';
 import { VERSION as LEDGER_VERSION } from '../../supabase/functions/ledger-check/handler';
 import { VERSION as CODE_VERSION, handle as handleCode } from '../../supabase/functions/daily-code/handler';
+import { VERSION as ID_VERSION } from '../../supabase/functions/id-numbers/handler';
 import { mailConfigured, maskEmail, sendMail } from '../../supabase/functions/_shared/mail';
 import { buildState, callFunction, functionState, FUNCTIONS_NEEDED } from '../src/lib/api';
 import { AppError } from '../src/lib/errors';
@@ -248,9 +249,9 @@ describe('the once-a-day sign-in code: built, and off until a sender exists', ()
   });
 });
 
-describe('one build for the four functions, known to the app', () => {
-  it('the four handlers carry the same build, and it is the one the app needs', () => {
-    expect(RESET_VERSION).toBe(VERSION); expect(LEDGER_VERSION).toBe(VERSION); expect(CODE_VERSION).toBe(VERSION);
+describe('one build for the five functions, known to the app', () => {
+  it('the five handlers carry the same build, and it is the one the app needs', () => {
+    expect(ID_VERSION).toBe(VERSION); expect(RESET_VERSION).toBe(VERSION); expect(LEDGER_VERSION).toBe(VERSION); expect(CODE_VERSION).toBe(VERSION);
     expect(VERSION).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(VERSION >= FUNCTIONS_NEEDED, 'the app must not need a newer build than the repository holds').toBe(true);
   });
@@ -264,9 +265,9 @@ describe('one build for the four functions, known to the app', () => {
       }
     }
   });
-  it('the check script and the deploy steps name all four', () => {
+  it('the check script and the deploy steps name all five', () => {
     const script = readFileSync(join(__dirname, '..', '..', 'scripts', 'check_functions.mjs'), 'utf8');
-    for (const n of ['create-user', 'reset-password', 'ledger-check', 'daily-code']) expect(script).toContain(`'${n}'`);
+    for (const n of ['create-user', 'reset-password', 'ledger-check', 'daily-code', 'id-numbers']) expect(script).toContain(`'${n}'`);
   });
   it('what an answer says about the build', () => {
     expect(buildState(FUNCTIONS_NEEDED)).toBe('ok'); expect(buildState('2099-01-01')).toBe('ok');

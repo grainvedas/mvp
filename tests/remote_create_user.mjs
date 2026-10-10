@@ -37,7 +37,7 @@ const hrAdmin = await token('316'), hr = await token('317');
 // 1 · create-user: HR adds a joiner. An identity, a checklist, a login. No access.
 // ---------------------------------------------------------------------------------------------------------------
 const joiner = (extra = {}) => ({ kind: 'joiner', full_name: `Joiner ${suffix}`, personal_email: `joiner${suffix}@example.test`, join_date: today,
-  employment_type: 'full_time', job_title: 'Sorting Associate', ...extra });
+  phone: `98${suffix}07`, employment_type: 'full_time', job_title: 'Sorting Associate', ...extra });
 
 let r = await call(cfg.anon, joiner());
 ok(r.status === 401, 'not signed in → 401', JSON.stringify(r));
@@ -53,7 +53,9 @@ r = await call(hr, joiner({ personal_email: 'not-an-email' }));
 ok(r.status === 400, 'no valid email → 400 (the email is the sign-in)', JSON.stringify(r));
 r = await call(hr, joiner({ phone: '12345' }));
 ok(r.status === 400, 'invalid phone → 400', JSON.stringify(r));
-r = await call(hr, joiner({ system_role: 'admin' }));
+r = await call(hr, joiner({ phone: '' }));
+ok(r.status === 400 && /phone is required/i.test(r.data?.error ?? ''), 'no phone → 400 (required since migration 37)', JSON.stringify(r));
+r = await call(hr, joiner({ phone: `98${suffix}08`, system_role: 'admin' }));
 ok(r.status === 403, 'HR cannot create an admin → 403', JSON.stringify(r));
 
 r = await call(hr, joiner({ phone: `98${suffix}01`, reports_to: '00000000-0000-4000-8000-000000000303' }));
@@ -70,16 +72,16 @@ ok(row?.status === 'invited' && row.system_role === 'operational' && row.client_
    && row.created_by === '00000000-0000-4000-8000-000000000317',
    'the person is an invited identity, linked to the login, with no client and no state', JSON.stringify(row));
 const tasks = (await svc.get('onboarding_tasks', `employee_id=eq.${jid}&select=code,owner,statutory`)).data ?? [];
-ok(tasks.length === 8 && tasks.filter((t) => t.statutory).length === 1, 'the standard checklist is stamped: eight tasks, one statutory', JSON.stringify(tasks.length));
+ok(tasks.length === 9 && tasks.filter((t) => t.statutory).length === 1, 'the standard checklist is stamped: nine tasks (with Personal details), one statutory', JSON.stringify(tasks.length));
 const lines = (await svc.get('audit_log', `target=eq.${jid}&select=action,actor&order=id`)).data ?? [];
 ok(lines.map((l) => l.action).join(',') === 'identity_created,invite_sent', 'two audit lines: identity created, invite sent', JSON.stringify(lines));
 
-r = await call(hr, joiner());
+r = await call(hr, joiner({ phone: `98${suffix}09` }));
 ok(r.status === 409, 'the same email again → 409', JSON.stringify(r));
-r = await call(hr, joiner({ full_name: 'Intern', personal_email: `intern${suffix}@example.test`, employment_type: 'intern' }));
+r = await call(hr, joiner({ full_name: 'Intern', personal_email: `intern${suffix}@example.test`, phone: `98${suffix}02`, employment_type: 'intern' }));
 const internTasks = (await svc.get('onboarding_tasks', `employee_id=eq.${r.data?.app_user_id}&select=statutory`)).data ?? [];
-ok(r.status === 201 && internTasks.length === 7 && internTasks.every((t) => !t.statutory), 'an intern gets the checklist without the statutory task', JSON.stringify({ status: r.status, n: internTasks.length }));
-r = await call(hr, joiner({ full_name: 'Another HR', personal_email: `hr${suffix}@example.test`, system_role: 'hr_resource' }));
+ok(r.status === 201 && internTasks.length === 8 && internTasks.every((t) => !t.statutory), 'an intern gets the checklist without the statutory task', JSON.stringify({ status: r.status, n: internTasks.length }));
+r = await call(hr, joiner({ full_name: 'Another HR', personal_email: `hr${suffix}@example.test`, phone: `98${suffix}03`, system_role: 'hr_resource' }));
 const flagged = (await svc.get('audit_log', `target=eq.${r.data?.app_user_id}&action=eq.hr_resource_created&select=flagged`)).data ?? [];
 ok(r.status === 201 && flagged.length === 1 && flagged[0].flagged === true, 'an HR resource may create another HR resource; that line is flagged', JSON.stringify({ status: r.status, flagged }));
 const left = await svc.get('app_users', `display_name=in.("Old app","Joiner ${suffix}")&select=id`);
@@ -102,9 +104,9 @@ ok(tok && claims(tok).user_metadata?.must_change_password === false, 'the own pa
 let me = as(tok);
 ok((await me.rpc('mark_first_login')).data === 'onboarding', 'first sign-in: invited → onboarding');
 let ctx = (await me.rpc('my_context')).data;
-ok(ctx?.user?.status === 'onboarding' && ctx.scopes.length === 0 && ctx.slots.length === 0 && ctx.onboarding?.total === 8, 'the joiner sees a checklist and no scope', JSON.stringify(ctx?.user));
+ok(ctx?.user?.status === 'onboarding' && ctx.scopes.length === 0 && ctx.slots.length === 0 && ctx.onboarding?.total === 9, 'the joiner sees a checklist and no scope', JSON.stringify(ctx?.user));
 const mine = (await me.rpc('my_onboarding')).data;
-ok(mine?.tasks?.length === 8 && mine.reports_to?.name === 'Prasaadam Client Manager', 'my_onboarding lists the eight tasks and who they report to', JSON.stringify(mine?.reports_to));
+ok(mine?.tasks?.length === 9 && mine.reports_to?.name === 'Prasaadam Client Manager', 'my_onboarding lists the nine tasks and who they report to', JSON.stringify(mine?.reports_to));
 
 // a document goes to the private store; the joiner cannot open it again, HR can
 const blob = new Blob([`pan card ${suffix}`], { type: 'image/jpeg' });
@@ -121,11 +123,28 @@ ok(hrGot.ok && (await hrGot.text()) === `pan card ${suffix}`, 'HR opens it', `${
 const sha = [...new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()))].map((b) => b.toString(16).padStart(2, '0')).join('');
 const idTask = mine.tasks.find((t) => t.code === 'identity')?.id;
 r = await me.rpc('register_hr_file', { p_employee: jid, p_kind: 'pan', p_path: path, p_sha256: sha, p_file_name: 'pan.jpg', p_task: idTask });
-ok(r.ok, 'the document is registered with its fingerprint', JSON.stringify(r.data));
-r = await me.rpc('complete_task', { p_task: idTask, p_data: { pan_last4: 'ABCDE1234F' } });
-ok(!r.ok && /last four/.test(r.data?.message ?? ''), 'a full PAN typed into the box is refused, not stored', JSON.stringify(r.data));
-r = await me.rpc('complete_task', { p_task: idTask, p_data: { pan_last4: '234F', aadhaar_last4: '9012' } });
-ok(r.ok && r.data?.open === 7, 'the identity task is done with the last four characters', JSON.stringify(r.data));
+ok(!r.ok, 'a PAN card photo is no longer kept (migration 37: the masked Aadhaar only)', JSON.stringify(r.data));
+r = await me.rpc('register_hr_file', { p_employee: jid, p_kind: 'aadhaar_masked', p_path: path, p_sha256: sha, p_file_name: 'masked.jpg', p_task: idTask });
+ok(r.ok, 'the masked Aadhaar is registered with its fingerprint', JSON.stringify(r.data));
+r = await me.rpc('complete_task', { p_task: idTask, p_data: { pan_last4: '234F' } });
+ok(!r.ok && /out of date/.test(r.data?.message ?? ''), 'an app that still sends the last four itself is told it is out of date', JSON.stringify(r.data));
+r = await me.rpc('complete_task', { p_task: idTask, p_data: {} });
+ok(!r.ok, 'the identity step cannot be closed without a number given to the id-numbers function', JSON.stringify(r.data));
+// the number goes to the id-numbers function only (migration 37): a fingerprint and the last four are kept
+const L = (n) => String.fromCharCode(65 + (n % 26));
+const PAN = `Q${L(+suffix.slice(0, 2))}${L(+suffix.slice(2, 4))}${L(+suffix.slice(4, 6))}X${suffix.slice(-4)}Z`;
+const idFn = (t, body) => fetch(`${cfg.url}/functions/v1/id-numbers`, { method: 'POST', headers: { apikey: cfg.anon, authorization: `Bearer ${t}`, 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  .then(async (x) => ({ status: x.status, data: await x.json().catch(() => null) }));
+let idr = await idFn(tok, { task_id: idTask, kind: 'pan', number: PAN });
+ok(idr.status === 200 && idr.data?.last4 === PAN.slice(-4) && idr.data?.outcome === 'saved', 'the joiner gives the PAN to the id-numbers function: saved, the last four come back', JSON.stringify(idr));
+const docs = (await svc.get('employee_docs', `employee_id=eq.${jid}&select=pan_last4,pan_hmac,id_key`)).data?.[0];
+ok(docs?.pan_last4 === PAN.slice(-4) && /^[0-9a-f]{64}$/.test(docs?.pan_hmac ?? '') && !JSON.stringify(docs).includes(PAN), 'the database holds the last four and a fingerprint, not the number', JSON.stringify({ last4: docs?.pan_last4, key: docs?.id_key }));
+idr = await idFn(cm, { task_id: idTask, kind: 'pan', number: PAN });
+ok(idr.status === 403 && idr.data?.code === 'NOT_ALLOWED', 'a manager cannot give a number for someone else', JSON.stringify(idr));
+idr = await idFn(tok, { task_id: idTask, kind: 'aadhaar', number: '234567890123' });
+ok(idr.status === 400 && idr.data?.code === 'BAD_FORMAT' && !JSON.stringify(idr).includes('234567890123'), 'a wrong Aadhaar check digit is refused, and the answer does not repeat it', JSON.stringify(idr));
+r = await me.rpc('complete_task', { p_task: idTask, p_data: {} });
+ok(r.ok && r.data?.open === 8, 'the identity task is done', JSON.stringify(r.data));
 
 // access: none until marked joined; then exactly what a manager assigns
 r = await as(cm).rpc('assign', { p_employee: jid, p_lens: 'scope', p_target: '00000000-0000-4000-8000-000000000402', p_op_role: 'operator', p_stages: ['sorting'] });

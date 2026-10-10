@@ -16,10 +16,11 @@ import { oversees } from '../lib/rights';
 
 type Section = 'overview' | 'registry' | 'people' | 'system';
 /** What the menu needs to know about the person. `can` comes from the server (identity layer); the role is the summary. */
-export interface NavWho { role: Role; can: Can; farmerSlot: boolean; joiner: boolean; employee: boolean }
+export interface NavWho { role: Role; can: Can; farmerSlot: boolean; joiner: boolean; employee: boolean; /** not yet marked as joined */ joining?: boolean }
 export const NAV: { to: string; key: string; icon: string; section: Section; show: (w: NavWho) => boolean }[] = [
   { to: '/', key: 'nav.home', icon: '📊', section: 'overview', show: () => true },
   { to: '/onboarding', key: 'nav.onboarding', icon: '✅', section: 'overview', show: (w) => w.joiner },
+  { to: '/help', key: 'menu.help', icon: '💬', section: 'overview', show: (w) => !!w.joining },   // B5: help for someone not yet joined
   { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾', section: 'registry', show: (w) => w.role !== 'operator' || w.farmerSlot },
   { to: '/scopes', key: 'nav.scopes', icon: '🎯', section: 'registry', show: (w) => w.role !== 'operator' },
   { to: '/clients', key: 'nav.clients', icon: '🏢', section: 'registry', show: (w) => w.role === 'admin' || w.role === 'state_manager' || w.can.state_lens },   // the State Manager onboards; the admin reads
@@ -112,7 +113,8 @@ function Frame() {
   const can = me?.can ?? { ...NO_RIGHTS, admin: me?.role === 'admin', assign: !!me && ['admin', 'state_manager', 'client_manager'].includes(me.role),
     state_lens: me?.role === 'admin' || me?.role === 'state_manager' };      // a server from before migration 32 sends no `can`
   const who: NavWho | null = me ? { role: me.role, can, farmerSlot, employee: !me.external,
-    joiner: !me.external && ((ctx?.onboarding?.open ?? 0) > 0 || me.status === 'invited' || me.status === 'onboarding') } : null;
+    joiner: !me.external && ((ctx?.onboarding?.open ?? 0) > 0 || me.status === 'invited' || me.status === 'onboarding'),
+    joining: !me.external && (me.status === 'invited' || me.status === 'onboarding') } : null;
   const visible = NAV.filter((n) => who && n.show(who));
   const inSection = (s: Section) => visible.filter((n) => n.section === s);
   // The scope the frame shows: the one this page belongs to (a stage page, a scope's dashboard), else the chosen one.

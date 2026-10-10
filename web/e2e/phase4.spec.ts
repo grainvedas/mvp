@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signInWith, signOut, USERS, SCOPES, openSlot, verifyIncoming, reviewAndSave, procure, recordQc, sealLot, apiAs, freshEmail } from './helpers';
+import { signIn, signInWith, signOut, USERS, SCOPES, openSlot, verifyIncoming, reviewAndSave, procure, recordQc, sealLot, apiAs, freshEmail, freshPhone } from './helpers';
 
 // Phase 4 "live season" through the real screens: what goes wrong in a real week and how it is put right.
 const uniq = () => String(Date.now()).slice(-6);
@@ -245,6 +245,7 @@ test('A new person chooses an own password; HR resets a forgotten one; a suspend
   await page.getByLabel('Full name').fill(name);
   await page.getByLabel('Join date').fill(new Date().toISOString().slice(0, 10));
   await page.getByLabel('Personal email').fill(mail);
+  await page.locator('#j-phone').fill(freshPhone());
   await page.getByRole('button', { name: 'Save and create sign-in' }).click();
   await expect(page.getByTestId('temp-password')).toContainText(mail);
   const temp = await tempFrom();

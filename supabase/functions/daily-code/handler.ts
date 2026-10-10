@@ -12,7 +12,7 @@ import { mailConfigured, maskEmail, sendMail } from '../_shared/mail.ts';
 type Env = Record<string, string | undefined>;
 
 /** The build of the four functions; the same value as in create-user/handler.ts (a unit test holds them together). */
-export const VERSION = '2026-10-06';
+export const VERSION = '2026-10-12';
 
 const cors = {
   'access-control-allow-origin': '*',

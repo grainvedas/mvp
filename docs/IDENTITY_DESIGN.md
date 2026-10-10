@@ -18,7 +18,7 @@ Migrations 31, 32, 33; the admin's part changed by migration 34 (10 October 2026
 |---|---|---|
 | `employee` | `public.app_users` | Kept as the person table: every record, verdict and ledger block points at it. New columns `status`, `system_role`, `external`, `join_date`, `created_by` |
 | `employee_org` | `public.employee_org` | Org facts. No rule reads them |
-| `employee_docs` | `public.employee_docs` (last four characters) + `public.employee_files` (documents in the private store `hr-docs`) | Decision: masked + files |
+| `employee_docs` | `public.employee_docs` (last four characters, and since migration 37 a keyed fingerprint per number) + `public.employee_files` (documents in the private store `hr-docs`) + `public.employee_personal` (Personal details, migration 37) | Decision: masked + files |
 | `system_role` | `app_users.system_role`: `admin`, `hr_admin`, `hr_resource`, `operational` | Exactly one `hr_admin` (a unique index) |
 | `assignment` | `public.assignments`: `lens` `scope` / `client` / `state`; `op_role` `operator`, `export_manager`, `client_account`, `client_viewer`, `state_supervisor` | The manager lenses are named `client_account` and `state_supervisor` so they are not mistaken for the designation "Manager" |
 | stages of an assignment | `public.slot_assignments` rows that carry `assignment_id` | The stage rows stay what the stage engine reads; the assignment owns them |
@@ -35,7 +35,7 @@ Migrations 31, 32, 33; the admin's part changed by migration 34 (10 October 2026
 | Question | Answer | What it means |
 |---|---|---|
 | Once-a-day sign-in code | Build it, switched off | Password every time; a six-digit code by email once per calendar day (India time). It is tested end to end and stays **off** on every project until a mail sender is set up. The switch refuses while anyone who signs in has no email |
-| Identity and bank numbers | Masked + files | The full number is checked on the person's own device (PAN format, Aadhaar check digit, IFSC) and only its last four characters are sent and stored. Documents go to a private store only HR and the admin can open |
+| Identity and bank numbers | Masked + files | The full number is checked on the person's own device (PAN format, Aadhaar check digit, IFSC). Since migration 37 it is sent once to the server function `id-numbers`, which keeps nothing and gives the database a keyed fingerprint (for duplicates) and the last four characters. Documents go to a private store only HR and the admin can open; for Aadhaar only the masked copy |
 | A client's own login | Keep, outside HR | Not an employee, no checklist, no HR record. Made under **People & access → Client logins** by whoever manages that client |
 | Build order | All in one go | One delivery: database, server functions, screens, tests |
 
@@ -173,13 +173,29 @@ Admin: an HR resource made by an HR resource · every offboarding · the HR Admi
 going to or from admin · the sign-in code switched. Assignments through the client or state lens and export-manager
 assignments are also blocks in the hash-chained ledger.
 
-## Server functions (four, one build)
+## Server functions (five, one build)
 
-`create-user` (joiner or client login; the login is made with the service key, linked, and taken back on any failure),
-`reset-password`, `ledger-check`, `daily-code` (new). All carry `VERSION = '2026-10-06'`; the app needs that build
+`create-user` (joiner or client login; the login is made with the service key, linked, and taken back on any failure;
+since migration 37 a joiner needs a phone), `reset-password`, `ledger-check`, `daily-code`, `id-numbers` (migration 37,
+below). All carry `VERSION = '2026-10-12'`; the app needs that build
 (`FUNCTIONS_NEEDED`) and says so on the Add joiner page when the server is behind. Mail (the invite note, the sign-in
 code) goes through one sender setting (`MAIL_API_URL`, `MAIL_API_KEY`, `MAIL_FROM`); **none is set on any hosted
 project**, so no mail is sent: HR hands over the temporary password in person, as before, and the code stays off.
+
+## Identity numbers and joiner data (migration 37, 11 October 2026)
+
+| Rule | How |
+|---|---|
+| A full number is never kept | Phone → `id-numbers` (HTTPS POST body, once) → HMAC-SHA256 with `ID_HMAC_KEY` over `<kind>:<number>` (bank: `bank:<first 4 of IFSC>:<account>`) → `app.record_id_number` (service key only) stores the 64-hex fingerprint, the last four and the key's name. The function logs nothing and answers fixed codes. `complete_task` refuses `*_last4`, `pan`, `aadhaar`, `uan`, `account` keys (an old app) |
+| Who may give a number for whom | `app.id_number_target`, asked as the caller: the joiner for their own open step of that kind, or HR for a person HR manages |
+| Duplicates | Unique partial indexes on `pan_hmac`, `aadhaar_hmac`, `uan_hmac`: refused, `id_number_matches` row `refused`, flagged audit `id_number_refused` (HR sees whose; the joiner reads neutral words). Bank: saved, `warned` row, audit `bank_account_shared`; `app.accept_shared_bank(match, reason)` flagged `bank_duplicate_accepted` |
+| Before migration 37 | Records with only the last four show "not checked for duplicates" until the number is given again |
+| Images | `employee_files.kind` adds `aadhaar_masked`; `pan` and `aadhaar` uploads are refused. `app.confirm_masked(file, yes/no)`: yes is recorded; no reopens the identity step and the image is removed from the store (policy `hr_docs_remove_unmasked`, then `app.note_file_removed`); the file's line stays. `app.record_card_seen` for the PAN card |
+| Personal details | Task kind `personal`; `employee_personal` (read: the person and HR); added to the Standard template and to open checklists of invited/onboarding people |
+| Due dates | `greatest(join date + offset, date added + 3 days)` for new checklists; existing ones unchanged |
+| Order | `template_tasks.depends_on` / `onboarding_tasks.depends_on` (codes); a joiner's step waits only for those; none by default |
+| First day | `employee_org.first_day_*` per person, else `onboarding_templates.first_day_*`, date defaults to the join date |
+| Free text | `app.scrub_numbers` on client error reports and acceptance reasons (and the phone does the same before sending) |
 
 ## Tests
 
@@ -190,10 +206,11 @@ project**, so no mail is sent: HR hands over the temporary password in person, a
 | `tests/25_people_lifecycle.sql` | assign / move / end, suspend, offboard, re-hire, roles, seats, audit | 100 |
 | `tests/26_onboarding.sql` | templates, checklist, last-four rule, auto-activation, HR files and the private store | 60 |
 | `tests/27_daily_code.sql` | the code: issue, verify, tries, once a day, the switch | 28 |
+| `tests/31_joiner_hr_data.sql` | fingerprints and duplicates, the target rule, bank warning and acceptance, masked images and their removal, PAN seen, Personal details, dependencies, due dates, first day, scrubbing (seven controls) | 71 |
 | `tests/remote_create_user.mjs`, `tests/remote_rls.mjs --t1` | the same rules with real logins over the API (local stack) | 84 + 192 |
-| `web/tests/identity.test.ts`, `functions.test.ts` | number checks, checklist states, first screen, menu, session length; the four functions | 29 + 33 |
+| `web/tests/identity.test.ts`, `functions.test.ts`, `id_numbers.test.ts` | number checks, checklist states, first screen, menu, session length; the five functions; no number in any request, answer or log of `id-numbers` | 29 + 33 + 52 |
 | `tests/run_local.*` "upgrade path" | migrations 31 to 33 applied to a database already in use, then all 27 test files again | every run |
-| `web/e2e/phase7.spec.ts`, `phase8.spec.ts` | through the screens: a client set up from nothing; a joiner on a phone; directory, assign, lifecycle, state, seats, audit, the code | 3 + 8 |
+| `web/e2e/phase7.spec.ts`, `phase8.spec.ts`, `phase10.spec.ts` | through the screens: a client set up from nothing; a joiner on a phone; directory, assign, lifecycle, state, seats, audit, the code; duplicates, masked images, the joiner's words, and a search of everything the stack wrote for the numbers typed | 3 + 8 + 4 |
 
 All of the table above ran on the local stack. **On staging since 6 October 2026** (run-sheet part D, three runs of
 `scripts/staging_phase5.ps1`; `docs/VERIFICATION_LOG.md`): migrations 31 to 33 on the database in use, the four

@@ -98,11 +98,41 @@ profile. Every one of these acts is a line in **System → Audit log** (HR Admin
 
 ### HR documents and identity numbers
 
-A joiner types the PAN, Aadhaar or account number in full; the phone checks it (format, check digit) and sends only
-the **last four characters**. Nothing else of the number exists anywhere in the system. The photo or scan goes to a
-private store: HR and the admin can open it from the joiner's page; the joiner sees its name and cannot open it again;
-no manager can see it at all. A wrong upload is not replaced: HR reopens the task (**Reopen**, with a reason) and the
-joiner does it again; both files stay.
+Since migration 37 (11 October 2026):
+
+- **The numbers.** A joiner types the PAN, Aadhaar, UAN or bank account number in full. The phone checks the format
+  (and the Aadhaar check digit) and sends it once, over HTTPS, to the server function `id-numbers`. That function
+  computes a keyed fingerprint (HMAC-SHA256 with the key below) and gives the database only that fingerprint and the
+  **last four characters**. The full number is not kept anywhere: not in the database, not in a log, not in an error,
+  not in the audit log or the ledger, not on the phone after the step is sent.
+- **Duplicates.** A PAN, Aadhaar or UAN already on another person's record is **refused**. The joiner reads "This
+  number is already registered. HR has been told." — never whose. HR sees, on that joiner's page, "PAN •••• 1234 was
+  refused …: it is already on <name>'s record", and the HR Admin's audit log has it flagged. Talk to both people.
+- **Shared bank account** (a couple, a joint account): saved, and HR sees "This bank account is also on <name>'s
+  record." HR either asks the joiner to change it (**Reopen** the bank step) or accepts it with a reason; the
+  acceptance is flagged in the audit log.
+- **Records saved before migration 37** hold only the last four: they show "not checked for duplicates". They are checked
+  when the joiner gives the number again (HR **Reopens** the step).
+- **Aadhaar image: masked only.** The joiner uploads the masked Aadhaar from UIDAI (only the last 4 digits visible);
+  no PAN photo is asked for. HR opens it from the joiner's page and answers **Masked?** **Yes** (recorded) or **No**:
+  the image is deleted from the store at once, the file's line stays ("image deleted"), and the identity step reopens
+  for the joiner with "asked again: a masked Aadhaar …". Both answers are in the audit log; "No" is flagged.
+- **PAN card seen.** When HR has seen the PAN card in person: **PAN card seen** on the joiner's page (name and date
+  recorded; nothing is stored).
+- HR and the admin can open stored documents; the joiner sees the name and cannot open it again; no manager can see
+  them. A wrong upload is not replaced: HR **Reopens** the task with a reason; both files stay.
+
+#### The key of the id-numbers function (`ID_HMAC_KEY`)
+
+| | |
+|---|---|
+| What | A random secret of 43 characters (32 bytes, base64url), with a name `ID_HMAC_KEY_ID` (`k1`). Without it the function answers "not configured" and no joiner can save a number |
+| Where | Only in the Supabase project's Edge Function secrets (`supabase secrets set`). Never in git, never in the app, never in the database. One key per project (practice and production each their own) |
+| Made by | The run script for the project, on Veda's PC, without printing it. It writes one copy to `ID_HMAC_KEY.<project>.txt` in the repository folder (git-ignored) for Veda to move to her password manager and then delete |
+| If it is lost | Nothing already saved is lost or exposed; but new numbers can no longer be compared with old ones. Set a new key with a new name (`k2`): records from before show "not checked for duplicates" until the step is done again |
+| If it leaks | The fingerprints could be tested against guessed numbers. Set a new key (`k2`) at once and ask joiners to re-enter at the next opportunity |
+| Rotation | Not needed on a schedule. A new key always gets a new `ID_HMAC_KEY_ID`; the id is stored with every fingerprint |
+| Check | `node scripts/check_functions.mjs` says `id-numbers … configured` |
 
 ### The once-a-day sign-in code
 
@@ -117,7 +147,7 @@ day: the admin who is still signed in switches it off; if nobody is, the databas
 
 | What the screen says | It means | Do |
 |---|---|---|
-| A yellow line on the Add joiner page: "Creating people and resetting passwords will not work on this system yet: …" | The server functions were not deployed with the last update of the database or the app. Nothing is wrong with what anybody entered | Admin (with Antigravity): run-sheet Phase 5 step D4 (all four functions), then `node scripts/check_functions.mjs` must end with `FUNCTIONS DEPLOYED AND CURRENT` |
+| A yellow line on the Add joiner page: "Creating people and resetting passwords will not work on this system yet: …" | The server functions were not deployed with the last update of the database or the app. Nothing is wrong with what anybody entered | Admin (with Antigravity): run-sheet Phase 5 step D4 (all five functions), then `node scripts/check_functions.mjs` must end with `FUNCTIONS DEPLOYED AND CURRENT` |
 | "The server is not up to date with this app…" or "A part of the server is not installed…" after **Save and create sign-in** or **Reset password** | The same | The same. Then try again: nothing was kept from the failed attempt |
 | "Login created but not linked: …; both removed" | The database did not accept the new login for this person. The words after the colon say why (another person has the same phone or e-mail; the person was suspended meanwhile; …). The login and the person were removed again | Correct what the reason names and create the person again |
 | "… COULD NOT REMOVE login …" | A login without a person stayed behind (the Auth server did not answer the delete). It opens nothing, but it holds that phone number or e-mail: the next attempt says "already registered" | **A login without a person:** admin: `node scripts/check_logins.mjs` lists them, `node scripts/check_logins.mjs --remove` deletes them. The same list is in the Supabase dashboard → Edge Functions → create-user → Logs, with the reason |

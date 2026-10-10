@@ -25,21 +25,39 @@ export interface Profile {
   can: { assign: boolean; suspend: boolean; reinstate: boolean; offboard: boolean; rehire: boolean; reset_login: boolean; set_role: boolean; hr_record: boolean };
 }
 export type TaskOwner = 'hire' | 'hr' | 'it';
-export type TaskKind = 'sign' | 'identity' | 'bank' | 'countersign' | 'nomination' | 'it' | 'buddy' | 'goals' | 'other';
+export type TaskKind = 'sign' | 'identity' | 'personal' | 'bank' | 'countersign' | 'nomination' | 'it' | 'buddy' | 'goals' | 'other';
 export interface Task {
   id: string; seq: number; code: string; title: string; owner: TaskOwner; due_on: string; statutory: boolean; kind: TaskKind;
   status: 'pending' | 'done'; done_at: string | null; note: string | null; overdue?: boolean; done_by?: string | null;
+  /** codes of the steps this one waits for (migration 37); absent or empty: none */
+  depends_on?: string[];
 }
 export interface MaskedDocs {
   pan_last4: string | null; aadhaar_last4: string | null; bank_name: string | null; bank_ifsc: string | null; bank_last4: string | null;
   pf_uan_last4: string | null; gratuity_nominee: string | null; nominee_relation: string | null; form16_ref?: string | null;
+  pan_card_seen_by?: string | null; pan_card_seen_at?: string | null;
 }
-export interface HrFile { id: string; kind: string; file_name: string | null; storage_path?: string; task_id: string | null; created_at: string; uploaded_by?: string | null }
+export interface HrFile { id: string; kind: string; file_name: string | null; storage_path?: string; task_id: string | null; created_at: string; uploaded_by?: string | null;
+  masked?: 'yes' | 'no' | null; masked_at?: string | null; masked_by?: string | null; removed_at?: string | null }
+export type IdKind = 'pan' | 'aadhaar' | 'uan' | 'bank';
+/** Per number: checked for duplicates (an HMAC is kept), or entered before migration 37 (last 4 only), or not given. */
+export type CheckState = 'checked' | 'not_checked' | null;
+export interface IdMatch { id: string; kind: IdKind; outcome: 'refused' | 'warned'; last4: string | null; matched_id: string; matched_name: string;
+  at: string; accepted_at: string | null; accept_reason: string | null; accepted_by: string | null }
+export interface PersonalDetails { date_of_birth: string | null; relative_kind: 'father' | 'spouse' | null; relative_name: string | null;
+  present_address: string | null; permanent_address: string | null; emergency_name: string | null; emergency_relation: string | null;
+  emergency_phone: string | null; updated_at?: string }
+export interface FirstDay { date: string | null; time: string | null; place: string | null; ask_for: string | null; bring: string | null }
+export interface FirstDayEdit extends FirstDay { default_date: string | null; default_time: string | null; default_place: string | null;
+  default_ask_for: string | null; default_bring: string | null }
 export interface Goal { id: string; horizon: 30 | 60 | 90; goal: string }
 export interface Contact { name: string; email: string | null; phone: string | null }
 export interface MyOnboarding {
   status: EmployeeStatus; name: string; join_date: string | null; today: string; days_to_join: number | null;
   org: OrgFacts; reports_to: Contact | null; buddy: Contact | null; docs: MaskedDocs; files: HrFile[]; tasks: Task[]; goals: Goal[];
+  // migration 37
+  system_role?: SystemRole; hr_admin?: Contact | null; first_day?: FirstDay; personal?: PersonalDetails | null;
+  checked?: Record<IdKind, boolean>;
 }
 export interface PipelineRow {
   id: string; name: string; email: string | null; phone: string | null; status: EmployeeStatus; system_role: SystemRole;
@@ -60,6 +78,8 @@ export interface JoinerDetail {
   can_manage: boolean; org: OrgFacts; docs: MaskedDocs; files: HrFile[]; tasks: Task[];
   /** "Mark as joined", as app.activate_joiner decides it (migration 36); absent on an older server. */
   can_activate?: boolean;
+  // migration 37
+  checked?: Record<IdKind, CheckState>; matches?: IdMatch[]; personal?: PersonalDetails | null; first_day?: FirstDayEdit;
   notes: { id: number; note: string; at: string; by: string | null }[]; goals: Goal[];
   exits: { exit_date: string; reason: string | null; final_settlement: string | null; form16_ref: string | null; at: string }[];
   assignments: number;
@@ -89,12 +109,14 @@ export interface AuditLine {
 
 export const DESIGNATION_BANDS = ['Trainee', 'Associate', 'Executive', 'Senior Executive', 'Manager', 'Senior Manager', 'Head'] as const;
 export const EMPLOYMENT_TYPES: EmploymentType[] = ['full_time', 'intern', 'contract', 'consultant'];
-export const FILE_KINDS = ['offer_letter', 'nda', 'pan', 'aadhaar', 'bank_proof', 'contract', 'pf_form', 'form16', 'other'] as const;
+/** What HR may upload. No full PAN or Aadhaar card image since migration 37: a masked Aadhaar only (older files keep their kinds). */
+export const FILE_KINDS = ['offer_letter', 'nda', 'aadhaar_masked', 'bank_proof', 'contract', 'pf_form', 'form16', 'other'] as const;
 
 /** Statutory tasks (PF, gratuity) are for full-time employees only. Mirrors app.stamp_tasks; used for the hint on the form. */
 export const skipsStatutory = (t: EmploymentType | '' | null | undefined) => !!t && t !== 'full_time';
 
-// ── identity numbers: checked in full on the device, sent as their last four characters only ──
+// ── identity numbers: checked on the device for the joiner's sake, then sent once to the id-numbers function, which
+//    keeps an HMAC and the last 4 (migration 37); the full number is never stored, here or anywhere ──
 /** PAN: five letters, four digits, one letter. */
 export const validPan = (s: string) => /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(s.trim().toUpperCase());
 
@@ -118,13 +140,26 @@ export const last4 = (s: string) => s.replace(/[\s-]/g, '').toUpperCase().slice(
 export const masked = (v: string | null | undefined) => (v ? `•••• ${v}` : '—');
 
 // ── the joiner's checklist ──
-/** A hire's own tasks open one at a time, in order: the first one still pending is open, later ones wait. */
+/** A hire's own step is open unless a step it depends on is still pending (migration 37, B2; the server holds the same
+ *  rule). A step with no dependency is open at once. */
 export function taskState(tasks: Task[], t: Task): 'done' | 'open' | 'locked' | 'ours' {
   if (t.status === 'done') return 'done';
   if (t.owner !== 'hire') return 'ours';
-  const firstOpen = tasks.filter((x) => x.owner === 'hire' && x.status === 'pending').sort((a, b) => a.seq - b.seq)[0];
-  return firstOpen?.id === t.id ? 'open' : 'locked';
+  const waits = (t.depends_on ?? []).some((code) => tasks.some((x) => x.code === code && x.status === 'pending'));
+  return waits ? 'locked' : 'open';
 }
+/** The titles of the pending steps a step waits for. */
+export const waitsFor = (tasks: Task[], t: Task) =>
+  (t.depends_on ?? []).map((code) => tasks.find((x) => x.code === code && x.status === 'pending')).filter((x): x is Task => !!x);
+/** Joining-date words while the person has not joined (B3): never "you joined … days ago" before HR says so. */
+export function joinWords(status: EmployeeStatus, days: number | null | undefined): ReturnType<typeof countdown>['key'] | 'join.date' {
+  const joining = status === 'invited' || status === 'onboarding';
+  if (joining && days !== null && days !== undefined && days <= 0) return 'join.date';
+  return countdown(days).key;
+}
+/** Which words a joiner reads about what comes after joining (B4): HR people work through their system role. */
+export const joinerTrack = (systemRole: SystemRole | null | undefined): 'hr' | 'field' =>
+  systemRole === 'hr_admin' || systemRole === 'hr_resource' ? 'hr' : 'field';
 export const progress = (tasks: { status: string }[]) => {
   const total = tasks.length, done = tasks.filter((t) => t.status === 'done').length;
   return { total, done, pct: total === 0 ? 100 : Math.round((done * 100) / total) };

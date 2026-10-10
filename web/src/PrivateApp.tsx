@@ -3,7 +3,9 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { SignIn } from './auth/SignIn';
 import { MustSetPassword } from './auth/SetPassword';
-import { useI18n } from './lib/i18n';
+import { registerDictionary, useI18n } from './lib/i18n';
+import { en } from './lib/i18n.en';
+import { hi } from './lib/i18n.hi';
 import { Layout } from './shell/Layout';
 import { ErrorBox, Loading } from './shell/ui';
 import { Home } from './pages/Home';
@@ -29,6 +31,10 @@ import { Outbox } from './offline/OutboxPage';
 import { PipelinePage } from './pages/admin/Pipeline';
 import { GuideAgain, Help } from './pages/Help';
 import type { ReactNode } from 'react';
+
+// The signed-in app's words: the public page loads only its own (lib/i18n.public.ts, FIX_LIST K13).
+registerDictionary('en', en);
+registerDictionary('hi', hi);
 
 /** HR's screens open only for HR (and the admin while the HR Admin seat is empty): brief 2.2. Anyone else goes home. */
 export function HrOnly({ children }: { children: ReactNode }) {

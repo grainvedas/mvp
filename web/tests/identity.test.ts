@@ -68,12 +68,15 @@ describe('the joiner\'s checklist', () => {
     expect(skipsStatutory('')).toBe(false);
     expect(skipsStatutory(null)).toBe(false);
   });
-  it('a hire\'s own tasks open one at a time, in order; HR\'s and IT\'s are "ours"', () => {
+  it('a hire\'s own steps are open unless they wait for another (migration 37, B2); HR\'s and IT\'s are "ours"', () => {
     const tasks = [task(1, 'hire', 'done'), task(2, 'hire'), task(3, 'hire'), task(4, 'hr'), task(5, 'it'), task(6, 'hire')];
-    expect(tasks.map((t) => taskState(tasks, t))).toEqual(['done', 'open', 'locked', 'ours', 'ours', 'locked']);
-    // order is by seq, not by position in the list
-    const shuffled = [tasks[5], tasks[2], tasks[1]];
-    expect(shuffled.map((t) => taskState(shuffled, t))).toEqual(['locked', 'locked', 'open']);
+    // no dependency (the default): every pending step of the hire is open at once, in any order
+    expect(tasks.map((t) => taskState(tasks, t))).toEqual(['done', 'open', 'open', 'ours', 'ours', 'open']);
+    // a step that waits for another stays locked until that one is done
+    const dep = tasks.map((t) => (t.seq === 6 ? { ...t, depends_on: [tasks[1].code] } : t));
+    expect(taskState(dep, dep[5])).toBe('locked');
+    const done2 = dep.map((t) => (t.seq === 2 ? { ...t, status: 'done' as const } : t));
+    expect(taskState(done2, done2[5])).toBe('open');
     // HR's task done is done, whoever owns it
     expect(taskState(tasks, task(4, 'hr', 'done'))).toBe('done');
   });
@@ -232,7 +235,7 @@ describe('the menu follows what the server says a person may do', () => {
   });
   it('the admin has every entry; the old Users page is gone from the menu', () => {
     const admin = links({ role: 'admin', can: { admin: true, hr: true, hr_admin: true, assign: true, state_lens: true } });
-    expect(admin).toEqual(NAV.filter((n) => n.to !== '/onboarding').map((n) => n.to));
+    expect(admin).toEqual(NAV.filter((n) => n.to !== '/onboarding' && n.to !== '/help').map((n) => n.to));   // a joiner's two entries
     expect(NAV.map((n) => n.to)).not.toContain('/users');
   });
   it('every menu entry has its words in both languages', () => {

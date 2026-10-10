@@ -1,11 +1,11 @@
 // Translation layer (execution plan §6). Every visible string goes through t(). English and Hindi (src/lib/i18n.hi.ts). Stage and field labels from the database are translated by key in the same table.
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import { en } from './i18n.en';
-import { hi } from './i18n.hi';
+import { enPublic, hiPublic } from './i18n.public';
 
 export type Lang = 'en' | 'hi';
 type Dict = Record<string, string>;
-const dictionaries: Record<Lang, Dict> = { en, hi };
+// Only the public page's words at first; the signed-in app registers the full dictionaries (src/PrivateApp.tsx).
+const dictionaries: Record<Lang, Dict> = { en: { ...enPublic }, hi: { ...hiPublic } };
 
 export function registerDictionary(lang: Lang, dict: Dict) {
   dictionaries[lang] = { ...dictionaries[lang], ...dict };

@@ -227,7 +227,7 @@ end $$;
 
 -- 5 · HR: the admin's while the HR Admin seat is empty; HR's once it is filled -------------------------------------------
 do $$
-declare r jsonb; j jsonb := jsonb_build_object('full_name', 'Oversight Joiner', 'personal_email', 'oversight.joiner@test.in', 'join_date', app.today()::text);
+declare r jsonb; j jsonb := jsonb_build_object('full_name', 'Oversight Joiner', 'personal_email', 'oversight.joiner@test.in', 'phone', '9876500068', 'join_date', app.today()::text);
         n int;
 begin
   perform t.as_user(t.u('01'));
@@ -249,7 +249,7 @@ exception
 end $$;
 
 do $$
-declare r jsonb; j jsonb := jsonb_build_object('full_name', 'Vacant Seat Joiner', 'personal_email', 'vacant.seat@test.in', 'join_date', app.today()::text);
+declare r jsonb; j jsonb := jsonb_build_object('full_name', 'Vacant Seat Joiner', 'personal_email', 'vacant.seat@test.in', 'phone', '9876500069', 'join_date', app.today()::text);
 begin
   -- the HR Admin away (suspended): the seat is empty, HR falls back to the admin
   update public.app_users set status = 'suspended', active = false where id = t.u('16');

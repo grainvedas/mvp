@@ -12,14 +12,14 @@ import { oversees } from '../../lib/rights';
 import { date, dateTime } from '../../lib/format';
 import { NO_RIGHTS, type EmploymentType, type SystemRole } from '../../lib/types';
 import { DESIGNATION_BANDS, EMPLOYMENT_TYPES, FILE_KINDS, countdown, masked, onThem, onUs, skipsStatutory, taskCode, waitingOn,
-  type JoinerDetail as Detail, type PipelineRow, type Task, type TaskKind, type TaskOwner } from '../../lib/people';
+  type CheckState, type HrFile, type JoinerDetail as Detail, type PersonalDetails, type PipelineRow, type Task, type TaskKind, type TaskOwner } from '../../lib/people';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { FileBox, OrgLine, StatusBadge, TempPassword, uploadHrFile } from '../people/shared';
 
 interface Person { id: string; display_name: string; status: string; external: boolean }
 const usePeople = () => useAsync(() => q(supabase.from('app_users').select('id,display_name,status,external').eq('external', false)
   .in('status', ['invited', 'onboarding', 'active']).order('display_name')) as Promise<Person[]>, []);
-interface Template { id: string; name: string; is_default: boolean; active: boolean }
+interface Template { id: string; name: string; is_default: boolean; active: boolean; first_day_time?: string | null; first_day_place?: string | null; first_day_ask_for?: string | null; first_day_bring?: string | null }
 
 function Countdown({ days }: { days: number | null | undefined }) {
   const { t } = useI18n();
@@ -85,7 +85,7 @@ export function HrPipeline() {
 /** Standard tasks are translated by their title's code; a task HR typed itself is shown as typed. */
 const STANDARD: Record<string, string> = { 'Sign offer letter & NDA': 'offer_nda', 'Upload identity (PAN / Aadhaar)': 'identity', 'Add bank details': 'bank',
   'Countersign contract & NDA': 'countersign', 'PF & gratuity nomination (Form 2 / F)': 'pf_gratuity', 'Provision laptop & accounts': 'it_setup',
-  'Assign & introduce buddy': 'buddy', 'Set 30-60-90 goals': 'goals' };
+  'Assign & introduce buddy': 'buddy', 'Set 30-60-90 goals': 'goals', 'Personal details': 'personal' };
 const taskKey = (title: string | null | undefined) => STANDARD[title ?? ''] ?? '_';
 export function TaskTitle({ task }: { task: { code: string; title: string } }) {
   const { t } = useI18n();
@@ -137,7 +137,7 @@ export function AddJoiner() {
             <Field label={t('hr.f_name')} htmlFor="j-name"><input id="j-name" value={f.full_name} onChange={set('full_name')} required autoComplete="off" /></Field>
             <Field label={t('hr.f_join')} htmlFor="j-join"><input id="j-join" type="date" value={f.join_date} onChange={set('join_date')} required /></Field>
             <Field label={t('hr.f_email')} hint={t('hr.f_email_hint')} htmlFor="j-email"><input id="j-email" type="email" value={f.personal_email} onChange={set('personal_email')} required autoComplete="off" /></Field>
-            <Field label={t('hr.f_phone')} htmlFor="j-phone"><input id="j-phone" type="tel" value={f.phone} onChange={set('phone')} autoComplete="off" /></Field>
+            <Field label={t('hr.f_phone')} hint={t('hr.f_phone_hint')} htmlFor="j-phone"><input id="j-phone" type="tel" inputMode="tel" value={f.phone} onChange={set('phone')} required autoComplete="off" /></Field>
             <Field label={t('hr.f_type')} htmlFor="j-type"><select id="j-type" value={f.employment_type} onChange={set('employment_type')}>
               {EMPLOYMENT_TYPES.map((x) => <option key={x} value={x}>{t(`emptype.${x}`)}</option>)}</select></Field>
             <Field label={t('hr.f_band')} htmlFor="j-band"><select id="j-band" value={f.designation_band} onChange={set('designation_band')}>
@@ -250,17 +250,24 @@ export function JoinerPage() {
           <h2 style={{ marginTop: 0 }}>{t('hr.vault')}</h2>
           <p className="small muted">{t('hr.vault_note')}</p>
           <dl className="kv" data-testid="masked-docs">
-            <dt>PAN</dt><dd>{masked(x.docs.pan_last4)}</dd>
-            <dt>Aadhaar</dt><dd>{masked(x.docs.aadhaar_last4)}</dd>
-            <dt>{t('hr.bank')}</dt><dd>{x.docs.bank_name ? `${x.docs.bank_name} · ${x.docs.bank_ifsc ?? ''} · ${masked(x.docs.bank_last4)}` : '—'}</dd>
-            <dt>UAN</dt><dd>{masked(x.docs.pf_uan_last4)}</dd>
+            <dt>PAN</dt><dd>{masked(x.docs.pan_last4)} <Checked s={x.checked?.pan} id="pan" /></dd>
+            <dt>Aadhaar</dt><dd>{masked(x.docs.aadhaar_last4)} <Checked s={x.checked?.aadhaar} id="aadhaar" /></dd>
+            <dt>{t('hr.bank')}</dt><dd>{x.docs.bank_name || x.docs.bank_last4 ? `${x.docs.bank_name ?? ''} · ${x.docs.bank_ifsc ?? ''} · ${masked(x.docs.bank_last4)}` : '—'} <Checked s={x.checked?.bank} id="bank" /></dd>
+            <dt>UAN</dt><dd>{masked(x.docs.pf_uan_last4)} <Checked s={x.checked?.uan} id="uan" /></dd>
+            <dt>{t('hr.pan_card')}</dt><dd data-testid="pan-card-seen">{x.docs.pan_card_seen_at ? t('hr.pan_seen_by', { name: x.docs.pan_card_seen_by ?? '—', d: date(x.docs.pan_card_seen_at) })
+              : <>{'—'} {x.can_manage && <button type="button" className="secondary small-btn" disabled={act.busy} data-testid="record-pan-seen"
+                onClick={() => void run(() => rpc('record_card_seen', { p_employee: p.id }))}>{t('hr.pan_seen_btn')}</button>}</>}</dd>
             <dt>{t('hr.nominee')}</dt><dd>{x.docs.gratuity_nominee ? `${x.docs.gratuity_nominee} (${x.docs.nominee_relation ?? ''})` : '—'}</dd>
             {x.docs.form16_ref && <><dt>Form 16</dt><dd>{x.docs.form16_ref}</dd></>}
           </dl>
+          <IdMatches x={x} busy={act.busy} run={run} />
           {x.files.length === 0 ? <Empty>{t('hr.no_files')}</Empty> : (
             <ul data-testid="hr-files">{x.files.map((file) => (
-              <li key={file.id} className="row"><span>{t(`filekind.${file.kind}`, undefined, file.kind)} · {file.file_name ?? ''} <span className="small muted">{file.uploaded_by} · {dateTime(file.created_at)}</span></span>
-                <button type="button" className="secondary small-btn" onClick={() => void open(file.storage_path!)}>{t('hr.open_file')}</button></li>))}</ul>)}
+              <li key={file.id} className="row" data-testid="hr-file" data-kind={file.kind}><span>{t(`filekind.${file.kind}`, undefined, file.kind)} · {file.file_name ?? ''} <span className="small muted">{file.uploaded_by} · {dateTime(file.created_at)}</span>
+                {file.removed_at && <> <Badge value="closed" label={t('hr.file_removed', { d: date(file.removed_at) })} /></>}
+                {!file.removed_at && file.masked === 'yes' && <> <Badge value="verified" label={t('hr.masked_yes_by', { name: file.masked_by ?? '—' })} /></>}</span>
+                {!file.removed_at && <button type="button" className="secondary small-btn" onClick={() => void open(file.storage_path!)}>{t('hr.open_file')}</button>}
+                {x.can_manage && !file.removed_at && maskCheck(file) && <MaskedButtons file={file} busy={act.busy} run={run} />}</li>))}</ul>)}
           {x.can_manage && (
             <div className="row" style={{ alignItems: 'flex-end' }}>
               <Field label={t('hr.file_kind')} htmlFor="doc-kind"><select id="doc-kind" value={doc.kind} onChange={(e) => setDoc({ ...doc, kind: e.target.value })}>
@@ -291,7 +298,110 @@ export function JoinerPage() {
           {x.exits.length > 0 && <><h2>{t('hr.exits')}</h2><ul>{x.exits.map((e, i) => <li key={i}>{date(e.exit_date)} · {e.reason ?? '—'} · {e.final_settlement ?? '—'} · {e.form16_ref ?? '—'}</li>)}</ul></>}
         </div>
       </div>
+      <div className="axes">
+        <PersonalCard p={x.personal ?? null} />
+        <FirstDayEditor x={x} busy={act.busy} save={(patch) => run(() => rpc('update_joiner', { p_employee: p.id, p: patch }))} />
+      </div>
       <p className="small muted">{t('hr.assignments_n', { n: x.assignments })} <button type="button" className="secondary small-btn" onClick={() => nav(`/people/${p.id}`)}>{t('people.open_profile')}</button></p>
+    </div>
+  );
+}
+
+/** Pure: a file HR is asked about: a masked Aadhaar not yet checked, or one found not masked whose image is still to go. */
+export const maskCheck = (f: HrFile) => f.kind === 'aadhaar_masked' && !f.removed_at && (f.masked == null || f.masked === 'no');
+
+/** A number's duplicate check (A1): checked, or entered before the check existed. */
+function Checked({ s, id }: { s: CheckState | undefined; id: string }) {
+  const { t } = useI18n();
+  if (!s) return null;
+  return <span data-testid={`checked-${id}`}><Badge value={s === 'checked' ? 'verified' : 'draft'} label={t(s === 'checked' ? 'hr.dup_checked' : 'hr.dup_not_checked')} /></span>;
+}
+
+/** Numbers that matched another person's (A1): refused ones, and bank warnings HR may accept with a reason. */
+function IdMatches({ x, busy, run }: { x: Detail; busy: boolean; run: (fn: () => Promise<unknown>) => Promise<unknown> }) {
+  const { t } = useI18n();
+  const [why, setWhy] = useState<Record<string, string>>({});
+  const list = x.matches ?? [];
+  if (list.length === 0) return null;
+  return (
+    <div data-testid="id-matches">{list.map((m) => (
+      <div key={m.id} className={`alert ${m.outcome === 'refused' ? 'error' : m.accepted_at ? 'ok' : 'warn'}`} data-testid={`match-${m.kind}`} data-outcome={m.outcome}>
+        {m.outcome === 'refused'
+          ? t('hr.match_refused', { kind: t(`idkind.${m.kind}`), last4: m.last4 ?? '', name: m.matched_name, d: dateTime(m.at) })
+          : t('hr.match_bank', { name: m.matched_name })}{' '}
+        <Link to={`/people/${m.matched_id}`}>{t('people.open_profile')}</Link>
+        {m.outcome === 'warned' && (m.accepted_at
+          ? <div className="small">{t('hr.match_accepted', { name: m.accepted_by ?? '—', d: date(m.accepted_at), why: m.accept_reason ?? '' })}</div>
+          : x.can_manage && <form className="row" style={{ marginTop: 6 }} onSubmit={(e) => { e.preventDefault(); void run(() => rpc('accept_shared_bank', { p_match: m.id, p_reason: why[m.id] ?? '' })); }}>
+            <input aria-label={t('hr.accept_reason')} placeholder={t('hr.accept_reason')} value={why[m.id] ?? ''} onChange={(e) => setWhy({ ...why, [m.id]: e.target.value })} style={{ flex: 1, minWidth: 0 }} data-testid="accept-reason" />
+            <button type="submit" className="secondary" disabled={busy || !(why[m.id] ?? '').trim()} data-testid="accept-bank">{t('hr.accept_bank')}</button></form>)}
+      </div>))}</div>
+  );
+}
+
+/** HR, having opened a masked-Aadhaar image: masked, yes or no. "No" deletes the image and asks the joiner again (A2). */
+function MaskedButtons({ file, busy, run }: { file: HrFile; busy: boolean; run: (fn: () => Promise<unknown>) => Promise<unknown> }) {
+  const { t } = useI18n();
+  const removeImage = async () => {
+    const { error } = await supabase.storage.from('hr-docs').remove([file.storage_path!]);
+    if (error) throw new Error(t('hr.file_not_removed'));
+    await rpc('note_file_removed', { p_file: file.id });
+  };
+  if (file.masked === 'no') return <button type="button" className="danger small-btn" disabled={busy} onClick={() => void run(removeImage)} data-testid="remove-image">{t('hr.remove_image')}</button>;
+  return (
+    <span className="row" data-testid="masked-question"><span className="small">{t('hr.masked_q')}</span>
+      <button type="button" className="secondary small-btn" disabled={busy} onClick={() => void run(() => rpc('confirm_masked', { p_file: file.id, p_masked: true }))} data-testid="masked-yes">{t('common.yes')}</button>
+      <button type="button" className="danger small-btn" disabled={busy} onClick={() => { if (window.confirm(t('hr.masked_no_sure'))) void run(async () => {
+        await rpc('confirm_masked', { p_file: file.id, p_masked: false }); await removeImage(); }); }} data-testid="masked-no">{t('common.no')}</button></span>
+  );
+}
+
+/** A3: what the joiner gave on the Personal details step. */
+function PersonalCard({ p }: { p: PersonalDetails | null }) {
+  const { t } = useI18n();
+  return (
+    <div className="card" data-testid="personal-card">
+      <h2 style={{ marginTop: 0 }}>{t('hr.personal')}</h2>
+      {!p ? <Empty>{t('hr.personal_none')}</Empty> : (
+        <dl className="kv">
+          <dt>{t('mine.dob')}</dt><dd>{date(p.date_of_birth)}</dd>
+          <dt>{t(p.relative_kind === 'spouse' ? 'mine.spouse_name' : 'mine.father_name')}</dt><dd>{p.relative_name ?? '—'}</dd>
+          <dt>{t('mine.present_address')}</dt><dd style={{ whiteSpace: 'pre-line' }}>{p.present_address ?? '—'}</dd>
+          <dt>{t('mine.permanent_address')}</dt><dd style={{ whiteSpace: 'pre-line' }}>{p.permanent_address ?? '—'}</dd>
+          <dt>{t('mine.emergency')}</dt><dd>{[p.emergency_name, p.emergency_relation && `(${p.emergency_relation})`, p.emergency_phone].filter(Boolean).join(' ')}</dd>
+        </dl>)}
+    </div>
+  );
+}
+
+/** B6: the joiner's first day, as HR sets it; empty fields fall back to the template's defaults (shown as placeholders). */
+function FirstDayEditor({ x, busy, save }: { x: Detail; busy: boolean; save: (p: Record<string, string>) => Promise<unknown> }) {
+  const { t } = useI18n();
+  const d = x.first_day;
+  const [edit, setEdit] = useState(false);
+  const [f, setF] = useState({ first_day_date: d?.date ?? '', first_day_time: d?.time ?? '', first_day_place: d?.place ?? '', first_day_ask_for: d?.ask_for ?? '', first_day_bring: d?.bring ?? '' });
+  if (!d) return null;
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  const shown = (v: string | null, def: string | null) => v ?? (def ? <span className="muted">{def} · {t('hr.from_template')}</span> : '—');
+  return (
+    <div className="card" data-testid="first-day-hr">
+      <h2 style={{ marginTop: 0 }}>{t('day1.details')} {x.can_manage && <button type="button" className="secondary small-btn" onClick={() => setEdit(!edit)} data-testid="edit-first-day">{t(edit ? 'common.cancel' : 'common.edit')}</button>}</h2>
+      {!edit ? (
+        <dl className="kv">
+          <dt>{t('day1.date')}</dt><dd>{d.date ? date(d.date) : <span className="muted">{date(d.default_date)} · {t('hr.join_date_default')}</span>}</dd>
+          <dt>{t('day1.time')}</dt><dd>{shown(d.time, d.default_time)}</dd>
+          <dt>{t('day1.place')}</dt><dd>{shown(d.place, d.default_place)}</dd>
+          <dt>{t('day1.ask_for')}</dt><dd>{shown(d.ask_for, d.default_ask_for)}</dd>
+          <dt>{t('day1.bring')}</dt><dd>{shown(d.bring, d.default_bring)}</dd>
+        </dl>) : (
+        <form onSubmit={(e) => { e.preventDefault(); void save(f).then(() => setEdit(false)); }} aria-label={t('day1.details')}>
+          <Field label={t('day1.date')} htmlFor="fd-date"><input id="fd-date" type="date" value={f.first_day_date} onChange={set('first_day_date')} /></Field>
+          <Field label={t('day1.time')} htmlFor="fd-time"><input id="fd-time" value={f.first_day_time} onChange={set('first_day_time')} placeholder={d.default_time ?? '09:30'} maxLength={40} /></Field>
+          <Field label={t('day1.place')} htmlFor="fd-place"><textarea id="fd-place" rows={2} value={f.first_day_place} onChange={set('first_day_place')} placeholder={d.default_place ?? ''} /></Field>
+          <Field label={t('day1.ask_for')} htmlFor="fd-ask"><input id="fd-ask" value={f.first_day_ask_for} onChange={set('first_day_ask_for')} placeholder={d.default_ask_for ?? ''} /></Field>
+          <Field label={t('day1.bring')} htmlFor="fd-bring"><textarea id="fd-bring" rows={2} value={f.first_day_bring} onChange={set('first_day_bring')} placeholder={d.default_bring ?? ''} /></Field>
+          <button type="submit" disabled={busy} data-testid="save-first-day">{t('common.save')}</button>
+        </form>)}
     </div>
   );
 }
@@ -354,15 +464,57 @@ function OrgEditor({ detail, people, busy, save }: { detail: Detail; people: Per
   );
 }
 
+/** B2: which steps a step waits for (codes of steps of the same template; a step added and not yet saved has no code). */
+function DependsOn({ row, rows, disabled, onChange }: { row: TplTask; rows: TplTask[]; disabled: boolean; onChange: (d: string[]) => void }) {
+  const { t } = useI18n();
+  const others = rows.filter((x) => x.code && x.code !== row.code);
+  const on = row.depends_on ?? [];
+  return (
+    <details className="depends" data-testid={`depends-${row.code || row.seq}`}>
+      <summary className="small">{on.length === 0 ? t('hr.depends_none') : others.filter((x) => on.includes(x.code)).map((x) => x.seq).join(', ')}</summary>
+      {others.map((x) => (
+        <label key={x.code} className="check small"><input type="checkbox" disabled={disabled} checked={on.includes(x.code)}
+          onChange={(e) => onChange(e.target.checked ? [...on, x.code] : on.filter((c) => c !== x.code))} />{x.seq}. {x.title}</label>))}
+    </details>
+  );
+}
+
+/** B6: a template's defaults for the first day (each joiner's own values, set on the joiner page, come first). */
+function TemplateFirstDay({ tpl, canWrite, saved }: { tpl: Template; canWrite: boolean; saved: () => void }) {
+  const { t } = useI18n();
+  const act = useAction();
+  const [f, setF] = useState({ first_day_time: tpl.first_day_time ?? '', first_day_place: tpl.first_day_place ?? '', first_day_ask_for: tpl.first_day_ask_for ?? '', first_day_bring: tpl.first_day_bring ?? '' });
+  useEffect(() => { setF({ first_day_time: tpl.first_day_time ?? '', first_day_place: tpl.first_day_place ?? '', first_day_ask_for: tpl.first_day_ask_for ?? '', first_day_bring: tpl.first_day_bring ?? '' }); }, [tpl]);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  const save = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
+    await q(supabase.from('onboarding_templates').update(Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v.trim() || null]))).eq('id', tpl.id).select());
+    saved();
+  }); };
+  return (
+    <form className="card" onSubmit={save} aria-label={t('hr.tpl_first_day')} data-testid="template-first-day">
+      <h2 style={{ marginTop: 0 }}>{t('hr.tpl_first_day')}</h2>
+      <p className="small muted">{t('hr.tpl_first_day_note')}</p>
+      <div className="form-grid">
+        <Field label={t('day1.time')} htmlFor="tf-time"><input id="tf-time" value={f.first_day_time} onChange={set('first_day_time')} disabled={!canWrite} maxLength={40} placeholder="09:30" /></Field>
+        <Field label={t('day1.ask_for')} htmlFor="tf-ask"><input id="tf-ask" value={f.first_day_ask_for} onChange={set('first_day_ask_for')} disabled={!canWrite} /></Field>
+        <Field label={t('day1.place')} htmlFor="tf-place"><textarea id="tf-place" rows={2} value={f.first_day_place} onChange={set('first_day_place')} disabled={!canWrite} /></Field>
+        <Field label={t('day1.bring')} htmlFor="tf-bring"><textarea id="tf-bring" rows={2} value={f.first_day_bring} onChange={set('first_day_bring')} disabled={!canWrite} /></Field>
+      </div>
+      <ErrorBox error={act.error} />
+      {canWrite && <button type="submit" className="secondary" disabled={act.busy} data-testid="save-template-first-day">{t('common.save')}</button>}
+    </form>
+  );
+}
+
 // ── checklist templates ─────────────────────────────────────────────────────────────────────────────────────────────────
-interface TplTask { id: string; template_id: string; seq: number; code: string; title: string; owner: TaskOwner; due_offset_days: number; statutory: boolean; kind: TaskKind }
-const KINDS: TaskKind[] = ['sign', 'identity', 'bank', 'countersign', 'nomination', 'it', 'buddy', 'goals', 'other'];
+interface TplTask { id: string; template_id: string; seq: number; code: string; title: string; owner: TaskOwner; due_offset_days: number; statutory: boolean; kind: TaskKind; depends_on: string[] }
+const KINDS: TaskKind[] = ['sign', 'identity', 'personal', 'bank', 'countersign', 'nomination', 'it', 'buddy', 'goals', 'other'];
 
 export function Templates() {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const canWrite = (ctx?.user?.can ?? NO_RIGHTS).hr_admin;
-  const tpls = useAsync(() => q(supabase.from('onboarding_templates').select('id,name,is_default,active').order('name')) as Promise<Template[]>, []);
+  const tpls = useAsync(() => q(supabase.from('onboarding_templates').select('id,name,is_default,active,first_day_time,first_day_place,first_day_ask_for,first_day_bring').order('name')) as Promise<Template[]>, []);
   const [sel, setSel] = useState('');
   const tasks = useAsync(() => sel ? q(supabase.from('template_tasks').select('*').eq('template_id', sel).order('seq')) as Promise<TplTask[]> : Promise.resolve([] as TplTask[]), [sel]);
   const [rows, setRows] = useState<TplTask[]>([]);
@@ -373,7 +525,7 @@ export function Templates() {
   useEffect(() => { setRows(tasks.data ?? []); setGone([]); }, [tasks.data]);
   const dirty = useMemo(() => JSON.stringify(rows) !== JSON.stringify(tasks.data ?? []) || gone.length > 0, [rows, tasks.data, gone]);
   const patch = (i: number, p: Partial<TplTask>) => setRows(rows.map((r, j) => (j === i ? { ...r, ...p } : r)));
-  const add = () => setRows([...rows, { id: '', template_id: sel, seq: (rows.reduce((m, r) => Math.max(m, r.seq), 0) || 0) + 1, code: '', title: '', owner: 'hr', due_offset_days: 0, statutory: false, kind: 'other' }]);
+  const add = () => setRows([...rows, { id: '', template_id: sel, seq: (rows.reduce((m, r) => Math.max(m, r.seq), 0) || 0) + 1, code: '', title: '', owner: 'hr', due_offset_days: 0, statutory: false, kind: 'other', depends_on: [] }]);
   const save = () => act.run(async () => {
     if (gone.length) await q(supabase.from('template_tasks').delete().in('id', gone).select());
     const taken = rows.filter((r) => r.id).map((r) => r.code);
@@ -407,7 +559,7 @@ export function Templates() {
       </div>
       {!canWrite && <div className="alert info">{t('hr.templates_readonly')}</div>}
       <div className="card table-wrap"><table data-testid="template-tasks">
-        <thead><tr><th>#</th><th>{t('hr.col_task')}</th><th>{t('hr.col_owner')}</th><th>{t('hr.col_offset')}</th><th>{t('hr.col_kind')}</th><th>{t('hr.statutory')}</th><th /></tr></thead>
+        <thead><tr><th>#</th><th>{t('hr.col_task')}</th><th>{t('hr.col_owner')}</th><th>{t('hr.col_offset')}</th><th>{t('hr.col_kind')}</th><th>{t('hr.col_depends')}</th><th>{t('hr.statutory')}</th><th /></tr></thead>
         <tbody>{rows.map((r, i) => (
           <tr key={r.id || `new-${i}`}>
             <td>{r.seq}</td>
@@ -419,11 +571,13 @@ export function Templates() {
               <div className="small muted">{r.due_offset_days < 0 ? t('hr.offset_before', { n: -r.due_offset_days }) : r.due_offset_days === 0 ? t('hr.offset_day1') : t('hr.offset_after', { n: r.due_offset_days })}</div></td>
             <td><select aria-label={`${t('hr.col_kind')} ${r.seq}`} value={r.kind} disabled={!canWrite} onChange={(e) => patch(i, { kind: e.target.value as TaskKind })}>
               {KINDS.map((k) => <option key={k} value={k}>{t(`taskkind.${k}`)}</option>)}</select></td>
+            <td><DependsOn row={r} rows={rows} disabled={!canWrite} onChange={(d) => patch(i, { depends_on: d })} /></td>
             <td><input type="checkbox" aria-label={`${t('hr.statutory')} ${r.seq}`} checked={r.statutory} disabled={!canWrite} onChange={(e) => patch(i, { statutory: e.target.checked })} /></td>
             <td>{canWrite && <button type="button" className="secondary small-btn" aria-label={`${t('wizard.remove')} ${r.seq}`} onClick={() => { if (r.id) setGone([...gone, r.id]); setRows(rows.filter((_, j) => j !== i)); }}>✕</button>}</td>
           </tr>))}</tbody>
       </table></div>
-      <p className="small muted">{t('hr.statutory_note')}</p>
+      <p className="small muted">{t('hr.statutory_note')} {t('hr.depends_note')}</p>
+      {cur && <TemplateFirstDay tpl={cur} canWrite={canWrite} saved={() => void tpls.reload()} />}
       <ErrorBox error={act.error} />
       {canWrite && (
         <>

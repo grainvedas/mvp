@@ -1,6 +1,6 @@
 -- READ-ONLY smoke check for a Supabase project after `db push` + seeds. Safe on production: no writes.
 -- Run: psql "$SUPABASE_DB_URL" -f tests/remote_smoke.sql   (or paste into Dashboard → SQL Editor)
--- Every row must start with OK (31 rows; the last, the nightly check, is how the project is set up). The same file serves staging (demo seed expected) and production (demo
+-- Every row must start with OK (32 rows; the last, the nightly check, is how the project is set up). The same file serves staging (demo seed expected) and production (demo
 -- seed forbidden): the 'environment' row says which one it found, from app.environment() (migration 23).
 -- API exposure of the `app` schema is not checked here: hosted Supabase keeps that setting in PostgREST's config, which
 -- SQL cannot read. Prove it with tests/remote_api_check.ps1 (REST call with the public key).
@@ -184,6 +184,19 @@ select 'the admin oversees',     case when to_regprocedure('app.platform_overvie
                                         or position('<> ''admin''' in pg_get_functiondef(to_regprocedure('app.eff_assignments(uuid)'))) = 0
                                       then 'OLD: the admin still runs operations (push migration 34)'
                                       else 'OK oversight only; crops are the State Manager''s; farmers verified twice' end
+union all
+select 'joiner HR data',         case when to_regprocedure('app.record_id_number(uuid, uuid, text, text, text, text, text)') is null
+                                        or to_regprocedure('app.scrub_numbers(text)') is null or to_regclass('public.employee_personal') is null
+                                        or to_regclass('public.id_number_matches') is null
+                                      then 'MISSING (push migration 37)'
+                                      when (select count(*) from pg_indexes where schemaname = 'public' and indexname in
+                                              ('employee_docs_pan_hmac_key', 'employee_docs_aadhaar_hmac_key', 'employee_docs_uan_hmac_key')) <> 3
+                                        or not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'hr_docs_remove_unmasked')
+                                        or has_function_privilege('authenticated', 'app.record_id_number(uuid, uuid, text, text, text, text, text)', 'execute')
+                                        or exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'employee_docs'
+                                                     and column_name ~ '^(pan|aadhaar|uan|account|bank_account)(_number)?$')
+                                      then 'OLD or OPEN: duplicates not enforced, or the number recorder open to people (push migration 37)'
+                                      else 'OK fingerprints only; duplicates refused; masked images removable' end
 union all
 select 'nightly ledger check',   case when to_regclass('cron.job') is null then 'NO pg_cron: see RUNSHEET_phase3 step 5'
                                       when (xpath('/row/n/text()', query_to_xml(

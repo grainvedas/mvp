@@ -22,9 +22,9 @@ import { mailConfigured, sendMail } from '../_shared/mail.ts';
 
 type Env = Record<string, string | undefined>;
 
-/** The build of the four functions (create-user, reset-password, ledger-check, daily-code). Raise it in all four
+/** The build of the five functions (create-user, reset-password, ledger-check, daily-code, id-numbers). Raise it in all five
  *  whenever one changes in a way the app or the database depends on, and FUNCTIONS_NEEDED in web/src/lib/api.ts with it. */
-export const VERSION = '2026-10-06';
+export const VERSION = '2026-10-12';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -110,6 +110,8 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   if (!name) return json(400, { error: 'a name is required' });
   // The email is the sign-in. (A phone may be kept on a joiner's record; nobody signs in by it any more.)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'a valid email is required: it is the sign-in' });
+  // A joiner's phone is required since 11 Oct 2026 (migration 37): it is the field staff's main identifier.
+  if (kind === 'joiner' && !String(body.phone ?? '').trim()) return json(400, { error: 'phone is required' });
   if (kind === 'joiner' && body.phone && !normaliseMobile(String(body.phone))) return json(400, { error: 'phone must be a 10-digit Indian mobile number' });
 
   const asCaller = { apikey: anon, authorization: `Bearer ${token}`, 'content-type': 'application/json', 'content-profile': 'app' };

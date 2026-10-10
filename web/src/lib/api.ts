@@ -33,7 +33,7 @@ export function within<T>(ms: number, p: Promise<T>): Promise<T> {
  * "New user" failed every time with words that named no cause (FIX_LIST fault 32). Functions before this date answer
  * without the header at all.
  */
-export const FUNCTIONS_NEEDED = '2026-10-06';
+export const FUNCTIONS_NEEDED = '2026-10-12';
 export type FunctionState = 'ok' | 'outdated' | 'missing' | 'unknown';
 
 /** Pure: what a function's answer says about its build. A date written as text compares as text. */

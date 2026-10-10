@@ -1471,3 +1471,62 @@ NOT run / not known:
 - **Why staging refused** the admin's call: not reproduced here; the run record's `the seats now:` line is the next look.
 - Nothing on staging; the built-app suite was not run again after this change (the public page is untouched).
 - 5 new Hindi strings unread by their users (K45).
+
+## 2026-10-10 22:03 IST — Migration 36 on staging (run by Veda)
+
+`staging-hr-admin-joined.cmd`: `RESULT: HR ADMIN JOINED ON STAGING`, app commit `84f54e4`. The record's `the seats now:`
+line showed the HR Admin already **active**, marked with a plain `activated` line before migration 36 was pushed: the
+first refusal on staging was therefore not reproduced there either. Open item 30 done.
+
+## 2026-10-11 — Joiner checklist and HR data (migration 37, open item 31): built and rehearsed on the local stack
+
+Brief "GrainVeda MVP — Joiner checklist and HR data improvements" (Veda, 11 Oct; plan approved "as per
+recommendation"). **Nothing of it is on staging** (it waits for Veda's say-so).
+
+Ran:
+- **Database**: `tests/run_local.sh` → `ALL TESTS PASSED`; **1126** `ok` lines; `ok upgrade: the later migrations apply
+  to a database in use, and all 31 test files pass on it`; the production build (template now nine tasks). New
+  `tests/31_joiner_hr_data.sql` (71 checks): due dates (`greatest(join ± offset, added + 3)`, never overdue on day one),
+  Personal details in the template and added to open checklists, who may give a number for whom, PAN/Aadhaar/UAN
+  duplicates refused by fingerprint (and by the unique index directly), fingerprints and last four validated, HR sees
+  whose and the joiner does not, records without fingerprints "not checked", bank warning and acceptance with a scrubbed
+  reason (flagged), the masked-image flow with the storage delete policy and the file's line kept, PAN card seen,
+  Personal details saved and read, dependencies, the joiner's contacts and first day, client error reports scrubbed,
+  the ledger intact. **Controls** (seven broken versions, each caught): no unique index; no refusal; the storage policy
+  open to anyone; no three-day grace; no scrub; no dependency check; `record_id_number` open to people. Tests 25, 26,
+  28, 29, 08 and `production_seed_check.sql` adapted (phones, nine tasks, the API surface).
+- **API on the local stack**: `tests/remote_create_user.mjs` **91 passed** (a joiner without a phone → 400; the PAN photo
+  refused; an old app's last four refused; the identity step closed only after the number went through `id-numbers`;
+  a manager cannot give a number for someone else; a wrong check digit refused without being repeated);
+  `tests/remote_rls.mjs --t1` **192 passed**.
+- **Unit tests**: **279 passed** (new `web/tests/id_numbers.test.ts`, 52: the number rules, HMAC against RFC 4231,
+  every answer code, and for each kind and each outcome — saved, warned, refused, database error, network failure —
+  the number is in no request to the database, no answer and no log line; the function's source has no console call.
+  **Controls**: a `console.error` of the number, the number sent to the database, the number echoed in an answer:
+  17, 16 and 5 tests fail. New `web/tests/i18n_split.test.ts`.) Type check clean; `npm run build:ci` builds.
+- **Screens**: default suite **63 passed (11.3 min)**, including new `e2e/phase10.spec.ts` (4) and the reworked joiner
+  path in `phase8`. `phase10` types a fresh PAN, Aadhaar, UAN and account for one joiner, refuses them for a second
+  (English and Hindi words, no name shown), accepts the shared account with a reason, finds the flagged lines in the
+  HR Admin's log, then **searches**: the full `pg_dump`, the PostgreSQL log with `log_statement = all` for the length of
+  the test (every statement and its parameters), every log of the local services, the stored files, and the browser's
+  localStorage, sessionStorage and IndexedDB, for seven shapes of the numbers: **none found**. Planted controls found
+  (the joiner's name and last four in the dump, a marker statement in the PostgreSQL log, a marker inside the uploaded
+  image in the store). **Control**: the function changed to `console.log` the number → the test fails naming
+  `functions.log`. Then: Add joiner refused without a phone (browser and server); nothing overdue on day one; "not
+  masked" deletes the image (the store refuses it afterwards) and reopens the step with the note; the joiner's date,
+  HR words, Help page with the HR Admin's contact, guide, first-day details, B7 words and Personal details in both
+  languages at phone width.
+- **First day from nothing** (`e2e-fresh`): 1 passed. **Built app** (`playwright.prod.config.ts`): **14 passed**; the
+  public page first load **162 KB** (it was 204 KB with migration 37's words, over the 200 KB budget: the public page
+  now loads only its own words, K13 closed).
+- **`scripts/staging_joiner_hr_data.ps1`** on stand-ins (PowerShell 7 on Linux): the whole run; a second run (key kept,
+  nothing pushed twice); stops for wrong words, production, another migration waiting, a secret that will not set, a
+  function that will not deploy (then a re-run completes), a smoke row not OK, a changed and a new function file;
+  `-NoGit`; an existing key file reused. The key never appeared in the screen output or the record.
+
+NOT run / not known:
+- Nothing on staging: the secret, the functions, the migration, the app. The hosted logs (Edge Functions, Postgres,
+  API gateway, PostgREST) have not been searched: run-sheet step 10 is for Veda.
+- Windows PowerShell 5.1 (the script is plain ASCII and uses only what the earlier scripts use).
+- About 110 new Hindi strings unread by their users (K50).
+- The HR files already on staging: the run lists them (S4); the brief's list waits for that record.

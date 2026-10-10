@@ -8,7 +8,7 @@ select t.as_service();
 
 -- 1 · joiners and system roles ----------------------------------------------------------------------------------------------
 do $$
-declare j jsonb := jsonb_build_object('full_name', 'Two Jobs Joiner', 'personal_email', 'two.jobs@test.in', 'join_date', app.today()::text);
+declare j jsonb := jsonb_build_object('full_name', 'Two Jobs Joiner', 'personal_email', 'two.jobs@test.in', 'phone', '9876500070', 'join_date', app.today()::text);
         r jsonb;
 begin
   perform t.as_user(t.u('01'));
@@ -31,7 +31,7 @@ end $$;
 
 -- the seat empty (HR Admin away): the admin brings in the HR person, and only that person
 do $$
-declare j jsonb := jsonb_build_object('full_name', 'Seat Candidate', 'personal_email', 'seat.candidate@test.in', 'join_date', app.today()::text);
+declare j jsonb := jsonb_build_object('full_name', 'Seat Candidate', 'personal_email', 'seat.candidate@test.in', 'phone', '9876500071', 'join_date', app.today()::text);
         r jsonb;
 begin
   update public.app_users set status = 'suspended', active = false where id = t.u('16');

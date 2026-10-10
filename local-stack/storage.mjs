@@ -134,6 +134,23 @@ http.createServer(async (req, res) => {
       return send(res, 200, { signedURL: `/object/sign/${path}?token=${sign(`${bucket}/${name}`, exp)}&exp=${exp}` });
     }
 
+    // DELETE /object/<bucket> { prefixes: [names] }: as Supabase Storage does, the DELETE on storage.objects AS THE CALLER is
+    // the permission check (migration 37: HR deletes a card image found not masked); what the policy refuses simply stays.
+    if (req.method === 'DELETE' && seg.length === 2) {
+      const bucket = seg[1];
+      const names = (JSON.parse(body.toString('utf8') || '{}').prefixes ?? []).filter((n) => typeof n === 'string' && n);
+      const gone = [];
+      for (const n of names) {
+        const del = await db('DELETE', `/objects?bucket_id=eq.${encodeURIComponent(bucket)}&name=eq.${encodeURIComponent(n)}`, token);
+        if (del.ok && Array.isArray(del.data) && del.data.length > 0) {
+          const p = filePath(bucket, n);
+          rmSync(p, { force: true }); rmSync(`${p}.type`, { force: true });
+          gone.push({ name: n, bucket_id: bucket });
+        }
+      }
+      return send(res, 200, gone);
+    }
+
     const authed = seg[1] === 'authenticated' ? seg.slice(2) : seg.slice(1);
     const [bucket, ...rest_] = authed; const name = rest_.join('/');
     if (!bucket || !name) return fail(res, 400, 'invalid_request', 'bucket and path are required');

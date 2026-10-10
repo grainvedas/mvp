@@ -180,8 +180,8 @@ if (sessions['303']) {
     const j = sessions['319'];
     const c = await j.app.rpc('my_context');
     const t = await j.pub.get('onboarding_tasks', 'select=employee_id');
-    ok(c.ok && c.data.user.status === 'onboarding' && c.data.scopes.length === 0 && t.ok && t.data.length === 8 && t.data.every((x) => x.employee_id === appUserId('319')),
-       '319 a joiner sees her own eight tasks and no scope', d(c));
+    ok(c.ok && c.data.user.status === 'onboarding' && c.data.scopes.length === 0 && t.ok && t.data.length === 9 && t.data.every((x) => x.employee_id === appUserId('319')),
+       '319 a joiner sees her own nine tasks (Personal details added by migration 37) and no scope', d(c));
     const done = await j.app.rpc('complete_task', { p_task: nobody });
     ok(!done.ok, '319 a task that is not hers cannot be ticked', d(done));
   }

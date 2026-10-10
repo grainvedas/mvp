@@ -73,7 +73,9 @@ nohup "$BIN/postgrest" > "$RUN/postgrest.log" 2>&1 & echo $! > "$RUN/postgrest.p
 
 # 5. Edge Functions (local runner) + gateway
 LEDGER_CHECK_TOKEN=$(node -e "console.log(require('crypto').randomBytes(24).toString('hex'))")
-export SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" FUNCTIONS_PORT=54332 LEDGER_CHECK_TOKEN
+# The key of the id-numbers function (migration 37): a new random one per stack, as the database is new too.
+ID_HMAC_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"); ID_HMAC_KEY_ID=local
+export SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY" FUNCTIONS_PORT=54332 LEDGER_CHECK_TOKEN ID_HMAC_KEY ID_HMAC_KEY_ID
 # A mail stand-in (local-stack/mail.mjs), so the invite note and the once-a-day sign-in code can be tested. The live
 # projects have NO sender (decision 5 Oct 2026); STACK_NO_MAIL=1 starts the stack the same way, without one.
 if [ "${STACK_NO_MAIL:-}" != 1 ]; then

@@ -8,6 +8,8 @@ import { humanise } from '../lib/format';
  * with its numbers) is shown in its own words, which are English.
  */
 export function errorText(error: AppError, t: (key: string) => string): string {
+  // a refusal of the id-numbers function carries a dictionary key and a code only (lib/idNumbers.ts)
+  if (/^id\.[a-z_]+$/.test(error.message)) return t(error.message);
   if (error.kind === 'network') return t('error.network');
   if (error.kind === 'session') return t('error.session');
   if (error.kind === 'duplicate') return t('error.duplicate');

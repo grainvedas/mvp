@@ -6,7 +6,7 @@
 //   a manager gives that person an assignment: a scope and stages, a client's account, or a state.
 // The old "Users" page (one form: role + client + state + login) is gone; `/users` now lands on People & access.
 import { test, expect } from '@playwright/test';
-import { signIn, signInWith, signOut, setOwnPassword, freshEmail, addJoiner, todayIST, USERS } from './helpers';
+import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, todayIST, USERS } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
@@ -34,10 +34,11 @@ test('Server functions left behind: the Add joiner page says so, and a failed sa
   await expect.soft(warning).toContainText('"create-user" is older than this app', { useInnerText: true, timeout: 3000 });
   await expect.soft(warning).toContainText('run-sheet step A6', { useInnerText: true, timeout: 3000 });
 
-  const u = uniq(); const mail = freshEmail('nobody');
+  const u = uniq(); const mail = freshEmail('nobody'); const phone = freshPhone();
   await page.getByLabel('Full name').fill(`Nobody ${u}`);
   await page.getByLabel('Join date').fill(todayIST());
   await page.getByLabel('Personal email').fill(mail);
+  await page.locator('#j-phone').fill(phone);
   await page.getByRole('button', { name: 'Save and create sign-in' }).click();
   const error = page.locator('form').getByRole('alert');
   await expect(error).toBeVisible();
@@ -65,6 +66,7 @@ test('Server functions left behind: the Add joiner page says so, and a failed sa
   await page.getByLabel('Full name').fill(`Somebody ${u}`);
   await page.getByLabel('Join date').fill(todayIST());
   await page.getByLabel('Personal email').fill(mail);
+  await page.locator('#j-phone').fill(phone);
   await page.getByRole('button', { name: 'Save and create sign-in' }).click();
   await expect(page.getByTestId('temp-password')).toContainText(mail);
   await expect(page.getByTestId('joiner-made')).toContainText(/invite sent · awaiting first sign-in/i, { useInnerText: true });   // (a badge: shown in capitals)

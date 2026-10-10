@@ -1,5 +1,7 @@
 -- Migration 33: the joiner's checklist. Who ticks what, what each task needs, what is kept of identity numbers
 -- (the last four characters only), who reads HR records, and how a joiner becomes active.
+-- Since migration 37 the numbers reach the database through app.record_id_number (the id-numbers function, service key
+-- only: an HMAC and the last 4); here that call is made as the database owner, standing in for the function.
 begin;
 select t.as_service();
 create temp table fx (k text primary key, id uuid, j jsonb);
@@ -12,7 +14,7 @@ create or replace function pg_temp.status_of(p uuid) returns text language sql s
 create or replace function pg_temp.docs_of(p uuid) returns public.employee_docs language sql stable security definer as $$ select * from public.employee_docs where employee_id = p $$;
 
 select t.as_user(t.u('17'));
-insert into fx (k, j) values ('j', app.add_joiner(jsonb_build_object('full_name', 'Nisha New', 'personal_email', 'nisha@test.in',
+insert into fx (k, j) values ('j', app.add_joiner(jsonb_build_object('full_name', 'Nisha New', 'personal_email', 'nisha@test.in', 'phone', '9876500066',
   'join_date', (pg_temp.today() + 7)::text, 'employment_type', 'full_time', 'job_title', 'QC Associate', 'reports_to', t.u('03')::text)));
 update fx set id = (j->>'id')::uuid where k = 'j';
 select t.as_service();
@@ -20,49 +22,68 @@ update public.app_users set auth_uid = id where id = pg_temp.f('j');          --
 
 -- 1 · first sign-in ---------------------------------------------------------------------------------------------------------
 select t.as_user(pg_temp.f('j'));
-select t.ok((app.my_context()->'user'->>'status') = 'invited' and (app.my_context()->'onboarding'->>'total')::int = 8
+select t.ok((app.my_context()->'user'->>'status') = 'invited' and (app.my_context()->'onboarding'->>'total')::int = 9
             and jsonb_array_length(app.my_context()->'scopes') = 0,
             'invited: the joiner can sign in; my_context shows a checklist and no scope');
 select t.ok(app.mark_first_login() = 'onboarding' and app.mark_first_login() = 'onboarding', 'first sign-in: invited becomes onboarding (asking twice changes nothing more)');
-select t.ok((app.my_onboarding()->>'days_to_join')::int = 7 and jsonb_array_length(app.my_onboarding()->'tasks') = 8
+select t.ok((app.my_onboarding()->>'days_to_join')::int = 7 and jsonb_array_length(app.my_onboarding()->'tasks') = 9
             and (app.my_onboarding()->'org'->>'job_title') = 'QC Associate' and (app.my_onboarding()->'reports_to'->>'name') = 'Prasaadam Client Manager'
-            and (select count(*) from jsonb_array_elements(app.my_onboarding()->'tasks') x where x->>'owner' = 'hire') = 4,
-            'my checklist: countdown, eight tasks (four of them mine), my job and who I report to');
+            and (select count(*) from jsonb_array_elements(app.my_onboarding()->'tasks') x where x->>'owner' = 'hire') = 5,
+            'my checklist: countdown, nine tasks (five of them mine, Personal details included), my job and who I report to');
 
 -- 2 · the hire's own tasks -----------------------------------------------------------------------------------------------------
 select t.fails(format($q$ select app.complete_task(%L, '{}') $q$, pg_temp.task(pg_temp.f('j'), 'offer_nda')), 'tick the box', 'sign: must be acknowledged');
-select t.ok((app.complete_task(pg_temp.task(pg_temp.f('j'), 'offer_nda'), '{"acknowledged":true}')->>'open')::int = 7, 'sign: acknowledged, done');
+select t.ok((app.complete_task(pg_temp.task(pg_temp.f('j'), 'offer_nda'), '{"acknowledged":true}')->>'open')::int = 8, 'sign: acknowledged, done');
 select t.fails(format($q$ select app.complete_task(%L, '{"acknowledged":true}') $q$, pg_temp.task(pg_temp.f('j'), 'offer_nda')), 'already done', 'a task is done once');
 
-select t.fails(format($q$ select app.complete_task(%L, '{"pan_last4":"ABCDE1234F"}') $q$, pg_temp.task(pg_temp.f('j'), 'identity')),
-               'last four characters only', 'identity: a full PAN is refused, not cut and stored');
-select t.fails(format($q$ select app.complete_task(%L, '{"aadhaar_last4":"123412341234"}') $q$, pg_temp.task(pg_temp.f('j'), 'identity')),
-               'last four digits only', 'identity: so is a full Aadhaar number');
 select t.fails(format($q$ select app.complete_task(%L, '{"pan_last4":"234F"}') $q$, pg_temp.task(pg_temp.f('j'), 'identity')),
-               'attach a photo or scan', 'identity: the card itself must be attached first');
-select t.fails(format($q$ select app.register_hr_file(%L, 'pan', %L, %L, 'pan.jpg') $q$, t.u('06'), t.u('06')::text || '/pan.jpg', repeat('a', 64)),
+               'out of date', 'identity: numbers no longer come through here, not even the last 4 (an app from before is told to reload)');
+select t.fails(format($q$ select app.complete_task(%L, '{"pan":"ABCDE1234F"}') $q$, pg_temp.task(pg_temp.f('j'), 'identity')),
+               'out of date', 'identity: nor a full number');
+select t.fails(format($q$ select app.complete_task(%L, '{}') $q$, pg_temp.task(pg_temp.f('j'), 'identity')),
+               'enter your PAN or your Aadhaar number first', 'identity: the number must have been checked first (no photo needed any more)');
+select t.fails(format($q$ select app.record_id_number(%L, %L, 'pan', %L, '234F') $q$, pg_temp.task(pg_temp.f('j'), 'identity'), pg_temp.f('j'), repeat('1', 64)),
+               'permission denied', 'identity: a person cannot store an HMAC: only the id-numbers function can (service key)');
+select t.fails(format($q$ select app.register_hr_file(%L, 'aadhaar_masked', %L, %L, 'a.jpg') $q$, t.u('06'), t.u('06')::text || '/a.jpg', repeat('a', 64)),
                'not allowed to add a document', 'documents: nobody files a document under another person');
-select t.fails(format($q$ select app.register_hr_file(%L, 'pan', %L, %L, 'pan.jpg') $q$, pg_temp.f('j'), t.u('06')::text || '/pan.jpg', repeat('a', 64)),
+select t.fails(format($q$ select app.register_hr_file(%L, 'aadhaar_masked', %L, %L, 'a.jpg') $q$, pg_temp.f('j'), t.u('06')::text || '/a.jpg', repeat('a', 64)),
                '<person>/<file>', 'documents: nor into another person''s folder');
-select t.ok(app.register_hr_file(pg_temp.f('j'), 'pan', pg_temp.f('j')::text || '/pan.jpg', repeat('a', 64), 'pan.jpg', pg_temp.task(pg_temp.f('j'), 'identity')) is not null,
-            'documents: the joiner registers a file in their own folder');
+select t.fails(format($q$ select app.register_hr_file(%L, 'pan', %L, %L, 'pan.jpg') $q$, pg_temp.f('j'), pg_temp.f('j')::text || '/pan.jpg', repeat('a', 64)),
+               'is not kept', 'documents: no image of a full PAN card any more (migration 37)');
+select t.ok(app.register_hr_file(pg_temp.f('j'), 'aadhaar_masked', pg_temp.f('j')::text || '/aadhaar-masked.jpg', repeat('a', 64), 'aadhaar-masked.jpg', pg_temp.task(pg_temp.f('j'), 'identity')) is not null,
+            'documents: the joiner registers a masked Aadhaar in their own folder');
 -- the store itself (migration 32, bucket hr-docs): a person puts a file into their own folder and cannot open it again
-insert into storage.objects (bucket_id, name) values ('hr-docs', pg_temp.f('j')::text || '/pan.jpg');
+insert into storage.objects (bucket_id, name) values ('hr-docs', pg_temp.f('j')::text || '/aadhaar-masked.jpg');
 select t.ok(true, 'store: the joiner uploads into their own folder');
 select t.fails(format($q$ insert into storage.objects (bucket_id, name) values ('hr-docs', %L) $q$, t.u('06')::text || '/pan.jpg'),
                'row-level security', 'store: not into another person''s folder');
 select t.ok((select count(*) from storage.objects where bucket_id = 'hr-docs') = 0, 'store: the uploader cannot open the file again');
-select t.ok((app.complete_task(pg_temp.task(pg_temp.f('j'), 'identity'), '{"pan_last4":"234f","aadhaar_last4":"9012"}')->>'open')::int = 6, 'identity: done');
+select t.as_service();     -- standing in for the id-numbers function: an HMAC and the last 4
+select app.record_id_number(pg_temp.task(pg_temp.f('j'), 'identity'), pg_temp.f('j'), 'pan', repeat('1', 64), '234f');
+select app.record_id_number(pg_temp.task(pg_temp.f('j'), 'identity'), pg_temp.f('j'), 'aadhaar', repeat('2', 64), '9012');
+select t.as_user(pg_temp.f('j'));
+select t.ok((app.complete_task(pg_temp.task(pg_temp.f('j'), 'identity'), '{}')->>'open')::int = 7, 'identity: done');
 select t.ok((select pan_last4 = '234F' and aadhaar_last4 = '9012' from pg_temp.docs_of(pg_temp.f('j'))), 'identity: the last four characters are what is kept');
 
-select t.fails(format($q$ select app.complete_task(%L, '{"bank_name":"State Bank","bank_ifsc":"SBIN123","bank_last4":"4321"}') $q$, pg_temp.task(pg_temp.f('j'), 'bank')),
+select t.fails(format($q$ select app.complete_task(%L, '{"date_of_birth":"2001-04-05"}') $q$, pg_temp.task(pg_temp.f('j'), 'personal')),
+               'father''s or your spouse''s name', 'personal: needs the father''s or spouse''s name');
+select t.ok((app.complete_task(pg_temp.task(pg_temp.f('j'), 'personal'), '{"date_of_birth":"2001-04-05","relative_kind":"father","relative_name":"Ram Lal",
+  "present_address":"Ward 4, Bansi","permanent_address":"Ward 4, Bansi","emergency_name":"Sita Devi","emergency_relation":"Mother","emergency_phone":"9876543210"}')->>'open')::int = 6,
+            'personal: done');
+select t.fails(format($q$ select app.complete_task(%L, '{"bank_name":"State Bank"}') $q$, pg_temp.task(pg_temp.f('j'), 'bank')),
+               'enter the account number first', 'bank: the account number must have been checked first');
+select t.as_service();
+select t.fails(format($q$ select app.record_id_number(%L, %L, 'bank', %L, '4321', 'k1', 'SBIN123') $q$, pg_temp.task(pg_temp.f('j'), 'bank'), pg_temp.f('j'), repeat('3', 64)),
                'IFSC looks wrong', 'bank: a malformed IFSC is refused');
-select t.fails(format($q$ select app.complete_task(%L, '{"bank_name":"State Bank","bank_ifsc":"SBIN0001234","bank_last4":"00112233445"}') $q$, pg_temp.task(pg_temp.f('j'), 'bank')),
-               'last four digits only', 'bank: a full account number is refused');
-select t.ok((app.complete_task(pg_temp.task(pg_temp.f('j'), 'bank'), '{"bank_name":"State Bank","bank_ifsc":"sbin0001234","bank_last4":"4321"}')->>'open')::int = 5, 'bank: done');
+select t.fails(format($q$ select app.record_id_number(%L, %L, 'bank', %L, '00112233445', 'k1', 'SBIN0001234') $q$, pg_temp.task(pg_temp.f('j'), 'bank'), pg_temp.f('j'), repeat('3', 64)),
+               'last 4 characters only', 'bank: anything but the last 4 is refused');
+select app.record_id_number(pg_temp.task(pg_temp.f('j'), 'bank'), pg_temp.f('j'), 'bank', repeat('3', 64), '4321', 'k1', 'sbin0001234');
+select app.record_id_number(pg_temp.task(pg_temp.f('j'), 'pf_gratuity'), pg_temp.f('j'), 'uan', repeat('4', 64), '7788');
+select t.as_user(pg_temp.f('j'));
+select t.ok((app.complete_task(pg_temp.task(pg_temp.f('j'), 'bank'), '{"bank_name":"State Bank"}')->>'open')::int = 5, 'bank: done');
 select t.fails(format($q$ select app.complete_task(%L, '{"gratuity_nominee":"Asha Devi"}') $q$, pg_temp.task(pg_temp.f('j'), 'pf_gratuity')),
                'name and relation', 'nomination: needs the nominee and the relation');
-select t.ok((app.complete_task(pg_temp.task(pg_temp.f('j'), 'pf_gratuity'), '{"gratuity_nominee":"Asha Devi","nominee_relation":"Mother","pf_uan_last4":"7788"}')->>'open')::int = 4, 'nomination: done');
+select t.ok((app.complete_task(pg_temp.task(pg_temp.f('j'), 'pf_gratuity'), '{"gratuity_nominee":"Asha Devi","nominee_relation":"Mother"}')->>'open')::int = 4, 'nomination: done');
 
 -- HR's and IT's tasks are not the hire's to tick
 select t.fails(format($q$ select app.complete_task(%L, '{}') $q$, pg_temp.task(pg_temp.f('j'), 'countersign')), 'not yours to complete', 'the hire cannot tick an HR task');
@@ -70,7 +91,7 @@ select t.fails(format($q$ select app.complete_task(%L, '{}') $q$, pg_temp.task(p
 select t.fails(format($q$ select app.activate_joiner(%L) $q$, pg_temp.f('j')), 'only HR marks', 'nor mark themselves as joined');
 -- and nobody else's checklist is theirs
 select t.fails(format($q$ select app.complete_task(%L, '{"acknowledged":true}') $q$, pg_temp.task(t.u('19'), 'identity')), 'not yours to complete', 'nor touch another joiner''s task');
-select t.ok((select count(*) from public.onboarding_tasks) = 8 and (select count(*) from public.employee_docs) = 1 and (select count(*) from public.employee_files) = 1,
+select t.ok((select count(*) from public.onboarding_tasks) = 9 and (select count(*) from public.employee_docs) = 1 and (select count(*) from public.employee_files) = 1,
             'privacy: a joiner reads their own tasks, details and file list, and nobody else''s');
 select t.ok((select count(*) from public.employee_notes) = 0 and (select count(*) from public.audit_log) = 0, 'privacy: no HR notes, no audit log');
 
@@ -92,9 +113,9 @@ select t.ok((select count(*) from public.app_users where id = pg_temp.f('j')) = 
 -- 4 · HR's side ----------------------------------------------------------------------------------------------------------------------
 select t.as_user(t.u('17'));
 select t.ok((select count(*) from storage.objects where bucket_id = 'hr-docs') = 1, 'store: HR opens the document');
-select t.ok((select (p->>'pct')::int = 50 and p->>'blocked_by' = 'hr' and p->>'next_task' = 'Countersign contract & NDA' and (p->>'days_to_join')::int = 7
+select t.ok((select (p->>'pct')::int = 56 and p->>'blocked_by' = 'hr' and p->>'next_task' = 'Countersign contract & NDA' and (p->>'days_to_join')::int = 7
                from jsonb_array_elements(app.hr_pipeline()) p where p->>'id' = pg_temp.f('j')::text),
-            'pipeline: four of eight done is 50 %, and the next step is waiting on HR');
+            'pipeline: five of nine done is 56 %, and the next step is waiting on HR');
 select t.ok((select p->>'blocked_by' = 'hire' from jsonb_array_elements(app.hr_pipeline()) p where p->>'id' = t.u('19')::text),
             'pipeline: the seeded joiner is waiting on herself');
 select t.ok((app.joiner_detail(pg_temp.f('j'))->'docs'->>'pan_last4') = '234F' and jsonb_array_length(app.joiner_detail(pg_temp.f('j'))->'files') = 1
@@ -135,11 +156,11 @@ select t.ok((select (x->>'due_on')::date = pg_temp.today() + 8 from jsonb_array_
 select t.ok(app.activate_joiner(t.u('19')) = 'active', 'HR can mark a joiner as joined with tasks still open');
 select t.fails(format($q$ select app.activate_joiner(%L) $q$, t.u('19')), 'active already', 'once');
 select t.as_user(t.u('19'));
-select t.ok((app.my_context()->'user'->>'status') = 'active' and (app.my_context()->'onboarding'->>'open')::int = 7, 'joined early: active, with seven tasks still on the list');
+select t.ok((app.my_context()->'user'->>'status') = 'active' and (app.my_context()->'onboarding'->>'open')::int = 8, 'joined early: active, with eight tasks still on the list (Personal details added by migration 37)');
 
 -- 6 · templates ----------------------------------------------------------------------------------------------------------------------
 select t.as_user(t.u('17'));   -- an HR resource reads templates, does not change them
-select t.ok((select count(*) from public.template_tasks) = 8, 'templates: HR reads the standard checklist');
+select t.ok((select count(*) from public.template_tasks) = 9, 'templates: HR reads the standard checklist (nine steps since migration 37)');
 update public.template_tasks set due_offset_days = 99 where code = 'goals';
 select t.as_service();
 select t.ok((select due_offset_days = 3 from public.template_tasks where code = 'goals'), 'templates: an HR resource cannot change it');
@@ -149,7 +170,7 @@ insert into public.onboarding_templates (id, name) values ('00000000-0000-4000-8
 insert into public.template_tasks (template_id, seq, code, title, owner, due_offset_days, kind) values
   ('00000000-0000-4000-8000-000000000902', 1, 'offer_nda', 'Sign internship letter', 'hire', -3, 'sign'),
   ('00000000-0000-4000-8000-000000000902', 2, 'it_setup', 'Accounts', 'it', 0, 'it');
-insert into fx (k, j) values ('i', app.add_joiner(jsonb_build_object('full_name', 'Short Intern', 'personal_email', 'short@test.in',
+insert into fx (k, j) values ('i', app.add_joiner(jsonb_build_object('full_name', 'Short Intern', 'personal_email', 'short@test.in', 'phone', '9876500067',
   'join_date', pg_temp.today()::text, 'employment_type', 'intern', 'template_id', '00000000-0000-4000-8000-000000000902')));
 select t.as_service();
 select t.ok((select due_offset_days = 5 from public.template_tasks where code = 'goals' and template_id = '00000000-0000-4000-8000-000000000901')

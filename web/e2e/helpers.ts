@@ -85,6 +85,29 @@ export async function setOwnPassword(page: Page, password: string) {
 /** A fresh email address for a person a test creates (the stack is shared by every test of a run). */
 export const freshEmail = (who: string) => `${who}.${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}@example.test`;
 
+/** A fresh mobile number (people may not share one): 9, then nine digits from the clock and chance. */
+export const freshPhone = () => `9${String(Date.now() % 1e5).padStart(5, '0')}${String(Math.floor(Math.random() * 1e4)).padStart(4, '0')}`;
+
+/** Fresh identity numbers for a test (migration 37 refuses a PAN, Aadhaar or UAN already on someone's record, and the
+ *  stack is shared by every run). The Aadhaar carries a valid check digit. */
+const digits = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join('');
+const letters = (n: number) => Array.from({ length: n }, () => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('');
+export const freshPan = () => `${letters(5)}${digits(4)}${letters(1)}`;
+export const freshUan = () => `1${digits(11)}`;
+export const freshAccount = () => `5${digits(13)}`;
+// Verhoeff, as in supabase/functions/id-numbers/handler.ts (that file is not importable from here: Playwright loads it as CommonJS)
+const VD = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 0, 6, 7, 8, 9, 5], [2, 3, 4, 0, 1, 7, 8, 9, 5, 6], [3, 4, 0, 1, 2, 8, 9, 5, 6, 7],
+  [4, 0, 1, 2, 3, 9, 5, 6, 7, 8], [5, 9, 8, 7, 6, 0, 4, 3, 2, 1], [6, 5, 9, 8, 7, 1, 0, 4, 3, 2], [7, 6, 5, 9, 8, 2, 1, 0, 4, 3],
+  [8, 7, 6, 5, 9, 3, 2, 1, 0, 4], [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]];
+const VP = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 5, 7, 6, 2, 8, 3, 0, 9, 4], [5, 8, 0, 3, 7, 9, 6, 1, 4, 2], [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
+  [9, 4, 5, 3, 1, 2, 6, 8, 7, 0], [4, 2, 8, 6, 5, 7, 3, 9, 0, 1], [2, 7, 9, 3, 8, 0, 6, 4, 1, 5], [7, 0, 4, 6, 9, 1, 3, 2, 5, 8]];
+const verhoeffOk = (s: string) => { let c = 0; [...s].reverse().forEach((ch, i) => { c = VD[c][VP[i % 8][Number(ch)]]; }); return c === 0; };
+export function freshAadhaar(): string {
+  const first = `${2 + Math.floor(Math.random() * 8)}${digits(10)}`;
+  for (let d = 0; d <= 9; d++) if (verhoeffOk(first + d)) return first + d;
+  throw new Error('no check digit');
+}
+
 /** Today as the server counts it (Asia/Kolkata): a join date typed as "today" must be the server's today at any hour. */
 export const todayIST = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
 
@@ -92,11 +115,12 @@ export const todayIST = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().
  * HR's whole act for one person (signed in as HR or the admin): the form, the temporary password shown once, the
  * joiner's own page. Returns the person's id, that password, and what the confirmation said.
  */
-export async function addJoiner(page: Page, p: { name: string; email: string; type?: string; title?: string; systemRole?: string }) {
+export async function addJoiner(page: Page, p: { name: string; email: string; type?: string; title?: string; systemRole?: string; phone?: string; joinDate?: string }) {
   await page.goto('/hr/joiners/new');
   await page.getByLabel('Full name').fill(p.name);
-  await page.getByLabel('Join date').fill(todayIST());
+  await page.getByLabel('Join date').fill(p.joinDate ?? todayIST());
   await page.getByLabel('Personal email').fill(p.email);
+  await page.locator('#j-phone').fill(p.phone ?? freshPhone());                    // required since migration 37 (A4)
   if (p.type) await page.getByLabel('Employment type').selectOption(p.type);
   if (p.title) await page.getByLabel('Job title').fill(p.title);
   if (p.systemRole) await page.getByLabel('System role').selectOption(p.systemRole);

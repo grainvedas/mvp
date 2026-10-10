@@ -20,22 +20,23 @@ select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@t
 select t.as_user(t.u('17'));   -- HR resource
 select t.fails($q$ select app.add_joiner('{"full_name":"","personal_email":"a@test.in","join_date":"2026-11-01"}') $q$, 'full name is required', 'create: a name is needed');
 select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"not-an-email","join_date":"2026-11-01"}') $q$, 'valid personal email', 'create: and an email, which is the sign-in');
-select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in"}') $q$, 'join date is required', 'create: and a join date');
+select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in","join_date":"2026-11-01"}') $q$, 'phone is required', 'create: and a phone (migration 37)');
+select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in","phone":"9812300023"}') $q$, 'join date is required', 'create: and a join date');
 select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in","phone":"12345","join_date":"2026-11-01"}') $q$, '10-digit', 'create: a phone, if given, must be a mobile number');
-select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"GRAINVEDAS+hr@gmail.com","join_date":"2026-11-01"}') $q$, 'already exists', 'create: the same email twice is refused, whatever the case');
+select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"GRAINVEDAS+hr@gmail.com","phone":"9812300025","join_date":"2026-11-01"}') $q$, 'already exists', 'create: the same email twice is refused, whatever the case');
 select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in","join_date":"2026-11-01","system_role":"admin"}') $q$, 'made only by the database owner', 'create: HR cannot create an admin (nobody can, in the app: migration 35)');
 select t.fails($q$ select app.add_joiner('{"full_name":"A","personal_email":"a@test.in","join_date":"2026-11-01","system_role":"hr_admin"}') $q$, 'only the admin gives', 'create: nor an HR Admin');
 
 insert into fx (k, j) values ('full', app.add_joiner(jsonb_build_object('full_name', 'Kiran Full', 'personal_email', 'Kiran@Test.in', 'phone', '98123 45601',
   'join_date', (pg_temp.today() + 10)::text, 'employment_type', 'full_time', 'designation_band', 'Associate', 'department', 'Operations',
   'job_title', 'Sorting Associate', 'reports_to', t.u('03')::text)));
-insert into fx (k, j) values ('intern', app.add_joiner(jsonb_build_object('full_name', 'Ila Intern', 'personal_email', 'ila@test.in',
+insert into fx (k, j) values ('intern', app.add_joiner(jsonb_build_object('full_name', 'Ila Intern', 'personal_email', 'ila@test.in', 'phone', '9876500061',
   'join_date', (pg_temp.today() + 10)::text, 'employment_type', 'intern')));
-insert into fx (k, j) values ('contract', app.add_joiner(jsonb_build_object('full_name', 'Chetan Contract', 'personal_email', 'chetan@test.in',
+insert into fx (k, j) values ('contract', app.add_joiner(jsonb_build_object('full_name', 'Chetan Contract', 'personal_email', 'chetan@test.in', 'phone', '9876500062',
   'join_date', (pg_temp.today() + 10)::text, 'employment_type', 'contract')));
-insert into fx (k, j) values ('consult', app.add_joiner(jsonb_build_object('full_name', 'Charu Consultant', 'personal_email', 'charu@test.in',
+insert into fx (k, j) values ('consult', app.add_joiner(jsonb_build_object('full_name', 'Charu Consultant', 'personal_email', 'charu@test.in', 'phone', '9876500063',
   'join_date', (pg_temp.today() + 10)::text, 'employment_type', 'consultant')));
-insert into fx (k, j) values ('hr2', app.add_joiner(jsonb_build_object('full_name', 'Hari HR', 'personal_email', 'hari@test.in',
+insert into fx (k, j) values ('hr2', app.add_joiner(jsonb_build_object('full_name', 'Hari HR', 'personal_email', 'hari@test.in', 'phone', '9876500064',
   'join_date', (pg_temp.today() + 1)::text, 'system_role', 'hr_resource')));
 update fx set id = (j->>'id')::uuid where id is null;
 select t.as_service();
@@ -47,12 +48,12 @@ select t.ok((select status = 'invited' and system_role = 'operational' and role 
             'create: the joiner is an invited identity with no client, no state, no scope');
 select t.ok((select job_title = 'Sorting Associate' and reports_to = t.u('03') and employment_type = 'full_time' from public.employee_org where employee_id = pg_temp.f('full')),
             'create: the org facts are kept beside the person');
-select t.ok((select count(*) from public.onboarding_tasks where employee_id = pg_temp.f('full')) = 8
+select t.ok((select count(*) from public.onboarding_tasks where employee_id = pg_temp.f('full')) = 9
             and (select count(*) from public.onboarding_tasks where employee_id = pg_temp.f('full') and statutory) = 1,
-            'checklist: a full-time joiner gets all eight tasks, the statutory one included');
-select t.ok((select count(*) = 7 and bool_and(not statutory) from public.onboarding_tasks where employee_id = pg_temp.f('intern'))
-            and (select count(*) = 7 and bool_and(not statutory) from public.onboarding_tasks where employee_id = pg_temp.f('contract'))
-            and (select count(*) = 7 and bool_and(not statutory) from public.onboarding_tasks where employee_id = pg_temp.f('consult')),
+            'checklist: a full-time joiner gets all nine tasks, the statutory one included');
+select t.ok((select count(*) = 8 and bool_and(not statutory) from public.onboarding_tasks where employee_id = pg_temp.f('intern'))
+            and (select count(*) = 8 and bool_and(not statutory) from public.onboarding_tasks where employee_id = pg_temp.f('contract'))
+            and (select count(*) = 8 and bool_and(not statutory) from public.onboarding_tasks where employee_id = pg_temp.f('consult')),
             'checklist: an intern, a contractor and a consultant skip the statutory task (PF and gratuity)');
 select t.ok((select due_on = pg_temp.today() + 3 from public.onboarding_tasks where employee_id = pg_temp.f('full') and code = 'offer_nda')
             and (select due_on = pg_temp.today() + 10 from public.onboarding_tasks where employee_id = pg_temp.f('full') and code = 'buddy')
@@ -64,7 +65,7 @@ select t.ok((select action = 'hr_resource_created' and flagged and actor = t.u('
 select t.ok((select action = 'identity_created' and not flagged and actor = t.u('17') and detail->>'employment_type' = 'intern' from pg_temp.last_audit(pg_temp.f('intern'))),
             'audit: an ordinary joiner is one unflagged line');
 select t.as_user(t.u('16'));   -- the HR Admin doing the same is not flagged
-insert into fx (k, j) values ('hr3', app.add_joiner(jsonb_build_object('full_name', 'Hema HR', 'personal_email', 'hema@test.in', 'join_date', pg_temp.today()::text, 'system_role', 'hr_resource')));
+insert into fx (k, j) values ('hr3', app.add_joiner(jsonb_build_object('full_name', 'Hema HR', 'personal_email', 'hema@test.in', 'phone', '9876500065', 'join_date', pg_temp.today()::text, 'system_role', 'hr_resource')));
 update fx set id = (j->>'id')::uuid where id is null;
 select t.as_service();
 select t.ok((select action = 'hr_resource_created' and not flagged from pg_temp.last_audit(pg_temp.f('hr3'))), 'audit: the HR Admin creating an HR resource is logged, not flagged');
@@ -245,7 +246,7 @@ select t.fails(format($q$ select app.rehire_person(%L, current_date) $q$, t.u('0
 insert into fx (k, j) values ('rehire', app.rehire_person(t.u('05'), current_date + 7));
 select t.as_service();
 select t.ok((select status = 'onboarding' and active and join_date = current_date + 7 from public.app_users where id = t.u('05'))
-            and (select count(*) from public.onboarding_tasks where employee_id = t.u('05')) = 8
+            and (select count(*) from public.onboarding_tasks where employee_id = t.u('05')) = 9
             and (select count(*) from public.assignments where employee_id = t.u('05') and active) = 0
             and (select count(*) from public.assignments where employee_id = t.u('05')) = 5
             and (select count(*) from public.employee_exits where employee_id = t.u('05')) = 1

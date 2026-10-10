@@ -274,7 +274,7 @@ test('The admin\'s menu by heading; the Pipeline page in chain order with no Rec
   // Help: who helps the admin; a problem written here is listed on Health with the phones' own reports
   await nav.getByRole('link', { name: 'Help', exact: true }).click();
   await expect(page.getByTestId('help-who')).toContainText('the HR Admin');
-  const text = `The pipeline page looked odd ${Date.now()}`;
+  const text = `The pipeline page looked odd, case ${String(Date.now()).slice(-6)}`;   // (9 digits or more would be taken out: they may be an ID number, migration 37)
   await page.getByTestId('help-text').fill(text);
   await page.getByTestId('help-send').click();
   await expect(page.getByTestId('help-sent')).toBeVisible();

@@ -8,6 +8,7 @@
 // tests/remote_rls.mjs); this file is the person's side of them.
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, signInOnly, signInWith, signOut, setOwnPassword, freshEmail, addJoiner, todayIST, expectNoSideScroll, apiAs, localStack,
+  freshPan, freshAadhaar, freshAccount,
   USERS, PEOPLE, SCOPES } from './helpers';
 import { hi } from '../src/lib/i18n.hi';
 
@@ -30,7 +31,7 @@ const leaveNoAccess = async (page: Page) => {
 };
 
 // ── the joiner, on a phone ────────────────────────────────────────────────────────────────────────────────────────
-test('A joiner from invite to first day, on a phone: own password with the sign-in locked, one step at a time, numbers kept as last four, then HR\'s turn', async ({ page, browser }) => {
+test('A joiner from invite to first day, on a phone: own password with the sign-in locked, steps in any order, numbers only to the id-numbers function, then HR\'s turn', async ({ page, browser }) => {
   test.setTimeout(300_000);
   const u = uniq(); const name = `Kiran Test ${u}`; const mail = freshEmail('kiran');
   const office = await browser.newContext(DESK); const hr = await office.newPage();
@@ -43,7 +44,7 @@ test('A joiner from invite to first day, on a phone: own password with the sign-
     const made = await addJoiner(hr, { name, email: mail, type: 'intern', title: 'Field Intern' });
     expect(made.said).toContain('The statutory task (PF & gratuity) was left out');
     expect(made.said).toMatch(/invite sent · awaiting first sign-in/i);            // (a badge: shown in capitals)
-    await expect(hr.getByTestId('joiner-tasks').locator('tbody tr')).toHaveCount(7);
+    await expect(hr.getByTestId('joiner-tasks').locator('tbody tr')).toHaveCount(8);
     await expect(hr.getByTestId('task-pf_gratuity')).toHaveCount(0);
     await expect(status(hr)).toHaveText('Invited');
 
@@ -54,87 +55,117 @@ test('A joiner from invite to first day, on a phone: own password with the sign-
     await expectNoSideScroll(page);
     await setOwnPassword(page, `Kiran-${u}`);
     await expect(page.getByTestId('joiner-home')).toContainText('Welcome, Kiran', { useInnerText: true });
-    await expect(page.getByTestId('join-countdown')).toHaveText('Today is your first day.');
+    await expect(page.getByTestId('join-countdown')).toHaveText(/^Your joining date: \d{1,2} [A-Z][a-z]{2} \d{4}$/);   // B3: not "joined", while joining
     await expectNoSideScroll(page);
     // not an employee yet: the menu has the checklist and nothing of the work
     await expect(menu(page).getByRole('link', { name: 'My joining checklist' })).toBeVisible();
     for (const item of ['Farmers', 'Season Scopes', 'People & access', 'HR · Joiners']) await expect(menu(page).getByRole('link', { name: item })).toHaveCount(0);
 
     await page.getByRole('link', { name: 'Open my checklist' }).click();
-    await expect(page.getByTestId('checklist-progress')).toHaveText('0 of 7 done');
-    await expect(page.getByTestId('row-offer_nda')).toHaveAttribute('data-state', 'open');
-    await expect(page.getByTestId('row-identity')).toHaveAttribute('data-state', 'locked');
-    await expect(page.getByTestId('row-bank')).toHaveAttribute('data-state', 'locked');
+    await expect(page.getByTestId('checklist-progress')).toHaveText('0 of 8 done');                  // with Personal details (migration 37)
+    for (const code of ['offer_nda', 'identity', 'personal', 'bank']) await expect(page.getByTestId(`row-${code}`)).toHaveAttribute('data-state', 'open');
     await expect(page.getByTestId('row-countersign')).toHaveAttribute('data-state', 'ours');
     await expect(page.getByTestId('row-countersign')).toContainText("We're on it", { useInnerText: true });
-    await expect(page.getByTestId('start-task')).toHaveCount(1);                                    // one step at a time
+    await expect(page.getByTestId('start-task')).toHaveCount(4);                                    // no order unless the template sets one (B2)
     await expectNoSideScroll(page);
 
-    // step 1: read and sign
-    await page.getByTestId('start-task').click();
-    await expect(page.getByTestId('task-done')).toBeDisabled();
-    await expect(page.getByTestId('task-problem')).toHaveText('Tick the box to say you have read and signed.');
-    await page.getByLabel('I have read and signed the offer letter and the NDA').check();
-    await page.getByTestId('task-done').click();
-    await expect(page.getByTestId('checklist-progress')).toHaveText('1 of 7 done');
+    // every request the phone makes from here on, with its body: a full number may go to the id-numbers function only
+    const sent: { url: string; body: string }[] = [];
+    page.on('request', (r) => { if (r.method() !== 'GET') sent.push({ url: r.url(), body: r.postData() ?? '' }); });
+    const PAN = freshPan(), AAD = freshAadhaar(), ACCT = freshAccount();
+    const spaced = `${AAD.slice(0, 4)} ${AAD.slice(4, 8)} ${AAD.slice(8)}`;
 
-    // step 2: identity. Checked in full on the phone; only the last four characters are sent.
-    await page.getByTestId('start-task').click();
-    await expect(page.getByTestId('task-problem')).toHaveText('Give your PAN or your Aadhaar number.');
-    await page.locator('#t-pan').fill('abcde1234');
-    await expect(page.getByTestId('task-problem')).toContainText('does not look like a PAN');
-    await page.locator('#t-pan').fill('abcde1234f');
-    await expect(page.locator('#t-pan')).toHaveValue('ABCDE1234F');
-    await page.locator('#t-aadhaar').fill('1234 5678 9012');                                        // twelve digits, wrong check digit
-    await expect(page.getByTestId('task-problem')).toContainText('Aadhaar number is not right');
-    await page.locator('#t-aadhaar').fill('2345 6789 0124');
-    await expect(page.getByTestId('task-problem')).toHaveText('Attach a photo or scan of the card.');
-    await expect(page.getByTestId('task-done')).toBeDisabled();
-    await page.locator('#t-file').setInputFiles({ name: 'pan card.png', mimeType: 'image/png', buffer: PNG });
-    await expect(page.getByTestId('t-file-name')).toHaveText('pan card.png');
-    await expectNoSideScroll(page);
-    const sent: string[] = [];
-    page.on('request', (r) => { if (r.method() === 'POST' && /\/rest\/v1\//.test(r.url())) sent.push(`${r.url()} ${r.postData() ?? ''}`); });
-    await page.getByTestId('task-done').click();
-    await expect(page.getByTestId('checklist-progress')).toHaveText('2 of 7 done');
-    const wire = sent.join('\n');
-    expect(wire).toContain('rpc/complete_task');
-    expect(wire).toContain('234F');
-    expect(wire, 'a full identity number left the phone').not.toMatch(/ABCDE1234F|234567890124|2345 6789 0124/);
-    // what the database holds, read with the joiner's own token
-    const me = await apiAs(page);
-    const docs = await me.rows('employee_docs');
-    expect(docs).toHaveLength(1);
-    expect(docs[0].pan_last4).toBe('234F');
-    expect(docs[0].aadhaar_last4).toBe('0124');
-    expect(JSON.stringify(docs)).not.toMatch(/ABCDE1234F|234567890124/);
-    const files = await me.rows('employee_files');
-    expect(files).toHaveLength(1);
-    expect(files[0].kind).toBe('pan');
-    const path = String(files[0].storage_path);
-    expect((await me.signedUrlIn('hr-docs', path)).ok, 'the joiner can open the stored document again').toBe(false);
-
-    // step 3: bank
-    await page.getByTestId('start-task').click();
+    // bank first: nothing makes it wait for identity
+    await page.getByTestId('row-bank').getByTestId('start-task').click();
     await page.locator('#t-bank').fill('State Bank of India');
     await page.locator('#t-ifsc').fill('sbin0001');
     await expect(page.getByTestId('task-problem')).toContainText('IFSC is 11 characters');
     await page.locator('#t-ifsc').fill('sbin0001234');
-    await page.locator('#t-account').fill('12345678901');
+    await page.locator('#t-account').fill(ACCT);
     await page.getByTestId('task-done').click();
-    await expect(page.getByTestId('checklist-progress')).toHaveText('3 of 7 done');
-    await expect(page.getByTestId('start-task')).toHaveCount(0);                                    // the rest is HR's and IT's
-    expect((await me.rows('employee_docs'))[0].bank_last4).toBe('8901');
+    await expect(page.getByTestId('checklist-progress')).toHaveText('1 of 8 done');
 
-    // HR's turn: masked numbers, the document (HR can open it), four steps of its own
+    // read and sign
+    await page.getByTestId('row-offer_nda').getByTestId('start-task').click();
+    await expect(page.getByTestId('task-done')).toBeDisabled();
+    await expect(page.getByTestId('task-problem')).toHaveText('Tick the box to say you have read and signed.');
+    await page.getByLabel('I have read and signed the offer letter and the NDA').check();
+    await page.getByTestId('task-done').click();
+    await expect(page.getByTestId('checklist-progress')).toHaveText('2 of 8 done');
+
+    // identity: checked in full on the phone, sent once to the id-numbers function, the masked Aadhaar only
+    await page.getByTestId('row-identity').getByTestId('start-task').click();
+    await expect(page.getByTestId('task-problem')).toHaveText('Give your PAN or your Aadhaar number.');
+    await page.locator('#t-pan').fill(PAN.slice(0, 9).toLowerCase());
+    await expect(page.getByTestId('task-problem')).toContainText('does not look like a PAN');
+    await page.locator('#t-pan').fill(PAN.toLowerCase());
+    await expect(page.locator('#t-pan')).toHaveValue(PAN);
+    await page.locator('#t-aadhaar').fill(spaced.slice(0, -1) + String((Number(AAD[11]) + 1) % 10));   // twelve digits, wrong check digit
+    await expect(page.getByTestId('task-problem')).toHaveText("This doesn't match an Aadhaar number (the last digit is a check digit). Please copy it again from your card.");
+    await page.locator('#t-aadhaar').fill(spaced);
+    await expect(page.getByTestId('task-problem')).toHaveCount(0);
+    await expect(page.getByTestId('masked-howto')).toContainText('myaadhaar.uidai.gov.in');
+    await expect(page.getByText('Masked Aadhaar (only the last 4 digits visible)')).toBeVisible();
+    await expect(page.locator('main')).not.toContainText('PAN card photo');
+    await page.locator('#t-file').setInputFiles({ name: 'masked aadhaar.png', mimeType: 'image/png', buffer: PNG });
+    await expect(page.getByTestId('t-file-name')).toHaveText('masked aadhaar.png');
+    await expectNoSideScroll(page);
+    await page.getByTestId('task-done').click();
+    await expect(page.getByTestId('checklist-progress')).toHaveText('3 of 8 done');
+
+    // personal details (A3)
+    await page.getByTestId('row-personal').getByTestId('start-task').click();
+    await page.locator('#p-dob').fill('2001-04-12');
+    await page.locator('#p-rn').fill('Ramesh Kumar');
+    await page.locator('#p-pa').fill('House 4, Village Lakhimpur, UP 262701');
+    await page.getByTestId('same-address').check();
+    await page.locator('#p-en').fill('Sunita Devi');
+    await page.locator('#p-er').fill('mother');
+    await page.locator('#p-ep').fill('98765 43210');
+    await expectNoSideScroll(page);
+    await page.getByTestId('task-done').click();
+    await expect(page.getByTestId('checklist-progress')).toHaveText('4 of 8 done');
+    await expect(page.getByTestId('start-task')).toHaveCount(0);                                    // the rest is HR's and IT's
+
+    // where the numbers went: the id-numbers function, and nowhere else
+    const toFn = sent.filter((r) => r.url.includes('/functions/v1/id-numbers'));
+    expect(toFn.map((r) => JSON.parse(r.body).kind).sort()).toEqual(['aadhaar', 'bank', 'pan']);
+    for (const r of sent.filter((x) => !x.url.includes('/functions/v1/id-numbers'))) {
+      for (const n of [PAN, AAD, spaced, ACCT]) expect(`${r.url} ${r.body}`, `a full number went to ${r.url}`).not.toContain(n);
+    }
+    expect(sent.some((r) => r.url.includes('rpc/complete_task'))).toBe(true);
+    // what the database holds, read with the joiner's own token
+    const me = await apiAs(page);
+    const docs = await me.rows('employee_docs');
+    expect(docs).toHaveLength(1);
+    expect(docs[0].pan_last4).toBe(PAN.slice(-4));
+    expect(docs[0].aadhaar_last4).toBe(AAD.slice(-4));
+    expect(docs[0].bank_last4).toBe(ACCT.slice(-4));
+    for (const n of [PAN, AAD, ACCT]) expect(JSON.stringify(docs)).not.toContain(n);
+    const files = await me.rows('employee_files');
+    expect(files).toHaveLength(1);
+    expect(files[0].kind).toBe('aadhaar_masked');
+    const path = String(files[0].storage_path);
+    expect((await me.signedUrlIn('hr-docs', path)).ok, 'the joiner can open the stored document again').toBe(false);
+
+    // HR's turn: masked numbers, checked for duplicates, the image to confirm as masked, four steps of its own
     await hr.reload();
     await expect(status(hr)).toHaveText('Joining');
-    await expect(hr.getByTestId('masked-docs')).toContainText('•••• 234F');
-    await expect(hr.getByTestId('masked-docs')).toContainText('•••• 0124');
-    await expect(hr.getByTestId('masked-docs')).toContainText('State Bank of India · SBIN0001234 · •••• 8901');
-    await expect(hr.getByTestId('masked-docs')).not.toContainText('ABCDE1234F');
-    await expect(hr.getByTestId('hr-files')).toContainText('pan card.png');
+    await expect(hr.getByTestId('masked-docs')).toContainText(`•••• ${PAN.slice(-4)}`);
+    await expect(hr.getByTestId('masked-docs')).toContainText(`•••• ${AAD.slice(-4)}`);
+    await expect(hr.getByTestId('masked-docs')).toContainText(`State Bank of India · SBIN0001234 · •••• ${ACCT.slice(-4)}`);
+    for (const k of ['pan', 'aadhaar', 'bank']) await expect(hr.getByTestId(`checked-${k}`)).toHaveText('checked for duplicates');
+    for (const n of [PAN, AAD, ACCT]) await expect(hr.getByTestId('masked-docs')).not.toContainText(n);
+    await expect(hr.getByTestId('personal-card')).toContainText('Ramesh Kumar');
+    await expect(hr.getByTestId('personal-card')).toContainText('Sunita Devi');
+    const img = hr.getByTestId('hr-file').filter({ hasText: 'masked aadhaar.png' });
+    await expect(img).toBeVisible();
     expect((await (await apiAs(hr)).signedUrlIn('hr-docs', path)).ok, 'HR can open the stored document').toBe(true);
+    await img.getByTestId('masked-yes').click();
+    await expect(img).toContainText('masked · checked by');
+    await expect(img.getByTestId('masked-yes')).toHaveCount(0);
+    await hr.getByTestId('record-pan-seen').click();
+    await expect(hr.getByTestId('pan-card-seen')).toContainText('seen by');
     await expect(hr.getByTestId('waiting-on-you')).toContainText('Waiting on you (4)');
     await hr.getByTestId('do-countersign').click();
     await expect(hr.getByTestId('our-countersign')).toHaveCount(0);
@@ -176,19 +207,21 @@ test('The new screens on a phone and in Hindi: a joiner\'s checklist, the waitin
   await signIn(page, USERS.meera);
   await expect(page.getByTestId('join-countdown')).toContainText(/You join (in \d+ days|tomorrow)/);   // five days on the day the stack was built
   await page.getByRole('link', { name: 'Open my checklist' }).click();
-  await expect(page.getByTestId('checklist-progress')).toHaveText('1 of 8 done');
+  await expect(page.getByTestId('checklist-progress')).toHaveText('1 of 9 done');                  // Personal details added to her open checklist (37)
   await expect(page.getByTestId('row-offer_nda')).toHaveAttribute('data-state', 'done');
   await expect(page.getByTestId('row-identity')).toHaveAttribute('data-state', 'open');
-  await expect(page.getByTestId('row-pf_gratuity')).toHaveAttribute('data-state', 'locked');       // full-time: the statutory step is there
+  await expect(page.getByTestId('row-personal')).toHaveAttribute('data-state', 'open');
+  await expect(page.getByTestId('row-pf_gratuity')).toHaveAttribute('data-state', 'open');         // full-time: the statutory step is there, and not behind identity
   await page.getByLabel('Language').selectOption('hi');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(hi['mine.welcome'].replace('{name}', 'Meera'));
-  await expect(page.getByTestId('checklist-progress')).toHaveText(hi['mine.progress'].replace('{total}', '8').replace('{done}', '1'));
+  await expect(page.getByTestId('checklist-progress')).toHaveText(hi['mine.progress'].replace('{total}', '9').replace('{done}', '1'));
   await expect(page.getByTestId('row-identity')).toContainText(hi['task.identity'], { useInnerText: true });
   await expect(page.getByTestId('row-countersign')).toContainText(hi['mine.we_are_on_it'], { useInnerText: true });
   await expect(menu(page).getByRole('link', { name: hi['nav.onboarding'] })).toBeVisible();
   await expectNoSideScroll(page);
-  await page.getByTestId('start-task').click();
+  await page.getByTestId('row-identity').getByTestId('start-task').click();
   await expect(page.getByTestId('task-problem')).toHaveText(hi['mine.need_id']);
+  await expect(page.getByTestId('masked-howto')).toHaveText(hi['mine.masked_howto']);
   await expectNoSideScroll(page);
   await page.getByLabel('Language').selectOption('en');
   await signOut(page);
@@ -207,9 +240,9 @@ test('The new screens on a phone and in Hindi: a joiner\'s checklist, the waitin
   await signIn(page, USERS.hr);
   await expect(page.getByTestId('hr-stats')).toBeVisible();                                         // HR's first screen is the pipeline
   const row = page.getByTestId('pipeline-row').filter({ hasText: 'Meera Joshi' });
-  await expect(row.getByTestId('pipeline-pct')).toContainText('1 of 8 done');
+  await expect(row.getByTestId('pipeline-pct')).toContainText('1 of 9 done');
   await expect(row.getByTestId('pipeline-waiting')).toContainText('Joiner');
-  await expect(row.getByTestId('pipeline-waiting')).toContainText('Upload identity (PAN / Aadhaar)');
+  await expect(row.getByTestId('pipeline-waiting')).toContainText('Identity (PAN or Aadhaar)');
   await expectNoSideScroll(page);
   await page.getByLabel('Language').selectOption('hi');
   await expect(page.getByRole('heading', { level: 1 })).toContainText(hi['hr.pipeline_title']);
@@ -552,7 +585,7 @@ test.describe('at a desk', () => {
     await expect(page.getByTestId('assignment-ended')).toHaveCount(1);
     await page.getByRole('link', { name: 'HR record' }).click();
     expect(new URL(page.url()).pathname).toBe(`/hr/joiners/${made.id}`);
-    await expect(page.getByTestId('joiner-tasks').locator('tbody tr').filter({ hasText: 'Open' })).toHaveCount(7);
+    await expect(page.getByTestId('joiner-tasks').locator('tbody tr').filter({ hasText: 'Open' })).toHaveCount(8);
     await signOut(page);
     await signInWith(page, mail, `Farida-${u}`);                                                    // the same sign-in, the password they chose
     await expect(page.getByTestId('joiner-home')).toBeVisible();

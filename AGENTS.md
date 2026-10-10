@@ -50,8 +50,12 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
       B. `tests/24_union_access.sql` builds that person; a new record function needs its case there.
     - An assignment only moves forward (given, stages changed, ended, replaced). `audit_log` is append-only. A person
       is never deleted: suspended, or offboarded and re-hired on the same record.
-    - Identity and bank numbers are checked in full in the browser (`web/src/lib/people.ts`) and only their **last
-      four characters** are sent or stored. Never add a column, a log line or a request that carries the full number.
+    - Identity and bank numbers are checked in full in the browser (`web/src/lib/people.ts`) and sent **only** to the
+      server function `id-numbers` (`web/src/lib/idNumbers.ts`), which keeps nothing: the database gets a keyed
+      fingerprint (HMAC-SHA256, key `ID_HMAC_KEY` only in that function's secrets) and the last four characters
+      (migration 37). Never add a column, a log line, an error text, an outbox entry or a request that carries the full
+      number; `web/tests/id_numbers.test.ts` and `e2e/phase10.spec.ts` (a search of everything the stack wrote) hold it.
+      Duplicates are refused by unique fingerprints; never compare numbers any other way.
       HR documents live in the private store `hr-docs`, readable by HR only (the admin only while the HR Admin seat
       is empty: `app.acts_as_hr`, migration 35).
     - The once-a-day sign-in code is built and **off**. `app.current_user_id()` is gated by it: use that function
@@ -76,7 +80,8 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   dead link), the maths step `within()`, saves 30 s, photo uploads 240 s. What is kept on the phone is cleared on every
   sign-out and when the server no longer knows the person; if you keep something new there, add it to
   `docs/OPERATIONS.md` ("Phone lost or stolen").
-- **Every visible string goes through `t()`** with an English key in `i18n.en.ts` and Hindi in `i18n.hi.ts`. Words that come
+- **Every visible string goes through `t()`** with an English key in `i18n.en.ts` and Hindi in `i18n.hi.ts` (a word the
+  public verify page shows goes in `i18n.public.ts` instead: the public page loads only that file, K13). Words that come
   from the database in English are shown by key with the English as fallback (`stage.* field.* opt.* check.* qp.*
   computed.* badge.* event.*`). A new stage, field, option, hand-off check, status or ledger event needs its Hindi;
   refresh `web/tests/fixtures/stage_definitions.json` with
