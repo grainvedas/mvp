@@ -100,11 +100,12 @@ What changed from the table below (migration 34); everything else stands:
 | HR acts, HR files (documents, files, notes, exits, goals, joining checklist) | HR; the admin only while the HR Admin seat is empty (`app.acts_as_hr`) | the HR functions, table and storage policies |
 | Reset a password | HR for employees; **the admin for the HR Admin and for another admin** (nobody else resets either; with no other admin, break-glass); whoever manages the client for its login | `app.reset_login_allowed` |
 | Suspend, offboard the HR Admin | nobody; replacing her is moving the seat | `app.hr_may_manage` |
+| Mark the HR Admin as joined (migration 36) | **the admin**, the HR Admin seat holder only (a flagged audit line); anyone else is HR's to mark, also while the seat is vacant. Nobody is activated by being given the seat; no HR access while Joining | `app.activate_joiner`, `app.joiner_detail` (`can_activate`) |
 | People on the admin's overview | numbers only (by system role, State and Client Managers, people on stages, unassigned, joining and checklist %, suspended, left in 90 days, client logins) | `app.platform_overview` (`people`) |
 | Weekly figures for the admin | the admin | `app.admin_trends` |
 | Report a problem (Help) | anyone signed in; the admin reads it on Health | `app.report_client_error` (kind `report`) |
 
-Tests: `tests/29_admin_two_jobs.sql` (the database, with controls), `web/tests/admin_two_jobs.test.ts` (the screens'
+Tests: `tests/29_admin_two_jobs.sql` and `tests/30_hr_admin_joined.sql` (the database, with controls), `web/tests/admin_two_jobs.test.ts` (the screens'
 rules), `web/e2e/phase9.spec.ts` and `web/e2e-fresh/fresh_start.spec.ts`.
 
 ## Who may do what (since migration 34, 10 October 2026)

@@ -1,5 +1,5 @@
-# Tested 10 October 2026 on the local stack: database 29 test files and the upgrade path, 220 unit tests, 59 screen tests, 14 built-app tests, the first day from nothing (migration 35)
-# SHA-256 of the text with line ends as LF. Read by scripts/staging_admin_two_jobs.ps1 (step S0). Do not edit by hand.
+# Tested 10 October 2026 on the local stack: database 30 test files and the upgrade path, 223 unit tests, 59 screen tests, the first day from nothing (migration 36: the admin marks the HR Admin as joined)
+# SHA-256 of the text with line ends as LF. Read by scripts/staging_hr_admin_joined.ps1 (step S0). Do not edit by hand.
 ad11e4e0ad6777fa9c689ab392cac74c19cb92c4d987580167f4b2e4b71cd26d  web/index.html
 b715cea12d7d05f45a22b630d4607b06818befdbbb1f3f921be62a63e1c65bf4  web/package-lock.json
 7e38e126c135678cf35a9e5d0dd05c0c886e0f21738e86ff0f5eef3c6eaf7810  web/package.json
@@ -28,11 +28,11 @@ c622615a0bf932fb7e03407398c976c241a17d8d016840483885e8ed1dc1d496  web/src/lib/cs
 40d3fb486d5f27ac7cb8b76a2a39939b7723f1f5fc033ff3708b8e59d5918c28  web/src/lib/errorLog.ts
 4e0230fc79cf158ab857832220b0b6b4ff9a58157fd63251e35f5805469b88ca  web/src/lib/errors.ts
 f3be709299345b980675c8bd765e58646bca55386927dba19072b965afc882b6  web/src/lib/format.ts
-0aaaf6021553fe5fc80a9e4389cb36c8fbcd693e9d9a5a5531833a8d2c40500e  web/src/lib/i18n.en.ts
-ae735810719549aa99b0c358dd11d3ad45234932ae3268f4f58149dc9a0f063d  web/src/lib/i18n.hi.ts
+3968b95a399a7fcff97769823f349b871bb77f89187364dbfaca27f1a432c2bc  web/src/lib/i18n.en.ts
+0743f2a0173f806238389933de0fd201d09c58dd22c4c50e95ed5002472b0e1d  web/src/lib/i18n.hi.ts
 a725f152eada27503ac96484a26a9544b26ce44962f415237eed480b586aad6c  web/src/lib/i18n.tsx
 62233811fe5d295373d5a0e7c0093cd5c7b33da5cd09a947534b068866f031e0  web/src/lib/keptLogin.ts
-dcf92c849d1241fd24dd9093d8f1856797708a19732b0950c91450ff207e9b87  web/src/lib/people.ts
+6724761e3f813ca6ffaf0ac6ba0feea6c79ff0858fa72da725961538caa3ef22  web/src/lib/people.ts
 2637153269c65570ded493a01d72f80c55529c1cb6d7a0ce75b2c3f954883b62  web/src/lib/rights.ts
 e2d77b06a56474df8fb45f149879aa20c46521bfd3084f44f73420b9b007d464  web/src/lib/supabase.ts
 96b2c673baf5adcab0d9f31e129d2802b79f701082e8d4c31412331af31ef311  web/src/lib/types.ts
@@ -56,7 +56,7 @@ b40c62e8409d6b56cd17ba1097d8e9cbbfef9749ba366cd88cd6c3abfe68e604  web/src/pages/
 fe1c5c5de0d4f0236bdf549c50011779db5108b4ee2a98ff0225bd25d42db7bb  web/src/pages/dashboard/parts.tsx
 91dc7e57a6de2859dc9801e2e4e600d0ed02133fb6f37f6c66565a5f0868cf23  web/src/pages/farmers/FarmerImport.tsx
 ea6aa704db3345aebf06c6264fcaa7263976b2d6a95bdbf9f23213a2d2f1d251  web/src/pages/farmers/Farmers.tsx
-d87d7c3fcb08bdd9418457d9a0e7d00de53cdf8576392ffd3fc692ccdb12835e  web/src/pages/hr/Hr.tsx
+d0edf48ccec431b58165b3e8bc7ff6e27a14be115af0a197047b0556db9a1fe4  web/src/pages/hr/Hr.tsx
 1732bb3aa2f1c708a0a49f8519ee73daf4d0b10edbb24ef525c82e2d04669755  web/src/pages/onboarding/Onboarding.tsx
 d03874d4517bf57b685f6d5819ded94a3a8d1a0791e2928103df28fd6213a2a4  web/src/pages/people/People.tsx
 d3fa696ec2282d4ad5c7569aa997813a61a8d0ff513cde3fd0dd5f29e2ec4a04  web/src/pages/people/shared.tsx
@@ -66,7 +66,7 @@ e82994263d576bf52a927e3d1458b8dd767b0e8105363bb137e7219f18be55be  web/src/pages/
 d2ef621e2166bc437712ffb4364a88e500fc3e5fc824651f8639a0e425ee6f35  web/src/pages/records/RecordDetail.tsx
 2660aebf26bc4223f06392b998845a5653c6a4259a5fa9425a8d6b7e3a51de57  web/src/pages/scopes/Scopes.tsx
 dcb3c5b49b580f9680bd97d0527ab40e13975153fba209deb17b6b12559b21b9  web/src/pages/system/Ledger.tsx
-5b2ba61def78cb4f606f6933b2d54d9af1ca3d785ccd4ebdfd524b8b016f6a2d  web/src/pages/system/System.tsx
+129f6ccdbf3114b4a6287c4451b1656d660b8055fc54c4cc4dac69b5b43af4fb  web/src/pages/system/System.tsx
 dc4bd0dfa129ca764a55e69d8c199b66b56fab6fd6b79570897ae86c0bbc95f9  web/src/pages/trace/LotTrace.tsx
 3139cab8b6edb763ee545d909dc3c78d1c33cf78a409a6a937b3981014b9a7aa  web/src/shell/ErrorBoundary.tsx
 c5f880bc0472495a1910d508df0e858770dba499b7dc00dd7ab1f795df465196  web/src/shell/Layout.tsx
@@ -82,6 +82,7 @@ a4f7a28dea93682ed8e33a97c00ae0b9da48a79dc2058de09a3eb135865e97eb  web/tests/engi
 40dc9ed01738b175c2e8a73c57189a9cb8727138dd5a448306bcea9dea823d8b  web/tests/field_day.test.ts
 3f3d7e2a01f96463feeec36c7c22d13ef7b6b2ea0d351a746a5cfd73e7761c5b  web/tests/fixtures/stage_definitions.json
 dbf5b951b9465b103bd90c62e2103ef312d887d9681c9148266a3fe362cb718c  web/tests/functions.test.ts
+1c116af284f0b85b2faaab67a3a084392fe7dd48ac474ce00b642b105938c56c  web/tests/hr_admin_joined.test.ts
 69804b8d160ad66807da2aaef2e0fab2d0d6904cbfb4e533ad08e7e83423a5dc  web/tests/identity.test.ts
 fd0604cc008a7b94309d3ede6707c19ad16e3a10a2881414d7d8c9d50df31d6c  web/tests/look_b.test.tsx
 9eb90fcd15d9a06ce9bbc2e7b96ed9a50e3b485ec5a9141db5a5c7e313a6c30f  web/tests/phase3.test.ts

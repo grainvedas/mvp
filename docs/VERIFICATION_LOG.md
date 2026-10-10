@@ -1426,3 +1426,48 @@ NOT run / not known:
 - Windows PowerShell 5.1 for the new script (its helpers are those of the scripts that ran there).
 - About 95 new Hindi strings read by nobody who will use them (K45).
 - The weekly charts on staging's real dates (the demo data put almost everything in the present week).
+
+### The admin's two jobs on staging: 10 October 2026, 20:55 (record `staging-admin-two-jobs-20261010-205509.log`): `RESULT: ADMIN TWO JOBS ON STAGING`
+
+Run by Veda. S0 OK (app 88 files the tested ones; exactly migration 35 waiting) · S1 OK (migration 35 pushed) · S2 OK
+(smoke 31 of 31, two jobs OK, `NO FINDINGS (1 blocks …)`, no login without a person, functions current; the system
+empty but for the admin, HR Admin seat vacant) · S3 OK (37 files, `4f5b3dc..66ca725 main -> main`).
+
+## 2026-10-10 (night) — The admin marks the HR Admin as joined (migration 36, open item 30): built and rehearsed on the local stack
+
+Brief "GrainVeda MVP — fix: the HR Admin cannot be activated". Found by Veda on build `mv2jrkag`: the HR Admin seat
+holder was Joining, nobody could mark her as joined (the admin's call refused), so HR could never be switched on.
+**Nothing of the fix is on staging** (it waits for Veda's say-so).
+
+Ran:
+- **The fault, first**: on the local copy of migration 35, in the state found (seat holder Joining, no other HR
+  person), the admin's `activate_joiner` for her **succeeds**, and for any other HR or operational joiner too (the
+  button was offered on every joiner's page, as the brief says). **The refusal on staging was not reproduced.** The
+  run script now records how the seats stand on staging (read only) before it pushes.
+- **Database**: `tests/run_local.sh` → `ALL TESTS PASSED`; **1049** `ok` lines; `ok upgrade: … all 30 test files pass on
+  it`. New `tests/30_hr_admin_joined.sql` (28 checks): while Joining she has no HR access and cannot mark herself; the
+  admin is offered the button only on her page; the server refuses the admin for an operational and for another HR
+  joiner (nothing changes for them); the admin marks her as joined, she is Active, one flagged audit line
+  `hr_admin_activated_by_admin` by the admin about her; once only; then her HR pages open, she reads the flagged line,
+  she marks the other joiners (an ordinary `activated` line); the admin has no HR access, no joiner pages, and on a
+  person's page no Reset password, Suspend, Offboard or HR record (the HR Admin's password stays his). **Controls**:
+  four broken versions (the admin may mark anyone; the line not flagged; the button for every joiner; no admin branch),
+  each caught. Test 29 adapted (with the seat empty the admin no longer marks the HR person he adds until she holds the
+  seat).
+- **Unit tests**: 223 passed (new `web/tests/hr_admin_joined.test.ts`: the button follows the server; the words in both
+  languages). Type check clean; `npm run build:ci` builds.
+- **Screens**: default suite **59 passed (10.3 min)**. First day from nothing (`e2e-fresh/fresh_start.spec.ts`, now: the
+  admin adds the HR person, no button for her yet; appoints her; Seats says she has not joined; a second HR joiner: no
+  button, and the admin's API call answers "only HR marks a joiner as joined"; the HR Admin's page → Mark as joined →
+  Seats says HR is on, HR · Joiners leaves the admin's menu, the flagged audit line is there; she signs in and sees HR ·
+  Joiners, People & access, Audit log, and marks the second joiner; the admin's view of a person has no HR buttons):
+  **1 passed** — after one fault found by it and fixed (the admin was sent to the overview, not Seats: the joiner page's
+  own guard acted first). Phases 4, 7, 8, 9 again after that fix: 26 passed.
+- **`scripts/staging_hr_admin_joined.ps1`** on stand-ins: the whole run, a second run, and stops for wrong words,
+  another migration waiting, the HR-joined check OLD, a changed app file. The two new queries on real databases (with
+  and without migration 36: `OK`, `OLD`; the seats line on an empty one).
+
+NOT run / not known:
+- **Why staging refused** the admin's call: not reproduced here; the run record's `the seats now:` line is the next look.
+- Nothing on staging; the built-app suite was not run again after this change (the public page is untouched).
+- 5 new Hindi strings unread by their users (K45).

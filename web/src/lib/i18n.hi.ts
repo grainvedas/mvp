@@ -1358,4 +1358,10 @@ export const hi: Record<string, string> = {
   'help.any.1': 'आपका काम और आपका चरण: आपका स्कोप संभालने वाला व्यक्ति।',
   'help.any.2': 'आपका पासवर्ड: HR।',
   'help.any.3': 'ऐप में कुछ गड़बड़: नीचे बताएँ; एडमिन देखता है।',
+  // migration 36 (Veda, 10 Oct 2026): the admin marks the HR Admin as joined
+  'seats.hr_admin_not_joined': '{name} सीट पर हैं पर अभी जॉइन नहीं किया है, इसलिए HR शुरू नहीं हुआ। HR एडमिन को जॉइन हुआ सिर्फ़ आप मार्क कर सकते हैं (यह ऑडिट लॉग में दर्ज होता है)।',
+  'seats.open_joiner_page': 'जॉइनर पेज खोलें',
+  'seats.hr_admin_joined': '{name} ने HR एडमिन के रूप में जॉइन कर लिया है। HR शुरू हो गया: अब से लोगों को HR जोड़ता और संभालता है।',
+  'audit.hr_admin_activated_by_admin': 'ने HR एडमिन को जॉइन हुआ मार्क किया:',
+  'audit.flag_hr_admin_activated_by_admin': 'एडमिन ने HR एडमिन को जॉइन हुआ मार्क किया',
 };

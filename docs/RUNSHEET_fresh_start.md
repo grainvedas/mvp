@@ -47,7 +47,8 @@ one named in it.
 
 ## Part 2 — the first day, in the app (about 50 minutes)
 
-**In Veda's order (10 October 2026, decisions G15 and G16), once migration 35 is on staging** (`docs/RUNSHEET_admin_two_jobs.md`).
+**In Veda's order (10 October 2026, decisions G15 and G16), once migrations 35 and 36 are on staging** (`docs/RUNSHEET_admin_two_jobs.md`,
+`docs/RUNSHEET_hr_admin_joined.md`).
 With migration 34 only, step 5 is the admin's (People & access → the State Manager → Assign → State); before
 migration 34, the admin still does everything and the order of 6 October applies (in git history). This is the path
 `web/e2e-fresh/fresh_start.spec.ts` walks on the local stack, from the same empty state to a sealed lot. Laptop. Each
@@ -58,7 +59,7 @@ hand it over.
 |---|---|---|---|
 | 1 | You (admin) | Open the app. Sign in with `grainvedas+admin@gmail.com` and your password | **Platform overview**: the role guide ("You have two jobs…"), "Setting up: 0 of 3 done", empty cards and charts, no error anywhere |
 | 2 | Admin | **States** → name `Uttar Pradesh`, code `UP` → Create | Listed with `UP`. The checklist says 1 of 3 |
-| 3 | Admin | **HR · Joiners → Add joiner**: the person who will run HR; System role **HR**. Save, note the password. On their page: **Mark as joined**. Then **System → Seats** → Appoint: that person (shown as "name (HR)") → Appoint → confirm | HR Admin seat shows their name. 2 of 3. **HR · Joiners leaves your menu**: from now on HR adds people |
+| 3 | Admin | **HR · Joiners → Add joiner**: the person who will run HR; System role **HR**. Save, note the password. Then **Access → Seats** → Appoint: that person (shown as "name (HR)") → Appoint → confirm. Seats now says she has not joined yet: **Open the joiner page** → **Mark as joined** (migration 36: the admin marks only the HR Admin seat holder as joined) | Back on Seats: "… has joined as HR Admin". 2 of 3. A flagged line in the audit log. **HR · Joiners leaves your menu**: from now on HR adds people |
 | 4 | HR Admin | Signs in, sets a password. **Add joiner** for everyone: the State Manager, the Client Manager, one person per stage. **Mark as joined** on each | The form has no client, scope or stage field. Each is Active and Unassigned |
 | 5 | HR Admin | Still signed in: **People & access** → the State Manager → **Assign** → State `Uttar Pradesh` → Give | One choice only, **A state**. The admin's checklist then says 3 of 3 ("The HR Admin seats a State Manager") |
 | 6 | State Manager | Signs in, sets a password. **Crops** → Create: name `Kalanamak rice`, code `KNM`, GI tag `GI 280`, origin. **+ limit** three times: `moisture_pct` / Moisture / `%` / at most / 13 / 12; `broken_pct` / Broken grains / 5 / 3; `foreign_matter_pct` / Foreign matter / 1 / 0.5. Tick the processing stages. Save | Listed with `KNM`. Open it again: 0.5 is still 0.5 |

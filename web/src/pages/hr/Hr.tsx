@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { useAction, useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
+import { oversees } from '../../lib/rights';
 import { date, dateTime } from '../../lib/format';
 import { NO_RIGHTS, type EmploymentType, type SystemRole } from '../../lib/types';
 import { DESIGNATION_BANDS, EMPLOYMENT_TYPES, FILE_KINDS, countdown, masked, onThem, onUs, skipsStatutory, taskCode, waitingOn,
@@ -162,12 +163,18 @@ export function AddJoiner() {
   );
 }
 
+/** Pure: "Mark as joined" is shown exactly when the server would accept it (migration 36: for the admin, only on the
+ *  HR Admin seat holder's page). An older server that does not say falls back to the HR rule as before. */
+export const mayActivate = (x: { can_manage: boolean; can_activate?: boolean; person: { status: string } }) =>
+  x.can_activate ?? (x.can_manage && (x.person.status === 'invited' || x.person.status === 'onboarding'));
+
 // ── one joiner ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 export function JoinerPage() {
   const { id = '' } = useParams();
   const { t } = useI18n();
   const nav = useNavigate();
   const d = useAsync(() => rpc<Detail>('joiner_detail', { p_employee: id }), [id]);
+  const { ctx, refresh } = useAuth();
   const people = usePeople();
   const act = useAction();
   const [temp, setTemp] = useState<{ who: string; pw: string } | null>(null);
@@ -179,6 +186,14 @@ export function JoinerPage() {
   const x = d.data, p = x.person;
   const ours = x.tasks.filter((k) => k.status === 'pending' && k.owner !== 'hire');
   const run = (fn: () => Promise<unknown>) => act.run(async () => { await fn(); await d.reload(); });
+  // The admin marking the HR Admin as joined (migration 36) switches HR on: this page is HR's from then on, so he goes to
+  // the Seats page, which says so (first: this page's own guard would send him home), and his menu loses HR · Joiners
+  // once the server is asked again.
+  const activate = () => act.run(async () => {
+    await rpc('activate_joiner', { p_employee: p.id });
+    if (p.system_role === 'hr_admin' && oversees(ctx)) { nav('/system/seats', { state: { joined: p.name } }); void refresh(); return; }
+    await d.reload();
+  });
   const open = (path: string) => act.run(async () => {
     const { data, error } = await supabase.storage.from('hr-docs').createSignedUrl(path, 120);
     if (error || !data?.signedUrl) throw new Error(t('hr.file_not_opened'));
@@ -200,8 +215,8 @@ export function JoinerPage() {
         {p.status === 'invited' && <span className="small muted">{t('hr.awaiting_first')}</span>}
         {!p.has_login && <Badge value="draft" label={t('people.no_login')} />}
         <Link className="btn secondary" to={`/people/${p.id}`}>{t('people.open_profile')}</Link>
-        {x.can_manage && (p.status === 'invited' || p.status === 'onboarding') && (
-          <button type="button" onClick={() => void run(() => rpc('activate_joiner', { p_employee: p.id }))} disabled={act.busy} data-testid="activate">{t('hr.mark_joined')}</button>)}
+        {mayActivate(x) && (
+          <button type="button" onClick={() => void activate()} disabled={act.busy} data-testid="activate">{t('hr.mark_joined')}</button>)}
         {x.can_manage && p.has_login && <button type="button" className="secondary" onClick={() => void reset()} disabled={act.busy} data-testid="reset-password">{t('users.reset_password')}</button>}
       </p>
       {temp && <TempPassword who={temp.who} password={temp.pw} />}

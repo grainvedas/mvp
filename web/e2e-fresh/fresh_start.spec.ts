@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { addJoiner, freshEmail, setOwnPassword, signInWith, signOut } from '../e2e/helpers';
+import { addJoiner, apiAs, freshEmail, setOwnPassword, signInWith, signOut } from '../e2e/helpers';
 
 // THE FIRST DAY OF A PILOT, from a system with nothing in it: no state, no crop, no client, no person but one admin.
 // Every other suite starts from demo rows a seed put in place; this one starts where scripts/staging_fresh_start.ps1
@@ -73,12 +73,13 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.goto('/');
   await expect(page.getByTestId('setup-checklist')).toContainText('1 of 3 done');
 
-  // 2. Nobody is HR yet: the admin adds the first HR person, marks them joined, and gives them the HR Admin seat
-  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /HR · Joiners/ })).toBeVisible();
+  // 2. Nobody is HR yet: the admin adds the first HR person, gives her the HR Admin seat, then marks her as joined
+  //    (migration 36, Veda 10 Oct: the admin marks the HR Admin seat holder as joined, and only her)
+  const menu = page.getByRole('navigation', { name: 'Main' });
+  await expect(menu.getByRole('link', { name: /HR · Joiners/ })).toBeVisible();
   const hr = { name: `Asha HR ${u}`, email: freshEmail('hr') };
   const hrMade = await addJoiner(page, { ...hr, type: 'full_time', title: 'HR Lead', systemRole: 'hr_resource' });
-  await page.getByTestId('activate').click();
-  await expect(page.getByTestId('activate')).toHaveCount(0);
+  await expect(page.getByTestId('activate')).toHaveCount(0);                          // not the seat holder yet: not the admin's to mark
   await page.goto('/system/seats');
   await expect(page.getByTestId('seat-vacant')).toBeVisible();
   await page.locator('#seat-pick').selectOption(hrMade.id);
@@ -87,13 +88,39 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.getByTestId('appoint').click();
   await expect(page.getByTestId('seat-hr-admin')).toContainText(hr.name);
   await expect(page.getByTestId('seat-vacant')).toHaveCount(0);
+  // she holds the seat but has not joined: HR is not on yet, and the Seats page says what to do
+  await expect(page.getByTestId('hr-admin-not-joined')).toContainText('has not joined yet');
+  // a second HR person, also Joining: no "Mark as joined" for the admin, and the server refuses it too
+  const second = await addJoiner(page, { name: `Second HR ${u}`, email: freshEmail('hr2'), type: 'full_time', title: 'HR Associate', systemRole: 'hr_resource' });
+  await expect(page.getByRole('heading', { name: `Second HR ${u}` })).toBeVisible();
+  await expect(page.getByTestId('activate')).toHaveCount(0);
+  const asAdmin = await apiAs(page);
+  const call = await asAdmin.rpc('activate_joiner', { p_employee: second.id });
+  expect(call.ok, 'the admin marked a non-seat joiner as joined through the API').toBe(false);
+  expect(JSON.stringify(call.data)).toContain('only HR marks a joiner as joined');
+  // the HR Admin's joiner page: Mark as joined, then the Seats page says HR is on; the audit log has a flagged line
+  await page.goto('/system/seats');
+  await page.getByTestId('hr-admin-joiner-page').click();
+  await expect(page.getByRole('heading', { name: hr.name })).toBeVisible();
+  await page.getByTestId('activate').click();
+  await expect(page.getByTestId('hr-admin-joined')).toContainText(`${hr.name} has joined as HR Admin`);
+  await expect(page.getByTestId('hr-admin-not-joined')).toHaveCount(0);
+  await expect(menu.getByRole('link', { name: /HR · Joiners/ })).toHaveCount(0);       // HR's from now on
+  await page.goto('/system/audit');
+  await page.getByTestId('flagged-only').check();
+  await expect(page.locator('[data-testid="audit-flagged"][data-action="hr_admin_activated_by_admin"]')).toContainText('Admin marked the HR Admin as joined');
   await page.goto('/');
   await expect(page.getByTestId('setup-checklist')).toContainText('2 of 3 done');
   await signOut(page);
 
+  //    The second HR person stays HR's to mark: the HR Admin does it below (an admin's call is refused: tests/30)
   // 3. The HR Admin: own password, then everyone else, as identities only (whatever their domain)
   await signInWith(page, hr.email, hrMade.temp);
   await setOwnPassword(page, PW.hr);
+  for (const name of ['HR · Joiners', 'People & access', 'Audit log']) await expect(menu.getByRole('link', { name })).toBeVisible();
+  await page.goto(`/hr/joiners/${second.id}`);
+  await page.getByTestId('activate').click();                                            // HR marks the other joiners
+  await expect(page.getByTestId('activate')).toHaveCount(0);
   const who = {
     sm: { name: `State Lead ${u}`, email: freshEmail('statelead'), type: 'full_time', title: 'State Manager' },
     manager: { name: `Client Lead ${u}`, email: freshEmail('manager'), type: 'full_time', title: 'Client Lead' },
@@ -125,6 +152,9 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.goto(`/people/${made.sm.id}`);
   await expect(page.getByTestId('axis-assignments')).toContainText('Uttar Pradesh');
   await expect(page.getByTestId('give-assignment')).toHaveCount(0);
+  // HR is on: the admin's HR side has gone from people's pages
+  for (const name of ['Reset password', 'Suspend', 'Offboard']) await expect(page.getByTestId('profile-actions').getByRole('button', { name })).toHaveCount(0);
+  await expect(page.getByTestId('profile-actions').getByRole('link', { name: 'HR record' })).toHaveCount(0);
   await signOut(page);
 
   // 5. The State Manager: the crop with its three limits (decimals stay decimals) and processing stages; the client;

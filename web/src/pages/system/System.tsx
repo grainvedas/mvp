@@ -1,6 +1,6 @@
 // System (identity layer): the two seats everything starts from, the once-a-day sign-in code switch, the audit log.
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { rpc } from '../../lib/api';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../../lib/supabase';
 import { useAction, useAsync } from '../../lib/useAsync';
@@ -28,6 +28,7 @@ async function senderState(): Promise<'yes' | 'no' | 'unknown'> {
 export function Seats() {
   const { t } = useI18n();
   const d = useAsync(() => rpc<SeatsData>('bootstrap_seats'), []);
+  const joined = (useLocation().state as { joined?: string } | null)?.joined;   // the admin has just marked the HR Admin as joined
   const sender = useAsync(senderState, []);
   const act = useAction();
   const [pick, setPick] = useState('');
@@ -58,7 +59,11 @@ export function Seats() {
       <div className={`card seat${x.hr_admin ? '' : ' vacant'}`} data-testid="seat-hr-admin">
         <h2 style={{ marginTop: 0 }}>{t('seats.hr_admin')}</h2>
         <p className="small muted">{t('seats.hr_admin_note')}</p>
+        {joined && <div className="alert ok" role="status" data-testid="hr-admin-joined">{t('seats.hr_admin_joined', { name: joined })}</div>}
         {x.hr_admin ? <ul><SeatRow s={x.hr_admin} /></ul> : <p className="gap" data-testid="seat-vacant">{t('seats.vacant')}</p>}
+        {x.hr_admin && (x.hr_admin.status === 'invited' || x.hr_admin.status === 'onboarding') && (
+          <div className="alert warn" data-testid="hr-admin-not-joined">{t('seats.hr_admin_not_joined', { name: x.hr_admin.name })}{' '}
+            <Link to={`/hr/joiners/${x.hr_admin.id}`} data-testid="hr-admin-joiner-page">{t('seats.open_joiner_page')}</Link></div>)}
         <div className="row" style={{ alignItems: 'flex-end' }}>
           <Field label={t(x.hr_admin ? 'seats.move_to' : 'seats.appoint')} htmlFor="seat-pick"><select id="seat-pick" value={pick} onChange={(e) => setPick(e.target.value)}>
             <option value="">—</option>{x.candidates.filter((c) => c.id !== x.hr_admin?.id).map((c) => <option key={c.id} value={c.id}>{c.name}{c.system_role === 'hr_resource' ? ` (${t('sysrole.hr_resource')})` : ''}</option>)}</select></Field>

@@ -42,8 +42,9 @@ begin
                   'joiners: nor an admin');
   r := app.add_joiner(j || '{"system_role":"hr_resource"}');
   perform t.ok(r is not null, 'control: with the seat empty the admin adds the person for the HR Admin seat');
-  perform app.activate_joiner((r->>'id')::uuid);
-  perform t.ok((select status = 'active' from public.app_users where id = (r->>'id')::uuid), 'control: and marks that person as joined');
+  -- migration 36: the admin marks as joined only the HR Admin seat holder (tests/30_hr_admin_joined.sql), not this person yet
+  perform t.fails(format('select app.activate_joiner(%L)', r->>'id'), 'only HR marks',
+                  'joiners: but marks that person as joined only once she holds the HR Admin seat (migration 36)');
   perform t.as_service();
   update public.app_users set status = 'active', active = true where id = t.u('16');
 end $$;

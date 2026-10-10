@@ -205,6 +205,8 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   an admin in the app (break-glass only). The admin's menu is grouped by headings (`ROLE_MENUS` in `shell/Layout.tsx`);
   another role adopts them by adding its own list. Charts follow `web/src/pages/admin/charts.tsx`: one hue for
   amounts, status colours only for pass and fail with words, a table under every chart.
+- **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
+  while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.
 
 ## Stack (PRD §10)

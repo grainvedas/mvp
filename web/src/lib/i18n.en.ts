@@ -1221,4 +1221,10 @@ export const en: Record<string, string> = {
   'help.any.1': 'Your work and your stage: the person who manages your scope.',
   'help.any.2': 'Your password: HR.',
   'help.any.3': 'Something wrong in the app: report it below; the admin sees it.',
+  // migration 36 (Veda, 10 Oct 2026): the admin marks the HR Admin as joined
+  'seats.hr_admin_not_joined': '{name} holds the seat but has not joined yet, so HR is not switched on. Only you can mark the HR Admin as joined (it is recorded in the audit log).',
+  'seats.open_joiner_page': 'Open the joiner page',
+  'seats.hr_admin_joined': '{name} has joined as HR Admin. HR is switched on: from now on HR adds and manages people.',
+  'audit.hr_admin_activated_by_admin': 'marked the HR Admin as joined:',
+  'audit.flag_hr_admin_activated_by_admin': 'Admin marked the HR Admin as joined',
 };

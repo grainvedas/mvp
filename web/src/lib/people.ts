@@ -58,6 +58,8 @@ export interface JoinerDetail {
   person: { id: string; name: string; email: string | null; phone: string | null; status: EmployeeStatus; system_role: SystemRole;
     join_date: string | null; created_at: string; days_to_join: number | null; has_login: boolean; created_by: string | null };
   can_manage: boolean; org: OrgFacts; docs: MaskedDocs; files: HrFile[]; tasks: Task[];
+  /** "Mark as joined", as app.activate_joiner decides it (migration 36); absent on an older server. */
+  can_activate?: boolean;
   notes: { id: number; note: string; at: string; by: string | null }[]; goals: Goal[];
   exits: { exit_date: string; reason: string | null; final_settlement: string | null; form16_ref: string | null; at: string }[];
   assignments: number;
