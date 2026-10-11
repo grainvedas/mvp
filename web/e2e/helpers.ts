@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Dialog, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -286,4 +286,27 @@ export function localStack() {
     },
     emptyOutbox: () => fetch(outbox, { method: 'DELETE' }),
   };
+}
+
+/**
+ * "Mark as joined" through the gate (migration 38, brief G1): statutory steps still open are first recorded as received
+ * on paper (flagged), other open steps need a reason (flagged). On a joiner's page, as HR (or the admin on the HR Admin's).
+ */
+export async function markJoined(page: Page, reason = 'Joined on the day, papers follow') {
+  const button = page.getByTestId('activate');
+  await expect(button).toBeVisible();
+  const paper = page.locator('[data-testid^="on-paper-"]');
+  const note = (d: Dialog) => void d.accept('Original seen on paper');
+  page.on('dialog', note);
+  try {
+    while (await page.getByTestId('gate-statutory').isVisible()) {
+      const n = await paper.count();
+      await paper.first().click();
+      await expect(paper).toHaveCount(n - 1);
+    }
+  } finally { page.off('dialog', note); }
+  if (await button.count() === 0) return;                     // the last open step was the paper one: joined already
+  if (await page.getByTestId('gate-reason').isVisible()) await page.getByTestId('gate-why').fill(reason);
+  await button.click();
+  await expect(button).toHaveCount(0);
 }

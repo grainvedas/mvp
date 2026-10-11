@@ -155,8 +155,17 @@ r = await as(hr).rpc('assign', { p_employee: jid, p_lens: 'scope', p_target: '00
 ok(!r.ok && /outside what you manage/.test(r.data?.message ?? ''), 'HR cannot assign: HR never grants access', JSON.stringify(r.data));
 r = await as(cm).rpc('activate_joiner', { p_employee: jid });
 ok(!r.ok, 'a manager cannot mark a joiner as joined', JSON.stringify(r.data));
+// the gate (migration 38): refused while a statutory step is open; HR records it as received on paper; other open
+// steps need a reason
 r = await as(hr).rpc('activate_joiner', { p_employee: jid });
-ok(r.ok && r.data === 'active', 'HR marks the joiner as joined', JSON.stringify(r.data));
+ok(!r.ok && /statutory step is still open/.test(r.data?.message ?? ''), 'Mark as joined is refused while a statutory step is open', JSON.stringify(r.data));
+const stat = ((await as(hr).rpc('joiner_detail', { p_employee: jid })).data?.tasks ?? []).filter((t) => t.statutory && t.status === 'pending');
+ok(stat.length === 1, 'the full-time joiner has one statutory step open', JSON.stringify(stat.length));
+for (const t of stat) { r = await as(hr).rpc('record_on_paper', { p_task: t.id, p_note: 'form seen on paper' }); ok(r.ok, 'HR records the statutory step as received on paper', JSON.stringify(r.data)); }
+r = await as(hr).rpc('activate_joiner', { p_employee: jid });
+ok(!r.ok && /give a reason/.test(r.data?.message ?? ''), 'with other steps open, Mark as joined asks for a reason', JSON.stringify(r.data));
+r = await as(hr).rpc('activate_joiner', { p_employee: jid, p_reason: 'joined on the day; papers follow' });
+ok(r.ok && r.data === 'active', 'HR marks the joiner as joined (with a reason)', JSON.stringify(r.data));
 ctx = (await me.rpc('my_context')).data;
 ok(ctx.user.status === 'active' && ctx.scopes.length === 1 && ctx.slots.length === 1 && ctx.slots[0].stage_type === 'sorting' && ctx.scopes[0].manage === false,
    'now the joiner works at exactly the stage assigned', JSON.stringify({ scopes: ctx.scopes.length, slots: ctx.slots }));

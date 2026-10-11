@@ -64,14 +64,14 @@ Vercel's schema and no comment: any other property fails the deploy before the b
 | What | How it gets there | How to see what is there |
 |---|---|---|
 | Database rules | `supabase db push` | `supabase db push --linked --dry-run` lists nothing; `tests/remote_smoke.sql` |
-| Server functions (`create-user`, `reset-password`, `ledger-check`, `daily-code`) | `supabase functions deploy …` (run-sheet Phase 5 D4; Phase 4 C6) | `node scripts/check_functions.mjs`: `FUNCTIONS DEPLOYED AND CURRENT` |
+| Server functions (`create-user`, `reset-password`, `ledger-check`, `daily-code`, `id-numbers`, `invite`) | `supabase functions deploy …` (run-sheet Phase 5 D4; Phase 4 C6) | `node scripts/check_functions.mjs`: `FUNCTIONS DEPLOYED AND CURRENT` |
 | The app | a push to GitHub `main` (Vercel), or `wrangler deploy` | the app itself: the Add joiner page shows a yellow warning when the functions are older than the app needs |
 
 A function left behind does not fail loudly. On 4 October 2026 the staging database was at migration 29 and
 `create-user` was the build of 1 October: the database no longer linked the logins that build makes, and every new
 person ended in "login created but not linked; both removed" (`docs/FIX_LIST.md` item 17, fault 32). **After every
 `db push`: deploy the functions and run `node scripts/check_functions.mjs`.** The functions say which build they are in
-the header `x-grainveda-function` (a date); `VERSION` in the four `handler.ts` files and `FUNCTIONS_NEEDED` in
+the header `x-grainveda-function` (a date); `VERSION` in the six `handler.ts` files (`invite` and `ledger-check` deploy with `--no-verify-jwt`) and `FUNCTIONS_NEEDED` in
 `web/src/lib/api.ts` are raised together when a function changes in a way the database or the app depends on.
 
 ## Production, step by step
@@ -95,10 +95,10 @@ explanation of each step.
    minimum 8. Keep "Secure password change" OFF: no mail sender is set up, so a re-authentication code could not be delivered.
    With sign-up off, nobody can make a login for themselves; the settings check then reports an "auto-confirm"
    setting as a note, not a failure.
-5. **Functions and secrets**: `supabase functions deploy create-user`, `reset-password`, `daily-code`, and
-   `ledger-check --no-verify-jwt`; a new `LEDGER_CHECK_TOKEN` for production (`scripts/make_ledger_token.mjs` with
+5. **Functions and secrets**: `supabase functions deploy create-user`, `reset-password`, `daily-code`, `id-numbers`, and
+   `ledger-check --no-verify-jwt`, `invite --no-verify-jwt` (with `ID_HMAC_KEY` of production: `docs/OPERATIONS.md`); a new `LEDGER_CHECK_TOKEN` for production (`scripts/make_ledger_token.mjs` with
    `ENV_FILE=.env.production`), uploaded with `supabase secrets set --env-file .env.functions.production`.
-6. **Checks, read-only**: `tests/remote_smoke.sql` (31 rows; "environment" must say `OK production`, "demo data" must
+6. **Checks, read-only**: `tests/remote_smoke.sql` (34 rows; "environment" must say `OK production`, "demo data" must
    say `OK production: no demo people or scopes`), `ENV_FILE=.env.production node tests/remote_auth_settings.mjs`
    (must end `AUTH SETTINGS PASSED`; on production an open setting is a failure, not a warning).
 7. **First admin**: `ENV_FILE=.env.production node scripts/bootstrap_admin.mjs --email <Veda's address> --name "Veda"`.

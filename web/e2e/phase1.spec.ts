@@ -86,6 +86,8 @@ test('Scope wizard: build a chain, give a stage to a person from the pool, activ
   // Identity layer: nobody is created here any more. The People step gives stages to people HR has added (the pool).
   await expect(page.getByRole('button', { name: '+ new person' })).toHaveCount(0);
   await expect(page.getByTestId('roster-gaps')).toContainText('4 stage(s) with nobody');
+  await page.getByTestId('roster-find').fill('Sorting Operator');     // the pool lists the first 100 by name; a search finds anyone
+  await expect(page.getByLabel('Assign Sorting').locator('option', { hasText: 'Sorting Operator' })).toHaveCount(1);
   await page.getByLabel('Assign Sorting').selectOption({ label: 'Sorting Operator' });
   await expect(page.getByRole('row', { name: /Sorting/ })).toContainText('Sorting Operator');
   await expect(page.getByTestId('roster-gaps')).toContainText('3 stage(s) with nobody');

@@ -12,7 +12,7 @@
 type Env = Record<string, string | undefined>;
 
 /** The build of the four functions; the same value as in create-user/handler.ts (a unit test holds them together). */
-export const VERSION = '2026-10-12';
+export const VERSION = '2026-10-13';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -63,12 +63,34 @@ export async function handle(req: Request, env: Env): Promise<Response> {
 
   // 2. The login behind the row (service key).
   const asService = { apikey: service, authorization: `Bearer ${service}`, 'content-type': 'application/json' };
-  const row = await fetch(`${url}/rest/v1/app_users?id=eq.${target}&select=auth_uid,phone,email,active`, { headers: asService });
-  const u = ((await row.json().catch(() => [])) as Array<{ auth_uid: string | null; phone: string | null; email: string | null; active: boolean }>)[0];
+  const row = await fetch(`${url}/rest/v1/app_users?id=eq.${target}&select=id,auth_uid,phone,email,active,display_name`, { headers: asService });
+  const u = ((await row.json().catch(() => [])) as Array<{ id: string; auth_uid: string | null; phone: string | null; email: string | null; active: boolean; display_name: string }>)[0];
   if (!u) return json(404, { error: 'user not found' });
   if (!u.active) return json(409, { error: 'this person is suspended or has left; reinstate them first' });
-  const login = u.auth_uid ? await fetch(`${url}/auth/v1/admin/users/${u.auth_uid}`, { headers: asService }) : null;
-  if (!login || !login.ok) return json(409, { error: 'this user has no login yet' });
+  if (!u.auth_uid || u.auth_uid === u.id) {
+    // Migration 38 (decision 4): a joiner from the bulk import has no sign-in until they accept their invite. The fallback,
+    // a temporary password handed over in person, makes the sign-in now: confirmed and marked, so the database links it.
+    if (!u.email) return json(409, { error: 'this person has no email to sign in with' });
+    const password = tempPassword();
+    const made = await fetch(`${url}/auth/v1/admin/users`, { method: 'POST', headers: asService,
+      body: JSON.stringify({ email: u.email, password, email_confirm: true, app_metadata: { grainveda_login: true },
+        user_metadata: { display_name: u.display_name, must_change_password: true } }) });
+    const login = (await made.json().catch(() => null)) as { id?: string; msg?: string; message?: string } | null;
+    if (!made.ok || !login?.id) return json(409, { error: login?.msg ?? login?.message ?? 'the sign-in could not be made' });
+    const back = await fetch(`${url}/rest/v1/app_users?id=eq.${target}&select=auth_uid`, { headers: asService });
+    if (((await back.json().catch(() => [])) as Array<{ auth_uid: string | null }>)[0]?.auth_uid !== login.id) {
+      await fetch(`${url}/auth/v1/admin/users/${login.id}`, { method: 'DELETE', headers: asService }).catch(() => null);
+      return json(500, { error: 'the sign-in was made but not linked to the person, and was removed again' });
+    }
+    await fetch(`${url}/rest/v1/rpc/note_login_reset`, {
+      method: 'POST',
+      headers: { apikey: anon, authorization: `Bearer ${token}`, 'content-type': 'application/json', 'content-profile': 'app' },
+      body: JSON.stringify({ p_target: target }),
+    }).catch(() => null);
+    return json(200, { app_user_id: target, sign_in: u.email, temporary_password: password, made_login: true });
+  }
+  const login = await fetch(`${url}/auth/v1/admin/users/${u.auth_uid}`, { headers: asService });
+  if (!login.ok) return json(409, { error: 'this user has no login yet' });
   const meta = ((await login.json().catch(() => ({}))) as { user_metadata?: Record<string, unknown> }).user_metadata ?? {};
 
   // 3. New temporary password; the app will ask for an own password at the next sign-in.

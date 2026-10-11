@@ -1,7 +1,8 @@
 -- GrainVeda: EMPTY THE PRACTICE SYSTEM, to start it the way a pilot starts: with nothing in it.
 -- Removes every person, state, crop, client, scope, farmer, record, verdict, seal, flag, ledger block, audit line,
--- counter and joining file entry. Keeps: the rules themselves (the migrations), the 16 stage definitions, the standard
--- joining checklist, and the mark that says which system this is.
+-- counter and joining file entry. Keeps: the rules themselves (the migrations), the 16 stage definitions, the joining
+-- checklists the migrations wrote (the standard one and, since migration 38, one per role), and the mark that says
+-- which system this is.
 -- NOT REVERSIBLE. Refuses on production. Logins and stored files are not in this database's reach: they are removed
 -- by scripts/fresh_start/clear_logins_and_files.mjs.
 -- Run it only through scripts/staging_fresh_start.ps1, which checks the project, copies the rows out first, and puts
@@ -17,12 +18,6 @@ begin
   if app.environment() <> 'staging' then
     raise exception 'refused: this project says it is "%", not staging. Nothing was removed.', app.environment();
   end if;
-
-  -- The standard joining checklist stays (migration 31 wrote it; HR needs it for the first joiner). Checklists made
-  -- by people go, and the standard one no longer points at a person who is about to be removed.
-  delete from public.template_tasks where template_id in (select id from public.onboarding_templates where not is_default);
-  delete from public.onboarding_templates where not is_default;
-  update public.onboarding_templates set created_by = null where created_by is not null;
 
   -- Every table of the public schema except the four above: a table added by a later migration is emptied too,
   -- unless it is added to "keep". TRUNCATE names them all at once, so the links between them do not get in the way.
@@ -49,6 +44,13 @@ begin
   alter table public.audit_log disable trigger audit_log_no_truncate;
   execute 'truncate table ' || list || ' restart identity';
   alter table public.audit_log enable trigger audit_log_no_truncate;
+
+  -- The checklists the migrations wrote stay: the standard one (migration 31; HR needs it for the first joiner) and
+  -- one per role (migration 38), none of which was made by a person. Checklists made by people go (after the people
+  -- who used them, whose records pointed at them), and those that stay no longer point at anybody.
+  delete from public.template_tasks where template_id in (select id from public.onboarding_templates where not is_default and created_by is not null);
+  delete from public.onboarding_templates where not is_default and created_by is not null;
+  update public.onboarding_templates set created_by = null where created_by is not null;
 
   for link in select * from fresh_start_links loop
     execute format('alter table %s add constraint %I %s', link.tab, link.conname, link.def);

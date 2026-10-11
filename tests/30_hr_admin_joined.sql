@@ -38,7 +38,7 @@ select t.ok((select status = 'onboarding' from public.app_users where id = t.u('
 
 -- 3 · the admin marks the HR Admin as joined: Active, one flagged audit line --------------------------------------------
 select t.as_user(t.u('01'));
-select t.ok(app.activate_joiner(t.u('16')) = 'active', 'admin: marks the HR Admin seat holder as joined');
+select t.ok(app.activate_joiner(t.u('16')) = 'active', 'admin: marks the HR Admin seat holder as joined (no open steps: no reason needed)');
 select t.as_service();
 select t.ok((select status = 'active' and active from public.app_users where id = t.u('16')), 'she is Active');
 select t.ok((select action = 'hr_admin_activated_by_admin' and flagged and actor = t.u('01') and target = t.u('16')
@@ -57,10 +57,13 @@ select t.ok(jsonb_array_length(app.people_directory()) > 0, 'HR Admin: People & 
 select t.ok((select count(*) from jsonb_array_elements(app.audit_feed(50, true)) l
               where l->>'action' = 'hr_admin_activated_by_admin' and (l->>'flagged')::boolean) = 1,
             'HR Admin: the audit log shows the flagged line');
-select t.ok(app.activate_joiner(t.u('19')) = 'active', 'control: the HR Admin marks the other joiners as joined');
+select (app.record_on_paper((select id from public.onboarding_tasks where employee_id = t.u('19') and statutory), null))->>'ok';
+select t.ok(app.activate_joiner(t.u('19'), 'joins the team early') = 'active', 'control: the HR Admin marks the other joiners as joined');
 select t.as_service();
-select t.ok((select action = 'activated' and not flagged and actor = t.u('16') from public.audit_log order by id desc limit 1),
+select t.ok((select action = 'activated' and not flagged and actor = t.u('16') from public.audit_log where action <> 'activated_with_open_steps' order by id desc limit 1),
             'audit: HR''s own "marked as joined" stays an ordinary line');
+select t.ok((select flagged and actor = t.u('16') and detail->>'reason' = 'joins the team early' from public.audit_log where action = 'activated_with_open_steps' order by id desc limit 1),
+            'audit (migration 38): marked as joined with steps open: a second, flagged line with the reason');
 select t.as_user(t.u('01'));
 select t.ok(not app.acts_as_hr(), 'admin: no HR access any more');
 select t.fails(format($q$ select app.joiner_detail(%L) $q$, '00000000-0000-4000-8000-000000000360'), 'not found', 'admin: joiner pages are HR''s again');

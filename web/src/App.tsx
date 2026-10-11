@@ -8,6 +8,7 @@ import { PracticeStrip } from './shell/PracticeStrip';
 import { PublicVerify } from './pages/public/PublicVerify';
 
 const PrivateApp = lazy(() => import('./PrivateApp'));
+const InvitePage = lazy(() => import('./pages/public/Invite'));
 
 export function App() {
   return (
@@ -17,6 +18,7 @@ export function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/verify/:code" element={<PublicVerify />} />
+            <Route path="/invite" element={<Suspense fallback={<main><Loading /></main>}><InvitePage /></Suspense>} />
             <Route path="/*" element={<Suspense fallback={<main><Loading /></main>}><PrivateApp /></Suspense>} />
           </Routes>
         </BrowserRouter>

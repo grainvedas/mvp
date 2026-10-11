@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { addJoiner, apiAs, freshEmail, setOwnPassword, signInWith, signOut } from '../e2e/helpers';
+import { addJoiner, apiAs, markJoined, freshEmail, setOwnPassword, signInWith, signOut } from '../e2e/helpers';
 
 // THE FIRST DAY OF A PILOT, from a system with nothing in it: no state, no crop, no client, no person but one admin.
 // Every other suite starts from demo rows a seed put in place; this one starts where scripts/staging_fresh_start.ps1
@@ -102,7 +102,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.goto('/system/seats');
   await page.getByTestId('hr-admin-joiner-page').click();
   await expect(page.getByRole('heading', { name: hr.name })).toBeVisible();
-  await page.getByTestId('activate').click();
+  await markJoined(page);
   await expect(page.getByTestId('hr-admin-joined')).toContainText(`${hr.name} has joined as HR Admin`);
   await expect(page.getByTestId('hr-admin-not-joined')).toHaveCount(0);
   await expect(menu.getByRole('link', { name: /HR · Joiners/ })).toHaveCount(0);       // HR's from now on
@@ -119,7 +119,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await setOwnPassword(page, PW.hr);
   for (const name of ['HR · Joiners', 'People & access', 'Audit log']) await expect(menu.getByRole('link', { name })).toBeVisible();
   await page.goto(`/hr/joiners/${second.id}`);
-  await page.getByTestId('activate').click();                                            // HR marks the other joiners
+  await markJoined(page);                                            // HR marks the other joiners
   await expect(page.getByTestId('activate')).toHaveCount(0);
   const who = {
     sm: { name: `State Lead ${u}`, email: freshEmail('statelead'), type: 'full_time', title: 'State Manager' },
@@ -131,7 +131,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   const made: Record<string, { id: string; temp: string }> = {};
   for (const [k, p] of Object.entries(who)) {
     made[k] = await addJoiner(page, p);
-    await page.getByTestId('activate').click();
+    await markJoined(page);
     await expect(page.getByTestId('activate')).toHaveCount(0);
   }
 

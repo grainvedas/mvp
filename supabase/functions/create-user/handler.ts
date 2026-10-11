@@ -24,7 +24,7 @@ type Env = Record<string, string | undefined>;
 
 /** The build of the five functions (create-user, reset-password, ledger-check, daily-code, id-numbers). Raise it in all five
  *  whenever one changes in a way the app or the database depends on, and FUNCTIONS_NEEDED in web/src/lib/api.ts with it. */
-export const VERSION = '2026-10-12';
+export const VERSION = '2026-10-13';
 
 const cors = {
   'access-control-allow-origin': '*',

@@ -83,6 +83,18 @@ export interface JoinerDetail {
   notes: { id: number; note: string; at: string; by: string | null }[]; goals: Goal[];
   exits: { exit_date: string; reason: string | null; final_settlement: string | null; form16_ref: string | null; at: string }[];
   assignments: number;
+  // migration 38: the role and opening, the HR owner, the last invite, what Mark as joined needs, who may do the steps
+  role?: { role: string | null; stage: StageType | null; opening_id: string | null; opening_code: string | null; state_name: string | null };
+  hr_owner?: { id: string; name: string } | null;
+  invite?: { state: string; at: string; expires_at: string } | null;
+  activation?: { statutory_open: string[]; open: number };
+  can_do_steps?: boolean; can_invite?: boolean;
+}
+/** Pure (G1, migration 38): what "Mark as joined" needs: refused while a statutory step is open; a reason while others are. */
+export function activationNeed(a: { statutory_open: string[]; open: number } | undefined): 'statutory' | 'reason' | 'none' {
+  if (!a) return 'none';
+  if (a.statutory_open.length > 0) return 'statutory';
+  return a.open > 0 ? 'reason' : 'none';
 }
 export interface Warning { code: string; [k: string]: unknown }
 export interface Roster {
@@ -101,7 +113,7 @@ export interface StateOverviewData {
   clients: number; people: number; unassigned: number;
 }
 export interface Seat { id: string; name: string; email: string | null; status: EmployeeStatus; has_login?: boolean; system_role?: SystemRole }
-export interface Seats { admins: Seat[]; hr_admin: Seat | null; hr_resources: Seat[]; candidates: Seat[]; daily_code: { on: boolean; without_email: number } }
+export interface Seats { admins: Seat[]; hr_admin: Seat | null; hr_resources: Seat[]; candidates: Seat[]; daily_code: { on: boolean; without_email: number }; sm_deputy?: { id: string; name: string } | null }
 export interface AuditLine {
   id: number; at: string; action: string; flagged: boolean; detail: Record<string, unknown>; actor: string | null; actor_name: string;
   actor_role: SystemRole | null; target: string | null; target_name: string | null;

@@ -2,7 +2,7 @@
 // HR creates a person ONCE, as an identity. Nothing on these screens gives anyone a scope, a client or a state:
 // that is a manager's act, on the People screens.
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { callFunction, functionState, q, rpc } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import { useAction, useAsync } from '../../lib/useAsync';
@@ -11,19 +11,24 @@ import { useAuth } from '../../auth/AuthProvider';
 import { oversees } from '../../lib/rights';
 import { date, dateTime } from '../../lib/format';
 import { NO_RIGHTS, type EmploymentType, type SystemRole } from '../../lib/types';
-import { DESIGNATION_BANDS, EMPLOYMENT_TYPES, FILE_KINDS, countdown, masked, onThem, onUs, skipsStatutory, taskCode, waitingOn,
+import { DESIGNATION_BANDS, EMPLOYMENT_TYPES, FILE_KINDS, activationNeed, countdown, joinWords, masked, onThem, onUs, skipsStatutory, taskCode, waitingOn,
   type CheckState, type HrFile, type JoinerDetail as Detail, type PersonalDetails, type PipelineRow, type Task, type TaskKind, type TaskOwner } from '../../lib/people';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
-import { FileBox, OrgLine, StatusBadge, TempPassword, uploadHrFile } from '../people/shared';
+import { FileBox, OrgLine, StatusBadge, TempPassword, uploadHrFile, useStageName } from '../people/shared';
+import { HIRE_ROLES, sendInvites, type HireRole, type OpeningsSummary } from '../../lib/scale';
+import { HrLinks, InviteResults, RoleLabel, useHrPeople } from './Scale';
+import type { StageType } from '../../lib/types';
 
 interface Person { id: string; display_name: string; status: string; external: boolean }
 const usePeople = () => useAsync(() => q(supabase.from('app_users').select('id,display_name,status,external').eq('external', false)
   .in('status', ['invited', 'onboarding', 'active']).order('display_name')) as Promise<Person[]>, []);
-interface Template { id: string; name: string; is_default: boolean; active: boolean; first_day_time?: string | null; first_day_place?: string | null; first_day_ask_for?: string | null; first_day_bring?: string | null }
+interface Template { id: string; name: string; is_default: boolean; active: boolean; role?: HireRole | null; first_day_time?: string | null; first_day_place?: string | null; first_day_ask_for?: string | null; first_day_bring?: string | null }
 
-function Countdown({ days }: { days: number | null | undefined }) {
+function Countdown({ days, status, on }: { days: number | null | undefined; status?: string; on?: string | null }) {
   const { t } = useI18n();
   const c = countdown(days);
+  // H1 (migration 38): while someone is joining, never "joined N days ago": their joining date
+  if (status && joinWords(status as never, days) === 'join.date') return <>{t('jl.joining_date', { d: date(on) })}</>;
   return <>{t(c.key, { n: c.n })}</>;
 }
 export function Owner({ owner }: { owner: TaskOwner }) {
@@ -69,7 +74,7 @@ export function HrPipeline() {
                 <tr key={r.id} data-testid="pipeline-row">
                   <td><Link to={`/hr/joiners/${r.id}`}><strong>{r.name}</strong></Link>
                     <OrgLine org={{ job_title: r.job_title, department: r.department, designation_band: null, employment_type: r.employment_type }} /></td>
-                  <td>{date(r.join_date)}<div className="small muted"><Countdown days={r.days_to_join} /></div></td>
+                  <td>{date(r.join_date)}<div className="small muted"><Countdown days={r.days_to_join} status={r.status} on={r.join_date} /></div></td>
                   <td><div className="bar" role="img" aria-label={`${r.pct} %`}><span style={{ width: `${r.pct}%` }} /></div>
                     <div className="small muted" data-testid="pipeline-pct">{t('hr.done_of', { done: r.done, total: r.total, pct: r.pct })}</div></td>
                   <td data-testid="pipeline-waiting">{r.blocked_by ? <>{waitingOn(r).map((o) => <span key={o}><Owner owner={o} /> </span>)}<span className="small">{t(`task.${taskKey(r.next_task)}`, undefined, r.next_task ?? '')}</span>
@@ -86,7 +91,7 @@ export function HrPipeline() {
 const STANDARD: Record<string, string> = { 'Sign offer letter & NDA': 'offer_nda', 'Upload identity (PAN / Aadhaar)': 'identity', 'Add bank details': 'bank',
   'Countersign contract & NDA': 'countersign', 'PF & gratuity nomination (Form 2 / F)': 'pf_gratuity', 'Provision laptop & accounts': 'it_setup',
   'Assign & introduce buddy': 'buddy', 'Set 30-60-90 goals': 'goals', 'Personal details': 'personal' };
-const taskKey = (title: string | null | undefined) => STANDARD[title ?? ''] ?? '_';
+export const taskKey = (title: string | null | undefined) => STANDARD[title ?? ''] ?? '_';
 export function TaskTitle({ task }: { task: { code: string; title: string } }) {
   const { t } = useI18n();
   // the standard titles have a Hindi wording; an edited or added one is the template's own text
@@ -95,7 +100,8 @@ export function TaskTitle({ task }: { task: { code: string; title: string } }) {
 
 // ── add a joiner ───────────────────────────────────────────────────────────────────────────────────────────────────────
 const blankJoiner = { full_name: '', join_date: '', personal_email: '', phone: '', employment_type: 'full_time' as EmploymentType, designation_band: '',
-  department: '', job_title: '', reports_to: '', buddy: '', template_id: '', system_role: 'operational' as SystemRole };
+  department: '', job_title: '', reports_to: '', buddy: '', template_id: '', system_role: 'operational' as SystemRole,
+  opening_id: '', intended_role: '' as HireRole | '', intended_stage: '' as StageType | '', hr_owner: '' };
 
 export function AddJoiner() {
   const { t } = useI18n();
@@ -104,15 +110,23 @@ export function AddJoiner() {
   const people = usePeople();
   const templates = useAsync(() => q(supabase.from('onboarding_templates').select('id,name,is_default,active').eq('active', true).order('name')) as Promise<Template[]>, []);
   const fn = useAsync(() => functionState('create-user'), []);
+  const openings = useAsync(() => rpc<OpeningsSummary>('openings_summary', {}).catch(() => null), []);
+  const hrPeople = useHrPeople();
+  const stage = useStageName();
+  const [invite, setInvite] = useState<Awaited<ReturnType<typeof sendInvites>> | null>(null);
   const [f, setF] = useState(blankJoiner);
   const [made, setMade] = useState<{ id: string; name: string; sign_in: string; password: string; emailed: boolean; type: EmploymentType } | null>(null);
   const act = useAction();
-  useEffect(() => { if (!f.template_id && templates.data?.length) setF((s) => ({ ...s, template_id: (templates.data!.find((x) => x.is_default) ?? templates.data![0]).id })); }, [templates.data, f.template_id]);
+  useEffect(() => { if (!f.hr_owner && ctx?.user?.id && (ctx.user.system_role === 'hr_admin' || ctx.user.system_role === 'hr_resource')) setF((s) => ({ ...s, hr_owner: ctx.user!.id })); }, [ctx, f.hr_owner]);
+  const chosen = (openings.data?.openings ?? []).find((o) => o.id === f.opening_id);
   const set = (k: keyof typeof blankJoiner) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const submit = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
-    const r = await callFunction<{ app_user_id: string; sign_in: string; temporary_password: string; invite_emailed: boolean }>('create-user', { kind: 'joiner', ...f });
+    const r = await callFunction<{ app_user_id: string; sign_in: string; temporary_password: string; invite_emailed: boolean }>('create-user', {
+      kind: 'joiner', ...f, intended_role: f.opening_id ? '' : f.intended_role, intended_stage: !f.opening_id && f.intended_role === 'operator' ? f.intended_stage : '',
+      system_role: f.opening_id && chosen?.role === 'hr' && f.system_role === 'operational' ? 'hr_resource' : f.system_role });
     setMade({ id: r.app_user_id, name: f.full_name, sign_in: r.sign_in, password: r.temporary_password, emailed: r.invite_emailed, type: f.employment_type });
-    setF({ ...blankJoiner, template_id: f.template_id });
+    setInvite(null);
+    setF({ ...blankJoiner, opening_id: f.opening_id, template_id: f.template_id, hr_owner: f.hr_owner });
   }); };
   return (
     <div style={{ maxWidth: 820 }}>
@@ -127,12 +141,28 @@ export function AddJoiner() {
           <TempPassword who={made.sign_in} password={made.password} />
           <p className="small muted">{t(made.emailed ? 'hr.invite_emailed' : 'hr.invite_by_hand')}</p>
           {skipsStatutory(made.type) && <p className="small muted">{t('hr.statutory_skipped')}</p>}
+          <p className="small">{t('inv.instead')} <button type="button" className="secondary small-btn" disabled={act.busy} data-testid="made-invite"
+            onClick={() => void act.run(async () => setInvite(await sendInvites([made.id])))}>{t('inv.send_one')}</button></p>
+          {invite && <InviteResults {...invite} />}
           <p className="row"><Link className="btn" to={`/hr/joiners/${made.id}`}>{t('hr.open_joiner')}</Link>
             <button type="button" className="secondary" onClick={() => setMade(null)}>{t('hr.add_another')}</button></p>
         </div>)}
       {!made && (
         <form className="card" onSubmit={submit} aria-label={t('hr.add_joiner')}>
           <p className="muted small">{t('hr.add_note')}</p>
+          <div className="form-grid" data-testid="joiner-role">
+            <Field label={t('open.col_opening')} hint={t('aj.opening_hint')} htmlFor="j-opening"><select id="j-opening" value={f.opening_id} onChange={set('opening_id')}>
+              <option value="">{t('aj.no_opening')}</option>
+              {(openings.data?.openings ?? []).filter((o) => o.status === 'open').map((o) => (
+                <option key={o.id} value={o.id} disabled={o.vacant === 0}>{o.code} · {t(`role.${o.role}`)}{o.stage ? ` · ${stage(o.stage)}` : ''} · {t('aj.vacant', { n: o.vacant })}</option>))}</select></Field>
+            {!f.opening_id && <Field label={t('open.role')} hint={t('common.optional')} htmlFor="j-role"><select id="j-role" value={f.intended_role} onChange={set('intended_role')}>
+              <option value="">—</option>{HIRE_ROLES.map((r) => <option key={r} value={r}>{t(`role.${r}`)}</option>)}</select></Field>}
+            {!f.opening_id && f.intended_role === 'operator' && <Field label={t('open.stage')} hint={t('common.optional')} htmlFor="j-stage"><select id="j-stage" value={f.intended_stage} onChange={set('intended_stage')}>
+              <option value="">—</option>{(['procurement', 'lot_inward', 'village_batch', 'milling', 'sorting', 'grading', 'drying', 'popping', 'cleaning', 'blanching', 'cold_storage', 'packing', 'qc', 'commercial', 'shipment', 'qr_activation'] as StageType[]).map((x) => <option key={x} value={x}>{stage(x)}</option>)}</select></Field>}
+            {chosen && <p className="small" data-testid="opening-role"><RoleLabel role={chosen.role} stage={chosen.stage} /> · {chosen.state_name}</p>}
+            <Field label={t('jl.owner')} htmlFor="j-owner"><select id="j-owner" value={f.hr_owner} onChange={set('hr_owner')}>
+              <option value="">{t('jl.owner_none')}</option>{(hrPeople.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+          </div>
           <div className="form-grid">
             <Field label={t('hr.f_name')} htmlFor="j-name"><input id="j-name" value={f.full_name} onChange={set('full_name')} required autoComplete="off" /></Field>
             <Field label={t('hr.f_join')} htmlFor="j-join"><input id="j-join" type="date" value={f.join_date} onChange={set('join_date')} required /></Field>
@@ -148,7 +178,8 @@ export function AddJoiner() {
               <option value="">—</option>{(people.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}</select></Field>
             <Field label={t('hr.f_buddy')} hint={t('common.optional')} htmlFor="j-buddy"><select id="j-buddy" value={f.buddy} onChange={set('buddy')}>
               <option value="">—</option>{(people.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}</select></Field>
-            <Field label={t('hr.f_template')} htmlFor="j-template"><select id="j-template" value={f.template_id} onChange={set('template_id')} required>
+            <Field label={t('hr.f_template')} htmlFor="j-template"><select id="j-template" value={f.template_id} onChange={set('template_id')}>
+              <option value="">{t('aj.template_auto')}</option>
               {(templates.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
             <Field label={t('hr.f_sysrole')} hint={t('hr.f_sysrole_hint')} htmlFor="j-sysrole"><select id="j-sysrole" value={f.system_role} onChange={set('system_role')}>
               <option value="operational">{t('sysrole.operational')}</option><option value="hr_resource">{t('sysrole.hr_resource')}</option>
@@ -181,7 +212,11 @@ export function JoinerPage() {
   const [note, setNote] = useState('');
   const [edit, setEdit] = useState(false);
   const [doc, setDoc] = useState<{ kind: string; file: File | null }>({ kind: 'contract', file: null });
+  const [why, setWhy] = useState('');
+  const [joined, setJoined] = useState(false);
   if (d.loading && !d.data) return <Loading />;
+  // the admin may open one joiner's page: the HR Admin's (H2); any other address sends him home, as before migration 38
+  if (!d.data && d.error && !ctx?.user?.can?.hr) return <Navigate to="/" replace />;
   if (!d.data) return <ErrorBox error={d.error} onRetry={() => void d.reload()} />;
   const x = d.data, p = x.person;
   const ours = x.tasks.filter((k) => k.status === 'pending' && k.owner !== 'hire');
@@ -189,11 +224,22 @@ export function JoinerPage() {
   // The admin marking the HR Admin as joined (migration 36) switches HR on: this page is HR's from then on, so he goes to
   // the Seats page, which says so (first: this page's own guard would send him home), and his menu loses HR · Joiners
   // once the server is asked again.
+  const need = activationNeed(x.activation);
   const activate = () => act.run(async () => {
-    await rpc('activate_joiner', { p_employee: p.id });
+    await rpc('activate_joiner', { p_employee: p.id, p_reason: why.trim() || null });
     if (p.system_role === 'hr_admin' && oversees(ctx)) { nav('/system/seats', { state: { joined: p.name } }); void refresh(); return; }
+    // G2 (migration 38): the page shows "Active" at once, and the button goes, before the server is asked again
+    d.setData({ ...x, person: { ...p, status: 'active' }, can_activate: false });
+    setWhy(''); setJoined(true);
     await d.reload();
   });
+  const onPaper = (taskId: string) => {
+    const n = window.prompt(t('gate.on_paper_note'));
+    if (n === null) return;
+    void run(() => rpc('record_on_paper', { p_task: taskId, p_note: n }));
+  };
+  const full = x.docs !== undefined;                  // the admin on the HR Admin's page sees her steps, not her HR file
+  const mayDo = x.can_do_steps ?? x.can_manage;
   const open = (path: string) => act.run(async () => {
     const { data, error } = await supabase.storage.from('hr-docs').createSignedUrl(path, 120);
     if (error || !data?.signedUrl) throw new Error(t('hr.file_not_opened'));
@@ -209,20 +255,32 @@ export function JoinerPage() {
       <p className="small"><Link to="/hr">{t('hr.pipeline_title')}</Link></p>
       <div className="band">
         <div><h1>{p.name}</h1><div className="sub">{[x.org.job_title, x.org.department].filter(Boolean).join(' · ') || t(`sysrole.${p.system_role}`)}</div></div>
-        <div className="side">{date(p.join_date)}<br /><Countdown days={p.days_to_join} /></div>
+        <div className="side">{date(p.join_date)}<br /><Countdown days={p.days_to_join} status={p.status} on={p.join_date} /></div>
       </div>
       <p className="row"><StatusBadge status={p.status} />
         {p.status === 'invited' && <span className="small muted">{t('hr.awaiting_first')}</span>}
         {!p.has_login && <Badge value="draft" label={t('people.no_login')} />}
         <Link className="btn secondary" to={`/people/${p.id}`}>{t('people.open_profile')}</Link>
-        {mayActivate(x) && (
-          <button type="button" onClick={() => void activate()} disabled={act.busy} data-testid="activate">{t('hr.mark_joined')}</button>)}
+        {mayActivate(x) && need !== 'reason' && (
+          <button type="button" onClick={() => void activate()} disabled={act.busy || need === 'statutory'} data-testid="activate">{t('hr.mark_joined')}</button>)}
         {x.can_manage && p.has_login && <button type="button" className="secondary" onClick={() => void reset()} disabled={act.busy} data-testid="reset-password">{t('users.reset_password')}</button>}
       </p>
+      {joined && <div className="alert ok" role="status" data-testid="joined-now">{t('gate.joined_now', { name: p.name })}</div>}
+      {mayActivate(x) && need === 'statutory' && <div className="alert warn" data-testid="gate-statutory">{t('gate.statutory', { steps: x.activation!.statutory_open.join(', ') })}</div>}
+      {mayActivate(x) && need === 'reason' && (
+        <form className="card gate" onSubmit={(e) => { e.preventDefault(); void activate(); }} aria-label={t('hr.mark_joined')} data-testid="gate-reason">
+          <p className="small">{t('gate.open_steps', { n: x.activation!.open })}</p>
+          <div className="row"><input aria-label={t('gate.reason')} placeholder={t('gate.reason')} value={why} onChange={(e) => setWhy(e.target.value)} style={{ flex: 1, minWidth: 0 }} data-testid="gate-why" />
+            <button type="submit" disabled={act.busy || why.trim().length < 5} data-testid="activate">{t('hr.mark_joined')}</button></div>
+        </form>)}
+      <div className="axes">
+        <RoleCard x={x} onSaved={() => void d.reload()} />
+        {x.can_invite !== undefined && (x.can_invite || x.invite) && <InviteCard x={x} onTemp={(who, pw) => setTemp({ who, pw })} onChanged={() => void d.reload()} />}
+      </div>
       {temp && <TempPassword who={temp.who} password={temp.pw} />}
       <ErrorBox error={act.error} />
 
-      {ours.length > 0 && x.can_manage && (
+      {ours.length > 0 && mayDo && (
         <div className="queue" data-testid="waiting-on-you">
           <h2>{t('hr.waiting_on_you', { n: ours.length })}</h2>
           {ours.map((k) => <OurTask key={k.id} task={k} person={p.id} people={people.data ?? []} current={x} busy={act.busy} done={(data) => run(() => rpc('complete_task', { p_task: k.id, p_data: data }))} />)}
@@ -240,12 +298,14 @@ export function JoinerPage() {
             <td>{k.status === 'done' ? <><Badge value="verified" label={t('hr.done')} /><div className="small muted">{k.done_by} · {dateTime(k.done_at)}</div></> : <Badge value="pending" label={t('hr.open')} />}</td>
             <td>{x.can_manage && k.status === 'done' && <button type="button" className="secondary small-btn" disabled={act.busy} onClick={() => {
               const why = window.prompt(t('hr.reopen_why')); if (why) void run(() => rpc('reopen_task', { p_task: k.id, p_reason: why })); }}>{t('hr.reopen')}</button>}
+              {mayDo && k.status === 'pending' && k.statutory && (
+                <button type="button" className="secondary small-btn" disabled={act.busy} onClick={() => onPaper(k.id)} data-testid={`on-paper-${k.code}`}>{t('gate.on_paper')}</button>)}
               {x.can_manage && k.status === 'pending' && k.owner === 'hire' && (k.kind === 'sign' || k.kind === 'other') && (
                 <button type="button" className="secondary small-btn" disabled={act.busy} onClick={() => void run(() => rpc('complete_task', { p_task: k.id, p_data: { note: t('hr.on_behalf_note') } }))}>{t('hr.on_behalf')}</button>)}</td>
           </tr>))}</tbody>
       </table></div>
 
-      <div className="axes">
+      {full && <div className="axes">
         <div className="card">
           <h2 style={{ marginTop: 0 }}>{t('hr.vault')}</h2>
           <p className="small muted">{t('hr.vault_note')}</p>
@@ -297,12 +357,75 @@ export function JoinerPage() {
           {x.notes.length === 0 ? <Empty>{t('hr.no_notes')}</Empty> : <ul data-testid="hr-notes">{x.notes.map((nn) => <li key={nn.id}>{nn.note} <span className="small muted">{nn.by} · {dateTime(nn.at)}</span></li>)}</ul>}
           {x.exits.length > 0 && <><h2>{t('hr.exits')}</h2><ul>{x.exits.map((e, i) => <li key={i}>{date(e.exit_date)} · {e.reason ?? '—'} · {e.final_settlement ?? '—'} · {e.form16_ref ?? '—'}</li>)}</ul></>}
         </div>
-      </div>
+      </div>}
       <div className="axes">
-        <PersonalCard p={x.personal ?? null} />
+        {full && <PersonalCard p={x.personal ?? null} />}
         <FirstDayEditor x={x} busy={act.busy} save={(patch) => run(() => rpc('update_joiner', { p_employee: p.id, p: patch }))} />
       </div>
       <p className="small muted">{t('hr.assignments_n', { n: x.assignments })} <button type="button" className="secondary small-btn" onClick={() => nav(`/people/${p.id}`)}>{t('people.open_profile')}</button></p>
+    </div>
+  );
+}
+
+/** The person's intended role and opening, and their HR owner (migration 38); HR changes them here. */
+function RoleCard({ x, onSaved }: { x: Detail; onSaved: () => void }) {
+  const { t } = useI18n();
+  const stage = useStageName();
+  const hr = useHrPeople();
+  const [edit, setEdit] = useState(false);
+  const openings = useAsync(() => edit ? rpc<OpeningsSummary>('openings_summary', {}) : Promise.resolve(null), [edit]);
+  const [f, setF] = useState({ opening: '', role: x.role?.role ?? '', stage: x.role?.stage ?? '', owner: x.hr_owner?.id ?? '' });
+  const act = useAction();
+  if (!x.role) return null;
+  const save = () => act.run(async () => {
+    if (f.opening && f.opening !== x.role?.opening_id) await rpc('link_to_opening', { p_employees: [x.person.id], p_opening: f.opening });
+    else if (!x.role?.opening_id && (f.role !== (x.role?.role ?? '') || f.stage !== (x.role?.stage ?? '')))
+      await rpc('set_intended_role', { p_employee: x.person.id, p_role: f.role || null, p_stage: f.role === 'operator' ? f.stage || null : null });
+    if (f.owner !== (x.hr_owner?.id ?? '')) await rpc('set_hr_owner', { p_employees: [x.person.id], p_owner: f.owner || null });
+    setEdit(false); onSaved();
+  });
+  return (
+    <div className="card" data-testid="role-card">
+      <h2 style={{ marginTop: 0 }}>{t('jp.role_title')} {x.can_manage && <button type="button" className="secondary small-btn" onClick={() => setEdit(!edit)} data-testid="edit-role">{t(edit ? 'common.cancel' : 'common.edit')}</button>}</h2>
+      {!edit ? <dl className="kv">
+        <dt>{t('open.role')}</dt><dd data-testid="jp-role"><RoleLabel role={x.role.role as HireRole | null} stage={x.role.stage} /></dd>
+        <dt>{t('open.col_opening')}</dt><dd>{x.role.opening_code ? `${x.role.opening_code}${x.role.state_name ? ` · ${x.role.state_name}` : ''}` : '—'}</dd>
+        <dt>{t('jl.owner')}</dt><dd data-testid="jp-owner">{x.hr_owner?.name ?? '—'}</dd>
+      </dl> : <div className="form-grid">
+        <Field label={t('open.col_opening')} htmlFor="rc-open"><select id="rc-open" value={f.opening || x.role.opening_id || ''} onChange={(e) => setF({ ...f, opening: e.target.value })}>
+          <option value="">{t('aj.no_opening')}</option>{(openings.data?.openings ?? []).filter((o) => o.status !== 'closed').map((o) => <option key={o.id} value={o.id}>{o.code} · {t(`role.${o.role}`)}{o.stage ? ` · ${stage(o.stage)}` : ''}</option>)}</select></Field>
+        {!x.role.opening_id && !f.opening && <Field label={t('open.role')} htmlFor="rc-role"><select id="rc-role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>
+          <option value="">—</option>{HIRE_ROLES.map((r) => <option key={r} value={r}>{t(`role.${r}`)}</option>)}</select></Field>}
+        <Field label={t('jl.owner')} htmlFor="rc-owner"><select id="rc-owner" value={f.owner} onChange={(e) => setF({ ...f, owner: e.target.value })}>
+          <option value="">{t('jl.owner_none')}</option>{(hr.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+        <button type="button" disabled={act.busy} onClick={() => void save()} data-testid="save-role">{t('common.save')}</button>
+      </div>}
+      <ErrorBox error={act.error} />
+    </div>
+  );
+}
+
+/** C · the invite: its state; a new link (copy, QR, emailed with a sender); a temporary password as the fallback. */
+function InviteCard({ x, onTemp, onChanged }: { x: Detail; onTemp: (who: string, pw: string) => void; onChanged: () => void }) {
+  const { t } = useI18n();
+  const [inv, setInv] = useState<Awaited<ReturnType<typeof sendInvites>> | null>(null);
+  const act = useAction();
+  const p = x.person;
+  const temp = () => act.run(async () => {
+    if (!window.confirm(t('inv.temp_sure'))) return;
+    const r = await callFunction<{ sign_in: string; temporary_password: string }>('reset-password', { app_user_id: p.id });
+    onTemp(r.sign_in, r.temporary_password); onChanged();
+  });
+  return (
+    <div className="card" data-testid="invite-card">
+      <h2 style={{ marginTop: 0 }}>{t('inv.title')}</h2>
+      <p className="small" data-testid="invite-state">{x.invite ? t(`inv.state_${x.invite.state}`) + (x.invite.state === 'not_sent' || x.invite.state === 'sent' ? ` · ${t('inv.until', { d: dateTime(x.invite.expires_at) })}` : '')
+        : t('jl.no_invite')}{!p.has_login && <> · {t('inv.no_sign_in_yet')}</>}</p>
+      {x.can_invite && <p className="row">
+        <button type="button" disabled={act.busy} onClick={() => void act.run(async () => { setInv(await sendInvites([p.id])); onChanged(); })} data-testid="send-invite">{t(x.invite ? 'inv.send_again' : 'inv.send_one')}</button>
+        {!p.has_login && <button type="button" className="secondary" disabled={act.busy} onClick={() => void temp()} data-testid="temp-instead">{t('inv.temp_instead')}</button>}</p>}
+      <ErrorBox error={act.error} />
+      {inv && <InviteResults {...inv} />}
     </div>
   );
 }
@@ -514,7 +637,7 @@ export function Templates() {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const canWrite = (ctx?.user?.can ?? NO_RIGHTS).hr_admin;
-  const tpls = useAsync(() => q(supabase.from('onboarding_templates').select('id,name,is_default,active,first_day_time,first_day_place,first_day_ask_for,first_day_bring').order('name')) as Promise<Template[]>, []);
+  const tpls = useAsync(() => q(supabase.from('onboarding_templates').select('id,name,is_default,active,role,first_day_time,first_day_place,first_day_ask_for,first_day_bring').order('name')) as Promise<Template[]>, []);
   const [sel, setSel] = useState('');
   const tasks = useAsync(() => sel ? q(supabase.from('template_tasks').select('*').eq('template_id', sel).order('seq')) as Promise<TplTask[]> : Promise.resolve([] as TplTask[]), [sel]);
   const [rows, setRows] = useState<TplTask[]>([]);
@@ -546,15 +669,23 @@ export function Templates() {
     await tpls.reload();
   });
   const cur = tpls.data?.find((x) => x.id === sel);
+  // D (migration 38): one template per role, picked automatically for a joiner of that role
+  const setRole = (role: string) => act.run(async () => {
+    if (role) await q(supabase.from('onboarding_templates').update({ role: null }).eq('role', role).neq('id', sel).select());
+    await q(supabase.from('onboarding_templates').update({ role: role || null }).eq('id', sel).select());
+    await tpls.reload();
+  });
   return (
     <div>
-      <p className="small"><Link to="/hr">{t('hr.pipeline_title')}</Link></p>
       <h1>{t('hr.templates')}</h1>
+      <HrLinks here="templates" />
       <p className="muted small">{t('hr.templates_note')}</p>
       {tpls.loading ? <Loading /> : <ErrorBox error={tpls.error} />}
       <div className="row">
         <Field label={t('hr.template')} htmlFor="tpl"><select id="tpl" value={sel} onChange={(e) => setSel(e.target.value)}>
-          {(tpls.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}{x.is_default ? ` (${t('hr.default')})` : ''}</option>)}</select></Field>
+          {(tpls.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}{x.is_default ? ` (${t('hr.default')})` : ''}{x.role ? ` · ${t(`role.${x.role}`)}` : ''}</option>)}</select></Field>
+        {cur && <Field label={t('tpl.for_role')} hint={t('tpl.for_role_hint')} htmlFor="tpl-role"><select id="tpl-role" value={cur.role ?? ''} disabled={!canWrite || act.busy} onChange={(e) => void setRole(e.target.value)} data-testid="template-role">
+          <option value="">{t('tpl.no_role')}</option>{HIRE_ROLES.map((r) => <option key={r} value={r}>{t(`role.${r}`)}</option>)}</select></Field>}
         {canWrite && cur && !cur.is_default && <button type="button" className="secondary" disabled={act.busy} onClick={() => void makeDefault()}>{t('hr.make_default')}</button>}
       </div>
       {!canWrite && <div className="alert info">{t('hr.templates_readonly')}</div>}

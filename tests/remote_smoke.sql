@@ -198,6 +198,26 @@ select 'joiner HR data',         case when to_regprocedure('app.record_id_number
                                       then 'OLD or OPEN: duplicates not enforced, or the number recorder open to people (push migration 37)'
                                       else 'OK fingerprints only; duplicates refused; masked images removable' end
 union all
+select 'onboarding at scale',     case when to_regclass('public.openings') is null or to_regclass('public.invites') is null
+                                        or to_regclass('public.message_queue') is null or to_regclass('public.seat_deputies') is null
+                                        or to_regprocedure('app.import_joiners(jsonb, boolean, text)') is null
+                                        or to_regprocedure('app.joiners_page(jsonb)') is null or to_regprocedure('app.opening_targets(uuid)') is null
+                                        or to_regprocedure('app.activate_joiner(uuid, text)') is null
+                                      then 'MISSING (push migration 38)'
+                                      when to_regprocedure('app.activate_joiner(uuid)') is not null
+                                        or has_function_privilege('authenticated', 'app.record_invite(uuid, uuid, text, text, integer)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.invite_lookup(text)', 'execute')
+                                        or has_column_privilege('authenticated', 'public.invites', 'token_hash', 'select')
+                                        or not exists (select 1 from pg_trigger where tgname = 'employee_org_guard' and not tgisinternal)
+                                        or (select count(*) from public.onboarding_templates where active and role is not null) < 4
+                                      then 'OLD or OPEN: the invite functions or the token fingerprints open to people, no gate, or no role checklists (push migration 38)'
+                                      else 'OK openings, import, invites (fingerprints only), gate on Mark as joined, role checklists' end
+union all
+select 'reminder round',          case when to_regclass('cron.job') is null then 'NO pg_cron: reminders are queued when HR opens the Joiners list'
+                                      when (xpath('/row/n/text()', query_to_xml(
+                                              'select count(*) as n from cron.job where jobname = ''grainveda-reminders''', false, true, '')))[1]::text::int = 1
+                                      then 'OK' else 'NOT SCHEDULED' end
+union all
 select 'nightly ledger check',   case when to_regclass('cron.job') is null then 'NO pg_cron: see RUNSHEET_phase3 step 5'
                                       when (xpath('/row/n/text()', query_to_xml(
                                               'select count(*) as n from cron.job where jobname = ''grainveda-ledger-nightly''', false, true, '')))[1]::text::int = 1

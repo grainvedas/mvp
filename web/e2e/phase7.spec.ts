@@ -6,7 +6,7 @@
 //   a manager gives that person an assignment: a scope and stages, a client's account, or a state.
 // The old "Users" page (one form: role + client + state + login) is gone; `/users` now lands on People & access.
 import { test, expect } from '@playwright/test';
-import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, todayIST, USERS } from './helpers';
+import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, USERS } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
@@ -169,7 +169,7 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   const made: Record<string, { id: string; temp: string }> = {};
   for (const [k, p] of Object.entries(who)) {
     made[k] = await addJoiner(page, p);
-    await page.getByTestId('activate').click();                                 // "Mark as joined": the person is an employee now
+    await markJoined(page);                                 // "Mark as joined": the person is an employee now
     await expect(page.getByTestId('activate')).toHaveCount(0);
     await expect(page.locator('main p.row').first()).toContainText('Active');
   }
@@ -215,6 +215,8 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   await expect(page.getByTestId('roster-gaps')).toContainText('3 stage(s) with nobody');
   await expect(page.getByRole('button', { name: '+ new person' })).toHaveCount(0);                 // a manager creates nobody
   for (const [label, k] of [['Assign Procurement (farm-gate)', 'procurement'], ['Assign Quality Control', 'qc'], ['Assign QR Activation (seal)', 'qr']] as const) {
+    await page.getByTestId('roster-find').fill(who[k].name);         // the pool lists the first 100 by name; a search finds anyone
+    await expect(page.getByLabel(label).locator('option', { hasText: who[k].name })).toHaveCount(1);
     await page.getByLabel(label).selectOption({ label: who[k].name });
     await expect(page.getByTestId('slots').getByRole('link', { name: who[k].name })).toBeVisible();
   }

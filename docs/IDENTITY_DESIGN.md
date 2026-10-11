@@ -173,11 +173,13 @@ Admin: an HR resource made by an HR resource · every offboarding · the HR Admi
 going to or from admin · the sign-in code switched. Assignments through the client or state lens and export-manager
 assignments are also blocks in the hash-chained ledger.
 
-## Server functions (five, one build)
+## Server functions (six, one build)
 
 `create-user` (joiner or client login; the login is made with the service key, linked, and taken back on any failure;
-since migration 37 a joiner needs a phone), `reset-password`, `ledger-check`, `daily-code`, `id-numbers` (migration 37,
-below). All carry `VERSION = '2026-10-12'`; the app needs that build
+since migration 37 a joiner needs a phone), `reset-password` (since migration 38 it also makes the sign-in of an
+imported joiner who has none), `ledger-check`, `daily-code`, `id-numbers` (migration 37, below), `invite` (migration
+38, below; public like `ledger-check`: deployed with `--no-verify-jwt`, it checks the caller itself). All carry
+`VERSION = '2026-10-13'`; the app needs that build
 (`FUNCTIONS_NEEDED`) and says so on the Add joiner page when the server is behind. Mail (the invite note, the sign-in
 code) goes through one sender setting (`MAIL_API_URL`, `MAIL_API_KEY`, `MAIL_FROM`); **none is set on any hosted
 project**, so no mail is sent: HR hands over the temporary password in person, as before, and the code stays off.
@@ -197,6 +199,24 @@ project**, so no mail is sent: HR hands over the temporary password in person, a
 | First day | `employee_org.first_day_*` per person, else `onboarding_templates.first_day_*`, date defaults to the join date |
 | Free text | `app.scrub_numbers` on client error reports and acceptance reasons (and the phone does the same before sending) |
 
+## Onboarding at scale (migration 38, 11 October 2026)
+
+| Rule | How |
+|---|---|
+| Openings | `public.openings` (code `<STATE>-<SM\|CM\|OPR\|EXM\|HR\|OTH>-nnn`; an operator opening names its stage; a client or scope must be in the state, the stage in the scope's chain). Read: HR, the admin, managers who assign. Written by `app.save_opening` / `set_opening_status` (HR). The numbers come from `app.opening_numbers`: people linked by `employee_org.opening_id`; **assigned** = an active assignment that fills it (state seat; client account; an operator assignment in a matching scope, any stage); **ready** = joined, not assigned, and the target is ready (`app.opening_ready`: an active scope with that stage, a client in the state); **waiting for their wave** = joined, not assigned, target not ready |
+| People's new columns | `employee_org.opening_id, intended_role, intended_stage, hr_owner, import_batch` are written only by the functions (`employee_org_guard` refuses direct API writes) |
+| Import | `app.import_joiners(rows, dry_run, batch)`: reason codes `imp.*` per row; warnings do not stop a row; a row whose email **and** mobile match an existing person is skipped; each row is added by `add_joiner` in its own sub-transaction; one audit line `joiners_imported` |
+| Checklist per role | `onboarding_templates.role` (one active per role); Add joiner and the import take the given template, else the role's, else the default |
+| Invites | 32 random bytes, base64url, in the link after `#`; the database keeps only its SHA-256 (`invites.token_hash`, not readable by people); 72 hours; one use; a new invite revokes the open one. `record_invite`, `invite_lookup`, `use_invite` are service-key only. `invite` accept: makes the sign-in (or sets the password of an existing one), verifies the link to the person, else removes it |
+| Gate | `app.activate_joiner(person, reason)`: refused while a statutory step is open; `app.record_on_paper(task, note)` (HR, flagged `statutory_on_paper`); other open steps need a reason (≥ 5 characters; flagged `activated_with_open_steps`). Bulk: `activate_many`, the same rule per person |
+| Many at once | `complete_task_many`, `update_joiner_many` (first-day fields only), `set_hr_owner`, `activate_many`, `assign_many` (each person through the one-person function, each logged); at most 500 |
+| Lists | `joiners_page`, `people_page`, `audit_page`: filters and paging on the server, with indexes |
+| Ready to assign | `app.ready_to_assign(lens, target)`: active people of matching openings without that assignment; offered on a draft roster too (that is how a draft is staffed) |
+| Deputy | `seat_deputies` (one, seat `state_managers`), set by the HR Admin (the admin only while that seat is vacant); `may_assign` lets the Deputy seat State Managers; flagged `state_seated_by_deputy` |
+| Reminders | `queue_reminders` (service key; pg_cron `grainveda-reminders` 03:30 UTC where it exists, and the `invite` function's `reminders` action when HR opens the list) → `message_queue` (deduplicated); sent only with a mail sender |
+| H2, H3 | The admin may complete the HR Admin's own HR steps (flagged `hr_admin_task_by_admin`); HR may complete IT steps |
+| H7 | Once, in the migration: open steps of invited/onboarding people due before today + 3 → today + 3; audit `due_dates_recalculated` per person |
+
 ## Tests
 
 | Where | What | Count |
@@ -207,10 +227,11 @@ project**, so no mail is sent: HR hands over the temporary password in person, a
 | `tests/26_onboarding.sql` | templates, checklist, last-four rule, auto-activation, HR files and the private store | 60 |
 | `tests/27_daily_code.sql` | the code: issue, verify, tries, once a day, the switch | 28 |
 | `tests/31_joiner_hr_data.sql` | fingerprints and duplicates, the target rule, bank warning and acceptance, masked images and their removal, PAN seen, Personal details, dependencies, due dates, first day, scrubbing (seven controls) | 71 |
+| `tests/32_onboarding_at_scale.sql` | openings and their numbers, import (dry run, commit, re-upload), role checklists, invites (service only, one use, revoke), lists and filters, the gate and on paper, bulk acts, ready to assign, the Deputy, H2, H3, H7, direct writes refused (ten controls) | 99 |
 | `tests/remote_create_user.mjs`, `tests/remote_rls.mjs --t1` | the same rules with real logins over the API (local stack) | 84 + 192 |
-| `web/tests/identity.test.ts`, `functions.test.ts`, `id_numbers.test.ts` | number checks, checklist states, first screen, menu, session length; the five functions; no number in any request, answer or log of `id-numbers` | 29 + 33 + 52 |
+| `web/tests/identity.test.ts`, `functions.test.ts`, `id_numbers.test.ts`, `invite.test.ts`, `scale.test.ts` | number checks, checklist states, first screen, menu, session length; the six functions; the invite function (no token in any log); import dates and columns, list filters, bulk refusals, Hindi of the new words; no number in any request, answer or log of `id-numbers` | 29 + 33 + 52 |
 | `tests/run_local.*` "upgrade path" | migrations 31 to 33 applied to a database already in use, then all 27 test files again | every run |
-| `web/e2e/phase7.spec.ts`, `phase8.spec.ts`, `phase10.spec.ts` | through the screens: a client set up from nothing; a joiner on a phone; directory, assign, lifecycle, state, seats, audit, the code; duplicates, masked images, the joiner's words, and a search of everything the stack wrote for the numbers typed | 3 + 8 + 4 |
+| `web/e2e/phase7.spec.ts`, `phase8.spec.ts`, `phase10.spec.ts`, `phase11.spec.ts` (205 joiners from a spreadsheet to 40 on a stage, at 527 px) | through the screens: a client set up from nothing; a joiner on a phone; directory, assign, lifecycle, state, seats, audit, the code; duplicates, masked images, the joiner's words, and a search of everything the stack wrote for the numbers typed | 3 + 8 + 4 |
 
 All of the table above ran on the local stack. **On staging since 6 October 2026** (run-sheet part D, three runs of
 `scripts/staging_phase5.ps1`; `docs/VERIFICATION_LOG.md`): migrations 31 to 33 on the database in use, the four

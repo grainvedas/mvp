@@ -1530,3 +1530,81 @@ NOT run / not known:
 - Windows PowerShell 5.1 (the script is plain ASCII and uses only what the earlier scripts use).
 - About 110 new Hindi strings unread by their users (K50).
 - The HR files already on staging: the run lists them (S4); the brief's list waits for that record.
+
+**Staging, 11 Oct 2026, 00:20 IST (Veda ran `staging-joiner-hr-data.cmd`):** `RESULT: JOINER HR DATA ON STAGING`;
+app commit `8bef8ed`; smoke 32 of 32; `personal_steps_added=1`; the HR files already stored: three, all logo images
+(kinds pan, bank_proof, pf_form), none a real ID. Migration 37 and the five functions are on the practice system.
+
+## 2026-10-12 — Onboarding at scale (migration 38, open item 32): built and rehearsed on the local stack
+
+Brief "GrainVeda MVP — Onboarding at scale (10 → 100 → 200+ hires)" (Veda, 11 Oct; the six decisions "as
+recommended", FIX_LIST G17). **Nothing of it is on staging** (it waits for Veda's say-so).
+
+Ran:
+- **Database**: `tests/run_local.sh` → `ALL TESTS PASSED`; **1,229** `ok` lines; `ok upgrade: the later migrations apply
+  to a database in use, and all 32 test files pass on it`. New `tests/32_onboarding_at_scale.sql` (**99 checks**):
+  openings (codes, validation, who reads and plans, the form's lists), Add joiner against an opening (role, the
+  role's checklist, HR owner, a full opening refuses), the import (dry run with reasons, commit of only the good rows,
+  the same file again skipped), the HR owner and Mine, invites (service key only, token fingerprint not readable, one
+  use, expiry, a new one revokes), reminders queued once per step and day, the lists and filters, the gate (statutory
+  refuses; on paper flagged; a reason flagged), bulk acts each logged, H2 and H3, ready to assign and assigning many,
+  the Deputy (flagged), the numbers per opening, state and overall and on the admin's overview, H7, direct writes of
+  the new columns refused. **Controls** (`controls.sh`, ten broken versions, each caught): statutory not checked; no
+  reason needed; error rows committed; an opening never full; invite expiry ignored; `assign_many` without the
+  may-assign check; Deputy seating not flagged; the admin on the HR Admin's checklist not flagged; Mine shows everyone;
+  assigned never counted. Tests 26, 30, 08 and `production_seed_check.sql` adapted (the gate, role checklists, the API
+  surface). The smoke check's new rows (`onboarding at scale`, `reminder round`): OK on the stack; the first fails on
+  each of five broken versions (an invite function opened, the token fingerprint readable, the guard trigger dropped,
+  a role checklist switched off, a function missing).
+- **API on the local stack**: `tests/remote_create_user.mjs` **95 passed** (now through the gate: refused with the
+  statutory step open, recorded on paper, refused without a reason, joined with one); `tests/remote_rls.mjs --t1`
+  **192 passed**.
+- **Unit tests**: **311 passed** (new `web/tests/scale.test.ts`, 13: import dates and column names, filters, paging,
+  invite token shape, the group message, the gate, a joiner's overdue steps, bulk refusals in the reader's language,
+  every new word in English and Hindi, "State Manager"; `web/tests/invite.test.ts` 19, two planted faults caught).
+  Type check clean; `npm run build:ci` builds (the invite page is its own 3.6 KB chunk).
+- **Screens**: default suite **64 passed (11.5 min)** on a stack built from nothing, including new `e2e/phase11.spec.ts`
+  at **527 px**: a Client Manager drafts a scope; HR makes an opening for it (205 positions; "the scope is not active
+  yet"); a 208-row spreadsheet: preview 205 good, 3 errors with their reasons; add; the same file again: 205 skipped,
+  nothing added; the list by opening, paged (Page 1 of 5 · 205), Mine, search, H1 "joining date:" for someone joining
+  today; invite links for a page of 50 (on the stack a mail stand-in counts as a sender: "Emailed to 50"); one joiner
+  opens the link on a 390 px phone, the token leaves the address bar, chooses a password, is signed in on the
+  checklist; the link again: used; the gate: a full-time joiner refused, on paper, a reason, "Active" at once (G2);
+  bulk Mark as joined: the four full-time ones refused ("a statutory step is still open"), a page of 50 contract
+  operators joined with one reason; the openings: joined 51, waiting for their wave 51, ready 0; Hindi on the phone;
+  the Client Manager staffs the draft from the joined people (searching the pool), activates it: 48 ready, **40 given
+  Procurement in one act**, 8 left; the openings: assigned 43, waiting 0, ready 8; the admin's overview shows the same
+  totals; 43 `assigned` lines in the audit log. Existing tests adapted: Mark as joined through the gate (`markJoined`
+  helper: phase 7, 8, fresh start), the HR list's new screen, "State Manager", and the roster's pool (the first 100 by
+  name; tests now search, as a manager would with hundreds of people). A fault found by these runs and fixed: the
+  joiner page broke with a hook after an early return (blank page); the admin reached any joiner's page (now only the
+  HR Admin's, else home); the HR list showed task titles without their Hindi; a bulk act's outcome vanished with the
+  selection; the opening form read clients HR may not read (now `app.opening_targets`).
+- **First day from nothing** (`e2e-fresh`): **1 passed**, after a fault found on the way: the fresh-start removal
+  (`scripts/fresh_start/empty_staging.sql`, also the staging script's file) removed checklists that people still
+  pointed at and stopped; it now keeps the checklists the migrations wrote (the standard one and one per role) and
+  removes those made by people after the people. Shown on a stack with 203 joiners on role checklists.
+  `scripts/staging_fresh_start.ps1` takes the new file's hash and counts the standard checklist's tasks (9); that
+  script itself was not run again.
+- **Built app** (`playwright.prod.config.ts`): **14 passed**; the public page first load **162 KB**.
+- **Load** (`tests/load_onboarding.mjs`, local stack only; fake names, `example.com`, phones `7…`): the brief's shape
+  (1 State Manager, 2 Client Managers, 200 operators over 5 stages): **29 passed** — preview 209 rows 49 ms, add 382 ms,
+  invites for 203 people 1.2 s, the joiners list 26–35 ms per page, People & access 84 ms, by role and state 120 ms
+  (887 ms before HR's view skipped the per-assignment visibility check), audit log 20 ms, openings 118 ms, on paper
+  for 203 people 0.6 s, Mark as joined for 203 0.45 s, ready to assign 11 ms, **40 on a stage in one act 100–141 ms**.
+  At ten times that (2,003 per run, about 5,700 people in the system, 3,600 joining): preview 1,000 rows 0.5 s, add
+  3.1 s, invites 11.5 s, a joiners page 115–150 ms, People & access 101 / 194 ms, openings 170 ms, Mark as joined for
+  2,003 4.3 s, **400 on a stage in one act 0.85–0.92 s**. All on the local stack: the hosted project adds the network.
+- **`scripts/staging_onboarding_at_scale.ps1`** on stand-ins (PowerShell 7 on Linux): the whole run (`RESULT:
+  ONBOARDING AT SCALE ON STAGING`, six functions, `invite` and `ledger-check` with `--no-verify-jwt`); a second run
+  (nothing pushed twice); stops for wrong words, production, another migration waiting, no key of id-numbers, a
+  function that will not deploy (then a re-run completes), a push that fails, a smoke row not OK, a changed and a new
+  function file; the reminder row not scheduled is listed and does not stop; `-NoGit`. `staging-joiner-hr-data.cmd`
+  now refuses (its files are no longer the tested ones).
+
+NOT run / not known:
+- Nothing on staging: the functions, the migration, the app.
+- Email: no sender on any hosted project; invites and reminders are not emailed there (decisions 1 and 2). pg_cron on
+  the hosted project: the smoke row says whether the reminder round is scheduled.
+- Windows PowerShell 5.1; real phones; the hosted project's speed.
+- About 250 new Hindi strings unread by their users (K57).

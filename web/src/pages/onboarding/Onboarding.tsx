@@ -16,6 +16,7 @@ import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { FileBox, uploadHrFile, useStageName } from '../people/shared';
 import { Owner, TaskTitle } from '../hr/Hr';
 import { RoleGuide } from '../../shell/RoleGuide';
+import { overdueMine } from '../../lib/scale';
 
 const useMine = () => useAsync(() => rpc<MyOnboarding>('my_onboarding'), []);
 
@@ -28,6 +29,14 @@ function Join({ o }: { o: MyOnboarding }) {
 }
 
 // ── the checklist ────────────────────────────────────────────────────────────────────────────────────────────────
+/** E5 (migration 38): the joiner's own late steps, at the top of their screens (reminders in the app). */
+function Overdue({ tasks }: { tasks: Task[] }) {
+  const { t } = useI18n();
+  const late = overdueMine(tasks, new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10));
+  if (late.length === 0) return null;
+  return <div className="alert warn" role="status" data-testid="overdue-banner">{t('mine.overdue', { n: late.length })}: {late.map((k) => <strong key={k.id}><TaskTitle task={k} /> </strong>)}</div>;
+}
+
 export function Checklist() {
   const { t } = useI18n();
   const o = useMine();
@@ -40,6 +49,7 @@ export function Checklist() {
         <div><h1>{t('mine.welcome', { name: x.name.split(' ')[0] })}</h1><div className="sub"><Join o={x} /></div></div>
         <div className="side">{[x.org.job_title, x.org.department].filter(Boolean).join(' · ')}</div>
       </div>
+      <Overdue tasks={x.tasks} />
       <div className="card">
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <strong data-testid="checklist-progress">{t('mine.progress', { done: p.done, total: p.total })}</strong><span className="muted small">{p.pct} %</span>
@@ -342,6 +352,7 @@ export function JoinerHome() {
   return (
     <div style={{ maxWidth: 640 }}>
       <div className="band" data-testid="joiner-home"><div><h1>{t('mine.welcome', { name: x.name.split(' ')[0] })}</h1><div className="sub"><Join o={x} /></div></div></div>
+      <Overdue tasks={x.tasks} />
       <div className="card">
         <strong>{t('mine.progress', { done: p.done, total: p.total })}</strong>
         <div className="bar" role="img" aria-label={`${p.pct} %`} style={{ margin: '6px 0 12px' }}><span style={{ width: `${p.pct}%` }} /></div>

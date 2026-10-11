@@ -8,7 +8,7 @@
 // tests/remote_rls.mjs); this file is the person's side of them.
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, signInOnly, signInWith, signOut, setOwnPassword, freshEmail, addJoiner, todayIST, expectNoSideScroll, apiAs, localStack,
-  freshPan, freshAadhaar, freshAccount,
+  freshPan, freshAadhaar, freshAccount, markJoined,
   USERS, PEOPLE, SCOPES } from './helpers';
 import { hi } from '../src/lib/i18n.hi';
 
@@ -319,10 +319,13 @@ test.describe('at a desk', () => {
     await expect(qc.getByTestId('access-badges').locator('.badge.lens-scope')).toHaveCount(6);
     await expect(person(page, 'Prasaadam Client Manager').getByTestId('access-badges').locator('.badge.lens-client')).toHaveText('Client account: GrainVeda (Prasaadam trade scope)');
     // the wall: someone with access outside what this manager manages is a number, not a place
+    // (the list is paged on the server since migration 38: a name late in the alphabet is found by searching for it)
+    await page.locator('#pf-text').fill('UP State Manager');
     const sm = person(page, 'UP State Manager');
     await expect(sm.getByTestId('elsewhere')).toHaveText('+1 elsewhere');
-    await expect(sm.getByTestId('access-badges')).not.toContainText('State supervisor');
+    await expect(sm.getByTestId('access-badges')).not.toContainText('State Manager');
     await expect(sm.getByTestId('access-badges').locator('.badge.lens-state')).toHaveCount(0);
+    await page.locator('#pf-text').fill('');
     // the lenses offered are the ones this reader's view reaches
     await expect(page.locator('#pf-client option')).toHaveText(['Any client', 'GrainVeda (Prasaadam trade scope)']);
     await page.locator('#pf-state').selectOption({ label: 'Uttar Pradesh' });
@@ -443,7 +446,7 @@ test.describe('at a desk', () => {
       await signOut(page);
       await signIn(page, USERS.hr);
       await page.goto(`/hr/joiners/${made.id}`);
-      await page.getByTestId('activate').click();
+      await markJoined(page);
       await expect(status(page)).toHaveText('Active');
       await signOut(page);
 
@@ -511,7 +514,7 @@ test.describe('at a desk', () => {
     const u = uniq(); const name = `Farida Test ${u}`; const mail = freshEmail('farida');
     await signIn(page, USERS.hr);
     const made = await addJoiner(page, { name, email: mail, type: 'contract', title: 'Field Associate' });
-    await page.getByTestId('activate').click();
+    await markJoined(page);
     await expect(status(page)).toHaveText('Active');
     await signOut(page);
     await signIn(page, USERS.cm);
@@ -618,7 +621,7 @@ test.describe('at a desk', () => {
     await expect(page.getByTestId('roster-covered')).toBeVisible();
     await expect(page.getByTestId('slot-holder-procurement').filter({ hasText: 'Procurement Op (field)' })).toBeVisible();
     await expect(page.getByTestId('roster-managers')).toContainText('Prasaadam Client Manager Client account');
-    await expect(page.getByTestId('roster-managers')).toContainText('UP State Manager State supervisor');
+    await expect(page.getByTestId('roster-managers')).toContainText('UP State Manager State Manager');
     await expect(page.getByRole('combobox', { name: 'Assign Procurement (farm-gate)' })).toBeVisible();   // may assign in the own state
     // … and stops at the border
     await page.goto(`/scopes/${NAGAON}/roster`);

@@ -15,7 +15,8 @@ import { FarmerForm, FarmerList } from './pages/farmers/Farmers';
 import { FarmerImport } from './pages/farmers/FarmerImport';
 import { ScopeList, ScopeWizard } from './pages/scopes/Scopes';
 import { Clients, Crops, OpenFlags, States } from './pages/admin/Admin';
-import { AddJoiner, HrPipeline, JoinerPage, Templates } from './pages/hr/Hr';
+import { AddJoiner, JoinerPage, Templates } from './pages/hr/Hr';
+import { ImportJoiners, JoinersList, Openings } from './pages/hr/Scale';
 import { Checklist, Goals, TaskPage, Welcome } from './pages/onboarding/Onboarding';
 import { AssignPage, Directory, ProfilePage, RosterPage, StateOverview } from './pages/people/People';
 import { AuditLog, Seats } from './pages/system/System';
@@ -37,9 +38,9 @@ registerDictionary('en', en);
 registerDictionary('hi', hi);
 
 /** HR's screens open only for HR (and the admin while the HR Admin seat is empty): brief 2.2. Anyone else goes home. */
-export function HrOnly({ children }: { children: ReactNode }) {
+export function HrOnly({ children, orAdmin }: { children: ReactNode; orAdmin?: boolean }) {
   const { ctx } = useAuth();
-  return ctx?.user?.can?.hr ? <>{children}</> : <Navigate to="/" replace />;
+  return ctx?.user?.can?.hr || (orAdmin && ctx?.user?.can?.admin) ? <>{children}</> : <Navigate to="/" replace />;
 }
 
 function Private() {
@@ -75,9 +76,11 @@ function Private() {
         <Route path="onboarding/task/:id" element={<TaskPage />} />
         <Route path="welcome" element={<Welcome />} />
         <Route path="goals" element={<Goals />} />
-        <Route path="hr" element={<HrOnly><HrPipeline /></HrOnly>} />
+        <Route path="hr" element={<HrOnly><JoinersList /></HrOnly>} />
+        <Route path="hr/openings" element={<HrOnly orAdmin><Openings /></HrOnly>} />
+        <Route path="hr/import" element={<HrOnly><ImportJoiners /></HrOnly>} />
         <Route path="hr/joiners/new" element={<HrOnly><AddJoiner /></HrOnly>} />
-        <Route path="hr/joiners/:id" element={<HrOnly><JoinerPage /></HrOnly>} />
+        <Route path="hr/joiners/:id" element={<HrOnly orAdmin><JoinerPage /></HrOnly>} />
         <Route path="hr/templates" element={<HrOnly><Templates /></HrOnly>} />
         <Route path="people" element={<Directory />} />
         <Route path="people/:id" element={<ProfilePage />} />

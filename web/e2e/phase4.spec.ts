@@ -339,6 +339,8 @@ test('A manager gives a stage to a person and takes it away again', async ({ pag
   await page.goto(`/scopes/${S}`);
   const holders = page.getByTestId('slot-holder-sorting');
   await expect(holders).toHaveCount(1);
+  await page.getByTestId('roster-find').fill('Shipment');            // the pool lists the first 100 by name; a search finds anyone
+  await expect(page.getByLabel('Assign Sorting').locator('option', { hasText: 'Shipment Operator' })).toHaveCount(1);
   await page.getByLabel('Assign Sorting').selectOption({ label: 'Shipment Operator' });
   await expect(holders).toHaveCount(2);
   await expect(holders.filter({ hasText: 'Shipment Operator' })).toHaveCount(1);

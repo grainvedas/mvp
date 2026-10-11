@@ -430,3 +430,19 @@ button.stat.stat-btn.open { border-color: var(--g600); box-shadow: inset 0 -3px 
   .hbar-row, .pf-row { grid-template-columns: minmax(0, 1fr) auto; }
   .hbar-row .hbar-track, .pf-row .hbar-track { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ── onboarding at scale (migration 38): openings, import, invites, joiners list ── */
+button.stat { text-align: left; font: inherit; color: inherit; cursor: pointer; width: 100%; min-width: 0; }
+button.stat:hover { border-color: var(--g400); background: var(--g50); }
+button.stat:focus-visible { outline: 3px solid var(--g500); outline-offset: 2px; }
+.hr-links { gap: 6px 14px; margin: 0 0 12px; }
+.hr-links .active { background: var(--g700); color: #fff; border-color: var(--g700); cursor: default; }
+.total-row td { background: var(--g50); border-top: 2px solid var(--border2); }
+.ready-list, .invite-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.ready-list li, .invite-list li { border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px 10px; min-width: 0; overflow-wrap: anywhere; }
+.link-box { width: 100%; min-width: 0; font-family: ui-monospace, monospace; font-size: .8rem; }
+.bulk-bar { position: sticky; bottom: 8px; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.bulk-bar > * { min-width: 0; }
+.pager { align-items: center; justify-content: center; gap: 12px; margin: 12px 0; }
+.gate { border-left: 4px solid var(--yellow-border); }
+@media (max-width: 560px) { .bulk-bar { position: static; } .bulk-bar button { flex: 1 1 auto; } }

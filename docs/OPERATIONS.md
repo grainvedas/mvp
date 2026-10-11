@@ -65,7 +65,14 @@ Every person HR adds signs in with their **email** and the temporary password, a
 
 | Situation | Who | Do |
 |---|---|---|
-| A new person | HR | **HR · Joiners → Add joiner**. Then a manager assigns them (**People & access → Assign**) |
+| A new person | HR | **HR · Joiners → Add joiner** (pick the opening: the role and checklist follow). Then a manager assigns them (**People & access → Assign**, or the roster's **Ready to assign**) |
+| Many new people (a wave) | HR | **HR · Openings**: one opening per state, role (and stage for operators). **Import joiners** → download the template → fill it → choose it: the preview says what is wrong per row; **Add** adds only the good rows. Choosing the same file again adds nobody twice. Then **Send invites** (the links), see below |
+| Invite links | HR | **Joiners** → tick people (or a whole page) → **Send invites**: one link each, for 72 hours, one use; copy it (or **Copy all** for a group message) or show the QR code. With a mail sender set up they are emailed too. **Send again** on a joiner's page makes a new link (the old one stops). Person cannot use links: **Temporary password instead** on their page |
+| "This link has expired / has been used" | HR | Send a new invite from the joiner's page |
+| My joiners, the overdue ones, those waiting on IT | HR | **Joiners**: **Mine** (you are their HR owner), the filters, the page buttons. Tick many → mark an HR step done, first-day details, HR owner, **Mark as joined** (each person done and logged on their own; the box says who was refused and why) |
+| Mark as joined is refused: "a statutory step is still open" | HR | Finish the step, or if the form came on paper: **Received on paper** on that step (a note; flagged). Then Mark as joined; with other steps still open it asks for a reason (flagged) |
+| Joined, waiting for their wave | a manager / the HR Admin | **Openings** shows them per opening. When the scope (client, state) is ready: its roster's **Ready to assign** → tick → **Give**; the opening's numbers move at once |
+| The HR Admin is away and a State Manager must be seated | HR Admin (beforehand) | **Openings → Deputy**: name one HR person; they may seat State Managers (each seat by the Deputy is flagged). **Clear** ends it |
 | Signed in and sees "A manager will assign you to your work soon" | a manager of the scope | Nobody has assigned them yet. **People & access** → tick **Unassigned only** → **Assign** |
 | Assigned, but sees only the joining checklist | HR | They are not marked as joined. The joiner's page → finish the checklist, or **Mark as joined** |
 | Forgot the password | HR or the admin (the client's manager for a client login) | **People & access** → the person → **Reset password** → a new temporary password is shown once. The old one stops working |
@@ -134,6 +141,14 @@ Since migration 37 (11 October 2026):
 | Rotation | Not needed on a schedule. A new key always gets a new `ID_HMAC_KEY_ID`; the id is stored with every fingerprint |
 | Check | `node scripts/check_functions.mjs` says `id-numbers … configured` |
 
+### Reminders (migration 38)
+
+A joiner sees their overdue steps at the top of the checklist. The daily round (09:00 India time, pg_cron, where the
+project has it; otherwise whenever HR opens the Joiners list) queues one email nudge on day +1 and day +3 after a
+step's due date (two at most per step) and one digest per HR owner per day. **They are sent only once a mail sender is
+set up** (`MAIL_API_URL`, `MAIL_API_KEY`, `MAIL_FROM` in the functions' secrets; G13). Until then the Joiners list says
+how many are waiting; nothing else happens.
+
 ### The once-a-day sign-in code
 
 Built and switched **off**. When on: after the password, a six-digit code goes to the person's email, once per
@@ -147,7 +162,7 @@ day: the admin who is still signed in switches it off; if nobody is, the databas
 
 | What the screen says | It means | Do |
 |---|---|---|
-| A yellow line on the Add joiner page: "Creating people and resetting passwords will not work on this system yet: …" | The server functions were not deployed with the last update of the database or the app. Nothing is wrong with what anybody entered | Admin (with Antigravity): run-sheet Phase 5 step D4 (all five functions), then `node scripts/check_functions.mjs` must end with `FUNCTIONS DEPLOYED AND CURRENT` |
+| A yellow line on the Add joiner page: "Creating people and resetting passwords will not work on this system yet: …" | The server functions were not deployed with the last update of the database or the app. Nothing is wrong with what anybody entered | Admin (with Antigravity): run-sheet Phase 5 step D4 (all six functions: `invite` and `ledger-check` with `--no-verify-jwt`), then `node scripts/check_functions.mjs` must end with `FUNCTIONS DEPLOYED AND CURRENT` |
 | "The server is not up to date with this app…" or "A part of the server is not installed…" after **Save and create sign-in** or **Reset password** | The same | The same. Then try again: nothing was kept from the failed attempt |
 | "Login created but not linked: …; both removed" | The database did not accept the new login for this person. The words after the colon say why (another person has the same phone or e-mail; the person was suspended meanwhile; …). The login and the person were removed again | Correct what the reason names and create the person again |
 | "… COULD NOT REMOVE login …" | A login without a person stayed behind (the Auth server did not answer the delete). It opens nothing, but it holds that phone number or e-mail: the next attempt says "already registered" | **A login without a person:** admin: `node scripts/check_logins.mjs` lists them, `node scripts/check_logins.mjs --remove` deletes them. The same list is in the Supabase dashboard → Edge Functions → create-user → Logs, with the reason |

@@ -28,6 +28,7 @@ export const NAV: { to: string; key: string; icon: string; section: Section; sho
   { to: '/states', key: 'nav.states', icon: '📍', section: 'registry', show: (w) => w.can.admin },
   // People: HR makes them, managers assign them. Two different jobs, two different entries.
   { to: '/hr', key: 'nav.hr', icon: '🧑‍💼', section: 'people', show: (w) => w.can.hr },
+  { to: '/hr/openings', key: 'open.title', icon: '📋', section: 'people', show: (w) => w.can.hr },
   { to: '/people', key: 'nav.people', icon: '👥', section: 'people', show: (w) => w.can.hr || w.can.assign },
   { to: '/state', key: 'nav.state', icon: '🗺', section: 'people', show: (w) => w.can.state_lens },
   { to: '/flags', key: 'nav.flags', icon: '🚩', section: 'system', show: (w) => w.can.assign },
@@ -68,6 +69,7 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]> } = {
     ],
     access: [
       { to: '/people', key: 'nav.people', icon: '👥' },
+      { to: '/hr/openings', key: 'open.title', icon: '📋' },
       { to: '/system/seats', key: 'nav.seats', icon: '🪑' },
       { to: '/hr', key: 'nav.hr', icon: '🧑‍💼', show: (w) => w.can.hr },     // only while the HR Admin seat is empty
     ],

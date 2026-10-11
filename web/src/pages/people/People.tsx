@@ -15,11 +15,12 @@ import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { date } from '../../lib/format';
 import { NO_RIGHTS, type EmployeeStatus, type Lens, type OpRole, type StageType, type SystemRole } from '../../lib/types';
-import { filterPeople, lensTone, stagesAfter, type AssignmentInfo, type DirectoryFilter, type DirectoryPerson, type Profile,
+import { lensTone, stagesAfter, type AssignmentInfo, type DirectoryFilter, type DirectoryPerson, type Profile,
   type Roster, type StateOverviewData, type Warning } from '../../lib/people';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { givesAssignments, oversees, seatsStateManagers } from '../../lib/rights';
 import { AccessBadges, Confirm, OrgLine, StatusBadge, TempPassword, WarningList, useStageName } from './shared';
+import { ReadyToAssign } from '../hr/Scale';
 
 interface Named { id: string; name: string }
 const useClients = () => useAsync(() => q(supabase.from('clients').select('id,name').order('name')) as Promise<Named[]>, []);
@@ -30,36 +31,40 @@ export function Directory() {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const can = ctx?.user?.can ?? NO_RIGHTS;
-  const list = useAsync(() => rpc<DirectoryPerson[]>('people_directory'), []);
   const clients = useClients();
   const states = useStates();
   const [f, setF] = useState<DirectoryFilter>({ text: '', client: '', state: '', status: '', unassigned: false, kind: 'employees' });
-  const rows = useMemo(() => filterPeople(list.data ?? [], f), [list.data, f]);
-  const all = list.data ?? [];
-  // the lenses offered are the ones the reader's own assignments can show something through
-  const seenClients = new Set(all.flatMap((p) => p.assignments.map((a) => a.client_id)));
-  const seenStates = new Set(all.flatMap((p) => p.assignments.map((a) => a.state_id)));
+  const [qq, setQq] = useState('');
+  const [page, setPage] = useState(0);
+  useEffect(() => { const h = setTimeout(() => { setQq(f.text); setPage(0); }, 300); return () => clearTimeout(h); }, [f.text]);
+  // filtered and paged on the server (migration 38): the pool grows to hundreds
+  const list = useAsync(() => rpc<{ total: number; counts: { employees: number; client_logins: number }; rows: DirectoryPerson[] }>('people_page', { p: {
+    kind: f.kind, q: qq || null, client: f.client || null, state: f.state || null, status: f.status || null, unassigned: f.unassigned, limit: 50, offset: page * 50 } }),
+    [f.kind, qq, f.client, f.state, f.status, f.unassigned, page]);
+  const set = (p: Partial<DirectoryFilter>) => { setF({ ...f, ...p }); setPage(0); };
+  const rows = list.data?.rows ?? [];
+  const pages = Math.max(1, Math.ceil((list.data?.total ?? 0) / 50));
   return (
     <div>
       <div className="page-hd"><h1><span aria-hidden="true">👥 </span>{t('people.title')}</h1><div className="sub">{t('people.sub')}</div></div>
       <div className="tabs" role="tablist">
         {(['employees', 'client_logins'] as const).map((k) => (
-          <button key={k} type="button" role="tab" aria-selected={f.kind === k} className={f.kind === k ? 'active' : ''} onClick={() => setF({ ...f, kind: k })}>
-            {t(`people.kind_${k}`)} ({all.filter((p) => (k === 'client_logins') === p.external).length})</button>))}
+          <button key={k} type="button" role="tab" aria-selected={f.kind === k} className={f.kind === k ? 'active' : ''} onClick={() => set({ kind: k })}>
+            {t(`people.kind_${k}`)} ({list.data?.counts[k] ?? '…'})</button>))}
       </div>
       {f.kind === 'employees' && (
         <div className="filters" data-testid="people-filters">
           <Field label={t('people.search')} htmlFor="pf-text"><input id="pf-text" type="search" value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} placeholder={t('people.search_hint')} /></Field>
-          <Field label={t('people.client_lens')} htmlFor="pf-client"><select id="pf-client" value={f.client} onChange={(e) => setF({ ...f, client: e.target.value })}>
-            <option value="">{t('people.any_client')}</option>{(clients.data ?? []).filter((c) => seenClients.has(c.id)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-          <Field label={t('people.state_lens')} htmlFor="pf-state"><select id="pf-state" value={f.state} onChange={(e) => setF({ ...f, state: e.target.value })}>
-            <option value="">{t('people.any_state')}</option>{(states.data ?? []).filter((s) => seenStates.has(s.id)).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-          <Field label={t('common.status')} htmlFor="pf-status"><select id="pf-status" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value as DirectoryFilter['status'] })}>
+          <Field label={t('people.client_lens')} htmlFor="pf-client"><select id="pf-client" value={f.client} onChange={(e) => set({ client: e.target.value })}>
+            <option value="">{t('people.any_client')}</option>{(clients.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+          <Field label={t('people.state_lens')} htmlFor="pf-state"><select id="pf-state" value={f.state} onChange={(e) => set({ state: e.target.value })}>
+            <option value="">{t('people.any_state')}</option>{(states.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+          <Field label={t('common.status')} htmlFor="pf-status"><select id="pf-status" value={f.status} onChange={(e) => set({ status: e.target.value as DirectoryFilter['status'] })}>
             <option value="">{t('people.any_status')}</option>{(['invited', 'onboarding', 'active', 'suspended', 'offboarded'] as EmployeeStatus[]).map((s) => <option key={s} value={s}>{t(`pstatus.${s}`)}</option>)}</select></Field>
-          <label className="check"><input type="checkbox" checked={f.unassigned} onChange={(e) => setF({ ...f, unassigned: e.target.checked })} />{t('people.only_unassigned')}</label>
+          <label className="check"><input type="checkbox" checked={f.unassigned} onChange={(e) => set({ unassigned: e.target.checked })} />{t('people.only_unassigned')}</label>
         </div>)}
       <p className="small muted">{t('people.legend')} <span className="badge lens-scope">{t('lens.scope')}</span> <span className="badge lens-client">{t('lens.client')}</span> <span className="badge lens-state">{t('lens.state')}</span> <span className="badge sys">{t('people.system_role')}</span></p>
-      {list.loading ? <Loading /> : <ErrorBox error={list.error} onRetry={() => void list.reload()} />}
+      {list.loading && !list.data ? <Loading /> : <ErrorBox error={list.error} onRetry={() => void list.reload()} />}
       {list.data && rows.length === 0 && <Empty>{t('people.none')}</Empty>}
       {rows.length > 0 && (
         <div className="card table-wrap"><table data-testid="people">
@@ -73,6 +78,10 @@ export function Directory() {
                 <Link className="btn secondary" to={`/people/${p.id}/assign`} aria-label={`${t('assign.title')}: ${p.name}`}>{t('assign.title')}</Link>}</td>
             </tr>))}</tbody>
         </table></div>)}
+      {(list.data?.total ?? 0) > 50 && <p className="row pager" data-testid="people-pager">
+        <button type="button" className="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>{t('jl.prev')}</button>
+        <span className="small">{t('jl.page', { page: page + 1, pages, total: list.data?.total ?? 0 })}</span>
+        <button type="button" className="secondary" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>{t('jl.next')}</button></p>}
       {f.kind === 'client_logins' && can.assign && !oversees(ctx) && <NewClientLogin clients={clients.data ?? []} done={() => void list.reload()} />}
       {can.hr && <p className="small muted">{t('people.hr_hint')} <Link to="/hr/joiners/new">{t('hr.add_joiner')}</Link></p>}
       {!can.hr && <p className="small muted">{t('people.missing_hint')}</p>}
@@ -380,8 +389,12 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
   const stage = useStageName();
   const r = useAsync(() => rpc<Roster>('scope_roster', { p_scope: scopeId }), [scopeId]);
   const canManage = !!r.data?.can_manage;
-  const pool = useAsync(async () => canManage ? (await rpc<DirectoryPerson[]>('people_directory'))
-    .filter((p) => !p.external && ['invited', 'onboarding', 'active'].includes(p.status)).map((p) => ({ id: p.id, name: p.name }) as Pool) : [], [canManage]);
+  const [find, setFind] = useState('');
+  const [findQ, setFindQ] = useState('');
+  useEffect(() => { const h = setTimeout(() => setFindQ(find), 300); return () => clearTimeout(h); }, [find]);
+  // the pool, from the server, searched (migration 38: hundreds of people; the first 100 by name, or those matching)
+  const pool = useAsync(async () => canManage ? ((await rpc<{ rows: DirectoryPerson[] }>('people_page', { p: { q: findQ || null, limit: 100 } })).rows)
+    .filter((p) => !p.external && ['invited', 'onboarding', 'active'].includes(p.status)).map((p) => ({ id: p.id, name: p.name }) as Pool) : [], [canManage, findQ]);
   const act = useAction();
   const [note, setNote] = useState<string | null>(null);
   if (r.loading && !r.data) return <Loading />;
@@ -408,6 +421,7 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
   });
   return (
     <div>
+      {canManage && x.scope.status !== 'closed' && <ReadyToAssign lens="scope" target={scopeId} opRole="operator" stages={x.stages.map((s) => s.stage)} onDone={() => void after()} />}
       {x.gaps.length > 0 && x.scope.status !== 'closed' && <div className="alert warn" data-testid="roster-gaps">{t('roster.gaps', { n: x.gaps.length, stages: x.gaps.map(stage).join(', ') })}</div>}
       {x.gaps.length === 0 && <div className="alert ok" data-testid="roster-covered">{t('roster.covered')}</div>}
       {note && <div className="alert warn" data-testid="coverage-warning">{note}</div>}
@@ -427,6 +441,8 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
               {(pool.data ?? []).filter((p) => !s.holders.some((h) => h.employee_id === p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select></div>}
         </div>))}</div>
+      {canManage && <Field label={t('roster.find')} hint={t('roster.find_hint')} htmlFor={`find-${scopeId}`}><input id={`find-${scopeId}`} type="search" value={find} onChange={(e) => setFind(e.target.value)} data-testid="roster-find" /></Field>}
+      {canManage && (pool.data?.length ?? 0) >= 100 && !findQ && <p className="small" data-testid="roster-pool-more">{t('roster.pool_more')}</p>}
       {canManage && <p className="small muted">{t('roster.pool_note')}</p>}
       <ErrorBox error={act.error} />
     </div>
@@ -482,6 +498,8 @@ export function StateOverview() {
           <div className="stat"><div className="stat-val">{x.scopes.reduce((n, s) => n + (s.status === 'closed' ? 0 : s.gaps.length), 0)}</div><div className="stat-label">{t('state.kpi_gaps')}</div><div className="stat-sub">{t('state.kpi_gaps_sub')}</div></div>
         </div>
         <p className="small muted">{t('state.supervisors')}: {x.supervisors.length ? x.supervisors.map((s) => s.name).join(', ') : '—'}</p>
+        {[...new Set(x.scopes.map((s) => s.client_id))].map((c) => <ReadyToAssign key={c} lens="client" target={c} opRole="client_account"
+          title={t('ready.client_title', { client: x.scopes.find((s) => s.client_id === c)?.client_name ?? '' })} onDone={() => void d.reload()} />)}
         {x.scopes.length === 0 ? <Empty /> : (
           <div className="card table-wrap"><table data-testid="state-scopes">
             <thead><tr><th>{t('lens.client')}</th><th>{t('lens.scope')}</th><th>{t('common.status')}</th><th>{t('state.col_people')}</th><th>{t('state.col_coverage')}</th><th /></tr></thead>

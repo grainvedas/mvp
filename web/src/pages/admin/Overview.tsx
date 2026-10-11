@@ -18,6 +18,7 @@ import { useScope } from '../../shell/scope';
 import { LedgerHealth, StatButton } from '../dashboard/parts';
 import { Bars, Columns, PassFail, changePct } from './charts';
 import type { AppError } from '../../lib/errors';
+import { NUMBER_KEYS, type OpeningNumbers } from '../../lib/scale';
 
 export interface OverviewClient {
   id: string; name: string; code: string; type: string; state_id: string | null; state_name: string | null;
@@ -38,6 +39,8 @@ export interface Overview {
   volume_by_crop: { id: string; name: string; unit: string | null; kg: number; lots: number; qr: number }[];
   setup: { states: number; hr_admin: boolean; state_managers: number };
   people?: People;
+  /** migration 38: the openings, as numbers per state (no names) */
+  openings?: { states: (OpeningNumbers & { state_id: string; state_name: string })[]; total: OpeningNumbers | null; not_linked: number };
 }
 /** One stage over all active scopes; `position` is its average step in the chains that have it (the seal last). */
 export interface PipelineStage {
@@ -141,6 +144,7 @@ export function AdminOverview() {
           <div className="ov-grid">
             {tr.data && <Quality rows={tr.data.quality_by_crop} />}
             {d.people && <PeopleNumbers p={d.people} />}
+            {d.openings && d.openings.states.length > 0 && <OpeningsByState o={d.openings} />}
             {tr.data && <FarmersByState rows={tr.data.farmers_by_state} />}
           </div>
 
@@ -445,6 +449,21 @@ function Volume({ title, rows, testId }: { title: string; rows: { id: string; na
       <h2>{title}</h2>
       {rows.length === 0 ? <Empty /> : <Bars fmt={(v) => kg(v)}
         rows={rows.map((r) => ({ key: r.id, label: <>{r.name}<span className="small muted"> · {t('ov.lots_qr', { l: num(r.lots, 0), q: num(r.qr, 0) })}</span></>, value: Number(r.kg), title: `${r.name}: ${kg(r.kg)}` }))} />}
+    </div>
+  );
+}
+
+/** The openings, per state and in all (migration 38): how far the hiring has got. Numbers only. */
+function OpeningsByState({ o }: { o: NonNullable<Overview['openings']> }) {
+  const { t } = useI18n();
+  return (
+    <div className="card table-wrap" data-testid="ov-openings">
+      <h2 style={{ marginTop: 0 }}>{t('open.title')} <Link className="small" to="/hr/openings">{t('ov.open_all')}</Link></h2>
+      <table className="wide">
+        <thead><tr><th>{t('lens.state')}</th>{NUMBER_KEYS.map((k) => <th key={k} className="num">{t(`open.n_${k}`)}</th>)}</tr></thead>
+        <tbody>{o.states.map((s) => <tr key={s.state_id} data-testid="ov-opening-state"><td>{s.state_name}</td>{NUMBER_KEYS.map((k) => <td key={k} className="num">{s[k]}</td>)}</tr>)}
+          {o.total && <tr className="total-row"><td><strong>{t('open.overall')}</strong></td>{NUMBER_KEYS.map((k) => <td key={k} className="num" data-testid={`ov-open-${k}`}>{o.total![k]}</td>)}</tr>}</tbody>
+      </table>
     </div>
   );
 }

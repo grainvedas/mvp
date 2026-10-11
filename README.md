@@ -18,7 +18,9 @@ PRD (living doc): https://claude.ai/code/artifact/28bf2d7b-66e0-4580-a6c7-5b12a8
 | 5 Identity and authorization layer (HR onboarding, assignments, lifecycle, seats, audit log) | done on the local stack, 6 Oct 2026 | `docs/RUNSHEET_phase5.md` |
 | The admin oversees (migration 34: overview, ledger page, two farmer verifications; no override) | on staging since 10 Oct 2026, 09:30 | `docs/RUNSHEET_admin_oversight.md` |
 | The admin's two jobs (migration 35: states and the HR Admin seat; the HR Admin seats State Managers; dashboard, Pipeline, Help) | on staging since 10 Oct 2026, 20:55 | `docs/RUNSHEET_admin_two_jobs.md` |
-| The admin marks the HR Admin as joined (migration 36; open item 30) | done on the local stack, 10 Oct 2026 | `docs/RUNSHEET_hr_admin_joined.md`, when Veda says so |
+| The admin marks the HR Admin as joined (migration 36; open item 30) | on staging since 10 Oct 2026, 22:03 | `docs/RUNSHEET_hr_admin_joined.md` |
+| Joiner checklist and HR data (migration 37, `id-numbers`; open item 31) | on staging since 11 Oct 2026, 00:20 | `docs/RUNSHEET_joiner_hr_data.md` |
+| Onboarding at scale (migration 38, `invite`; openings, import, invites, paged lists, bulk acts, the gate; open item 32) | done on the local stack, 11–12 Oct 2026 | `docs/RUNSHEET_onboarding_at_scale.md`, when Veda says so |
 
 Which run-sheets have been completed on the hosted project is recorded in `docs/VERIFICATION_LOG.md` by whoever runs
 them; step A2 of the Phase 4 run-sheet shows it at a glance (the migrations still to be pushed).
@@ -52,8 +54,13 @@ October 2026.
 **The admin has two jobs** (Veda, 10 October 2026, follow-up; FIX_LIST G16): he creates states and appoints the HR
 Admin; the HR Admin seats State Managers; the admin watches the rest on a dashboard (the last 12 weeks, the pipeline in
 chain order on its own page, lab results, people as numbers) under a menu grouped Watch · Audit · Master data · Access
-· Me. On staging since 10 October 2026. **The admin marks the HR Admin seat holder as joined** (migration 36, in the
-repository only: `staging-hr-admin-joined.cmd`, when Veda says so).
+· Me. On staging since 10 October 2026. **The admin marks the HR Admin seat holder as joined** (migration 36, on
+staging since 10 October 2026).
+
+**Hiring at scale** (Veda, 11 October 2026; FIX_LIST G17, line 40): openings per state and role with their numbers,
+a spreadsheet import with a preview, one-time invite links, a checklist per role, one Joiners list paged on the server
+with Mine and filters, many people at once, the gate on Mark as joined, ready to assign. In the repository only:
+`staging-onboarding-at-scale.cmd`, when Veda says so.
 
 **The practice system starts empty** (decision of 6 October 2026): `docs/RUNSHEET_fresh_start.md` empties it to one
 admin (`staging-fresh-start.cmd`) and then lists the first day in the app, in Veda's order once migrations 34 and 35 are

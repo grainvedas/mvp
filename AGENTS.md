@@ -172,8 +172,8 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
 - When a test fails, first decide whether the rule or the test is wrong. Rules trace to the PRD sections named in the SQL comments.
 - **The server functions are a third deploy, apart from the database and the app.** When a migration changes what a
   function must send or may rely on (migration 23 did: logins need `app_metadata.grainveda_login`), or a function
-  changes what the app relies on, raise `VERSION` in all four `supabase/functions/*/handler.ts` (`create-user`,
-  `reset-password`, `ledger-check`, `daily-code`) and `FUNCTIONS_NEEDED` in `web/src/lib/api.ts`
+  changes what the app relies on, raise `VERSION` in all six `supabase/functions/*/handler.ts` (`create-user`,
+  `reset-password`, `ledger-check`, `daily-code`, `id-numbers`, `invite`) and `FUNCTIONS_NEEDED` in `web/src/lib/api.ts`
   (`web/tests/functions.test.ts` holds them together), and say in the run-sheet that the functions step (Phase 5 D4)
   has to be repeated. A step that makes two things in two systems (a person's row, then a login) takes both back on
   every way out, checks that the removal happened, and says why the second step failed: "created but not linked"
@@ -210,6 +210,13 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   an admin in the app (break-glass only). The admin's menu is grouped by headings (`ROLE_MENUS` in `shell/Layout.tsx`);
   another role adopts them by adding its own list. Charts follow `web/src/pages/admin/charts.tsx`: one hue for
   amounts, status colours only for pass and fail with words, a table under every chart.
+- **Hiring at scale goes through openings and the server's lists** (migration 38, Veda 11 October 2026,
+  `docs/IDENTITY_DESIGN.md` "Onboarding at scale"). A list that can grow past a few hundred (Joiners, People & access,
+  the Audit log, a roster's pool) is paged and filtered by the database (`joiners_page`, `people_page`, `audit_page`):
+  do not load it whole into the browser. Many people at once go through the `*_many` functions, which do each person
+  through the one-person rule and log each. An invite token is never stored or logged: the database keeps its SHA-256,
+  the link carries it after the `#`. Mark as joined is refused while a statutory step is open ("received on paper" is
+  HR's flagged way out); do not add another. Load tests run on the local stack only (`tests/load_onboarding.mjs`).
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.

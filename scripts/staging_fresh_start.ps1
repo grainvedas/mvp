@@ -96,7 +96,7 @@ function Hash-Text([string]$path) {
   $script:Hash = (($sha.ComputeHash($utf8.GetBytes($t)) | ForEach-Object { $_.ToString('x2') }) -join '')
 }
 # One line that says what is in the system: read from the database itself, before and after.
-$countSql = "select 'now: people=' || (select count(*) from public.app_users) || ' logins=' || (select count(*) from auth.users) || ' states=' || (select count(*) from public.states) || ' crops=' || (select count(*) from public.crops) || ' clients=' || (select count(*) from public.clients) || ' scopes=' || (select count(*) from public.scopes) || ' farmers=' || (select count(*) from public.farmers) || ' records=' || (select count(*) from public.footprints) || ' seals=' || (select count(*) from public.qr_seals) || ' ledger=' || (select count(*) from public.ledger) || ' audit=' || (select count(*) from public.audit_log) || ' admins=' || (select count(*) from public.app_users where system_role = 'admin' and status = 'active') || ' stage_definitions=' || (select count(*) from public.stage_definitions) || ' checklist_tasks=' || (select count(*) from public.template_tasks) || ' audit_guard=' || (select case when tgenabled = 'O' then 'on' else 'OFF' end from pg_trigger where tgname = 'audit_log_no_truncate') || ' end' as result;"
+$countSql = "select 'now: people=' || (select count(*) from public.app_users) || ' logins=' || (select count(*) from auth.users) || ' states=' || (select count(*) from public.states) || ' crops=' || (select count(*) from public.crops) || ' clients=' || (select count(*) from public.clients) || ' scopes=' || (select count(*) from public.scopes) || ' farmers=' || (select count(*) from public.farmers) || ' records=' || (select count(*) from public.footprints) || ' seals=' || (select count(*) from public.qr_seals) || ' ledger=' || (select count(*) from public.ledger) || ' audit=' || (select count(*) from public.audit_log) || ' admins=' || (select count(*) from public.app_users where system_role = 'admin' and status = 'active') || ' stage_definitions=' || (select count(*) from public.stage_definitions) || ' checklist_tasks=' || (select count(*) from public.template_tasks t join public.onboarding_templates o on o.id = t.template_id where o.is_default) || ' audit_guard=' || (select case when tgenabled = 'O' then 'on' else 'OFF' end from pg_trigger where tgname = 'audit_log_no_truncate') || ' end' as result;"
 function Read-Counts() {
   $script:Counts = @{}
   $m = [regex]::Match($script:Out, 'now: (.*?) end')
@@ -128,7 +128,7 @@ if ($script:Code -ne 0) { Stop-Run 'F0' 'supabase --version failed' }
 # The files that do the removing must be the ones that were rehearsed on 6 October 2026 (local stack: emptied, one
 # admin put back, then the first day of a pilot through the screens up to a sealed lot).
 $tested = [ordered]@{
-  'scripts/fresh_start/empty_staging.sql' = '5f808cd9f340844c9573b8503c5905ffde2d47081232bbfa2ffec4f3a57c66c2'
+  'scripts/fresh_start/empty_staging.sql' = '3ded2a88c5c550093e616c2e5364ad4d3ec4538ea8ab7ab871e5fbd0b8a3c941'
   'scripts/fresh_start/export_rows.mjs' = 'df20c44b1df6fa998c0ae56c830f90b3b878c4ef5e8a95d4bf328823d7dab3ce'
   'scripts/fresh_start/clear_logins_and_files.mjs' = 'ee076f96fca5a3f295b0e0e083f4fbdd13e1307eec85a904c4ada96a6024ab72'
   'scripts/bootstrap_admin.mjs' = 'fa32a16a249955dd9719acde0f5eab732c3da4ec7705e2ae61c7ffea307c4917'
@@ -220,7 +220,7 @@ $zero = $true
 foreach ($k in @('states', 'crops', 'clients', 'scopes', 'farmers', 'records', 'seals')) { if ($c[$k] -ne '0') { $zero = $false } }
 foreach ($k in @('people', 'ledger', 'audit', 'admins')) { if ($c[$k] -ne '0') { $zero = $false } }
 if (-not $zero) { Stop-Run 'F2' 'the database is not empty after the emptying step (read the line "now: ..." above)' }
-if ($c['stage_definitions'] -ne '16' -or $c['checklist_tasks'] -ne '8') { Stop-Run 'F2' "the stage definitions or the joining checklist are not as expected (stage_definitions=$($c['stage_definitions']), checklist_tasks=$($c['checklist_tasks']))" }
+if ($c['stage_definitions'] -ne '16' -or $c['checklist_tasks'] -ne '9') { Stop-Run 'F2' "the stage definitions or the joining checklist are not as expected (stage_definitions=$($c['stage_definitions']), checklist_tasks=$($c['checklist_tasks']))" }
 if ($c['audit_guard'] -ne 'on') { Stop-Run 'F2' 'the guard of the audit log was left switched off' }
 $script:Emptied = $true
 Say '  ok  the database holds no person, state, crop, client, scope, farmer or record; 16 stage definitions and the checklist are there; the audit guard is on'

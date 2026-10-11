@@ -1,5 +1,5 @@
 // System (identity layer): the two seats everything starts from, the once-a-day sign-in code switch, the audit log.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { rpc } from '../../lib/api';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../../lib/supabase';
@@ -72,6 +72,7 @@ export function Seats() {
         <h3>{t('seats.hr_resources')} ({x.hr_resources.length})</h3>
         {x.hr_resources.length === 0 ? <Empty /> : <ul>{x.hr_resources.map((s) => <SeatRow key={s.id} s={s} />)}</ul>}
         <p className="small muted">{t('seats.hr_resources_note')}</p>
+        <p className="small" data-testid="seat-deputy">{t('deputy.title')}: {x.sm_deputy ? <strong>{x.sm_deputy.name}</strong> : <span className="muted">{t('deputy.none')}</span>} <span className="muted">{t('deputy.admin_note')}</span></p>
       </div>
       <div className="card" data-testid="daily-code-card">
         <h2 style={{ marginTop: 0 }}>{t('seats.code_title')} <Badge value={x.daily_code.on ? 'verified' : 'draft'} label={t(x.daily_code.on ? 'seats.code_on' : 'seats.code_off')} /></h2>
@@ -108,15 +109,29 @@ function Detail({ l }: { l: AuditLine }) {
 export function AuditLog() {
   const { t } = useI18n();
   const [flagged, setFlagged] = useState(false);
-  const list = useAsync(() => rpc<AuditLine[]>('audit_feed', { p_limit: 300, p_flagged: flagged }), [flagged]);
+  const [action, setAction] = useState('');
+  const [text, setText] = useState('');
+  const [qq, setQq] = useState('');
+  const [page, setPage] = useState(0);
+  useEffect(() => { const h = setTimeout(() => { setQq(text); setPage(0); }, 300); return () => clearTimeout(h); }, [text]);
+  // paged on the server (migration 38): the log only grows
+  const list = useAsync(() => rpc<{ total: number; rows: AuditLine[]; actions: string[] }>('audit_page',
+    { p: { flagged, action: action || null, q: qq || null, limit: 50, offset: page * 50 } }), [flagged, action, qq, page]);
+  const rows = list.data?.rows ?? [];
+  const pages = Math.max(1, Math.ceil((list.data?.total ?? 0) / 50));
   return (
     <div style={{ maxWidth: 900 }}>
       <div className="page-hd"><h1><span aria-hidden="true">📜 </span>{t('audit.title')}</h1><div className="sub">{t('audit.sub')}</div></div>
-      <label className="check"><input type="checkbox" checked={flagged} onChange={(e) => setFlagged(e.target.checked)} data-testid="flagged-only" />{t('audit.flagged_only')}</label>
-      {list.loading ? <Loading /> : <ErrorBox error={list.error} onRetry={() => void list.reload()} />}
-      {list.data?.length === 0 && <Empty />}
-      {!!list.data?.length && (
-        <div className="card" style={{ padding: 0 }}><ul className="feed" data-testid="audit-feed">{list.data.map((l) => (
+      <div className="filters">
+        <label className="check"><input type="checkbox" checked={flagged} onChange={(e) => { setFlagged(e.target.checked); setPage(0); }} data-testid="flagged-only" />{t('audit.flagged_only')}</label>
+        <Field label={t('audit.what')} htmlFor="au-action"><select id="au-action" value={action} onChange={(e) => { setAction(e.target.value); setPage(0); }} data-testid="audit-action">
+          <option value="">{t('audit.any')}</option>{(list.data?.actions ?? []).slice().sort().map((a) => <option key={a} value={a}>{t(`audit.${a}`, undefined, humanise(a))}</option>)}</select></Field>
+        <Field label={t('people.search')} htmlFor="au-q"><input id="au-q" type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder={t('audit.search_hint')} /></Field>
+      </div>
+      {list.loading && !list.data ? <Loading /> : <ErrorBox error={list.error} onRetry={() => void list.reload()} />}
+      {list.data && rows.length === 0 && <Empty />}
+      {rows.length > 0 && (
+        <div className="card" style={{ padding: 0 }}><ul className="feed" data-testid="audit-feed">{rows.map((l) => (
           <li key={l.id} className={l.flagged ? 'flagged' : ''} data-testid={l.flagged ? 'audit-flagged' : 'audit-line'} data-action={l.action}>
             <div><strong>{l.actor_name}</strong>{l.actor_role && l.actor_role !== 'operational' ? <span className="muted small"> ({t(`sysrole.${l.actor_role}`)})</span> : null}
               {' '}{t(`audit.${l.action}`, undefined, humanise(l.action))}{' '}
@@ -125,6 +140,10 @@ export function AuditLog() {
             <div className="small"><Detail l={l} /></div>
             <div className="when">{dateTime(l.at)}</div>
           </li>))}</ul></div>)}
+      {(list.data?.total ?? 0) > 50 && <p className="row pager">
+        <button type="button" className="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>{t('jl.prev')}</button>
+        <span className="small">{t('jl.page', { page: page + 1, pages, total: list.data?.total ?? 0 })}</span>
+        <button type="button" className="secondary" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>{t('jl.next')}</button></p>}
     </div>
   );
 }

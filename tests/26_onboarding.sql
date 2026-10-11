@@ -153,17 +153,24 @@ select app.update_joiner(t.u('19'), jsonb_build_object('join_date', (pg_temp.tod
 select t.ok((select (x->>'due_on')::date = pg_temp.today() + 8 from jsonb_array_elements(app.joiner_detail(t.u('19'))->'tasks') x where x->>'code' = 'identity')
             and (app.joiner_detail(t.u('19'))->'org'->>'job_title') = 'Senior Quality Associate',
             'join date moved: the open tasks move with it (ten days later)');
-select t.ok(app.activate_joiner(t.u('19')) = 'active', 'HR can mark a joiner as joined with tasks still open');
+-- migration 38 (G1): refused while the statutory step is open; then, with other steps open, a reason is required
+select t.fails(format($q$ select app.activate_joiner(%L) $q$, t.u('19')), 'statutory step is still open', 'joined early: refused while the statutory step is open');
+select (app.record_on_paper((select id from public.onboarding_tasks where employee_id = t.u('19') and statutory), 'signed form in the file'))->>'ok';
+select t.fails(format($q$ select app.activate_joiner(%L) $q$, t.u('19')), 'give a reason', 'joined early: other steps open, so a reason is needed');
+select t.ok(app.activate_joiner(t.u('19'), 'starts the season early') = 'active', 'HR can mark a joiner as joined with tasks still open, giving a reason');
 select t.fails(format($q$ select app.activate_joiner(%L) $q$, t.u('19')), 'active already', 'once');
 select t.as_user(t.u('19'));
-select t.ok((app.my_context()->'user'->>'status') = 'active' and (app.my_context()->'onboarding'->>'open')::int = 8, 'joined early: active, with eight tasks still on the list (Personal details added by migration 37)');
+select t.ok((app.my_context()->'user'->>'status') = 'active' and (app.my_context()->'onboarding'->>'open')::int = 7, 'joined early: active, with seven tasks still on the list (the statutory one on paper)');
 
 -- 6 · templates ----------------------------------------------------------------------------------------------------------------------
 select t.as_user(t.u('17'));   -- an HR resource reads templates, does not change them
-select t.ok((select count(*) from public.template_tasks) = 9, 'templates: HR reads the standard checklist (nine steps since migration 37)');
+select t.ok((select count(*) from public.template_tasks x join public.onboarding_templates m on m.id = x.template_id where m.is_default) = 9,
+            'templates: HR reads the standard checklist (nine steps since migration 37)');
+select t.ok((select count(*) from public.onboarding_templates where role is not null and active) = 4,
+            'templates: one per role since migration 38 (State Manager, Client Manager, Operator, HR), copies of the standard');
 update public.template_tasks set due_offset_days = 99 where code = 'goals';
 select t.as_service();
-select t.ok((select due_offset_days = 3 from public.template_tasks where code = 'goals'), 'templates: an HR resource cannot change it');
+select t.ok((select due_offset_days = 3 from public.template_tasks where code = 'goals' and template_id = '00000000-0000-4000-8000-000000000901'), 'templates: an HR resource cannot change it');
 select t.as_user(t.u('16'));   -- the HR Admin can
 update public.template_tasks set due_offset_days = 5 where code = 'goals';
 insert into public.onboarding_templates (id, name) values ('00000000-0000-4000-8000-000000000902', 'Interns');
