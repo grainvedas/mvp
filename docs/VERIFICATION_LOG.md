@@ -1608,3 +1608,49 @@ NOT run / not known:
   the hosted project: the smoke row says whether the reminder round is scheduled.
 - Windows PowerShell 5.1; real phones; the hosted project's speed.
 - About 250 new Hindi strings unread by their users (K57).
+
+**Staging, 11 Oct 2026, 15:30 IST (Veda ran `staging-onboarding-at-scale.cmd`):** `RESULT: ONBOARDING AT SCALE ON
+STAGING`; app commit `6d67915`; smoke 34 of 34; role checklists 4; no due dates moved (nobody was joining).
+
+## 2026-10-13 — HR by geography (migration 39, open item 33): built and rehearsed on the local stack
+
+Veda, 12 Oct, after seeing an HR resource made State Manager on staging (decisions G18). **Nothing of it is on
+staging** (it waits for Veda's say-so, and for the HR Admin to end that seat first).
+
+Ran:
+- **Database**: `tests/run_local.sh`: **1,282** `ok` lines; every file passes, fresh and on the upgrade path, except
+  one timing check in `tests/13_phase3_ops.sql` ("incoming list for a 500-lot scope in < 1000 ms": 1,090 and 1,194 ms).
+  **That check fails the same way without migration 39** on this machine (a database of migrations 1–38: 1,063 and
+  1,080 ms; it passed on 12 Oct at under 1,000 ms on the machine of that day): the machine, not the change. Not loosened.
+  New `tests/33_hr_geography.sql` (**53 checks**): who gives an HR resource her states (not herself, not the admin
+  while the seat is filled, only HR resources, not through the API), the base state and district kept and logged, an
+  HR resource's reach (no person, HR record, checklist, document, joiner page, profile, list row, HR step, Mark as
+  joined, suspension, edit, password reset, invite, stored file or base-location move for a person of another state;
+  her own state's are), Add joiner and import only for her states, openings only in her states, the base location
+  (set by HR of the state, not out of her states, not directly through the API, read by a manager), states given and
+  taken back (history kept, both logged), HR holds no seat (no state seat, client account or stage; a seated person
+  is not made HR or HR Admin; leaving HR ends the states), the Deputy only in her states, a person with no base state
+  reached only by the HR Admin. **Controls** (ten broken versions, each caught). Tests 15, 24, 25 and 32 adapted.
+  Smoke rows `hr by geography` and `HR holds no seat`: OK on the stack; caught a reopened table, the old store rule and
+  an HR person with a seat.
+- **A fault found on the way**: the Add joiner form's opening, role, stage and HR owner never reached the database
+  (`create-user` passed only the older fields; since migration 38). A unit test of `create-user` failed before the fix
+  and passes after it; `phase12` shows the opening on a joiner added on the form.
+- **API on the local stack**: `tests/remote_create_user.mjs` **95 passed**; `tests/remote_rls.mjs --t1` **192 passed**
+  (Imran reads the employees of his state and HR: 240 of 242).
+- **Unit tests**: **315 passed**. Type check clean; `npm run build:ci` builds.
+- **Screens**: default suite **65 passed (17.7 min)** on a stack built from nothing, including new `e2e/phase12.spec.ts`
+  at 527 px: the HR Admin adds a joiner based in Assam (district shown); Imran (Uttar Pradesh) is told "You work for:
+  Uttar Pradesh", does not find her and cannot open her page, is offered only his state on Add joiner, adds a joiner
+  against an opening (the opening is on the record); Hindi; the HR Admin gives him Assam on HR · Team and he reaches
+  her, then takes it back; his profile offers no assignment; the base location is edited and logged. A first run of
+  the suite failed in 14 tests because the local functions runner had not started (its port was still held): the
+  stack was restarted and the whole suite run again.
+- **First day from nothing**: **1 passed** (after the fresh-start removal, which keeps the role checklists).
+- **Built app**: **14 passed**; the public page first load **162 KB**.
+- **`scripts/staging_hr_geography.ps1`** on stand-ins: the whole run; a second run; the stop while an HR person holds a
+  seat (named); wrong words; another migration waiting; a smoke row not OK; a function that will not deploy;
+  production; a changed function file; `-NoGit`. `staging-onboarding-at-scale.cmd` now refuses.
+
+NOT run / not known:
+- Nothing on staging. Windows PowerShell 5.1. Real phones. About 25 new Hindi strings unread (K57).

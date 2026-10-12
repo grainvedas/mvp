@@ -134,12 +134,14 @@ select t.as_user(t.u('01'));
 select t.fails(format($q$ select app.assign(%L, 'state', %L, 'state_supervisor') $q$, pg_temp.f('hr2'), '00000000-0000-4000-8000-000000000002'),
                'outside what you manage', 'assign: the admin no longer appoints a state supervisor (migration 35: the HR Admin does)');
 select t.as_user(t.u('16'));
-insert into fx (k, j) values ('a4', app.assign(pg_temp.f('hr2'), 'state', '00000000-0000-4000-8000-000000000002', 'state_supervisor'));
-update fx set id = (j->'assignment'->>'id')::uuid where id is null;
+-- migration 39 (Veda, 12 Oct): "HR should never be the State Manager": an HR person holds no seat (the HR Admin seating a
+-- State Manager is in tests/29; HR's states are in tests/33)
+select t.fails(format($q$ select app.assign(%L, 'state', %L, 'state_supervisor') $q$, pg_temp.f('hr2'), '00000000-0000-4000-8000-000000000002'),
+               'HR holds no seat', 'assign: an HR resource is never seated as State Manager');
 select t.as_service();
-select t.ok((select role = 'state_manager' and system_role = 'hr_resource' from public.app_users where id = pg_temp.f('hr2'))
-            and (select count(*) from public.ledger where payload->>'act' = 'assignment_given' and payload->>'assignment_id' = pg_temp.f('a4')::text and actor = t.u('16')) = 1,
-            'assign: the HR Admin appoints a state supervisor (a ledger block); the two axes are independent: still an HR resource');
+select t.ok((select role is distinct from 'state_manager' and system_role = 'hr_resource' from public.app_users where id = pg_temp.f('hr2'))
+            and not exists (select 1 from public.assignments where employee_id = pg_temp.f('hr2')),
+            'assign: the refused seat left nothing behind');
 select t.ok((select role = 'client_manager' and client_id = '00000000-0000-4000-8000-000000000202' from public.app_users where id = pg_temp.f('intern')),
             'summary: the account of one client who also holds a stage for it is shown as that client''s manager');
 
@@ -269,23 +271,26 @@ select t.ok((select external and status = 'suspended' and role = 'client_view' a
 
 -- 5 · system roles and the two seats ----------------------------------------------------------------------------------------------
 select t.as_user(t.u('17'));
-select t.fails(format($q$ select app.set_system_role(%L, 'hr_resource') $q$, t.u('06')), 'cannot give this system role', 'roles: an HR resource does not promote');
+select t.fails(format($q$ select app.set_system_role(%L, 'hr_resource') $q$, t.u('18')), 'cannot give this system role', 'roles: an HR resource does not promote');
 select t.as_user(t.u('16'));
-select app.set_system_role(t.u('06'), 'hr_resource');
-select t.fails(format($q$ select app.set_system_role(%L, 'admin') $q$, t.u('06')), 'cannot give this system role', 'roles: the HR Admin makes an HR resource, not an admin');
-select t.fails(format($q$ select app.set_system_role(%L, 'hr_admin') $q$, t.u('06')), 'System → Seats', 'roles: the HR Admin seat is not given this way');
+-- migration 39 (Veda, 12 Oct): HR holds no seat. Someone who holds one (QC Technician, a QC stage) is not made HR
+select t.fails(format($q$ select app.set_system_role(%L, 'hr_resource') $q$, t.u('06')), 'holds a seat', 'roles: someone with a seat is not made HR (HR holds no seat)');
+select app.set_system_role(t.u('18'), 'hr_resource');
+select t.fails(format($q$ select app.set_system_role(%L, 'admin') $q$, t.u('18')), 'cannot give this system role', 'roles: the HR Admin makes an HR resource, not an admin');
+select t.fails(format($q$ select app.set_system_role(%L, 'hr_admin') $q$, t.u('18')), 'System → Seats', 'roles: the HR Admin seat is not given this way');
 select t.fails(format($q$ select app.set_system_role(%L, 'operational') $q$, t.u('16')), 'your own system role', 'roles: nobody changes their own');
-select t.fails(format($q$ select app.appoint_hr_admin(%L) $q$, t.u('06')), 'only the admin appoints', 'seats: the HR Admin does not hand over the seat');
+select t.fails(format($q$ select app.appoint_hr_admin(%L) $q$, t.u('18')), 'only the admin appoints', 'seats: the HR Admin does not hand over the seat');
 select t.as_service();
-select t.ok((select system_role = 'hr_resource' and role = 'operator' from public.app_users where id = t.u('06'))
-            and app.is_my_stage(t.u('06'), t.scope('01'), 'qc')
-            and (select action = 'system_role_changed' and not flagged from pg_temp.last_audit(t.u('06'))),
-            'roles: a system role is its own axis: the person keeps their stages');
+select t.ok((select system_role = 'hr_resource' from public.app_users where id = t.u('18'))
+            and (select system_role = 'operational' from public.app_users where id = t.u('06')) and app.is_my_stage(t.u('06'), t.scope('01'), 'qc')
+            and (select action = 'system_role_changed' and not flagged from pg_temp.last_audit(t.u('18'))),
+            'roles: a person with no seat becomes an HR resource; the one with a seat keeps it and stays operational');
 select t.as_user(t.u('01'));
-select app.appoint_hr_admin(t.u('06'));
+select t.fails(format($q$ select app.appoint_hr_admin(%L) $q$, t.u('06')), 'holds a seat', 'seats: nor is someone with a seat given the HR Admin seat');
+select app.appoint_hr_admin(t.u('18'));
 select t.as_service();
-select t.ok((select system_role = 'hr_admin' from public.app_users where id = t.u('06')) and (select system_role = 'hr_resource' from public.app_users where id = t.u('16'))
-            and (select action = 'hr_admin_appointed' and flagged and detail->>'previous' = 'Asha (HR Admin)' from pg_temp.last_audit(t.u('06'))),
+select t.ok((select system_role = 'hr_admin' from public.app_users where id = t.u('18')) and (select system_role = 'hr_resource' from public.app_users where id = t.u('16'))
+            and (select action = 'hr_admin_appointed' and flagged and detail->>'previous' = 'Asha (HR Admin)' from pg_temp.last_audit(t.u('18'))),
             'seats: the admin moves the HR Admin seat; the previous holder becomes an HR resource; flagged');
 select t.as_user(t.u('01'));
 select t.fails(format($q$ select app.set_system_role(%L, 'admin') $q$, t.u('17')), 'cannot give this system role',
@@ -295,7 +300,7 @@ update public.app_users set system_role = 'admin' where id = t.u('17');
 select t.ok((select system_role = 'admin' and role = 'admin' from public.app_users where id = t.u('17')),
             'roles: the database owner makes a second admin outside the app (as the break-glass script does)');
 select t.as_user(t.u('01'));
-select t.ok(jsonb_array_length(app.bootstrap_seats()->'admins') = 2 and (app.bootstrap_seats()->'hr_admin'->>'name') = 'QC Technician'
+select t.ok(jsonb_array_length(app.bootstrap_seats()->'admins') = 2 and (app.bootstrap_seats()->'hr_admin'->>'name') = 'Ravi Kumar'
             and (app.bootstrap_seats()->'daily_code'->>'on')::boolean = false, 'seats: the Seats screen reads both seats');
 select t.as_user(t.u('03'));
 select t.fails($q$ select app.bootstrap_seats() $q$, 'only the admin', 'seats: only the admin opens them');

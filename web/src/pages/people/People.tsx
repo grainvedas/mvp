@@ -21,6 +21,7 @@ import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { givesAssignments, oversees, seatsStateManagers } from '../../lib/rights';
 import { AccessBadges, Confirm, OrgLine, StatusBadge, TempPassword, WarningList, useStageName } from './shared';
 import { ReadyToAssign } from '../hr/Scale';
+import { BaseLocation, HrScopeNote } from '../hr/Geo';
 
 interface Named { id: string; name: string }
 const useClients = () => useAsync(() => q(supabase.from('clients').select('id,name').order('name')) as Promise<Named[]>, []);
@@ -47,6 +48,7 @@ export function Directory() {
   return (
     <div>
       <div className="page-hd"><h1><span aria-hidden="true">👥 </span>{t('people.title')}</h1><div className="sub">{t('people.sub')}</div></div>
+      <HrScopeNote />
       <div className="tabs" role="tablist">
         {(['employees', 'client_logins'] as const).map((k) => (
           <button key={k} type="button" role="tab" aria-selected={f.kind === k} className={f.kind === k ? 'active' : ''} onClick={() => set({ kind: k })}>
@@ -261,6 +263,7 @@ export function ProfilePage() {
             <dt>{t('hr.f_type')}</dt><dd>{x.org?.employment_type ? t(`emptype.${x.org.employment_type}`) : '—'}</dd>
             <dt>{t('hr.f_reports')}</dt><dd>{x.org?.reports_to_name ?? '—'}</dd>
           </dl>
+          <BaseLocation employeeId={me.id} onChanged={() => void p.reload()} />
         </div>}
         {!me.external && <div className="card axis grants" data-testid="axis-system-role">
           <h2>3 · {t('axis.system_role')} <span className="axis-note">{t('axis.grants')}</span></h2>
@@ -394,7 +397,8 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
   useEffect(() => { const h = setTimeout(() => setFindQ(find), 300); return () => clearTimeout(h); }, [find]);
   // the pool, from the server, searched (migration 38: hundreds of people; the first 100 by name, or those matching)
   const pool = useAsync(async () => canManage ? ((await rpc<{ rows: DirectoryPerson[] }>('people_page', { p: { q: findQ || null, limit: 100 } })).rows)
-    .filter((p) => !p.external && ['invited', 'onboarding', 'active'].includes(p.status)).map((p) => ({ id: p.id, name: p.name }) as Pool) : [], [canManage, findQ]);
+    .filter((p) => !p.external && ['invited', 'onboarding', 'active'].includes(p.status) && p.system_role !== 'hr_admin' && p.system_role !== 'hr_resource')   // HR holds no seat (migration 39)
+    .map((p) => ({ id: p.id, name: p.name }) as Pool) : [], [canManage, findQ]);
   const act = useAction();
   const [note, setNote] = useState<string | null>(null);
   if (r.loading && !r.data) return <Loading />;

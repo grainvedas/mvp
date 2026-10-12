@@ -26,6 +26,10 @@ create or replace function pg_temp.joiner(n int, opening text default null, extr
            'phone', '90000' || lpad(n::text, 5, '0'), 'join_date', (current_date + 10)::text, 'employment_type', 'full_time',
            'opening', opening) || extra $$;
 
+-- (migration 39: Imran works for both demo states here; what an HR resource may not do outside her states: tests/33)
+select t.as_user(t.u('16'));
+select app.set_hr_states(t.u('17'), array['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002']::uuid[]);
+
 -- A · openings: HR plans them; the rules -------------------------------------------------------------------------------
 select t.as_user(t.u('17'));                        -- Imran, an HR resource
 insert into fx (k, j) values
@@ -96,7 +100,7 @@ insert into fx (k, j) values ('rows', jsonb_build_array(
   pg_temp.joiner(105, 'up-opr-002', '{"phone": "9000000001"}'),                           -- 5 phone of op1 (in the system); code in lower case is fine
   pg_temp.joiner(106, 'UP-XYZ-009'),                                                      -- 6 unknown opening
   pg_temp.joiner(107, 'UP-OPR-002', '{"join_date": "31/02/2026"}'),                       -- 7 bad date
-  pg_temp.joiner(108, null, '{"reports_to": "nobody@example.com"}'),                      -- 8 warning: no opening, unknown reports-to
+  pg_temp.joiner(108, null, '{"reports_to": "nobody@example.com", "state": "up"}'),     -- 8 warning: no opening, unknown reports-to (based in UP: state by code)
   pg_temp.joiner(109, 'UP-OPR-002', '{"employment_type": "Intern"}'),                     -- 9 ready (2nd on the opening)
   pg_temp.joiner(110, 'UP-OPR-002'),                                                      -- 10 ready (3rd)
   pg_temp.joiner(111, 'UP-OPR-002'),                                                      -- 11 the opening is full by now

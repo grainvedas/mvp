@@ -17,6 +17,7 @@ import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { FileBox, OrgLine, StatusBadge, TempPassword, uploadHrFile, useStageName } from '../people/shared';
 import { HIRE_ROLES, sendInvites, type HireRole, type OpeningsSummary } from '../../lib/scale';
 import { HrLinks, InviteResults, RoleLabel, useHrPeople } from './Scale';
+import { BaseLocation, stateChoices, useAllStates, useHrScope } from './Geo';
 import type { StageType } from '../../lib/types';
 
 interface Person { id: string; display_name: string; status: string; external: boolean }
@@ -101,7 +102,7 @@ export function TaskTitle({ task }: { task: { code: string; title: string } }) {
 // ── add a joiner ───────────────────────────────────────────────────────────────────────────────────────────────────────
 const blankJoiner = { full_name: '', join_date: '', personal_email: '', phone: '', employment_type: 'full_time' as EmploymentType, designation_band: '',
   department: '', job_title: '', reports_to: '', buddy: '', template_id: '', system_role: 'operational' as SystemRole,
-  opening_id: '', intended_role: '' as HireRole | '', intended_stage: '' as StageType | '', hr_owner: '' };
+  opening_id: '', intended_role: '' as HireRole | '', intended_stage: '' as StageType | '', hr_owner: '', base_state_id: '', base_district: '' };
 
 export function AddJoiner() {
   const { t } = useI18n();
@@ -112,6 +113,8 @@ export function AddJoiner() {
   const fn = useAsync(() => functionState('create-user'), []);
   const openings = useAsync(() => rpc<OpeningsSummary>('openings_summary', {}).catch(() => null), []);
   const hrPeople = useHrPeople();
+  const scope = useHrScope();
+  const allStates = useAllStates();
   const stage = useStageName();
   const [invite, setInvite] = useState<Awaited<ReturnType<typeof sendInvites>> | null>(null);
   const [f, setF] = useState(blankJoiner);
@@ -126,7 +129,7 @@ export function AddJoiner() {
       system_role: f.opening_id && chosen?.role === 'hr' && f.system_role === 'operational' ? 'hr_resource' : f.system_role });
     setMade({ id: r.app_user_id, name: f.full_name, sign_in: r.sign_in, password: r.temporary_password, emailed: r.invite_emailed, type: f.employment_type });
     setInvite(null);
-    setF({ ...blankJoiner, opening_id: f.opening_id, template_id: f.template_id, hr_owner: f.hr_owner });
+    setF({ ...blankJoiner, opening_id: f.opening_id, template_id: f.template_id, hr_owner: f.hr_owner, base_state_id: f.base_state_id, base_district: f.base_district });
   }); };
   return (
     <div style={{ maxWidth: 820 }}>
@@ -151,7 +154,8 @@ export function AddJoiner() {
         <form className="card" onSubmit={submit} aria-label={t('hr.add_joiner')}>
           <p className="muted small">{t('hr.add_note')}</p>
           <div className="form-grid" data-testid="joiner-role">
-            <Field label={t('open.col_opening')} hint={t('aj.opening_hint')} htmlFor="j-opening"><select id="j-opening" value={f.opening_id} onChange={set('opening_id')}>
+            <Field label={t('open.col_opening')} hint={t('aj.opening_hint')} htmlFor="j-opening"><select id="j-opening" value={f.opening_id}
+              onChange={(e) => { const o = (openings.data?.openings ?? []).find((x) => x.id === e.target.value); setF({ ...f, opening_id: e.target.value, base_state_id: o?.state_id ?? f.base_state_id }); }}>
               <option value="">{t('aj.no_opening')}</option>
               {(openings.data?.openings ?? []).filter((o) => o.status === 'open').map((o) => (
                 <option key={o.id} value={o.id} disabled={o.vacant === 0}>{o.code} · {t(`role.${o.role}`)}{o.stage ? ` · ${stage(o.stage)}` : ''} · {t('aj.vacant', { n: o.vacant })}</option>))}</select></Field>
@@ -162,6 +166,11 @@ export function AddJoiner() {
             {chosen && <p className="small" data-testid="opening-role"><RoleLabel role={chosen.role} stage={chosen.stage} /> · {chosen.state_name}</p>}
             <Field label={t('jl.owner')} htmlFor="j-owner"><select id="j-owner" value={f.hr_owner} onChange={set('hr_owner')}>
               <option value="">{t('jl.owner_none')}</option>{(hrPeople.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+            <Field label={t('geo.based_in')} hint={t('geo.based_hint')} htmlFor="j-base"><select id="j-base" value={f.base_state_id} onChange={set('base_state_id')}
+              required={!!scope.data && !(!scope.data.full && scope.data.states.length === 1)}>
+              <option value="">{scope.data && !scope.data.full && scope.data.states.length === 1 ? scope.data.states[0].name : '—'}</option>
+              {stateChoices(allStates.data ?? [], scope.data).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+            <Field label={t('geo.district')} hint={t('common.optional')} htmlFor="j-district"><input id="j-district" value={f.base_district} onChange={set('base_district')} maxLength={60} /></Field>
           </div>
           <div className="form-grid">
             <Field label={t('hr.f_name')} htmlFor="j-name"><input id="j-name" value={f.full_name} onChange={set('full_name')} required autoComplete="off" /></Field>
@@ -275,6 +284,7 @@ export function JoinerPage() {
         </form>)}
       <div className="axes">
         <RoleCard x={x} onSaved={() => void d.reload()} />
+        {full && <div className="card"><BaseLocation employeeId={p.id} /></div>}
         {x.can_invite !== undefined && (x.can_invite || x.invite) && <InviteCard x={x} onTemp={(who, pw) => setTemp({ who, pw })} onChanged={() => void d.reload()} />}
       </div>
       {temp && <TempPassword who={temp.who} password={temp.pw} />}

@@ -179,7 +179,7 @@ assignments are also blocks in the hash-chained ledger.
 since migration 37 a joiner needs a phone), `reset-password` (since migration 38 it also makes the sign-in of an
 imported joiner who has none), `ledger-check`, `daily-code`, `id-numbers` (migration 37, below), `invite` (migration
 38, below; public like `ledger-check`: deployed with `--no-verify-jwt`, it checks the caller itself). All carry
-`VERSION = '2026-10-13'`; the app needs that build
+`VERSION = '2026-10-14'`; the app needs that build
 (`FUNCTIONS_NEEDED`) and says so on the Add joiner page when the server is behind. Mail (the invite note, the sign-in
 code) goes through one sender setting (`MAIL_API_URL`, `MAIL_API_KEY`, `MAIL_FROM`); **none is set on any hosted
 project**, so no mail is sent: HR hands over the temporary password in person, as before, and the code stays off.
@@ -217,6 +217,16 @@ project**, so no mail is sent: HR hands over the temporary password in person, a
 | H2, H3 | The admin may complete the HR Admin's own HR steps (flagged `hr_admin_task_by_admin`); HR may complete IT steps |
 | H7 | Once, in the migration: open steps of invited/onboarding people due before today + 3 → today + 3; audit `due_dates_recalculated` per person |
 
+## HR by geography (migration 39, 12 October 2026; decisions G18)
+
+| Rule | How |
+|---|---|
+| Base location | `employee_org.base_state_id`, `base_district`: grants nothing. Set at Add joiner (given, else the opening's state, else an HR resource's one state) and in the import (`state` by name or code, `district`), later by `app.set_base_location` (HR of the person's state; an HR resource only into her states). Never a direct write (`employee_org_guard`). Filled in once by the migration from the opening's state or the one state of a person's seats |
+| HR states | `hr_states` (active while `ended_at` is null), given by the HR Admin with `app.set_hr_states(person, states[])` (the whole list; ended rows kept; audit `hr_states_set`). Only HR resources have states; the HR Admin works for every state |
+| Reach | `app.hr_covers(person)`: the admin and the HR Admin: everyone; an HR resource: people whose base state is one of hers. `app.hr_may_manage_person(person)` = by system role (`hr_may_manage`) and by state. Every HR act, list, opening function and HR read rule (people, HR records, checklists, documents, files in `hr-docs` by `hr_covers_path`, invites, number matches, notes, exits, goals, openings) asks it. An HR resource sees her HR colleagues' names, not their records |
+| HR holds no seat | `app.assign` refuses anyone whose system role is HR; `set_system_role(→ hr_resource)` and `appoint_hr_admin` refuse someone who holds a seat; leaving HR ends her states. The Deputy seats State Managers only in her states. Smoke row `HR holds no seat` |
+| Screens | `app.hr_scope()` (am I limited, to which states), `app.person_geo(person)`, `app.hr_people_states()`; HR · Team; "You work for: …" on the Joiners list, People & access, Openings, Import |
+
 ## Tests
 
 | Where | What | Count |
@@ -228,10 +238,11 @@ project**, so no mail is sent: HR hands over the temporary password in person, a
 | `tests/27_daily_code.sql` | the code: issue, verify, tries, once a day, the switch | 28 |
 | `tests/31_joiner_hr_data.sql` | fingerprints and duplicates, the target rule, bank warning and acceptance, masked images and their removal, PAN seen, Personal details, dependencies, due dates, first day, scrubbing (seven controls) | 71 |
 | `tests/32_onboarding_at_scale.sql` | openings and their numbers, import (dry run, commit, re-upload), role checklists, invites (service only, one use, revoke), lists and filters, the gate and on paper, bulk acts, ready to assign, the Deputy, H2, H3, H7, direct writes refused (ten controls) | 99 |
+| `tests/33_hr_geography.sql` | HR states, reach of an HR resource (records, lists, acts, files, openings, import), the base location, HR holds no seat, the Deputy's states (ten controls) | 53 |
 | `tests/remote_create_user.mjs`, `tests/remote_rls.mjs --t1` | the same rules with real logins over the API (local stack) | 84 + 192 |
 | `web/tests/identity.test.ts`, `functions.test.ts`, `id_numbers.test.ts`, `invite.test.ts`, `scale.test.ts` | number checks, checklist states, first screen, menu, session length; the six functions; the invite function (no token in any log); import dates and columns, list filters, bulk refusals, Hindi of the new words; no number in any request, answer or log of `id-numbers` | 29 + 33 + 52 |
 | `tests/run_local.*` "upgrade path" | migrations 31 to 33 applied to a database already in use, then all 27 test files again | every run |
-| `web/e2e/phase7.spec.ts`, `phase8.spec.ts`, `phase10.spec.ts`, `phase11.spec.ts` (205 joiners from a spreadsheet to 40 on a stage, at 527 px) | through the screens: a client set up from nothing; a joiner on a phone; directory, assign, lifecycle, state, seats, audit, the code; duplicates, masked images, the joiner's words, and a search of everything the stack wrote for the numbers typed | 3 + 8 + 4 |
+| `web/e2e/phase7.spec.ts`, `phase8.spec.ts`, `phase10.spec.ts`, `phase11.spec.ts` (205 joiners from a spreadsheet to 40 on a stage, at 527 px), `phase12.spec.ts` (HR by geography) | through the screens: a client set up from nothing; a joiner on a phone; directory, assign, lifecycle, state, seats, audit, the code; duplicates, masked images, the joiner's words, and a search of everything the stack wrote for the numbers typed | 3 + 8 + 4 |
 
 All of the table above ran on the local stack. **On staging since 6 October 2026** (run-sheet part D, three runs of
 `scripts/staging_phase5.ps1`; `docs/VERIFICATION_LOG.md`): migrations 31 to 33 on the database in use, the four

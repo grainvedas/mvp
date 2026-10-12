@@ -17,6 +17,7 @@ import { ScopeList, ScopeWizard } from './pages/scopes/Scopes';
 import { Clients, Crops, OpenFlags, States } from './pages/admin/Admin';
 import { AddJoiner, JoinerPage, Templates } from './pages/hr/Hr';
 import { ImportJoiners, JoinersList, Openings } from './pages/hr/Scale';
+import { HrTeam } from './pages/hr/Geo';
 import { Checklist, Goals, TaskPage, Welcome } from './pages/onboarding/Onboarding';
 import { AssignPage, Directory, ProfilePage, RosterPage, StateOverview } from './pages/people/People';
 import { AuditLog, Seats } from './pages/system/System';
@@ -82,6 +83,7 @@ function Private() {
         <Route path="hr/joiners/new" element={<HrOnly><AddJoiner /></HrOnly>} />
         <Route path="hr/joiners/:id" element={<HrOnly orAdmin><JoinerPage /></HrOnly>} />
         <Route path="hr/templates" element={<HrOnly><Templates /></HrOnly>} />
+        <Route path="hr/team" element={<HrOnly><HrTeam /></HrOnly>} />
         <Route path="people" element={<Directory />} />
         <Route path="people/:id" element={<ProfilePage />} />
         <Route path="people/:id/assign" element={<AssignPage />} />

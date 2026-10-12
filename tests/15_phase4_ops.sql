@@ -105,6 +105,9 @@ declare other_cm uuid;
 begin
   insert into public.app_users (role, display_name, email, client_id) values ('client_manager', 'Other CM', 'other.cm@test', '00000000-0000-4000-8000-000000000202')
   returning id into other_cm;
+  -- based in Uttar Pradesh, the state of Imran's HR work (migration 39: HR reaches the people of its states)
+  insert into public.employee_org (employee_id, base_state_id) values (other_cm, '00000000-0000-4000-8000-000000000001')
+  on conflict (employee_id) do update set base_state_id = excluded.base_state_id;
   perform t.as_user(t.u('01'));
   -- Migration 34: with the HR Admin seat filled, resetting people is HR's; the admin resets the HR Admin (and admins).
   perform t.ok(app.reset_login_allowed(t.u('16')) and not app.reset_login_allowed(t.u('01')),

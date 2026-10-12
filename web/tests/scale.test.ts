@@ -104,3 +104,24 @@ describe('words in English and Hindi', () => {
     expect(Object.entries(en).filter(([k, v]) => !k.startsWith('check.') && /state supervisor/i.test(v)).map(([k]) => k)).toEqual([]);
   });
 });
+
+describe('HR by geography (migration 39)', () => {
+  it('an HR resource chooses among her states; the HR Admin among all', async () => {
+    const { stateChoices } = await import('../src/pages/hr/Geo');
+    const all = [{ id: 'up', name: 'Uttar Pradesh' }, { id: 'as', name: 'Assam' }, { id: 'br', name: 'Bihar' }];
+    expect(stateChoices(all, { full: true, hr: true, states: [] })).toEqual(all);
+    expect(stateChoices(all, { full: false, hr: true, states: [{ id: 'as', name: 'Assam' }] })).toEqual([{ id: 'as', name: 'Assam' }]);
+    expect(stateChoices(all, { full: false, hr: true, states: [] })).toEqual([]);
+    expect(stateChoices(all, null)).toEqual(all);                       // not loaded yet: the server decides anyway
+  });
+  it('the import reads where a person is based', () => {
+    expect(joinerRows([['Name', 'Email', 'Mobile', 'Join date', 'State', 'Location'], ['Asha', 'a@example.com', 9990001234, '2026-11-03', 'Assam', 'Nagaon']])[0])
+      .toEqual({ full_name: 'Asha', personal_email: 'a@example.com', phone: '9990001234', join_date: '2026-11-03', state: 'Assam', district: 'Nagaon' });
+  });
+  it('its words, in English and Hindi', () => {
+    const keys = Object.keys(en).filter((k) => k.startsWith('geo.')).concat(['imp.state_unknown', 'imp.no_state', 'imp.not_your_state', 'audit.hr_states_set', 'audit.base_location_set']);
+    expect(keys.length).toBeGreaterThan(18);
+    for (const k of keys) { expect(en[k], k).toBeTruthy(); expect(hi[k], k).toBeTruthy(); }
+    expect(en['sysrole.hr_resource_note']).toMatch(/Holds no seat/);
+  });
+});

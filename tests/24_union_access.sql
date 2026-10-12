@@ -167,8 +167,9 @@ select t.as_user(t.u('17'));
 select t.ok((select count(*) from public.scopes) = 0 and (select count(*) from public.footprints) = 0 and (select count(*) from public.farmers) = 0
             and (select count(*) from public.clients) = 0 and (select count(*) from public.ledger) = 0,
             'HR: no scope, no record, no farmer, no client, no ledger');
-select t.ok((select count(*) from public.app_users where not external) = (select count(*) from public.app_users) and (select count(*) from public.app_users) >= 18,
-            'HR: every employee, and no client login');
+select t.ok((select count(*) from public.app_users where not external) = (select count(*) from public.app_users) and (select count(*) from public.app_users) >= 17
+            and not exists (select 1 from public.app_users where system_role = 'admin'),
+            'HR: every employee of his state (migration 39: Imran works for Uttar Pradesh), HR colleagues, no admin, no client login');
 select t.ok((select count(*) from public.assignments) > 30, 'HR: reads assignments (to see what an offboarding ends)');
 select t.fails(format($q$ insert into public.slot_assignments (user_id, scope_id, stage_type) values (%L, %L, 'qc') $q$, t.u('18'), t.scope('01')),
                'row-level security', 'HR: but gives no stage');

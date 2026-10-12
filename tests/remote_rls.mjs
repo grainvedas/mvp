@@ -138,9 +138,15 @@ if (sessions['303']) {
   const employees = (await svc.get('app_users', 'select=id&external=is.false')).data.length;
   const nobody = '00000000-0000-4000-8000-00000000ffff';
   const joiner = { p: { full_name: 'Not Created', personal_email: 'not.created@example.test', join_date: '2027-01-01' } };
+  // migration 39: the HR Admin reads every employee; an HR resource the people based in her states, HR colleagues and herself
+  const imranStates = (await svc.get('hr_states', `select=state_id&employee_id=eq.${appUserId('317')}&ended_at=is.null`)).data.map((r) => r.state_id);
+  const based = new Map((await svc.get('employee_org', 'select=employee_id,base_state_id')).data.map((r) => [r.employee_id, r.base_state_id]));
+  const reach317 = (await svc.get('app_users', 'select=id,system_role&external=is.false')).data
+    .filter((u) => ['hr_admin', 'hr_resource'].includes(u.system_role) || imranStates.includes(based.get(u.id))).length;
   for (const key of ['316', '317']) {
     const s = sessions[key]; if (!s) continue;
-    ok((await s.pub.count('app_users')) === employees, `${key} HR reads every employee (${employees}) and no client login`);
+    const want = key === '316' ? employees : reach317;
+    ok((await s.pub.count('app_users')) === want, `${key} HR reads ${key === '316' ? 'every employee' : 'the employees of his states, and HR'} (${want}) and no client login`);
     ok((await s.pub.count('footprints')) === 0 && (await s.pub.count('clients')) === 0 && (await s.pub.count('ledger', '', 'seq')) === 0,
        `${key} HR reads no record, no client, no ledger`);
     const a = await s.app.rpc('assign', { p_employee: appUserId('318'), p_lens: 'scope', p_target: '00000000-0000-4000-8000-000000000401', p_op_role: 'operator', p_stages: ['qc'] });

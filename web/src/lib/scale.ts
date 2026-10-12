@@ -22,7 +22,7 @@ export const NUMBER_KEYS: (keyof OpeningNumbers)[] = ['positions', 'joining', 'j
 export type InviteState = 'not_sent' | 'sent' | 'failed' | 'accepted' | 'expired' | 'replaced';
 export interface JoinerRow extends PipelineRow {
   role: HireRole | null; stage: StageType | null; opening_id: string | null; opening_code: string | null; state_name: string | null;
-  hr_owner: string | null; hr_owner_name: string | null; invite: { state: InviteState; at: string; expires_at: string } | null;
+  district?: string | null; hr_owner: string | null; hr_owner_name: string | null; invite: { state: InviteState; at: string; expires_at: string } | null;
 }
 export interface JoinersPage {
   total: number; rows: JoinerRow[]; limit: number; offset: number;
@@ -43,13 +43,14 @@ export const pageCount = (total: number, size: number) => Math.max(1, Math.ceil(
 
 // ── the import ─────────────────────────────────────────────────────────────────────────────────────────────────────
 export const IMPORT_COLUMNS = ['full_name', 'personal_email', 'phone', 'join_date', 'employment_type', 'designation_band',
-  'department', 'job_title', 'reports_to', 'opening'] as const;
+  'department', 'job_title', 'reports_to', 'opening', 'state', 'district'] as const;
 const SYNONYMS: Record<string, string> = {
   name: 'full_name', full_name: 'full_name', email: 'personal_email', personal_email: 'personal_email', mobile: 'phone', phone: 'phone',
   phone_number: 'phone', mobile_number: 'phone', join_date: 'join_date', joining_date: 'join_date', date_of_joining: 'join_date',
   employment_type: 'employment_type', type: 'employment_type', designation: 'designation_band', designation_band: 'designation_band',
   band: 'designation_band', department: 'department', job_title: 'job_title', title: 'job_title', reports_to: 'reports_to',
   reports_to_email: 'reports_to', manager_email: 'reports_to', opening: 'opening', opening_code: 'opening',
+  state: 'state', base_state: 'state', based_in: 'state', district: 'district', base_district: 'district', location: 'district',
 };
 const iso = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 /** Pure: a date as typed in a spreadsheet → YYYY-MM-DD, or the text as it was (the server says it is not a date). */
@@ -78,7 +79,7 @@ export function joinerRows(sheet: unknown[][]): Record<string, string>[] {
     return o;
   });
 }
-export interface ImportRowResult { row: number; name: string; email: string | null; opening: string | null; role: HireRole | null;
+export interface ImportRowResult { row: number; name: string; email: string | null; opening: string | null; state?: string | null; role: HireRole | null;
   stage: StageType | null; status: 'ready' | 'warning' | 'error' | 'skipped'; reasons: string[]; id?: string; created?: boolean }
 export interface ImportResult { batch: string; dry_run: boolean; rows: ImportRowResult[];
   counts: { rows: number; ready: number; warning: number; error: number; skipped: number; created: number } }

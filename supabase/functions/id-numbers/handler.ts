@@ -23,7 +23,7 @@
 type Env = Record<string, string | undefined>;
 
 /** The build of the server functions (the same value in all five; a unit test holds them together). */
-export const VERSION = '2026-10-13';
+export const VERSION = '2026-10-14';
 
 const cors = {
   'access-control-allow-origin': '*',

@@ -9,6 +9,7 @@ import { dateTime, humanise } from '../../lib/format';
 import type { AuditLine, Seat, Seats as SeatsData } from '../../lib/people';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { StatusBadge, useStageName } from '../people/shared';
+import { HrStatesCard } from '../hr/Geo';
 
 function SeatRow({ s }: { s: Seat }) {
   const { t } = useI18n();
@@ -74,6 +75,7 @@ export function Seats() {
         <p className="small muted">{t('seats.hr_resources_note')}</p>
         <p className="small" data-testid="seat-deputy">{t('deputy.title')}: {x.sm_deputy ? <strong>{x.sm_deputy.name}</strong> : <span className="muted">{t('deputy.none')}</span>} <span className="muted">{t('deputy.admin_note')}</span></p>
       </div>
+      <HrStatesCard canEdit={!x.hr_admin} />
       <div className="card" data-testid="daily-code-card">
         <h2 style={{ marginTop: 0 }}>{t('seats.code_title')} <Badge value={x.daily_code.on ? 'verified' : 'draft'} label={t(x.daily_code.on ? 'seats.code_on' : 'seats.code_off')} /></h2>
         <p className="small muted">{t('seats.code_note')}</p>

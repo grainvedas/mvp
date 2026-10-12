@@ -213,6 +213,24 @@ select 'onboarding at scale',     case when to_regclass('public.openings') is nu
                                       then 'OLD or OPEN: the invite functions or the token fingerprints open to people, no gate, or no role checklists (push migration 38)'
                                       else 'OK openings, import, invites (fingerprints only), gate on Mark as joined, role checklists' end
 union all
+select 'hr by geography',         case when to_regclass('public.hr_states') is null or to_regprocedure('app.hr_covers(uuid)') is null
+                                        or to_regprocedure('app.set_base_location(uuid, uuid, text)') is null
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'employee_org' and column_name = 'base_state_id')
+                                      then 'MISSING (push migration 39)'
+                                      when not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'employee_docs' and qual like '%hr_covers%')
+                                        or not exists (select 1 from pg_policies where schemaname = 'storage' and policyname = 'hr_docs_read' and qual like '%hr_covers_path%')
+                                        or position('HR holds no seat' in pg_get_functiondef(to_regprocedure('app.assign(uuid, assignment_lens, uuid, op_role, stage_type[], text, date)'))) = 0
+                                        or has_table_privilege('authenticated', 'public.hr_states', 'insert')
+                                      then 'OLD or OPEN: HR not limited to its states, or HR may be seated (push migration 39)'
+                                      else 'OK an HR resource works for her states; HR holds no seat' end
+union all
+select 'HR holds no seat',        case when to_regclass('public.hr_states') is null then 'MISSING (push migration 39)'
+                                      when exists (select 1 from public.assignments a join public.app_users u on u.id = a.employee_id
+                                                    where a.active and u.system_role in ('hr_admin', 'hr_resource'))
+                                      then 'NOT OK: a seat is still held by ' || (select string_agg(distinct u.display_name, ', ') from public.assignments a join public.app_users u on u.id = a.employee_id
+                                                           where a.active and u.system_role in ('hr_admin', 'hr_resource')) || ': the HR Admin ends it'
+                                      else 'OK' end
+union all
 select 'reminder round',          case when to_regclass('cron.job') is null then 'NO pg_cron: reminders are queued when HR opens the Joiners list'
                                       when (xpath('/row/n/text()', query_to_xml(
                                               'select count(*) as n from cron.job where jobname = ''grainveda-reminders''', false, true, '')))[1]::text::int = 1

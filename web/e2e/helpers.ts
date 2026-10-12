@@ -115,8 +115,10 @@ export const todayIST = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().
  * HR's whole act for one person (signed in as HR or the admin): the form, the temporary password shown once, the
  * joiner's own page. Returns the person's id, that password, and what the confirmation said.
  */
-export async function addJoiner(page: Page, p: { name: string; email: string; type?: string; title?: string; systemRole?: string; phone?: string; joinDate?: string }) {
+export async function addJoiner(page: Page, p: { name: string; email: string; type?: string; title?: string; systemRole?: string; phone?: string; joinDate?: string;
+  baseState?: string; district?: string; openingId?: string }) {
   await page.goto('/hr/joiners/new');
+  if (p.openingId) await page.locator('#j-opening').selectOption(p.openingId);
   await page.getByLabel('Full name').fill(p.name);
   await page.getByLabel('Join date').fill(p.joinDate ?? todayIST());
   await page.getByLabel('Personal email').fill(p.email);
@@ -124,6 +126,13 @@ export async function addJoiner(page: Page, p: { name: string; email: string; ty
   if (p.type) await page.getByLabel('Employment type').selectOption(p.type);
   if (p.title) await page.getByLabel('Job title').fill(p.title);
   if (p.systemRole) await page.getByLabel('System role').selectOption(p.systemRole);
+  // where the person is based (migration 39): given, or the first state when the form needs one (an HR resource with
+  // one state needs none: it is hers)
+  const base = page.locator('#j-base');
+  await expect(base.locator('option').nth(1)).toBeAttached();
+  if (p.baseState) await base.selectOption({ label: p.baseState });
+  else if (await base.evaluate((el) => (el as HTMLSelectElement).required && !(el as HTMLSelectElement).value)) await base.selectOption({ index: 1 });
+  if (p.district) await page.locator('#j-district').fill(p.district);
   await page.getByRole('button', { name: 'Save and create sign-in' }).click();
   await expect(page.getByTestId('temp-password')).toContainText(p.email);
   const temp = (await page.getByTestId('temp-password').textContent())!.match(/: (Gv-[A-Za-z0-9_-]+) —/)![1];

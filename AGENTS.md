@@ -217,6 +217,12 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   through the one-person rule and log each. An invite token is never stored or logged: the database keeps its SHA-256,
   the link carries it after the `#`. Mark as joined is refused while a statutory step is open ("received on paper" is
   HR's flagged way out); do not add another. Load tests run on the local stack only (`tests/load_onboarding.mjs`).
+- **HR works by state and holds no seat** (migration 39, Veda 12 October 2026). An HR resource reaches only the people
+  based in her states (`app.hr_covers`, `app.hr_may_manage_person`); a new HR function or read rule about a person asks
+  it, and `tests/33_hr_geography.sql` needs its case. Nobody in HR is given an assignment of any kind; HR for a state
+  is `hr_states`. The base location (`employee_org.base_state_id`, `base_district`) grants nothing and is written only
+  through its functions. A field added to the Add joiner form must also be passed by `create-user` (`JOINER_FIELDS`):
+  the opening was dropped there for a day (FIX_LIST line 41).
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.

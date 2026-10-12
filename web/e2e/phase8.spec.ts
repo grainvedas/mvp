@@ -330,7 +330,7 @@ test.describe('at a desk', () => {
     await expect(page.locator('#pf-client option')).toHaveText(['Any client', 'GrainVeda (Prasaadam trade scope)']);
     await page.locator('#pf-state').selectOption({ label: 'Uttar Pradesh' });
     await expect(qc).toBeVisible();
-    await expect(person(page, 'Ravi Kumar')).toHaveCount(0);
+    await expect(person(page, 'Ravi Kumar')).toBeVisible();          // migration 39: based in Uttar Pradesh (no seat, but the state's person)
     await page.locator('#pf-state').selectOption('');
     await page.getByLabel('Unassigned only').check();
     await expect(person(page, 'Ravi Kumar').getByTestId('unassigned')).toBeVisible();

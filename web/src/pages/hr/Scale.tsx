@@ -24,20 +24,23 @@ import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { RoleGuide } from '../../shell/RoleGuide';
 import { StatusBadge, useStageName } from '../people/shared';
 import { Owner, TaskTitle, taskKey } from './Hr';
+import { HrScopeNote, stateChoices, useHrScope } from './Geo';
 
 const STAGES = Object.keys(STAGE_ICON) as StageType[];
 const PAGE = 50;
 interface Named { id: string; name: string }
-const useStates = () => useAsync(() => q(supabase.from('states').select('id,name').order('name')) as Promise<Named[]>, []);
+const useAllStates = () => useAsync(() => q(supabase.from('states').select('id,name').order('name')) as Promise<Named[]>, []);
+/** The states this reader works with: every state, or an HR resource's own (migration 39). */
+const useStates = () => { const all = useAllStates(); const sc = useHrScope(); return { ...all, data: all.data ? stateChoices(all.data, sc.data) : all.data }; };
 export const useHrPeople = () => useAsync(async () => ((await q(supabase.from('app_users').select('id,display_name,system_role')
   .in('system_role', ['hr_admin', 'hr_resource']).eq('status', 'active').order('display_name'))) as { id: string; display_name: string }[])
   .map((p) => ({ id: p.id, name: p.display_name })), []);
 
 /** HR's pages, one row of links. */
-export function HrLinks({ here }: { here: 'joiners' | 'openings' | 'import' | 'templates' }) {
+export function HrLinks({ here }: { here: 'joiners' | 'openings' | 'import' | 'templates' | 'team' }) {
   const { t } = useI18n();
   const items: [typeof here, string, string][] = [['joiners', '/hr', 'hr.pipeline_title'], ['openings', '/hr/openings', 'open.title'],
-    ['import', '/hr/import', 'imp.title'], ['templates', '/hr/templates', 'hr.templates']];
+    ['import', '/hr/import', 'imp.title'], ['templates', '/hr/templates', 'hr.templates'], ['team', '/hr/team', 'geo.team']];
   return <p className="row hr-links" data-testid="hr-links">{items.map(([k, to, key]) => k === here
     ? <strong key={k} className="btn secondary active" aria-current="page">{t(key)}</strong>
     : <Link key={k} className="btn secondary" to={to}>{t(key)}</Link>)}</p>;
@@ -70,6 +73,7 @@ export function Openings() {
     <div>
       <div className="page-hd"><h1><span aria-hidden="true">📋 </span>{t('open.title')}</h1><div className="sub">{t('open.sub')}</div></div>
       {x?.can_plan && <HrLinks here="openings" />}
+      <HrScopeNote />
       <div className="filters">
         <Field label={t('lens.state')} htmlFor="op-state"><select id="op-state" value={state} onChange={(e) => setState(e.target.value)}>
           <option value="">{t('people.any_state')}</option>{(states.data ?? []).map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}</select></Field>
@@ -114,7 +118,6 @@ export function Openings() {
           <tr className="total-row"><td><strong>{t('open.overall')}</strong></td>{NUMBER_KEYS.map((k) => <td key={k} className="num"><span className="small muted">{t(`open.n_${k}`)} </span><span data-testid={`overall-${k}`}>{x.total[k]}</span></td>)}</tr>
         </tbody></table></div>}
         <ErrorBox error={act.error} />
-        {x.can_plan && <DeputyCard />}
         <p className="small muted">{t('open.how')}</p>
       </>}
     </div>
@@ -174,7 +177,7 @@ function SeatReady({ stateId, onDone }: { stateId: string; onDone: () => void })
   return <ReadyToAssign lens="state" target={stateId} opRole="state_supervisor" title={t('ready.seat_title')} onDone={onDone} />;
 }
 
-function DeputyCard() {
+export function DeputyCard() {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const isHrAdmin = ctx?.user?.system_role === 'hr_admin';
@@ -302,7 +305,8 @@ export function ImportJoiners() {
     const openings = (open.data?.openings ?? []).filter((o) => o.status === 'open');
     return writeXlsxFile([
       [IMPORT_COLUMNS.map((c) => ({ value: c, fontWeight: 'bold' as const })),
-        ['Ram Kumar', 'ram.kumar@example.com', '9876543210', '2026-11-01', 'full_time', 'B1', 'Field operations', 'Field Operator', '', openings[0]?.code ?? 'UP-OPR-001'].map((v) => ({ value: v }))],
+        ['Ram Kumar', 'ram.kumar@example.com', '9876543210', '2026-11-01', 'full_time', 'B1', 'Field operations', 'Field Operator', '', openings[0]?.code ?? 'UP-OPR-001',
+          openings[0]?.state_name ?? 'Uttar Pradesh', 'Basti'].map((v) => ({ value: v }))],
       [[{ value: 'code', fontWeight: 'bold' as const }, { value: 'state', fontWeight: 'bold' as const }, { value: 'role', fontWeight: 'bold' as const },
         { value: 'stage', fontWeight: 'bold' as const }, { value: 'vacant', fontWeight: 'bold' as const }],
         ...openings.map((o) => [{ value: o.code }, { value: o.state_name }, { value: t(`role.${o.role}`) }, { value: o.stage ? stage(o.stage) : '' }, { value: o.vacant }])],
@@ -327,6 +331,7 @@ export function ImportJoiners() {
     <div style={{ maxWidth: 980 }}>
       <div className="page-hd"><h1><span aria-hidden="true">📥 </span>{t('imp.title')}</h1><div className="sub">{t('imp.sub')}</div></div>
       <HrLinks here="import" />
+      <HrScopeNote />
       <div className="card">
         <ol className="steps-list">
           <li><button type="button" className="secondary" onClick={() => void template()} data-testid="imp-template">{t('imp.template')}</button> <span className="small muted">{t('imp.template_note')}</span></li>
@@ -348,7 +353,8 @@ export function ImportJoiners() {
           <tbody>{shown.slice(0, 500).map((r) => (
             <tr key={r.row} data-testid="imp-row" data-status={r.status}>
               <td className="num">{r.row + 1}</td><td>{r.name || '—'}<div className="small muted">{r.email ?? ''}</div></td>
-              <td className="small">{r.opening ?? '—'}{r.role ? <div className="muted"><RoleLabel role={r.role} stage={r.stage} /></div> : null}</td>
+              <td className="small">{r.opening ?? '—'}{r.role ? <div className="muted"><RoleLabel role={r.role} stage={r.stage} /></div> : null}
+                {r.state && <div className="muted" data-testid="imp-row-state">{r.state}</div>}</td>
               <td><Badge value={r.status === 'ready' ? 'verified' : r.status === 'warning' ? 'pending' : r.status === 'skipped' ? 'draft' : 'closed'} label={t(`imp.s_${r.status}`)} /></td>
               <td className="small">{r.reasons.map((k) => t(k, undefined, k)).join(' · ')}</td>
             </tr>))}</tbody>
@@ -390,6 +396,7 @@ export function JoinersList() {
     <div>
       <div className="page-hd"><h1><span aria-hidden="true">🧑‍💼 </span>{t('hr.pipeline_title')}</h1><div className="sub">{t('hr.pipeline_sub')}</div></div>
       <RoleGuide role={ctx?.user?.system_role === 'hr_admin' ? 'hr_admin' : 'hr_resource'} />
+      <HrScopeNote />
       <p className="row">
         <Link className="btn" to="/hr/joiners/new" data-testid="add-joiner">{t('hr.add_joiner')}</Link>
         <Link className="btn secondary" to="/hr/import" data-testid="to-import">{t('imp.title')}</Link>

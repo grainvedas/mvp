@@ -107,6 +107,20 @@ describe('create-user makes the login for a person the database has just created
     expect(Object.keys(sent).some((k) => /slot_assignments|assignments|rpc\/assign/.test(k))).toBe(false);
     expect(res.headers.get('x-grainveda-function')).toBe(VERSION);
   });
+  it('what the Add joiner form says about the hire reaches the database: opening, role, stage, HR owner, base location (fault found 12 Oct)', async () => {
+    // migrations 38 and 39 added these fields to the form; create-user passed only the older ones, so a joiner added on
+    // the form was linked to no opening, got the default checklist, and (since 39) no base state
+    let body = '';
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input), method = init?.method ?? 'GET';
+      if (url.endsWith('/rest/v1/rpc/add_joiner')) body = String(init?.body ?? '');
+      return routes()(method, url) as Response;
+    }));
+    const extra = { opening_id: 'o-1', intended_role: 'operator', intended_stage: 'procurement', hr_owner: 'h-1', base_state_id: 's-1', base_district: 'Basti' };
+    const res = await handle(post({ ...joiner, ...extra, nonsense: 'x' }), env);
+    expect(res.status).toBe(201);
+    expect(JSON.parse(body).p).toEqual({ full_name: 'Sita Devi', personal_email: 'Sita@Example.test', join_date: '2026-11-01', phone: '9876543210', employment_type: 'full_time', ...extra });
+  });
   it('a client login goes through app.add_client_viewer, with the caller\'s token', async () => {
     const seen = server(routes());
     const res = await handle(post(viewer), env);

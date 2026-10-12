@@ -24,7 +24,7 @@ type Env = Record<string, string | undefined>;
 
 /** The build of the five functions (create-user, reset-password, ledger-check, daily-code, id-numbers). Raise it in all five
  *  whenever one changes in a way the app or the database depends on, and FUNCTIONS_NEEDED in web/src/lib/api.ts with it. */
-export const VERSION = '2026-10-13';
+export const VERSION = '2026-10-14';
 
 const cors = {
   'access-control-allow-origin': '*',
@@ -76,8 +76,11 @@ function dbMessage(data: unknown, fallback: string): string {
   return d?.message ?? d?.msg ?? d?.error_description ?? fallback;
 }
 
+// What app.add_joiner reads. The opening, role, stage and HR owner (migration 38) and the base location (migration 39)
+// were missing until 12 Oct 2026: a joiner added on the form was linked to no opening (web/tests/functions.test.ts).
 const JOINER_FIELDS = ['full_name', 'personal_email', 'phone', 'join_date', 'employment_type', 'designation_band', 'department',
-  'job_title', 'reports_to', 'buddy', 'template_id', 'system_role'];
+  'job_title', 'reports_to', 'buddy', 'template_id', 'system_role', 'opening_id', 'intended_role', 'intended_stage', 'hr_owner',
+  'base_state_id', 'base_district'];
 
 export async function handle(req: Request, env: Env): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
