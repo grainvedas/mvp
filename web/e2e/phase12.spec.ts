@@ -3,7 +3,7 @@
 // Assam on HR · Team; the base location is on the profile; nobody in HR is offered a seat. Also the fault found on the
 // way: the Add joiner form's opening reached nobody (create-user dropped it); now the joiner page shows it.
 import { test, expect } from '@playwright/test';
-import { signIn, signOut, addJoiner, freshEmail, apiAs, expectNoSideScroll, USERS } from './helpers';
+import { signIn, signOut, addJoiner, freshEmail, apiAs, expectNoSideScroll, USERS, PEOPLE } from './helpers';
 import { hi } from '../src/lib/i18n.hi';
 
 test.use({ viewport: { width: 527, height: 900 } });
@@ -87,5 +87,34 @@ test('HR by geography: an HR resource works for her states; the HR Admin gives t
   await page.getByTestId('audit-action').selectOption('base_location_set');
   await expect(page.getByTestId('audit-line').first()).toContainText(upName);
   await expect(page.getByTestId('audit-line').first()).toContainText('Uttar Pradesh · Basti → Uttar Pradesh · Gorakhpur');   // open item 34
+  await signOut(page);
+});
+
+test('The admin sets where the HR Admin is based (migration 40); nobody sets their own', async ({ page }) => {
+  test.setTimeout(120_000);
+  const asha = '00000000-0000-4000-8000-000000000316';
+  await signIn(page, USERS.hrAdmin);
+  await page.goto(`/people/${asha}`);
+  await expect(page.getByTestId('base-location')).toBeVisible();
+  await expect(page.getByTestId('base-edit')).toHaveCount(0);                     // not her own
+  await signOut(page);
+  await signIn(page, USERS.admin);
+  await page.goto(`/people/${asha}`);
+  await page.getByTestId('base-edit').click();
+  await page.locator(`#bs-${asha}`).selectOption({ label: 'Assam' });
+  await page.locator(`#bd-${asha}`).fill('Guwahati');
+  await page.getByTestId('base-save').click();
+  await expect(page.getByTestId('base-location-text')).toHaveText('Assam · Guwahati');
+  await expectNoSideScroll(page);
+  // and back, so other tests find her as the seed left her
+  await page.getByTestId('base-edit').click();
+  await page.locator(`#bs-${asha}`).selectOption({ label: 'Uttar Pradesh' });
+  await page.locator(`#bd-${asha}`).fill('');
+  await page.getByTestId('base-save').click();
+  await expect(page.getByTestId('base-location-text')).toHaveText('Uttar Pradesh');
+  // the admin is still not offered anyone else's while the HR Admin seat is filled
+  await page.goto(`/people/${PEOPLE.ravi}`);
+  await expect(page.getByTestId('base-location')).toBeVisible();
+  await expect(page.getByTestId('base-edit')).toHaveCount(0);
   await signOut(page);
 });

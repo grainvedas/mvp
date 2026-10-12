@@ -1701,4 +1701,25 @@ App only: no migration, no server function (functions build stays 2026-10-14).
   file about to be committed. `staging-hr-geography.cmd` now refuses (the tested list changed). Sealed: 113 files.
 
 NOT run / not known: nothing on staging yet. Windows PowerShell 5.1. Hindi of the five new ".one" strings unread.
+- **On staging** 04:19 IST: `staging-small-fixes.cmd` `RESULT: SMALL FIXES ON STAGING` (head a36b635, 16 files). In the app
+  (Minal): the audit line for Neha's base location reads "— → Uttar Pradesh". The other three were checked on the local
+  stack only (the filter needs Neha's sign-in; no count of one on staging; the offboard date needs an offboarding).
+
+## 13 October 2026, 04:40 to 05:30 IST: the admin sets where the HR Admin is based (migration 40), local stack
+
+Found while setting Minal's base location (Delhi, added by Veda as a state): nobody could. Veda chose the admin.
+- `supabase/migrations/20261015000100_hr_admin_base.sql`: `app.set_base_location` and `app.person_geo` replaced (from
+  their migration-39 definitions, two conditions widened). Nothing else.
+- **Database**: `tests/run_local.sh`: **1,294** `ok` lines (1,282 + 12); every file passes, fresh and on the upgrade
+  path, except the timing check in `tests/13_phase3_ops.sql` (1,049 and 1,122 ms; environmental, as on 13 Oct, not
+  loosened). New `tests/34_hr_admin_base.sql` (**12**): the admin offered and sets the HR Admin's base (logged); not
+  anyone else's while the seat is filled; the HR Admin not her own; an HR resource and an operational person refused.
+  Control: on a database with the migration-39 functions the file fails at its first check.
+- **Screens**: `phase12` **2 passed** (new: the HR Admin is not offered her own; the admin sets it, Assam · Guwahati,
+  and back; the admin is not offered Ravi's).
+- **`scripts/staging_hr_admin_base.ps1`** (`staging-hr-admin-base.cmd`) on stand-ins: the run; a second run; wrong
+  words; another migration waiting; the rule not in place after the push; a failed push; production; functions not
+  current; a smoke row not OK; a changed migration file. The app files are unchanged (113, sealed with item 34).
+
+NOT run / not known: nothing on staging yet. Windows PowerShell 5.1.
 
