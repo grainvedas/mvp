@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { downloadCsv } from '../../lib/csv';
 import { useAction, useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
-import { dateTime, humanise, shortHash } from '../../lib/format';
+import { dateTime, humanise, shortHash, todayIST } from '../../lib/format';
 import { Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 
 export interface LedgerRow {
@@ -54,7 +54,7 @@ export function Ledger() {
       all.push(...p.rows);
       if (p.rows.length < 500 || all.length >= p.total) break;
     }
-    downloadCsv(`ledger-${new Date().toISOString().slice(0, 10)}.csv`,
+    downloadCsv(`ledger-${todayIST()}.csv`,
       ['seq', 'event', 'record', 'what', 'about', 'client', 'scope', 'signed_by', 'role', 'time', 'hash', 'prev_hash'],
       all.map((r) => [r.seq, r.event, r.record, r.what, r.about, r.client, r.scope, r.actor_name, r.actor_role, r.created_at, r.hash, r.prev_hash]));
   });

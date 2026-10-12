@@ -8,7 +8,7 @@ import { rpc } from '../../lib/api';
 import { useAction, useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
-import { date } from '../../lib/format';
+import { date, todayIST } from '../../lib/format';
 import { countdown, joinWords, joinerTrack, masked, progress, taskState, validAadhaar, validAccount, validIfsc, validPan, waitsFor,
   type Contact, type IdKind, type MyOnboarding, type Task } from '../../lib/people';
 import { sendIdNumber } from '../../lib/idNumbers';
@@ -32,7 +32,7 @@ function Join({ o }: { o: MyOnboarding }) {
 /** E5 (migration 38): the joiner's own late steps, at the top of their screens (reminders in the app). */
 function Overdue({ tasks }: { tasks: Task[] }) {
   const { t } = useI18n();
-  const late = overdueMine(tasks, new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10));
+  const late = overdueMine(tasks, todayIST());
   if (late.length === 0) return null;
   return <div className="alert warn" role="status" data-testid="overdue-banner">{t('mine.overdue', { n: late.length })}: {late.map((k) => <strong key={k.id}><TaskTitle task={k} /> </strong>)}</div>;
 }

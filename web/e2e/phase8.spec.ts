@@ -559,7 +559,7 @@ test.describe('at a desk', () => {
     await page.getByTestId('profile-actions').getByRole('button', { name: 'Offboard' }).click();
     await expect(page.getByTestId('offboard-preview')).toContainText('1 assignment(s) will end.');
     const box = page.getByTestId('confirm');
-    await expect(box.getByLabel('Exit date')).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+    await expect(box.getByLabel('Exit date')).toHaveValue(todayIST());                          // the date in India (open item 34)
     await box.getByLabel('Exit date').fill(todayIST());
     await box.getByLabel(/Reason/).fill('contract over');
     await box.getByLabel('Final settlement').fill('paid 30 Sep');

@@ -12,7 +12,9 @@ export function registerDictionary(lang: Lang, dict: Dict) {
 }
 
 export function translate(lang: Lang, key: string, vars?: Record<string, string | number>, fallback?: string): string {
-  let s = dictionaries[lang][key] ?? dictionaries.en[key] ?? fallback ?? key;
+  // "1 people": a count of exactly one uses the key's ".one" form when there is one
+  const one = vars !== undefined && Number(vars.n) === 1 ? (dictionaries[lang][`${key}.one`] ?? dictionaries.en[`${key}.one`]) : undefined;
+  let s = one ?? dictionaries[lang][key] ?? dictionaries.en[key] ?? fallback ?? key;
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
   return s;
 }

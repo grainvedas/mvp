@@ -41,6 +41,9 @@ test('HR by geography: an HR resource works for her states; the HR Admin gives t
   await expect(page.getByTestId('base-location-text')).toHaveText('Uttar Pradesh · Basti');
   const org = (await api.rows('employee_org', `employee_id=eq.${up.id}`))[0];
   expect(org).toMatchObject({ opening_id: opening.id, intended_role: 'operator', intended_stage: 'qc', base_district: 'Basti' });
+  // People & access: his State filter offers only his state (open item 34)
+  await page.goto('/people');
+  await expect(page.locator('#pf-state option')).toHaveText(['Any state', 'Uttar Pradesh']);
   // Hindi, on the phone
   await page.goto('/hr');
   await page.getByLabel('Language').selectOption('hi');
@@ -83,5 +86,6 @@ test('HR by geography: an HR resource works for her states; the HR Admin gives t
   await page.goto('/system/audit');
   await page.getByTestId('audit-action').selectOption('base_location_set');
   await expect(page.getByTestId('audit-line').first()).toContainText(upName);
+  await expect(page.getByTestId('audit-line').first()).toContainText('Uttar Pradesh · Basti → Uttar Pradesh · Gorakhpur');   // open item 34
   await signOut(page);
 });

@@ -5,7 +5,7 @@ import { rpc } from '../../lib/api';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../../lib/supabase';
 import { useAction, useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
-import { dateTime, humanise } from '../../lib/format';
+import { dateTime, fromTo, humanise } from '../../lib/format';
 import type { AuditLine, Seat, Seats as SeatsData } from '../../lib/people';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { StatusBadge, useStageName } from '../people/shared';
@@ -101,7 +101,7 @@ function Detail({ l }: { l: AuditLine }) {
   const stages = Array.isArray(d.stages) ? (d.stages as string[]).map(stage).join(', ') : '';
   const bits = [
     d.lens ? t(`lens.${String(d.lens)}`, undefined, String(d.lens)) : '', d.op_role ? t(`oprole.${String(d.op_role)}`, undefined, String(d.op_role)) : '', stages,
-    d.reason ? `“${String(d.reason)}”` : '', d.from && d.to ? `${humanise(String(d.from))} → ${humanise(String(d.to))}` : '',
+    d.reason ? `“${String(d.reason)}”` : '', fromTo(d.from, d.to),
     typeof d.assignments_ended === 'number' ? t('audit.ended_n', { n: d.assignments_ended }) : '', d.exit_date ? String(d.exit_date) : '',
     d.previous ? t('audit.previous', { name: String(d.previous) }) : '', typeof d.on === 'boolean' ? (d.on ? t('seats.code_on') : t('seats.code_off')) : '',
   ].filter(Boolean);

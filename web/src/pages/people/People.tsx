@@ -13,7 +13,7 @@ import { supabase } from '../../lib/supabase';
 import { useAction, useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
-import { date } from '../../lib/format';
+import { date, todayIST } from '../../lib/format';
 import { NO_RIGHTS, type EmployeeStatus, type Lens, type OpRole, type StageType, type SystemRole } from '../../lib/types';
 import { lensTone, stagesAfter, type AssignmentInfo, type DirectoryFilter, type DirectoryPerson, type Profile,
   type Roster, type StateOverviewData, type Warning } from '../../lib/people';
@@ -21,7 +21,7 @@ import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { givesAssignments, oversees, seatsStateManagers } from '../../lib/rights';
 import { AccessBadges, Confirm, OrgLine, StatusBadge, TempPassword, WarningList, useStageName } from './shared';
 import { ReadyToAssign } from '../hr/Scale';
-import { BaseLocation, HrScopeNote } from '../hr/Geo';
+import { BaseLocation, HrScopeNote, stateChoices, useHrScope } from '../hr/Geo';
 
 interface Named { id: string; name: string }
 const useClients = () => useAsync(() => q(supabase.from('clients').select('id,name').order('name')) as Promise<Named[]>, []);
@@ -34,6 +34,7 @@ export function Directory() {
   const can = ctx?.user?.can ?? NO_RIGHTS;
   const clients = useClients();
   const states = useStates();
+  const scope = useHrScope();
   const [f, setF] = useState<DirectoryFilter>({ text: '', client: '', state: '', status: '', unassigned: false, kind: 'employees' });
   const [qq, setQq] = useState('');
   const [page, setPage] = useState(0);
@@ -60,7 +61,7 @@ export function Directory() {
           <Field label={t('people.client_lens')} htmlFor="pf-client"><select id="pf-client" value={f.client} onChange={(e) => set({ client: e.target.value })}>
             <option value="">{t('people.any_client')}</option>{(clients.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
           <Field label={t('people.state_lens')} htmlFor="pf-state"><select id="pf-state" value={f.state} onChange={(e) => set({ state: e.target.value })}>
-            <option value="">{t('people.any_state')}</option>{(states.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+            <option value="">{t('people.any_state')}</option>{stateChoices(states.data ?? [], scope.data).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
           <Field label={t('common.status')} htmlFor="pf-status"><select id="pf-status" value={f.status} onChange={(e) => set({ status: e.target.value as DirectoryFilter['status'] })}>
             <option value="">{t('people.any_status')}</option>{(['invited', 'onboarding', 'active', 'suspended', 'offboarded'] as EmployeeStatus[]).map((s) => <option key={s} value={s}>{t(`pstatus.${s}`)}</option>)}</select></Field>
           <label className="check"><input type="checkbox" checked={f.unassigned} onChange={(e) => set({ unassigned: e.target.checked })} />{t('people.only_unassigned')}</label>
@@ -190,7 +191,7 @@ export function ProfilePage() {
   const p = useAsync(() => rpc<Profile>('employee_profile', { p_employee: id }), [id]);
   const act = useAction();
   const [mode, setMode] = useState<null | 'suspend' | 'offboard' | 'rehire'>(null);
-  const [f, setF] = useState({ reason: '', exit_date: new Date().toISOString().slice(0, 10), settlement: '', form16: '', join_date: '' });
+  const [f, setF] = useState({ reason: '', exit_date: todayIST(), settlement: '', form16: '', join_date: '' });
   const [preview, setPreview] = useState<{ assignments: number; gaps: { scope: string; client: string; stage: StageType }[] } | null>(null);
   const [temp, setTemp] = useState<{ who: string; pw: string } | null>(null);
   const stage = useStageName();

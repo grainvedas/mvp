@@ -1654,3 +1654,51 @@ Ran:
 
 NOT run / not known:
 - Nothing on staging. Windows PowerShell 5.1. Real phones. About 25 new Hindi strings unread (K57).
+
+## 13 October 2026, 02:42 to 03:25 IST: HR by geography on staging (migration 39)
+
+Veda's say-so; run from her computer, checked in her Chrome (signed in herself each time; Claude typed no password).
+- **Before the run**: Neha held the Uttar Pradesh State Manager seat (given by Minal 11 Oct). The admin cannot end it
+  (the admin gives nothing since migration 35); Minal ended it, reason "HR holds no seat".
+- **Run 1** (02:42): `RESULT: STOPPED` at S0, naming Neha's seat (as designed; this was before the seat was ended).
+- **Run 2** (02:49): S0 to S2 OK (six functions, build 2026-10-14; migration 39 pushed); **S3 stopped on a fault of
+  the script**: all 36 smoke rows were OK, but the script looked for the check `HR holds no seat` and found the
+  words first inside the result of the row before it ("OK an HR resource works for her states; HR holds no seat"),
+  so it read that row as not OK. The stand-in smoke output used in the rehearsal printed a bare "OK" for that row.
+  Fixed: a check's name is found only at the start of a table cell in the first column; the stand-in now prints the
+  real result texts; reproduced (old script stops, new passes) and the second run from the stopped state rehearsed.
+- **Run 3** (02:57): `RESULT: HR GEOGRAPHY ON STAGING`. S2 not run (already pushed); smoke 36 of 36; ledger audit no
+  findings; no login without a person; functions current; base states filled 0 (2 people, neither on an opening or a
+  seat); S4 pushed 48be0fc (42 files).
+- **In the app** (Minal): HR · Team listed Neha with no state; Uttar Pradesh given; Neha based in Uttar Pradesh. Test
+  opening UP-OPR-001 (Uttar Pradesh, operator, QC, 1 position). `TEST Other` added based in Bihar · Patna; `TEST Mine`
+  added on the form against UP-OPR-001: role Operator · Quality Control and the opening on the record (**the Add
+  joiner fault is fixed on staging**), based Uttar Pradesh · Gorakhpur. Audit log: every step logged.
+- **In the app** (Neha): "You work for: Uttar Pradesh"; Joiners and People & access list TEST Mine and Neha only;
+  TEST Other's joiner page and profile, opened by address: "Person not found"; Add joiner offers only Uttar Pradesh;
+  Openings shows only UP-OPR-001. Her profile offers no Assign.
+- **Clean-up** (Minal): TEST Other and TEST Mine offboarded (kept as records); UP-OPR-001 closed. Fake addresses at
+  example.com and phones 9000000011/12 only.
+- Small faults seen: open item 34. Not checked on staging: giving Neha a second state and her then reaching a person
+  of it (checked on the local stack, `phase12`); the import with a state column; Hindi; a phone.
+
+## 13 October 2026, 03:30 to 04:40 IST: small fixes (open item 34), local stack
+
+App only: no migration, no server function (functions build stays 2026-10-14).
+- (a) Audit: `fromTo` in `web/src/lib/format.ts`; the base-location line showed nothing because its "from" was an
+  empty string. (b) People & access: the State filter uses `stateChoices` (an HR resource: her states). (c) `translate`
+  uses the key's `.one` form when n is 1; `.one` added for `seats.code_refused`, `open.not_linked`, `imp.done`,
+  `imp.invite`, `jl.count` (English and Hindi). (d) `todayIST()`: offboard exit date default, ledger CSV name, the
+  onboarding overdue check (already IST, now the shared helper).
+- **Unit tests**: **319 passed** (new `web/tests/fixes34.test.ts`, 4; its count test failed with the old `translate`).
+  Type check clean; `npm run build:ci` builds.
+- **Screens** (stack rebuilt from nothing): `phase12` + `phase8` **9 passed**, then the default suite **65 passed
+  (16.7 min)**. New checks: Imran's State filter offers only Uttar Pradesh; the audit line reads "Uttar Pradesh ·
+  Basti → Uttar Pradesh · Gorakhpur"; the offboard exit date defaults to the date in India (run at 03:45 IST, when the
+  UTC date was the day before).
+- **`scripts/staging_small_fixes.ps1`** (new; `staging-small-fixes.cmd`) on stand-ins: the run; a second run (nothing
+  new); wrong words; a migration waiting; functions not current; production; app files not the tested ones; a migration
+  file about to be committed. `staging-hr-geography.cmd` now refuses (the tested list changed). Sealed: 113 files.
+
+NOT run / not known: nothing on staging yet. Windows PowerShell 5.1. Hindi of the five new ".one" strings unread.
+

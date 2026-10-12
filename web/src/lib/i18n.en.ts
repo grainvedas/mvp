@@ -1518,4 +1518,9 @@ export const en: Record<string, string> = {
   'audit.hr_states_set': 'set the HR states of',
   'audit.base_location_set': 'set where this person is based:',
   'audit.base_locations_filled': 'filled in where people are based (migration 39)',
+  'seats.code_refused.one': 'Not switched on: 1 person who signs in has no email and could never receive a code:',
+  'open.not_linked.one': '1 person joining or joined is on no opening (added before openings, or without one). Link them from their page.',
+  'imp.done.one': '1 person added',
+  'imp.invite.one': 'Send an invite to the 1 person added',
+  'jl.count.one': '1 person',
 };
