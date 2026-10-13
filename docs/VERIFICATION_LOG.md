@@ -1768,3 +1768,51 @@ and the crop's state. Parts C (crop registry) and D (farmer register) are Releas
 
 NOT run / not known: nothing on staging yet. Windows PowerShell 5.1. A real phone. The 66 new Hindi strings unread by
 their users. Speed with thousands of people for the State Manager (measured with 241).
+- **On staging** 08:39 IST: `staging-state-manager.cmd` `RESULT: STATE MANAGER ON STAGING` (head 555a7ef, 42 files; smoke
+  37/37; the new rules in place; crops with no state 1, clients without a Client Manager 2, scopes outside their
+  client's state 0; ledger audit no findings). **Vercel did not build the push**: ten minutes later its Deployments page
+  still ended at f70d2a1 and the Git link showed connected. With Veda's OK Claude created the deployment by hand
+  (Deployments → Create Deployment → `main` → Deploy to Production): Ready in 8 s. In the app as Ram (UP State Manager,
+  a real account Veda set up): his home "Uttar Pradesh overview · State Manager · Ram", guide and checklist, 2 clients,
+  "2 clients have no Client Manager yet"; menu by heading; `/states` and `/health` bring him home; People & access lists
+  Ram only; scopes read-only; the farmers note; the ledger of his state (3 blocks, the check line); Hindi. Kalanamak
+  saved as Ram (Veda's OK): Uttar Pradesh; his checklist 2 of 5. Seen: the ledger's "Signed by" listed only Ram (fixed in
+  migration 42). Not checked: checks 4 and 8–10 (staging has no second person in Uttar Pradesh for a Client Manager);
+  check 12 (the admin's Audit log line).
+
+## 13 October 2026, 09:20 to 12:30 IST: the crop registry, Release 2 (migration 42, open item 37), local stack
+
+From Veda's brief, part C, and her answers (GAP: required refuses, optional warns; ready = unit, yield, limits, chain;
+harvest window warns; typed limits number / grade / yes-no; a crop per state; the admin removes an unused crop, retires
+one in use, corrects an unused crop's state).
+- `supabase/migrations/20261017000100_crop_registry.sql`: crop columns, `farmer_gap`, the checks, `app.judge_typed`, the
+  ready trigger on scopes, the Procurement check (in `check_new_footprint`, after reconciliation, so the form's preview
+  says the same), the admin's three acts, `app.crop_registry`; `judge_readings`, `derive_qc_verdict`, `crops_state_guard`,
+  `crops_audit`, `state_home`, `state_ledger_page` patched from their current definitions, each substitution asserted.
+  The ready rule is asked of a person acting (`auth.uid()`), so the demo seeds still load; seed 08 makes the demo crops
+  ready (shortest recommended chain, so the wizard starts as before).
+- **Database**: `tests/run_local.sh`: **1,436** `ok` lines (1,370 + 66); every file passes, fresh and on the upgrade path,
+  except the timing check of `tests/13_phase3_ops.sql` (1,125 and 1,377 ms; environmental, as before; not loosened). New
+  `tests/36_crop_registry.sql` (**66**) with **15 controls**: 15 of 15 caught; the 16 controls of test 35 still 16 of 16.
+- **API with real logins** (local stack): `remote_create_user.mjs` **95 passed**; `remote_rls.mjs --t1` **192 passed**.
+- **Unit**: **334 passed** (new `web/tests/crop_registry.test.ts`, 8). Type check clean; `npm run build:ci` builds.
+- **Screens** (stack rebuilt from nothing): default suite **69 passed** (19.4 min), with the new `phase14` at 527 px: Ram
+  makes a crop ready on the phone (number, grade and yes/no limits, two practices, harvest window, a document, the
+  shortest chain); the wizard shows a crop that is not ready as disabled and starts from the recommended chain; the
+  Client Manager answers a farmer's practice; Procurement refused for a farmer with the required practice open, saved
+  with both warnings for the other; the lab record entered on the screen with the grade and the yes/no picked, the
+  preview "domestic passed · export not met · Aroma (export)", the saved verdict pass / fail and the record showing "B"
+  and "No"; Ram's "Signed by" lists the lab operator; Hindi; the admin removes the unused crop and retires the used one;
+  both in the Audit log. A first full run found two faults of the release, fixed before this one: the test scope's seats
+  stayed (`phase6`, `phase8` counted one scope too many: the test now closes its scope) and the demo Kalanamak's
+  recommended chain changed the wizard's start (`phase1`: the seed now recommends the shortest chain). Older tests
+  changed: `phase5` (the decimal limit on the new form), the first day from nothing (the crop made ready).
+  Production build **14 passed**; the first day from nothing **1 passed**. Screenshots looked at, 527 and 1366 px: the
+  Crops page and the form.
+- **`scripts/staging_crop_registry.ps1`** (`staging-crop-registry.cmd`) on stand-ins: the run; a second run; wrong words;
+  another migration waiting; the rules not in place after the push; a failed push; production; functions not current; a
+  smoke row not OK; a changed migration; a changed app file. It ends by telling the person to check that Vercel shows the
+  commit Ready. `staging-state-manager.cmd` and the earlier scripts now refuse. Sealed: 118 files.
+
+NOT run / not known: nothing of Release 2 on staging yet. Windows PowerShell 5.1. A real phone. About 95 new Hindi
+strings unread by their users.

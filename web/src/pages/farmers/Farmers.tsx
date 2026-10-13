@@ -14,6 +14,7 @@ import type { Farmer } from '../../lib/types';
 import { actsAsStateManager, addsFarmers, holdsClientAccount, isStateManager, oversees, supervisesState, type Ctx } from '../../lib/rights';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { date } from '../../lib/format';
+import { gapMissing, type GapItem } from '../../lib/crops';
 
 /** The client whose farmers this user works with; State Managers and admins pick one. */
 export function useClientChoice() {
@@ -246,6 +247,61 @@ export function FarmerForm() {
             {status === 'draft' && cm && <button type="button" disabled={act.busy} onClick={(e) => submit(e as unknown as FormEvent, true)} data-testid="farmer-save-verify">{t('farmers.save_verify')}</button>}
           </div>)}
       </form>
+      {id && clientId && <FarmerGap farmerId={id} clientId={clientId} stateId={stateId} />}
+    </div>
+  );
+}
+
+/** Good farming practice for each crop of the farmer's state (migration 42, Veda 13 Oct 2026): answered by those who add
+ *  the client's farmers (its Client Manager, Procurement); a REQUIRED practice not answered refuses the farmer's lot at
+ *  Procurement, an optional one is a warning on the lot. Everyone else who reads the farmer reads the answers. */
+export function FarmerGap({ farmerId, clientId, stateId }: { farmerId: string; clientId: string; stateId: string }) {
+  const { t } = useI18n();
+  const { ctx } = useAuth();
+  const canEdit = addsFarmers(ctx, clientId);
+  const crops = useAsync(async () => (await q(supabase.from('crops').select('id,name,code,state_id,gap_items,retired_at').order('name')) as unknown as
+    { id: string; name: string; code: string; state_id: string | null; gap_items?: GapItem[]; retired_at?: string | null }[])
+    .filter((c) => (c.gap_items?.length ?? 0) > 0 && !c.retired_at && (!c.state_id || !stateId || c.state_id === stateId)), [stateId]);
+  const saved = useAsync(() => q(supabase.from('farmer_gap').select('crop_id,answers,updated_at').eq('farmer_id', farmerId)) as Promise<{ crop_id: string; answers: Record<string, unknown>; updated_at: string }[]>, [farmerId]);
+  const [cropId, setCropId] = useState('');
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const act = useAction();
+  const crop = crops.data?.find((c) => c.id === (cropId || crops.data?.[0]?.id));
+  useEffect(() => { setAnswers(saved.data?.find((x) => x.crop_id === crop?.id)?.answers ?? {}); }, [crop?.id, saved.data]);
+  if (crops.loading || saved.loading) return null;
+  if (!crops.data?.length) return null;
+  const items = crop?.gap_items ?? [];
+  const open = gapMissing(items, answers);
+  // only the practices the crop lists now: an answer to a practice the State Manager took off the list is not sent back
+  const save = () => act.run(async () => {
+    const now = Object.fromEntries(Object.entries(answers).filter(([k]) => items.some((g) => g.key === k)));
+    await rpc('save_farmer_gap', { p_farmer: farmerId, p_crop: crop!.id, p_answers: now }); await saved.reload();
+  });
+  const box = (g: GapItem) => {
+    const v = answers[g.key];
+    const setV = (x: unknown) => setAnswers({ ...answers, [g.key]: x });
+    const idf = `gap-${g.key}`;
+    if (g.type === 'yesno') return <select id={idf} value={v === true ? 'yes' : v === false ? 'no' : ''} disabled={!canEdit} onChange={(e) => setV(e.target.value === '' ? '' : e.target.value === 'yes')}>
+      <option value="">—</option><option value="yes">{t('common.yes')}</option><option value="no">{t('common.no')}</option></select>;
+    if (g.type === 'choice') return <select id={idf} value={String(v ?? '')} disabled={!canEdit} onChange={(e) => setV(e.target.value)}>
+      <option value="">—</option>{(g.options ?? []).map((o) => <option key={o} value={o}>{t(`opt.${o}`, undefined, o.replace(/_/g, ' '))}</option>)}</select>;
+    if (g.type === 'date') return <input id={idf} type="date" value={String(v ?? '')} disabled={!canEdit} onChange={(e) => setV(e.target.value)} />;
+    if (g.type === 'number') return <input id={idf} inputMode="decimal" value={String(v ?? '')} disabled={!canEdit} onChange={(e) => setV(e.target.value.replace(',', '.'))} />;
+    return <input id={idf} value={String(v ?? '')} maxLength={200} disabled={!canEdit} onChange={(e) => setV(e.target.value)} />;
+  };
+  return (
+    <div className="stack" data-testid="farmer-gap">
+      <h2>{t('gap.title')}</h2>
+      <p className="small muted">{t('gap.sub')}</p>
+      {crops.data.length > 1 && <Field label={t('gap.crop')} htmlFor="gap-crop"><select id="gap-crop" value={crop?.id ?? ''} onChange={(e) => setCropId(e.target.value)}>
+        {crops.data.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>}
+      {crops.data.length === 1 && <p className="small"><strong>{crop?.name}</strong></p>}
+      {items.map((g) => <Field key={g.key} label={`${g.label}${g.required ? ' *' : ''}`} htmlFor={`gap-${g.key}`}>{box(g)}</Field>)}
+      {open.required.length > 0 && <div className="alert warn" data-testid="gap-open-required">{t('gap.required_open', { what: open.required.join(', ') })}</div>}
+      {open.required.length === 0 && open.optional.length > 0 && <div className="alert info small" data-testid="gap-open-optional">{t('gap.optional_open', { what: open.optional.join(', ') })}</div>}
+      {open.required.length === 0 && open.optional.length === 0 && <div className="alert ok small" data-testid="gap-complete">{t('gap.complete')}</div>}
+      <ErrorBox error={act.error} />
+      {canEdit && <button className="secondary" onClick={save} disabled={act.busy} data-testid="gap-save">{t('gap.save')}</button>}
     </div>
   );
 }

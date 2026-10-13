@@ -60,7 +60,7 @@ export function showEntered(fd: FieldDef | undefined, key: string, v: unknown, t
   if (type === 'readings' && typeof v === 'object' && !Array.isArray(v)) {
     const parts = Object.entries(v as Record<string, unknown>).map(([p, x]) => {
       const qp = params.find((q) => q.param === p);
-      return `${t(`qp.${p}`, undefined, qp?.label ?? paramName(p))} ${typeof x === 'number' ? number(p, x, qp?.unit) : String(x)}`;
+      return `${t(`qp.${p}`, undefined, qp?.label ?? paramName(p))} ${typeof x === 'number' ? number(p, x, qp?.unit) : typeof x === 'boolean' ? t(x ? 'common.yes' : 'common.no') : String(x)}`;
     });
     return parts.length ? parts.join(' · ') : '—';
   }

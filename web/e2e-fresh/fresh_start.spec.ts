@@ -62,7 +62,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await expect(page.getByTestId('client-form')).toHaveCount(0);
   await page.goto('/crops');
   await expect(page.getByTestId('crops-readonly')).toBeVisible();
-  await expect(main.getByRole('button', { name: 'Create' })).toHaveCount(0);
+  await expect(main.getByRole('button', { name: 'Add a crop' })).toHaveCount(0);
 
   // 1. A state
   await page.goto('/states');
@@ -163,25 +163,35 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await setOwnPassword(page, PW.sm);
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await page.goto('/crops');
-  await page.getByRole('button', { name: 'Create' }).click();
-  await page.getByLabel('Name').fill('Kalanamak rice');
-  await page.getByLabel('Code').fill('knm');
-  await page.getByLabel('GI tag').fill('GI 280');
-  await page.getByLabel('Origin').fill('Eastern UP Terai belt (Siddharthnagar)');
+  // the crop registry (migration 42): a crop is ready for a scope with a yield per acre, its limits and a recommended chain
+  await page.getByRole('button', { name: 'Add a crop' }).click();
+  const form = page.getByTestId('crop-form');
+  await form.getByLabel('Name', { exact: true }).fill('Kalanamak rice');
+  await form.getByLabel(/^Code/).fill('knm');
+  await form.getByLabel('GI tag').fill('GI 280');
+  await form.getByLabel('Origin').fill('Eastern UP Terai belt (Siddharthnagar)');
+  await form.getByLabel(/^Yield per acre/).fill('1000');
   const limits = [['moisture_pct', 'Moisture', '13', '12'], ['broken_pct', 'Broken grains', '5', '3'], ['foreign_matter_pct', 'Foreign matter', '1', '0.5']];
   for (const [i, [key, label, domestic, exp]] of limits.entries()) {
     await page.getByRole('button', { name: '+ limit' }).click();
-    const row = page.locator('tbody tr').nth(i);
-    await row.getByLabel('key').fill(key);
-    await row.getByLabel('label').fill(label);
+    const row = page.getByTestId('limit-row').nth(i);
+    await row.getByLabel('label', { exact: true }).fill(label);
+    await row.getByLabel('key', { exact: true }).fill(key);
     await row.getByLabel('domestic limit').fill(domestic);
     await row.getByLabel('export limit').fill(exp);
   }
-  for (const stage of ['Milling', 'Sorting', 'Grading']) await page.getByLabel(stage, { exact: true }).check();
+  await expect(form.getByTestId('crop-form-ready')).toContainText('recommended chain');          // not ready yet: no chain
+  await form.getByTestId('crop-chain-start').click();                                            // the shortest chain
+  await form.locator('summary', { hasText: 'Processing stages allowed' }).click();
+  const allowed = form.locator('details');
+  for (const stage of ['Milling', 'Sorting', 'Grading']) await allowed.getByLabel(stage, { exact: true }).check();
+  await expect(form.getByTestId('crop-form-ready')).toContainText('ready for a scope');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(main.locator('li', { hasText: 'Kalanamak rice' })).toContainText('KNM');
-  await main.locator('li', { hasText: 'Kalanamak rice' }).getByRole('button', { name: 'Edit' }).click();
-  await expect(page.locator('tbody tr').nth(2).getByLabel('export limit')).toHaveValue('0.5');
+  const cropCard = page.getByTestId('crop-row').filter({ hasText: 'Kalanamak rice' });
+  await expect(cropCard).toContainText('KNM');
+  await expect(cropCard.getByTestId('crop-ready')).toBeVisible();
+  await cropCard.getByRole('button', { name: 'Edit' }).click();
+  await expect(page.getByTestId('limit-row').nth(2).getByLabel('export limit')).toHaveValue('0.5');
   await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.goto('/clients');

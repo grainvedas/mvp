@@ -135,8 +135,8 @@ test('A quality limit can be typed with a decimal point (item 7)', async ({ page
   const code = `Z${uniq().replace(/[^A-Z]/g, 'Q').slice(0, 3)}`;
   await signIn(page, USERS.sm);                                            // crops are the State Manager's (migration 34)
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Crops' }).click();   // his menu by heading (migration 41)
-  await page.getByRole('button', { name: 'Create' }).click();
-  await page.getByLabel('Name', { exact: true }).fill(`Decimal test ${code}`); await page.getByLabel('Code', { exact: true }).fill(code);
+  await page.getByRole('button', { name: 'Add a crop' }).click();                // the crop registry (migration 42)
+  await page.getByLabel('Name', { exact: true }).fill(`Decimal test ${code}`); await page.getByLabel(/^Code/).fill(code);
   await page.getByRole('button', { name: '+ limit' }).click();
   await page.getByLabel('key', { exact: true }).fill('moisture_pct'); await page.getByLabel('label', { exact: true }).fill('Moisture');
   await page.getByLabel('domestic limit').pressSequentially('12.5');     // key by key, as a person types
@@ -144,7 +144,7 @@ test('A quality limit can be typed with a decimal point (item 7)', async ({ page
   await expect(page.getByLabel('domestic limit')).toHaveValue('12.5');    // was 125
   await expect(page.getByLabel('export limit')).toHaveValue('11.75');     // was 1175
   await page.getByRole('button', { name: 'Save' }).click();
-  await page.getByRole('listitem').filter({ hasText: code }).getByRole('button', { name: 'Edit' }).click();
+  await page.getByTestId('crop-row').filter({ hasText: code }).getByRole('button', { name: 'Edit' }).click();
   await expect(page.getByLabel('domestic limit')).toHaveValue('12.5');
   await expect(page.getByLabel('export limit')).toHaveValue('11.75');
   // something that is not a number is said to be one, and cannot be saved

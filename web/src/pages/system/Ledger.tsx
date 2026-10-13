@@ -22,7 +22,9 @@ export interface LedgerRow {
 }
 export interface LedgerPage { total: number; rows: LedgerRow[]; limit: number; offset: number;
   /** the state ledger (migration 41): the filters' choices, and the last check of the whole chain */
-  filters?: { clients: { id: string; name: string }[]; scopes: { id: string; label: string; client_id: string }[] };
+  filters?: { clients: { id: string; name: string }[]; scopes: { id: string; label: string; client_id: string }[];
+    /** migration 42: everyone who signed a block of the state (the list of people he may see left some out) */
+    actors?: { id: string; name: string }[] };
   check?: { checked_at: string; ok: boolean; blocks: number; first_bad_seq: number | null; source: string } | null }
 
 export const LEDGER_EVENTS = ['create', 'verify', 'seal', 'override', 'supervisory', 'close', 'supersede', 'scope_activate', 'evidence'];
@@ -107,7 +109,8 @@ export function Ledger() {
           <Field label={t('ledger.f_person')} htmlFor="lf-person">
             <select id="lf-person" value={f.actor} onChange={(e) => set({ actor: e.target.value })} data-testid="ledger-person">
               <option value="">{t('ledger.any')}</option>
-              {(people.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
+              {(smState && d?.filters?.actors ? d.filters.actors.map((p) => ({ id: p.id, display_name: p.name })) : people.data ?? [])
+                .map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
             </select>
           </Field>
         {admin && <label className="check"><input type="checkbox" checked={f.managerActs} onChange={(e) => set({ managerActs: e.target.checked })} data-testid="ledger-manager-acts" />{t('ledger.manager_acts')}</label>}

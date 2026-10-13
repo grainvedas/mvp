@@ -60,6 +60,9 @@ insert into allowed values
   ('authenticated', 'runs_client'), ('authenticated', 'sm_limited'), ('authenticated', 'sm_sees'), ('authenticated', 'sm_seen_ids'), ('authenticated', 'assert_assignable'),
   ('authenticated', 'manages_viewer_fully'), ('authenticated', 'farmer_create'), ('authenticated', 'i_staff_farmer'), ('authenticated', 'farmer_read'),
   ('authenticated', 'state_home'), ('authenticated', 'state_ledger_page'),
+  -- migration 42: the crop registry (the farmer's practice, the registry list, the admin's three acts on a crop)
+  ('authenticated', 'save_farmer_gap'), ('authenticated', 'crop_registry'), ('authenticated', 'remove_crop'), ('authenticated', 'retire_crop'),
+  ('authenticated', 'correct_crop_state'),
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

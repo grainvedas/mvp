@@ -243,6 +243,16 @@ select 'state manager rules',     case when to_regprocedure('app.state_home(uuid
                                       then 'OLD or OPEN: a State Manager still reaches past his own (push migration 41)'
                                       else 'OK crops have a state; scopes are built by the Client Manager; farmers by their own state; seats only for his people' end
 union all
+select 'crop registry',           case when to_regprocedure('app.crop_registry()') is null or to_regclass('public.farmer_gap') is null
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'crops' and column_name = 'recommended_chain')
+                                      then 'MISSING (push migration 42)'
+                                      when exists (select 1 from pg_constraint where conname = 'crops_code_key')
+                                        or not exists (select 1 from pg_trigger where tgname = 'scopes_a2_crop_ready')
+                                        or position('procurement_crop_checks' in pg_get_functiondef(to_regprocedure('app.check_new_footprint(footprints)'))) = 0
+                                        or position('judge_typed' in pg_get_functiondef(to_regprocedure('app.derive_qc_verdict(footprints)'))) = 0
+                                      then 'OLD (push migration 42)'
+                                      else 'OK crops ready before use; typed limits; practice checked at procurement; codes per state' end
+union all
 select 'reminder round',          case when to_regclass('cron.job') is null then 'NO pg_cron: reminders are queued when HR opens the Joiners list'
                                       when (xpath('/row/n/text()', query_to_xml(
                                               'select count(*) as n from cron.job where jobname = ''grainveda-reminders''', false, true, '')))[1]::text::int = 1

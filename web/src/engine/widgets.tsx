@@ -2,6 +2,7 @@
 // stage_definitions.form_schema (execution plan §6, "no stage-specific screen code").
 import { useEffect, useState } from 'react';
 import type { FieldDef, QualityParam, Farmer } from '../lib/types';
+import { readingValue } from '../lib/crops';
 import { supabase } from '../lib/supabase';
 import { useI18n } from '../lib/i18n';
 import { cached } from '../offline/cache';
@@ -84,16 +85,32 @@ export function Widget(p: WidgetProps) {
       const obj = (value && typeof value === 'object' && !(value instanceof File) && !Array.isArray(value)) ? value as Record<string, string> : {};
       return (
         <div className="stack">
-          {p.qualityParams.map((q) => (
-            <div key={q.param} className="row">
-              <label htmlFor={`${id}-${q.param}`} style={{ flex: '1 1 160px', margin: 0 }}>
-                {q.label}{q.unit ? ` (${q.unit})` : ''}
-                <span className="hint"> {t('pv.domestic')} {q.operator} {limitText(q.domestic_limit)} · {t('pv.export')} {q.operator} {limitText(q.export_limit)}</span>
-              </label>
-              <input id={`${id}-${q.param}`} name={`readings.${q.param}`} inputMode="decimal" style={{ flex: '0 0 140px' }}
-                value={obj[q.param] ?? ''} onChange={(e) => onChange({ ...obj, [q.param]: e.target.value.replace(',', '.') })} />
-            </div>
-          ))}
+          {p.qualityParams.map((q) => {
+            // migration 42: a limit is a number (as before), a grade picked from the crop's list, or yes/no
+            const ty = q.type ?? 'number';
+            const yn = (x: unknown) => t(x ? 'common.yes' : 'common.no');
+            const hint = ty === 'grade'
+              ? `${t('pv.domestic')} ${(Array.isArray(q.domestic_pass) ? q.domestic_pass : []).join(', ')} · ${t('pv.export')} ${(Array.isArray(q.export_pass) ? q.export_pass : []).join(', ')}`
+              : ty === 'yesno' ? `${t('crops.passes_when')} ${t('pv.domestic')} ${yn(q.domestic_pass)} · ${t('pv.export')} ${yn(q.export_pass)}`
+              : `${t('pv.domestic')} ${q.operator} ${limitText(q.domestic_limit)} · ${t('pv.export')} ${q.operator} ${limitText(q.export_limit)}`;
+            const cur = obj[q.param] ?? '';
+            const ynValue = /^(yes|true)$/i.test(cur) ? 'yes' : /^(no|false)$/i.test(cur) ? 'no' : '';
+            return (
+              <div key={q.param} className="row">
+                <label htmlFor={`${id}-${q.param}`} style={{ flex: '1 1 160px', margin: 0 }}>
+                  {q.label}{ty === 'number' && q.unit ? ` (${q.unit})` : ''}
+                  <span className="hint"> {hint}</span>
+                </label>
+                {ty === 'grade'
+                  ? <select id={`${id}-${q.param}`} name={`readings.${q.param}`} style={{ flex: '0 0 140px' }} value={cur} onChange={(e) => onChange({ ...obj, [q.param]: e.target.value })}>
+                      <option value="">—</option>{(q.options ?? []).map((g) => <option key={g} value={g}>{g}</option>)}</select>
+                  : ty === 'yesno'
+                  ? <select id={`${id}-${q.param}`} name={`readings.${q.param}`} style={{ flex: '0 0 140px' }} value={ynValue} onChange={(e) => onChange({ ...obj, [q.param]: e.target.value })}>
+                      <option value="">—</option><option value="yes">{t('common.yes')}</option><option value="no">{t('common.no')}</option></select>
+                  : <input id={`${id}-${q.param}`} name={`readings.${q.param}`} inputMode="decimal" style={{ flex: '0 0 140px' }}
+                      value={cur} onChange={(e) => onChange({ ...obj, [q.param]: e.target.value.replace(',', '.') })} />}
+              </div>);
+          })}
         </div>
       );
     }
@@ -238,8 +255,9 @@ export function buildPayload(fields: FieldDef[], values: Record<string, FieldVal
       out = ids;
       if ((f as FieldDef & { sets_prev?: boolean }).sets_prev) columns.prev_footprint_id = ids[0];
     } else if (f.type === 'readings') {
-      const o: Record<string, number> = {};
-      for (const [k, s] of Object.entries(v as Record<string, string>)) { const n = toNum(s); if (n !== undefined && !Number.isNaN(n)) o[k] = n; }
+      // a number stays a number; yes/no a boolean; a grade its text (migration 42: typed limits)
+      const o: Record<string, number | boolean | string> = {};
+      for (const [k, s] of Object.entries(v as Record<string, string>)) { const x = readingValue(String(s ?? '')); if (x !== undefined && !(typeof x === 'number' && Number.isNaN(x))) o[k] = x; }
       out = o;
     }
     if (f.column) columns[f.key] = out; else payload[f.key] = out;

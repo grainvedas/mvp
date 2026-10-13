@@ -11,10 +11,9 @@ import { supabase } from '../../lib/supabase';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { dateTime, humanise } from '../../lib/format';
-import type { QualityParam, StageDefinition, StageType } from '../../lib/types';
-import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
+import { Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { useAuth } from '../../auth/AuthProvider';
-import { isStateManager, myStateIds } from '../../lib/rights';
+import { isStateManager } from '../../lib/rights';
 
 interface State { id: string; name: string; code: string }
 interface Client { id: string; name: string; code: string; type: string; state_id: string }
@@ -96,106 +95,9 @@ export function Clients() {
   );
 }
 
-interface CropRow { id: string; name: string; code: string; gi_tag: string | null; origin: string | null; primary_unit: string; quality_params: QualityParam[]; allowed_stages: StageType[];
-  /** migration 41: the crop's state (null: made before crops had one) */
-  state_id?: string | null }
-
-/** Pure: the crops a State Manager works with: his states' and those with no state yet (he may set it); everyone else all. */
-export const cropsFor = <T extends { state_id?: string | null }>(list: T[], states: string[] | null): T[] =>
-  states === null ? list : list.filter((c) => !c.state_id || states.includes(c.state_id));
-
-/** Text that can still become a number as typing goes on: digits with at most one point. */
-export const limitTyping = (text: string) => /^\d*\.?\d*$/.test(text.trim());
-
-/** A quality limit as typed: a number, or null while it is not one (empty, "12.", a letter). */
-export function limitInput(text: string): number | null {
-  const s = text.trim();
-  if (s === '' || s.endsWith('.') || !/^\d*\.?\d+$/.test(s)) return null;
-  return Number(s);
-}
-
-export function Crops() {
-  const { t } = useI18n();
-  const { ctx } = useAuth();
-  const sm = isStateManager(ctx);                          // the State Manager makes and changes crops; others read
-  const mine = sm ? myStateIds(ctx) : null;
-  const list = useAsync(() => q(supabase.from('crops').select('*').order('name')) as Promise<CropRow[]>, []);
-  const stateNames = useAsync(() => q(supabase.from('states').select('id,name')) as Promise<{ id: string; name: string }[]>, []);
-  const stateName = (id: string | null | undefined) => stateNames.data?.find((s) => s.id === id)?.name ?? '';
-  const defs = useAsync(() => q(supabase.from('stage_definitions').select('*').eq('is_processing', true).order('sort_order')) as Promise<StageDefinition[]>, []);
-  const [edit, setEdit] = useState<CropRow | null>(null);
-  const act = useAction();
-  const blank: CropRow = { id: '', name: '', code: '', gi_tag: '', origin: '', primary_unit: 'kg', quality_params: [], allowed_stages: [] };
-  const save = () => act.run(async () => {
-    const { id, ...row } = edit!;
-    // a crop is of his state: a new one, and one with no state yet (which this save sets, once)
-    if (!row.state_id && mine && mine.length > 0) row.state_id = mine[0];
-    if (id) await q(supabase.from('crops').update(row).eq('id', id).select()); else await q(supabase.from('crops').insert(row).select());
-    setTyped({}); setEdit(null); await list.reload();
-  });
-  const setParam = (i: number, patch: Partial<QualityParam>) => setEdit({ ...edit!, quality_params: edit!.quality_params.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
-  // What is typed into a limit box, kept as typed. Before, the box was turned into a number at every key, so the decimal
-  // point of "12.5" was dropped as soon as it was typed and the limit became 125.
-  const [typed, setTyped] = useState<Record<string, string>>({});
-  const limitBox = (i: number, which: 'domestic_limit' | 'export_limit', p: QualityParam) => {
-    const k = `${i}:${which}`;
-    const bad = k in typed && !limitTyping(typed[k]);
-    return <input aria-label={which === 'domestic_limit' ? 'domestic limit' : 'export limit'} inputMode="decimal" value={typed[k] ?? String(p[which])}
-      aria-invalid={bad || undefined} style={{ width: 90, borderColor: bad ? 'var(--bad)' : undefined }}
-      onChange={(e) => { setTyped({ ...typed, [k]: e.target.value }); const n = limitInput(e.target.value); if (n !== null) setParam(i, { [which]: n }); }} />;
-  };
-  const limitsBad = Object.values(typed).some((x) => !limitTyping(x));            // letters, two points…: say so
-  const limitsOpen = Object.values(typed).some((x) => limitInput(x) === null);   // not a number yet ("12.", empty): cannot be saved
-  return (
-    <div><h1><span aria-hidden="true">🌿 </span>{t('crops.title')}</h1>
-      {!sm && <p className="small muted" data-testid="crops-readonly">{t('crops.sm_only')}</p>}
-      <div className="card">{list.loading ? <Loading /> : <ul>{cropsFor(list.data ?? [], mine).map((c) => (
-        <li key={c.id} className="row" data-testid="crop-row">{c.name} <span className="mono">{c.code}</span> {c.gi_tag && <Badge value="verified" label={c.gi_tag} />}
-          {c.state_id ? <span className="small muted" data-testid="crop-state">{stateName(c.state_id)}</span> : <Badge value="pending" label={t('crops.state_not_set')} />}
-          {sm ? <button className="secondary" onClick={() => setEdit(structuredClone(c))}>{t('common.edit')}</button>
-            : <span className="small muted">{c.quality_params.map((p) => `${p.label} ${p.operator === '<=' ? '≤' : '≥'} ${p.domestic_limit}/${p.export_limit}${p.unit ?? ''}`).join(' · ')}</span>}</li>))}</ul>}
-        {sm && !edit && <button onClick={() => setEdit(structuredClone(blank))}>{t('common.create')}</button>}</div>
-      {sm && edit && (
-        <div className="card">
-          <div className="grid">
-            <Field label="Name" htmlFor="cr-name"><input id="cr-name" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} /></Field>
-            <Field label="Code" htmlFor="cr-code"><input id="cr-code" value={edit.code} maxLength={5} onChange={(e) => setEdit({ ...edit, code: e.target.value.toUpperCase() })} /></Field>
-            <Field label="GI tag" htmlFor="cr-gi"><input id="cr-gi" value={edit.gi_tag ?? ''} onChange={(e) => setEdit({ ...edit, gi_tag: e.target.value })} /></Field>
-            <Field label="Origin" htmlFor="cr-origin"><input id="cr-origin" value={edit.origin ?? ''} onChange={(e) => setEdit({ ...edit, origin: e.target.value })} /></Field>
-          </div>
-          <p className="small" data-testid="crop-state-field">{t('lens.state')}: <strong>{stateName(edit.state_id ?? mine?.[0])}</strong>
-            {!edit.state_id && edit.id && <span className="muted"> · {t('crops.state_set_once', { state: stateName(mine?.[0]) })}</span>}</p>
-          <h3>{t('crops.limits')}</h3>
-          <p className="muted small">Active scopes keep the limits they were activated with; edits apply to scopes activated afterwards.</p>
-          <div className="table-wrap"><table><thead><tr><th>Parameter key</th><th>Label</th><th>Unit</th><th>Rule</th><th>Domestic</th><th>Export</th><th></th></tr></thead>
-            <tbody>{edit.quality_params.map((p, i) => (
-              <tr key={i}>
-                <td><input aria-label="key" value={p.param} onChange={(e) => setParam(i, { param: e.target.value.replace(/[^a-z0-9_]/g, '') })} /></td>
-                <td><input aria-label="label" value={p.label} onChange={(e) => setParam(i, { label: e.target.value })} /></td>
-                <td><input aria-label="unit" value={p.unit ?? ''} onChange={(e) => setParam(i, { unit: e.target.value })} style={{ width: 70 }} /></td>
-                <td><select aria-label="rule" value={p.operator} onChange={(e) => setParam(i, { operator: e.target.value as QualityParam['operator'] })}>
-                  <option value="<=">≤ at most</option><option value=">=">≥ at least</option></select></td>
-                <td>{limitBox(i, 'domestic_limit', p)}</td>
-                <td>{limitBox(i, 'export_limit', p)}</td>
-                <td><button className="secondary" onClick={() => { setTyped({}); setEdit({ ...edit, quality_params: edit.quality_params.filter((_, j) => j !== i) }); }}>✕</button></td>
-              </tr>))}</tbody></table></div>
-          {/* a new row starts with empty limit boxes (they held "0", which had to be deleted before typing) and cannot be saved until both are numbers */}
-          <button className="secondary" onClick={() => {
-            const n = edit.quality_params.length;
-            setTyped({ ...typed, [`${n}:domestic_limit`]: '', [`${n}:export_limit`]: '' });
-            setEdit({ ...edit, quality_params: [...edit.quality_params, { param: '', label: '', unit: '%', operator: '<=', domestic_limit: 0, export_limit: 0 }] });
-          }}>+ limit</button>
-          <h3>{t('crops.allowed_stages')}</h3>
-          {defs.data?.map((d) => <label key={d.stage_type} className="check"><input type="checkbox" checked={edit.allowed_stages.includes(d.stage_type)}
-            onChange={(e) => setEdit({ ...edit, allowed_stages: e.target.checked ? [...edit.allowed_stages, d.stage_type] : edit.allowed_stages.filter((x) => x !== d.stage_type) })} />{d.label}</label>)}
-          <ErrorBox error={act.error} />
-          {limitsBad && <div className="alert error" data-testid="limit-not-a-number">{t('crops.limit_number')}</div>}
-          <div className="row"><button className="secondary" onClick={() => { setTyped({}); setEdit(null); }}>{t('common.cancel')}</button><button onClick={save} disabled={act.busy || limitsOpen}>{t('common.save')}</button></div>
-        </div>
-      )}
-    </div>
-  );
-}
+// The crop registry moved to pages/crops/CropRegistry.tsx (migration 42); its pure helpers are in lib/crops.ts.
+export { Crops } from '../crops/CropRegistry';
+export { cropsFor, limitInput, limitTyping } from '../../lib/crops';
 
 interface FlagRow { id: string; footprint_id: string; text: string; status: string; created_at: string }
 export function OpenFlags() {

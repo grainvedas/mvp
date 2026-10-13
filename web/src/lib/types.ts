@@ -39,9 +39,16 @@ export interface QualityParam {
   param: string;
   label: string;
   unit?: string;
+  /** migration 42: a number (the default, also when absent), a grade from a list, or yes/no */
+  type?: 'number' | 'grade' | 'yesno';
   operator: '<=' | '>=' | 'between';
   domestic_limit: number | [number, number];
   export_limit: number | [number, number];
+  /** grade: the grades a reading may be */
+  options?: string[];
+  /** grade: the passing grades; yes/no: the passing answer */
+  domestic_pass?: string[] | boolean;
+  export_pass?: string[] | boolean;
 }
 
 export interface StageForm {
@@ -92,7 +99,7 @@ export interface VerdictPreview {
   ok: boolean;
   domestic: 'pass' | 'fail' | 'pending';
   export: 'pass' | 'fail' | 'pending';
-  judged: { param: string; value: number | null; domestic: string; export: string }[];
+  judged: { param: string; value: number | string | boolean | null; domestic: string; export: string }[];
 }
 
 export interface Preview {
@@ -174,7 +181,7 @@ export interface FootprintDetail {
   prev: { id: string; footprint_code: string; stage_type: StageType } | null;
   available_kg: number;
   qc: null | { domestic_verdict: string; export_verdict: string; readings: Record<string, number>;
-    judged: { param: string; value: number | null; domestic: string; export: string }[]; override: Record<string, unknown> | null };
+    judged: { param: string; value: number | string | boolean | null; domestic: string; export: string }[]; override: Record<string, unknown> | null };
   market_verdict: { domestic: string; export: string; overridden: boolean };
   seal: null | { qr_code: string; batch_codes: string[]; sealed_at: string; ledger_hash: string };
   flags: { id: string; text: string; status: string; created_at: string; raised_by_name: string | null }[];

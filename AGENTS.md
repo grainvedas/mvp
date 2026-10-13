@@ -229,6 +229,13 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   created by the Client Manager and Procurement / Village Batch (`app.farmer_create`); a farmer's own state decides its
   staff (`app.farmer_staff`), and step 2 always follows step 1. Crops have a state, set once. A new rule about a person,
   a scope, a farmer or a crop that a State Manager may reach needs its case in `tests/35_state_manager.sql`.
+- **A crop is used only when it is ready** (migration 42, Veda 13 October 2026). Ready = `app.crop_missing` is empty
+  (unit, yield per acre, a quality limit, a recommended chain); a scope is activated only with a ready, not retired
+  crop. A quality limit has a `type` (number when absent, grade, yes/no) and is judged by `app.judge_typed` in both the
+  preview and the save: a new type goes there, in `quality_params_problems`, in the lab widget and in the record. A
+  farmer's good farming practice is written only by `app.save_farmer_gap`; Procurement asks it in `check_new_footprint`
+  (a required practice open refuses the lot). A crop's code is unique within its state. `tests/36_crop_registry.sql`
+  needs a case for any new crop rule.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.

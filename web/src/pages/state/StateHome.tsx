@@ -21,7 +21,8 @@ export interface StateHomeData {
   state: { id: string; name: string; code: string };
   managers: string[];
   clients: { total: number; active: number; without_manager: number; list: StateClient[] };
-  crops: { total: number; state_not_set: number; list: { id: string; name: string; code: string; scopes_active: number; scopes_total: number }[] };
+  crops: { total: number; state_not_set: number; /** migration 42: crops of his state that are ready for a scope */ ready?: number;
+    list: { id: string; name: string; code: string; scopes_active: number; scopes_total: number; ready?: boolean; missing?: string[] }[] };
   scopes: { active: number; setup: number; closed: number; qr_issued: number; list: { scope_id: string; client: string; crop: string; scope: string; status: string }[] };
   farmers: { total: number; active: number };
   attention: {
@@ -41,7 +42,8 @@ export const needsMyAction = (a: StateHomeData['attention']) =>
 export function stateSetup(d: Pick<StateHomeData, 'crops' | 'clients' | 'scopes' | 'farmers' | 'attention'>): { key: string; done: boolean; to: string | null }[] {
   const clients = Number(d.clients.total);
   return [
-    { key: 'sh.setup_crops', done: Number(d.crops.total) > 0, to: '/crops' },
+    // a crop of his state counts once it is ready (migration 42); a server before that says nothing of readiness
+    { key: 'sh.setup_crops', done: Number(d.crops.ready ?? d.crops.total) > 0, to: '/crops' },
     { key: 'sh.setup_clients', done: clients > 0, to: '/clients' },
     { key: 'sh.setup_managers', done: clients > 0 && Number(d.clients.without_manager) === 0, to: '/people' },
     { key: 'sh.setup_scopes', done: Number(d.scopes.active) + Number(d.scopes.setup) > 0 && Number(d.farmers.total) > 0, to: null },
@@ -103,6 +105,7 @@ export function StateHome() {
           {panel === 'qr' && <QrPanel d={d} />}
 
           <p className="small" data-testid="sh-crops">{t('sh.crops_line', { n: d.crops.total, state: d.state.name })}
+            {d.crops.ready !== undefined && Number(d.crops.total) > 0 && <> · <span data-testid="sh-crops-ready">{t('sh.crops_ready', { n: d.crops.ready, of: d.crops.total })}</span></>}
             {Number(d.crops.state_not_set) > 0 && <> · {t('sh.crops_unset', { n: d.crops.state_not_set })}</>} · <Link to="/crops">{t('sh.to_crops')}</Link></p>
 
           <div className="ov-hd">

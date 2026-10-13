@@ -12,11 +12,12 @@ import { humanise } from '../../lib/format';
 import { isManager, type StageDefinition, type StageType } from '../../lib/types';
 import { actsAsStateManager, buildsScope, buildsScopes, oversees } from '../../lib/rights';
 import { RosterEditor } from '../people/People';
+import { assembleChain, offeredForScope, splitChain, type CropFull } from '../../lib/crops';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 
 interface ScopeRow { id: string; client_id: string; crop_id: string; season_code: string; geography: string; chain: StageType[]; status: string; activated_at: string | null;
   state_id?: string; season_end?: string | null }
-interface Crop { id: string; name: string; code: string; allowed_stages: StageType[]; state_id?: string | null }
+type Crop = CropFull;   // migration 42: with its readiness and recommended chain
 interface Client { id: string; name: string; code: string; state_id?: string }
 interface StateRow { id: string; name: string }
 
@@ -44,11 +45,8 @@ export function ScopeList() {
   );
 }
 
-/** Builds the ordered chain from the builder's choices. Exported for tests. */
-export function assembleChain(o: { entry: StageType; villageBatch: boolean; before: StageType[]; after: StageType[]; commercial: boolean; shipment: boolean }): StageType[] {
-  return [o.entry, ...(o.villageBatch && o.entry === 'procurement' ? ['village_batch' as StageType] : []), ...o.before, 'qc',
-    ...o.after, ...(o.commercial ? ['commercial' as StageType] : []), ...(o.shipment ? ['shipment' as StageType] : []), 'qr_activation'];
-}
+/** Builds the ordered chain from the builder's choices (lib/crops.ts since migration 42; the crop's recommended chain uses it too). */
+export { assembleChain };
 
 export function ScopeWizard() {
   const { id } = useParams();
@@ -166,8 +164,20 @@ export function ScopeWizard() {
       )}
       {step === 2 && !frozen && (
         <div className="card">
-          <Field label="Crop" htmlFor="wz-crop"><select id="wz-crop" value={cropId} onChange={(e) => { setCropId(e.target.value); setBefore([]); setAfter([]); }}>
-            <option value="">—</option>{(crops.data ?? []).filter((c) => !c.state_id || c.state_id === (stateId || homeState)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+          {/* migration 42: a retired crop is not offered; one that is not ready is shown but cannot be picked; the chain starts
+              from the crop's recommended chain */}
+          <Field label="Crop" htmlFor="wz-crop"><select id="wz-crop" value={cropId} onChange={(e) => {
+            const c = crops.data?.find((x) => x.id === e.target.value);
+            setCropId(e.target.value);
+            if (c?.recommended_chain?.length) {
+              const p = splitChain(c.recommended_chain, (x) => !!defs.data?.find((d) => d.stage_type === x)?.is_processing);
+              setEntry(p.entry); setVillageBatch(p.villageBatch); setBefore(p.before); setAfter(p.after); setCommercial(p.commercial); setShipment(p.shipment);
+            } else { setBefore([]); setAfter([]); }
+          }}>
+            <option value="">—</option>{(crops.data ?? []).filter((c) => (!c.state_id || c.state_id === (stateId || homeState)) && !c.retired_at)
+              .map((c) => <option key={c.id} value={c.id} disabled={!offeredForScope(c)}>{offeredForScope(c) ? c.name : `${c.name} (${t('crops.not_ready')})`}</option>)}</select></Field>
+          {crops.data?.some((c) => (!c.state_id || c.state_id === (stateId || homeState)) && !c.retired_at && !offeredForScope(c)) &&
+            <p className="small muted" data-testid="wz-not-ready">{t('wizard.crop_not_ready')}</p>}
           <div className="row"><button className="secondary" onClick={() => setStep(1)}>{t('common.back')}</button><button disabled={!cropId} onClick={() => setStep(3)}>{t('common.next')}</button></div>
         </div>
       )}
