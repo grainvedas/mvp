@@ -236,6 +236,12 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   farmer's good farming practice is written only by `app.save_farmer_gap`; Procurement asks it in `check_new_footprint`
   (a required practice open refuses the lot). A crop's code is unique within its state. `tests/36_crop_registry.sql`
   needs a case for any new crop rule.
+- **No Farmer ID without GI land, nor while a possible duplicate is open** (migration 43, Veda 13 October 2026).
+  `farmers_z2_register_rules` asks both of a person acting; a possible duplicate is another record, not deactivated, with
+  the same `app.phone10` in the same `app.farmer_home` state, not cleared in `farmer_dup_reviews` (written only by
+  `app.mark_not_duplicate`). The yield check (GI land × yield per acre, per season) is in `procurement_crop_checks`: a
+  warning, never a refusal. The register (`app.farmer_register`) shows a phone only as its last four digits: no screen
+  that lists farmers across clients shows a whole number. `tests/37_farmer_register.sql` needs a case for any new rule.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.

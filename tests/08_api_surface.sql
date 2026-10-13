@@ -63,6 +63,8 @@ insert into allowed values
   -- migration 42: the crop registry (the farmer's practice, the registry list, the admin's three acts on a crop)
   ('authenticated', 'save_farmer_gap'), ('authenticated', 'crop_registry'), ('authenticated', 'remove_crop'), ('authenticated', 'retire_crop'),
   ('authenticated', 'correct_crop_state'),
+  -- migration 43: the farmer register (the register, a possible duplicate's open list and its decision)
+  ('authenticated', 'farmer_register'), ('authenticated', 'open_duplicates'), ('authenticated', 'mark_not_duplicate'),
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

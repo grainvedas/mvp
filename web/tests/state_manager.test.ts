@@ -52,7 +52,7 @@ describe('the State Manager (migration 41)', () => {
     expect(groupedMenu(ADMIN)).toBe('admin');
     expect(groupedMenu(CM)).toBeNull();
     const all = HEADINGS.flatMap((h) => ROLE_MENUS.state_manager[h]).map((m) => m.to);
-    expect(all).toEqual(['/', '/pipeline', '/flags', '/system/ledger', '/clients', '/crops', '/scopes', '/farmers', '/people', '/onboarding', '/account', '/guide', '/help']);
+    expect(all).toEqual(['/', '/pipeline', '/flags', '/system/ledger', '/clients', '/crops', '/scopes', '/farmers', '/farmers/register', '/people', '/onboarding', '/account', '/guide', '/help']);
     for (const gone of ['/states', '/health', '/state', '/system/seats', '/system/audit', '/hr']) expect(all).not.toContain(gone);
     const checklist = ROLE_MENUS.state_manager.me.find((m) => m.to === '/onboarding')!;
     expect(checklist.show!({ joiner: true } as never)).toBe(true);
@@ -62,6 +62,8 @@ describe('the State Manager (migration 41)', () => {
   it('"Needs my action" is the sum of the four lists it opens', () => {
     expect(needsMyAction(data().attention)).toBe(1 + 2 + 3 + 1);
     expect(needsMyAction({ ...data().attention, no_manager: 0, farmers_waiting: 0, unstaffed: 0, open_flags: 0 })).toBe(0);
+    // migration 43: possible duplicates and farmers past 120 % are his to decide; farmers without GI land are shown, not counted
+    expect(needsMyAction({ ...data().attention, duplicates: 2, over_yield: 1, no_gi_land: 9 })).toBe(1 + 2 + 3 + 1 + 2 + 1);
   });
   it('the set-up checklist ticks itself from his state\'s numbers', () => {
     expect(stateSetup(data()).map((i) => i.done)).toEqual([true, true, false, true, false]);

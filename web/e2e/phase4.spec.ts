@@ -378,6 +378,7 @@ test('A verified farmer is changed only by the State Manager; deactivated farmer
   await page.getByLabel('District *').fill('Siddharthnagar');
   await page.getByLabel('Mobile number *').fill(`94${u}31`);
   await page.getByLabel('Land (acres) *').fill('1.5');
+  await page.getByTestId('farmer-gi-land').fill('1');                       // migration 43: needed before the Farmer ID
   await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(page.getByRole('heading', { name: 'Farmers' })).toBeVisible();
   await signOut(page);

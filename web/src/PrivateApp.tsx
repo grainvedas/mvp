@@ -13,6 +13,7 @@ import { StagePage } from './engine/StagePage';
 import { RecordDetail } from './pages/records/RecordDetail';
 import { FarmerForm, FarmerList } from './pages/farmers/Farmers';
 import { FarmerImport } from './pages/farmers/FarmerImport';
+import { FarmerRegister } from './pages/farmers/FarmerRegister';
 import { ScopeList, ScopeWizard } from './pages/scopes/Scopes';
 import { Clients, Crops, OpenFlags, States } from './pages/admin/Admin';
 import { AddJoiner, JoinerPage, Templates } from './pages/hr/Hr';
@@ -74,6 +75,7 @@ function Private() {
         <Route path="farmers" element={<FarmerList />} />
         <Route path="farmers/new" element={<FarmerForm />} />
         <Route path="farmers/import" element={<FarmerImport />} />
+        <Route path="farmers/register" element={<FarmerRegister />} />
         <Route path="farmers/:id" element={<FarmerForm />} />
         <Route path="scopes" element={<ScopeList />} />
         <Route path="scopes/new" element={<ScopeWizard />} />

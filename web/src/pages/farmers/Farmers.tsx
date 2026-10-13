@@ -15,6 +15,8 @@ import { actsAsStateManager, addsFarmers, holdsClientAccount, isStateManager, ov
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { date } from '../../lib/format';
 import { gapMissing, type GapItem } from '../../lib/crops';
+import { giLandProblem, needsGiLand } from '../../lib/farmers';
+import { RegisterLink } from './FarmerRegister';
 
 /** The client whose farmers this user works with; State Managers and admins pick one. */
 export function useClientChoice() {
@@ -69,6 +71,7 @@ export function FarmerList() {
       <div className="row" style={{ marginBottom: 12 }}>
         {canEdit && <Link className="btn" to="/farmers/new">{t('farmers.new')}</Link>}
         {canEdit && <Link className="btn secondary" to="/farmers/import">{t('farmers.import')}</Link>}
+        {(actsAsStateManager(ctx) || watch) && <RegisterLink />}
         <input aria-label={t('common.search')} placeholder={t('common.search')} value={search} onChange={(e) => setSearch(e.target.value)} style={{ flex: '1 1 200px', width: 'auto' }} />
       </div>
       <div className="tabs" role="tablist">
@@ -82,12 +85,12 @@ export function FarmerList() {
       {list.data && list.data.length === 0 && <Empty />}
       {list.data && list.data.length > 0 && (
         <div className="card table-wrap"><table>
-          <thead><tr><th>{t('farmer.name')}</th><th>{t('farmer.code')}</th><th>{t('farmer.village')}</th><th className="hide-mobile">{t('farmer.phone')}</th><th className="hide-mobile">{t('farmer.land')}</th><th></th></tr></thead>
+          <thead><tr><th>{t('farmer.name')}</th><th>{t('farmer.code')}</th><th>{t('farmer.village')}</th><th className="hide-mobile">{t('farmer.phone')}</th><th className="hide-mobile">{t('farmer.land_gi')}</th><th></th></tr></thead>
           <tbody>{list.data.map((f) => (
             <tr key={f.id} data-testid="farmer-row">
               <td>{f.name}<div className="muted small">{f.guardian_name}</div>
                 {typeof f.extra?.sent_back_reason === 'string' && <div className="small" style={{ color: 'var(--warn)' }}>{t('farmers.sent_back')}: {f.extra.sent_back_reason as string}</div>}</td>
-              <td className="mono">{f.farmer_code ?? '—'}</td><td>{f.village}</td><td className="hide-mobile">{f.phone}</td><td className="hide-mobile num">{f.land_area_acres}</td>
+              <td className="mono">{f.farmer_code ?? '—'}</td><td>{f.village}</td><td className="hide-mobile">{f.phone}</td><td className="hide-mobile num">{f.land_area_acres} · {f.gi_land_acres ?? '—'}</td>
               <td><FarmerActions farmer={f} canEdit={canEdit} onDone={list.reload} /></td>
             </tr>
           ))}</tbody>
@@ -122,6 +125,8 @@ function FarmerActions({ farmer, canEdit, onDone }: { farmer: FarmerRow; canEdit
   const [reason, setReason] = useState('');
   const [sending, setSending] = useState(false);
   const r = farmerRights(ctx, farmer);
+  // migration 43: the Farmer ID needs the GI land; a server from before it sends no such field (undefined): as before
+  const noGi = 'gi_land_acres' in farmer && needsGiLand(farmer);
   if (farmer.status === 'draft' && canEdit) return (
     <div className="row">
       <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>
@@ -138,9 +143,11 @@ function FarmerActions({ farmer, canEdit, onDone }: { farmer: FarmerRow; canEdit
       </div>
       {r.sameHands ? <div className="small" style={{ color: 'var(--warn)' }}>{t('farmers.same_hands')}</div> : (
         <div className="row">
-          <button onClick={() => act.run(async () => { await rpc('verify_farmer', { p_farmer: farmer.id }); onDone(); })} disabled={act.busy} data-testid="farmer-step2">{t('farmers.verify_step2')}</button>
+          <button onClick={() => act.run(async () => { await rpc('verify_farmer', { p_farmer: farmer.id }); onDone(); })} disabled={act.busy || noGi} data-testid="farmer-step2">{t('farmers.verify_step2')}</button>
           <button className="secondary" onClick={() => setSending(!sending)}>{t('farmers.send_back')}</button>
         </div>)}
+      {!r.sameHands && noGi && <div className="small" style={{ color: 'var(--warn)' }} data-testid="farmer-needs-gi">{t('farmers.needs_gi')} <Link to={`/farmers/${farmer.id}`}>{t('farmers.add_gi')}</Link></div>}
+      {!r.sameHands && 'gi_land_acres' in farmer && <div className="small muted">{t('farmers.dup_note')} <Link to="/farmers/register?flag=duplicate">{t('reg.open')}</Link></div>}
       {sending && <div className="row"><input aria-label={t('farmers.send_back_reason')} placeholder={t('farmers.send_back_reason')} value={reason} onChange={(e) => setReason(e.target.value)} />
         <button className="secondary" disabled={!reason.trim() || act.busy} onClick={() => act.run(async () => { await rpc('send_back_farmer', { p_farmer: farmer.id, p_reason: reason }); onDone(); })}>{t('farmers.send_back')}</button></div>}
       <ErrorBox error={act.error} />
@@ -169,7 +176,7 @@ export function FarmerForm() {
   const nav = useNavigate();
   const { ctx } = useAuth();
   const { clientId: chosenClient, picker } = useClientChoice();
-  const [f, setF] = useState({ name: '', guardian_name: '', village: '', district: '', phone: '', land_area_acres: '', photo_consent: false, notes: '' });
+  const [f, setF] = useState({ name: '', guardian_name: '', village: '', district: '', phone: '', land_area_acres: '', gi_land_acres: '', photo_consent: false, notes: '' });
   const [status, setStatus] = useState<Farmer['status']>('draft');
   const [ownClient, setOwnClient] = useState<string | null>(null);      // an existing farmer's client
   const [stateId, setStateId] = useState('');
@@ -185,19 +192,26 @@ export function FarmerForm() {
     return [...new Map(all.map((x) => [x.id, x])).values()];
   }, [clientId]);
   useEffect(() => { if (!id && !stateId && states.data?.length) setStateId(states.data[0].id); }, [id, stateId, states.data]);
-  const [extra, setExtra] = useState<Record<string, unknown>>({});     // everything else kept in farmers.extra (import columns, photo)
+  const [extra, setExtra] = useState<Record<string, unknown>>({});
+  const [hasGi, setHasGi] = useState(true);                          // false: a server from before migration 43
+  const giProblem = giLandProblem(f.gi_land_acres, f.land_area_acres);     // everything else kept in farmers.extra (import columns, photo)
   const act = useAction();
   useEffect(() => {
     if (!id) return;
+    let gone = false;          // a second load (React's development double run) must not overwrite what was typed meanwhile
     q(supabase.from('farmers').select('*').eq('id', id).single()).then((r) => {
+      if (gone) return;
       const x = r as unknown as Farmer;
       setStatus(x.status);
       setOwnClient(x.client_id);
       setStateId(x.state_id ?? '');
       setExtra(x.extra ?? {});
       setF({ name: x.name, guardian_name: x.guardian_name, village: x.village, district: x.district, phone: x.phone,
-        land_area_acres: String(x.land_area_acres), photo_consent: x.photo_consent, notes: String(x.extra?.notes ?? '') });
+        land_area_acres: String(x.land_area_acres), gi_land_acres: x.gi_land_acres == null ? '' : String(x.gi_land_acres),
+        photo_consent: x.photo_consent, notes: String(x.extra?.notes ?? '') });
+      setHasGi('gi_land_acres' in x);
     });
+    return () => { gone = true; };
   }, [id]);
   const set = (k: keyof typeof f) => (e: { target: { value: string; checked?: boolean; type?: string } }) =>
     setF((s) => ({ ...s, [k]: e.target.type === 'checkbox' ? !!e.target.checked : e.target.value }));
@@ -206,6 +220,7 @@ export function FarmerForm() {
     const phone = digits.length === 10 ? `+91${digits}` : f.phone;
     const row = { name: f.name.trim(), guardian_name: f.guardian_name.trim(), village: f.village.trim(), district: f.district.trim(), phone,
       land_area_acres: Number(f.land_area_acres), photo_consent: f.photo_consent,
+      ...(hasGi ? { gi_land_acres: f.gi_land_acres.trim() ? Number(f.gi_land_acres.trim().replace(',', '.')) : null } : {}),
       ...(status === 'draft' && stateId ? { state_id: stateId } : {}), extra: (() => { const e = { ...extra }; if (f.notes) e.notes = f.notes; else delete e.notes; return e; })() };
     const saved = id
       ? await q(supabase.from('farmers').update(row).eq('id', id).select().single()) as Farmer
@@ -236,6 +251,11 @@ export function FarmerForm() {
           </Field>)}
         {input('phone', t('farmer.mobile'), { type: 'tel', inputMode: 'tel' })}
         {input('land_area_acres', t('farmer.land'), { inputMode: 'decimal' })}
+        {hasGi && (
+          <Field label={t('farmer.gi_land')} hint={t('farmer.gi_land_hint')} htmlFor="farmer-gi_land_acres">
+            <input id="farmer-gi_land_acres" value={f.gi_land_acres} onChange={set('gi_land_acres')} inputMode="decimal" data-testid="farmer-gi-land" />
+            {giProblem && <div className="small" style={{ color: 'var(--red)' }} data-testid="farmer-gi-problem">{t(`farmer.${giProblem}`)}</div>}
+          </Field>)}
         <details><summary>{t('farmer.optional')}</summary>
           <Field label={t('farmer.notes')} htmlFor="farmer-notes"><textarea id="farmer-notes" value={f.notes} onChange={set('notes')} rows={2} /></Field>
         </details>
@@ -243,8 +263,8 @@ export function FarmerForm() {
         <ErrorBox error={act.error} />
         {!watch && (
           <div className="row">
-            <button type="submit" className="secondary" disabled={act.busy}>{t(status === 'draft' ? 'farmers.save_draft' : 'common.save')}</button>
-            {status === 'draft' && cm && <button type="button" disabled={act.busy} onClick={(e) => submit(e as unknown as FormEvent, true)} data-testid="farmer-save-verify">{t('farmers.save_verify')}</button>}
+            <button type="submit" className="secondary" disabled={act.busy || !!giProblem}>{t(status === 'draft' ? 'farmers.save_draft' : 'common.save')}</button>
+            {status === 'draft' && cm && <button type="button" disabled={act.busy || !!giProblem} onClick={(e) => submit(e as unknown as FormEvent, true)} data-testid="farmer-save-verify">{t('farmers.save_verify')}</button>}
           </div>)}
       </form>
       {id && clientId && <FarmerGap farmerId={id} clientId={clientId} stateId={stateId} />}

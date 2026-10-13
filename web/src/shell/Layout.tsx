@@ -95,6 +95,7 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Re
       { to: '/crops', key: 'menu.crops', icon: '🌿' },
       { to: '/scopes', key: 'nav.scopes', icon: '🎯' },
       { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾' },
+      { to: '/farmers/register', key: 'menu.farmer_register', icon: '📒' },   // migration 43
     ],
     access: [
       { to: '/people', key: 'nav.people', icon: '👥' },
@@ -196,7 +197,9 @@ function Frame() {
         {who && menu ? (
         <nav className="nav" aria-label="Main" data-menu={menu}>
           {HEADINGS.map((h) => {
-            const items = ROLE_MENUS[menu][h].filter((m) => !m.show || m.show(who)).map((m) => item(m.to, m.icon, t(m.key), m.to === '/'));
+            // exact match where another item of the menu lives below this one (Farmers and its register)
+            const all = ROLE_MENUS[menu][h];
+            const items = all.filter((m) => !m.show || m.show(who)).map((m) => item(m.to, m.icon, t(m.key), m.to === '/' || all.some((o) => o.to.startsWith(`${m.to}/`))));
             return <Fragment key={h}>
               {items.length > 0 && <div className="sb-section" aria-hidden="true">{t(`menu.${h}`)}{h === 'master' && menu === 'admin' && <span className="sb-hint"> · {t('menu.read_only')}</span>}</div>}
               {items}

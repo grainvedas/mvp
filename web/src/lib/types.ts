@@ -170,6 +170,8 @@ export interface Farmer {
   extra: Record<string, unknown>; photo_consent: boolean; created_at: string;
   /** Migration 34: the farmer's state, and the Client Manager's first verification (step 1). Absent before it. */
   state_id?: string | null; reviewed_by?: string | null; reviewed_at?: string | null;
+  /** Migration 43: acres under the GI crop; needed before the Farmer ID (a draft may go without). Absent before it. */
+  gi_land_acres?: number | null;
 }
 
 export interface FootprintDetail {

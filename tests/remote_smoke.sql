@@ -253,6 +253,14 @@ select 'crop registry',           case when to_regprocedure('app.crop_registry()
                                       then 'OLD (push migration 42)'
                                       else 'OK crops ready before use; typed limits; practice checked at procurement; codes per state' end
 union all
+select 'farmer register',         case when to_regprocedure('app.farmer_register(jsonb)') is null or to_regclass('public.farmer_dup_reviews') is null
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'farmers' and column_name = 'gi_land_acres')
+                                      then 'MISSING (push migration 43)'
+                                      when not exists (select 1 from pg_trigger where tgname = 'farmers_z2_register_rules')
+                                        or position('above the expected yield' in pg_get_functiondef(to_regprocedure('app.procurement_crop_checks(footprints, scopes)'))) = 0
+                                      then 'OLD (push migration 43)'
+                                      else 'OK GI land before the Farmer ID; duplicates by phone flagged; yield checked' end
+union all
 select 'reminder round',          case when to_regclass('cron.job') is null then 'NO pg_cron: reminders are queued when HR opens the Joiners list'
                                       when (xpath('/row/n/text()', query_to_xml(
                                               'select count(*) as n from cron.job where jobname = ''grainveda-reminders''', false, true, '')))[1]::text::int = 1

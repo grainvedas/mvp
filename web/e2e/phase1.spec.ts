@@ -124,7 +124,16 @@ test('Farmer: operator saves a draft; the Client Manager verifies it; the State 
   await page.goto('/farmers');
   await page.getByLabel('Client').selectOption({ label: 'GrainVeda (Prasaadam trade scope)' });
   await page.getByRole('tab', { name: 'Ready to verify' }).click();
-  const row = page.getByTestId('farmer-row').filter({ hasText: `Kalawati ${u}` });
+  let row = page.getByTestId('farmer-row').filter({ hasText: `Kalawati ${u}` });
+  // migration 43: the draft went without GI land; the Farmer ID waits for it, and the State Manager may add it
+  await expect(row.getByRole('button', { name: 'Location verified — issue Farmer ID' })).toBeDisabled();
+  await row.getByRole('link', { name: 'Add it' }).click();
+  await expect(page.getByLabel('Name *', { exact: true })).toHaveValue(`Kalawati ${u}`);
+  await page.getByTestId('farmer-gi-land').fill('1.5');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByLabel('Client').selectOption({ label: 'GrainVeda (Prasaadam trade scope)' });
+  await page.getByRole('tab', { name: 'Ready to verify' }).click();
+  row = page.getByTestId('farmer-row').filter({ hasText: `Kalawati ${u}` });
   await row.getByRole('button', { name: 'Location verified — issue Farmer ID' }).click();
   await page.getByRole('tab', { name: 'Active', exact: true }).click();
   await expect(page.getByTestId('farmer-row').filter({ hasText: `Kalawati ${u}` })).toContainText(/PRSDM-F-\d{4}/);

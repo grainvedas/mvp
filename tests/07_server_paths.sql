@@ -91,10 +91,10 @@ values ('00000000-0000-4000-8000-000000000591', '00000000-0000-4000-8000-0000000
         'Phoolmati', 'Shri Lallan', 'Naugarh', 'Siddharthnagar', '+919000000093', 0.8, t.u('05'), t.u('03'));
 
 select t.as_user(t.u('05'));   -- procurement operator (has the farmers module)
-select t.fails(format($q$ update public.farmers set status = 'active', verified_by = %L where id = %L $q$,
+select t.fails(format($q$ update public.farmers set gi_land_acres = coalesce(gi_land_acres, land_area_acres), status = 'active', verified_by = %L where id = %L $q$,
                       t.u('02'), '00000000-0000-4000-8000-000000000591'),
                'signed-in user', 'farmer: an operator cannot activate a farmer by naming the State Manager');
-select t.fails(format($q$ update public.farmers set status = 'active', verified_by = %L where id = %L $q$,
+select t.fails(format($q$ update public.farmers set gi_land_acres = coalesce(gi_land_acres, land_area_acres), status = 'active', verified_by = %L where id = %L $q$,
                       t.u('05'), '00000000-0000-4000-8000-000000000591'),
                'only a State Manager', 'farmer: an operator cannot verify a farmer');
 select t.fails($q$ insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, farmer_code)
@@ -106,16 +106,16 @@ select t.ok((select created_by from public.farmers where phone = '+919000000094'
             'farmer: created_by is stamped as the signed-in operator, whatever was sent');
 
 select t.as_user(t.u('02'));   -- State Manager, UP
-update public.farmers set status = 'active', verified_by = t.u('02') where id = '00000000-0000-4000-8000-000000000591';
+update public.farmers set gi_land_acres = coalesce(gi_land_acres, land_area_acres), status = 'active', verified_by = t.u('02') where id = '00000000-0000-4000-8000-000000000591';
 select t.ok((select farmer_code from public.farmers where id = '00000000-0000-4000-8000-000000000591') = 'PRSDM-F-0006',
             'farmer id: the next Prasaadam ID after the five seeded is PRSDM-F-0006');
-update public.farmers set status = 'active', verified_by = t.u('02') where id = '00000000-0000-4000-8000-000000000592';
+update public.farmers set gi_land_acres = coalesce(gi_land_acres, land_area_acres), status = 'active', verified_by = t.u('02') where id = '00000000-0000-4000-8000-000000000592';
 select t.ok((select farmer_code from public.farmers where id = '00000000-0000-4000-8000-000000000592') = 'PRSDM-F-0007',
             'farmer id: then PRSDM-F-0007');
 select t.fails(format($q$ update public.farmers set farmer_code = 'PRSDM-F-0099' where id = %L $q$, '00000000-0000-4000-8000-000000000591'),
                'issued by verification only', 'farmer id: a signed-in user cannot change a Farmer ID');
 update public.farmers set status = 'under_review' where id = '00000000-0000-4000-8000-000000000591';
-update public.farmers set status = 'active', verified_by = t.u('02') where id = '00000000-0000-4000-8000-000000000591';
+update public.farmers set gi_land_acres = coalesce(gi_land_acres, land_area_acres), status = 'active', verified_by = t.u('02') where id = '00000000-0000-4000-8000-000000000591';
 select t.ok((select farmer_code from public.farmers where id = '00000000-0000-4000-8000-000000000591') = 'PRSDM-F-0006',
             'farmer id: re-verification keeps the ID issued the first time');
 
@@ -132,7 +132,7 @@ begin
                'codes: the 10,000th lot of a stage is P-10000, not a clash with P-1000');
 end $$;
 update public.farmer_id_counters set last_seq = 9999 where client_id = '00000000-0000-4000-8000-000000000201';
-update public.farmers set status = 'active', verified_by = t.u('02') where id = '00000000-0000-4000-8000-000000000593';
+update public.farmers set gi_land_acres = coalesce(gi_land_acres, land_area_acres), status = 'active', verified_by = t.u('02') where id = '00000000-0000-4000-8000-000000000593';
 select t.ok((select farmer_code from public.farmers where id = '00000000-0000-4000-8000-000000000593') = 'PRSDM-F-10000',
             'farmer id: the 10,000th Farmer ID is PRSDM-F-10000, not a clash with PRSDM-F-1000');
 

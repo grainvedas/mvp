@@ -219,6 +219,7 @@ test('A farmer, verified twice: the Client Manager first, then the State Manager
   await expect(page.getByTestId('farmer-state')).toBeVisible();
   await page.getByLabel('Mobile number *').fill(`93${u}52`);
   await page.getByLabel('Land (acres) *').fill('1.5');
+  await page.getByTestId('farmer-gi-land').fill('1');                       // migration 43: needed before the Farmer ID
   await page.getByTestId('farmer-save-verify').click();
   await expect(page.getByRole('heading', { name: 'Farmers' })).toBeVisible();
   await page.getByRole('tab', { name: 'Ready to verify' }).click();

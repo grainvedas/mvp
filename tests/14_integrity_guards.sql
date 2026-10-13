@@ -299,7 +299,7 @@ begin
   perform t.fails('update public.farmers set name = ''Someone Else'' where id = ' || f1, 'only a State Manager', 'R1 a Client Manager cannot rename a verified farmer either');
 
   perform t.as_user(t.u('02'));
-  update public.farmers set status = 'active', verified_by = t.u('02'), verified_at = now() - interval '60 days', created_at = now() - interval '99 days' where id = d returning * into r;
+  update public.farmers set gi_land_acres = coalesce(gi_land_acres, land_area_acres), status = 'active', verified_by = t.u('02'), verified_at = now() - interval '60 days', created_at = now() - interval '99 days' where id = d returning * into r;
   perform t.ok(r.status = 'active' and r.farmer_code is not null and r.verified_at = now() and r.created_at = now(), 'R1 the State Manager verifies; verification cannot be back-dated');
   perform t.as_service();
   select payload into b from public.ledger order by seq desc limit 1;

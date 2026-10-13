@@ -240,6 +240,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await expect(page.getByTestId('farmer-state').locator('option:checked')).toHaveText('Uttar Pradesh');
   await page.getByLabel('Mobile number *').fill(`94${u}41`);
   await page.getByLabel('Land (acres) *').fill('2');
+  await page.getByTestId('farmer-gi-land').fill('1');                       // migration 43: needed before the Farmer ID
   await page.getByTestId('farmer-save-verify').click();
   await expect(page.getByRole('heading', { name: 'Farmers' })).toBeVisible();
   await signOut(page);

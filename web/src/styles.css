@@ -454,3 +454,9 @@ button.stat:focus-visible { outline: 3px solid var(--g500); outline-offset: 2px;
 /* the crop card keeps label and value side by side on a phone too (after the phone rule for .kv, which it overrides) */
 .crop-card .kv { grid-template-columns: minmax(80px, max-content) 1fr; gap: 4px 12px; }
 .crop-card .kv dt { margin-top: 0; }
+
+/* the farmer register (migration 43) */
+.reg-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 8px; margin: 8px 0; }
+.reg-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+.reg-card { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.reg-card .alert { margin: 4px 0 0; }

@@ -1816,3 +1816,41 @@ one in use, corrects an unused crop's state).
 
 NOT run / not known: nothing of Release 2 on staging yet. Windows PowerShell 5.1. A real phone. About 95 new Hindi
 strings unread by their users.
+
+## 13 October 2026, afternoon IST: the farmer register, Release 3 (migration 43, open item 38), local stack
+
+From Veda's brief, part D, and her answers (a duplicate is the same phone in the same state, shown masked; flagged for
+the State Manager, who decides before the Farmer ID; GI land × yield per acre per season, a lot past it warned and the
+farmer flagged past 120 %; GI land needed before the Farmer ID, a draft may go without).
+- `supabase/migrations/20261018000100_farmer_register.sql`: `farmers.gi_land_acres` (with a rule judging new and changed
+  rows only), `farmer_dup_reviews`, `app.phone10`, `app.open_duplicates`, `app.mark_not_duplicate`, the Farmer ID rule
+  (`farmers_z2_register_rules`, asked of a person acting), `app.season_sales`, `app.over_yield`, `app.farmer_register`;
+  `procurement_crop_checks` (the yield warning, so the form's preview says the same), `import_farmers` (the GI land
+  column) and `state_home` (duplicates, past 120 %, no GI land) patched from their current definitions, each substitution
+  asserted. Older test files that issue a Farmer ID now give the farmer his GI land first.
+- **Database**: `tests/run_local.sh`: **1,473** `ok` lines (1,436 + 37); every file passes, fresh and on the upgrade
+  path, except the timing check of `tests/13_phase3_ops.sql` (1,140 and 1,232 ms; environmental, as before; not
+  loosened). New `tests/37_farmer_register.sql` (**37**) with **11 controls**: 11 of 11 caught; tests 35 and 36's
+  controls still 16 of 16 and 15 of 15.
+- **API with real logins** (local stack): `remote_create_user.mjs` **95 passed**; `remote_rls.mjs --t1` **192 passed**.
+- **Unit**: **340 passed** (new `web/tests/farmer_register.test.ts`, 6; `state_manager.test.ts`: the menu, "Needs my
+  action"). Type check clean.
+- **Screens** (stack rebuilt from nothing): default suite **70 passed** (21.4 min), with the new `phase15` at 527 px: the
+  Client Manager's form refuses GI land above the land and saves a draft without it; Ram's step 2 is off until he adds
+  it; a record of a second client with the same phone (seeded on the local stack only) refuses the Farmer ID; "Needs my
+  action" counts it and opens the register on that flag; both cards name each other, the phone shown as `••••••` and its
+  last four digits and nowhere whole; "Not the same person" needs a reason; the other pair: one record deactivated; then
+  the Farmer ID; two lots of 98 kg against 100 kg expected, the second warned "196 of 100 kg"; flagged past 120 % on the
+  register with "(196%)"; the admin reads with no decision buttons. A first full run found a fault of the app, fixed
+  before this one: the farmer form loaded the farmer twice in development (React's double run) and the second load
+  overwrote what had been typed (`phase1`: the GI land was lost); the form now ignores a load it no longer needs. Older
+  tests changed: `phase1` (the State Manager adds the GI land at step 2), `phase4`, `phase7`, `phase9`, `phase13`, the
+  first day from nothing (GI land typed). Production build **14 passed**; the first day from nothing **1 passed**.
+  Screenshots looked at, 527 and 1366 px: the register and the form.
+- **`scripts/staging_farmer_register.ps1`** (`staging-farmer-register.cmd`) on stand-ins: the run; a second run; wrong
+  words; another migration waiting; the rules not in place after the push; a failed push; production; functions not
+  current; a smoke row not OK; a changed migration; a changed app file. `staging-crop-registry.cmd` and the earlier
+  scripts now refuse. Sealed: 121 files.
+
+NOT run / not known: nothing of Release 3 on staging yet. Windows PowerShell 5.1. A real phone. About 60 new Hindi
+strings unread by their users.

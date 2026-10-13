@@ -9,7 +9,7 @@ import { useI18n } from '../../lib/i18n';
 import { ErrorBox, Field } from '../../shell/ui';
 import { useClientChoice } from './Farmers';
 
-export const TEMPLATE_COLUMNS = ['name', 'guardian_name', 'village', 'district', 'phone', 'land_area_acres', 'notes'];
+export const TEMPLATE_COLUMNS = ['name', 'guardian_name', 'village', 'district', 'phone', 'land_area_acres', 'gi_land_acres', 'notes'];   // gi_land_acres: migration 43, may be left empty
 interface ImportResult { ok: boolean; dry_run: boolean; rows: number; inserted: number; errors: { row: number; field: string; message: string }[] }
 
 /** First sheet → [{row, <header>: value}], headers normalised to snake_case. Exported for tests. */
@@ -36,7 +36,7 @@ export function FarmerImport() {
 
   const template = () => writeXlsxFile([
     TEMPLATE_COLUMNS.map((c) => ({ value: c, fontWeight: 'bold' as const })),
-    ['Ram Kumar', 'Shri Shyam Lal', 'Bansi', 'Siddharthnagar', '9876543210', 2.5, ''].map((v) => ({ value: v })),
+    ['Ram Kumar', 'Shri Shyam Lal', 'Bansi', 'Siddharthnagar', '9876543210', 2.5, 2, ''].map((v) => ({ value: v })),
   ], { fileName: 'grainveda_farmers_template.xlsx' });
 
   const choose = (file: File | undefined) => act.run(async () => {

@@ -294,6 +294,12 @@ export function localStack() {
       return /(\d{6}) is your GrainVeda sign-in code/.exec(box.at(-1)?.subject ?? '')?.[1] ?? null;
     },
     emptyOutbox: () => fetch(outbox, { method: 'DELETE' }),
+    /** A farmer record as a seed or an import by another client's people would leave it (the farmer register's duplicate). */
+    seedFarmer: async (row: Record<string, unknown>) => {
+      const r = await raw('POST', 'farmers', row, { prefer: 'return=representation' });
+      if (!r.ok) throw new Error(`the farmer could not be seeded: ${r.status} ${await r.text()}`);
+      return ((await r.json()) as { id: string }[])[0].id;
+    },
   };
 }
 
