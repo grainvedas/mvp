@@ -108,32 +108,31 @@ select t.fails(format($q$ insert into public.slot_assignments (user_id, scope_id
                'row-level security', 'state lens: nor can they staff it');
 select t.fails($q$ insert into public.scopes (client_id, crop_id, state_id, season_code, geography, chain)
    values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000002', 'KH26', 'Dibrugarh', '{lot_inward,qc,qr_activation}') $q$,
-   'row-level security', 'state lens: nor open a scope in a state that is not theirs');
-do $$
-declare sc uuid;
-begin
-  insert into public.scopes (client_id, crop_id, season_code, geography, chain)
-  values ('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000101', 'RB27', 'Exporter yard 2', '{lot_inward,qc,qr_activation}') returning id into sc;
-  perform t.ok(sc is not null, 'state lens: they open a scope for any client in their own state, and read it back');
-end $$;
+   'in its client''s own state', 'state lens: nor open a scope in a state that is not theirs');
+select t.fails($q$ insert into public.scopes (client_id, crop_id, season_code, geography, chain)
+   values ('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000101', 'RB27', 'Exporter yard 2', '{lot_inward,qc,qr_activation}') $q$,
+   'row-level security', 'state lens: builds no scope, not even in their own state (migration 41: the Client Manager builds them)');
 select t.as_user(pg_temp.f('AS'));   -- supervisor of Assam
 select t.ok((select count(*) from public.scopes) = 2 and (select bool_and(state_id = '00000000-0000-4000-8000-000000000002') from public.scopes),
             'state lens: the Assam supervisor sees the two Assam scopes (one draft from the seed) and no UP scope');
 select t.ok((select count(*) from public.clients) = 1, 'state lens: and the one client that works in Assam, though its home is UP');
-select t.ok((select count(*) from public.farmers) = 5, 'state lens: with that client''s farmers');
+select t.ok((select count(*) from public.farmers) = 0, 'state lens: but not that client''s farmers, who are of UP (migration 41: the farmer''s state decides)');
 select t.ok((select count(*) from public.footprints) = 1, 'state lens: and the one record made in Assam');
 select t.ok((app.withdraw_footprint(pg_temp.f('la'), 'state supervisor test')).status = 'superseded', 'state lens: which they may withdraw: they manage every scope in their state');
 select t.as_user(t.u('03'));   -- account of Prasaadam
 select t.ok((select count(*) from public.scopes where state_id = '00000000-0000-4000-8000-000000000002') = 2
             and (select count(*) from public.scopes where id = pg_temp.f('sx')) = 0,
             'client lens: the client''s account sees its scopes in both states, and not the other client''s scope');
+select t.fails($q$ insert into public.scopes (client_id, crop_id, state_id, season_code, geography, chain)
+   values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000002', 'KH26', 'Dibrugarh', '{lot_inward,qc,qr_activation}') $q$,
+   'in its client''s own state', 'client lens: a NEW scope is in the client''s own state (migration 41, Veda 13 Oct); the Assam one above is kept');
 do $$
 declare sc uuid;
 begin
-  insert into public.scopes (client_id, crop_id, state_id, season_code, geography, chain)
-  values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000002', 'KH26', 'Dibrugarh', '{lot_inward,qc,qr_activation}')
+  insert into public.scopes (client_id, crop_id, season_code, geography, chain)
+  values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000101', 'KH26', 'Basti (CM test)', '{lot_inward,qc,qr_activation}')
   returning id into sc;
-  perform t.ok(sc is not null, 'client lens: and opens a scope for the client in any state, reading it back');
+  perform t.ok(sc is not null, 'client lens: and opens one in the client''s own state, reading it back');
 end $$;
 select t.fails($q$ insert into public.scopes (client_id, crop_id, season_code, geography, chain)
    values ('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000101', 'KH26', 'Not mine', '{lot_inward,qc,qr_activation}') $q$,
@@ -235,7 +234,8 @@ begin
   perform t.as_user(pg_temp.f('M'));
   perform t.ok((select count(*) from public.farmers where id = f) = 0, 'farmers: the other client''s manager does not see the farmer at all');
   perform t.as_user(t.u('02'));
-  perform t.fails(format('select app.verify_farmer(%L)', f), 'State Manager of Assam', 'farmers: the State Manager of UP does not verify a farmer of Assam');
+  perform t.fails(format('select app.verify_farmer(%L)', f), 'not waiting', 'farmers: the State Manager of UP does not verify a farmer of Assam (migration 41: he does not even reach it)');
+  perform t.ok((select count(*) from public.farmers where id = f) = 0, 'farmers: nor sees it (migration 41: the farmer''s state decides)');
   perform t.as_user(t.u('01'));
   perform t.fails(format('select app.verify_farmer(%L)', f), 'not waiting', 'farmers: the admin verifies nobody (oversight)');
   perform t.as_user(pg_temp.f('AS'));
@@ -245,9 +245,9 @@ end $$;
 
 -- 8 · the admin -----------------------------------------------------------------------------------------------------------------------
 select t.as_user(t.u('01'));
-select t.ok((select count(*) from public.scopes) >= 11 and (select count(*) from public.app_users) >= 23
+select t.ok((select count(*) from public.scopes) >= 10 and (select count(*) from public.app_users) >= 23
             and (select bool_and((s->>'whole')::boolean and not (s->>'manage')::boolean) from jsonb_array_elements(app.my_context()->'scopes') s)
-            and jsonb_array_length(app.my_context()->'scopes') >= 11,
+            and jsonb_array_length(app.my_context()->'scopes') >= 10,   -- migration 41: the State Manager's scope above is no more
             'admin: sees every scope and every person, whole, and manages none (oversight, migration 34)');
 select t.as_service();
 select t.ok((select count(*) from app.verify_ledger()) = 0, 'the chain still verifies');

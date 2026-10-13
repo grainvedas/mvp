@@ -18,7 +18,8 @@ import { useScope, useWide, worksInOneScope, type ScopeChoice } from '../shell/s
 import { JoinerHome, NoAssignment } from './onboarding/Onboarding';
 import { AdminOverview, ReadOnlyBanner } from './admin/Overview';
 import { LedgerHealth, Stat } from './dashboard/parts';
-import { oversees } from '../lib/rights';
+import { actsAsStateManager, oversees } from '../lib/rights';
+import { StateHome } from './state/StateHome';
 import { stageIcon } from '../engine/icons';
 import { kg, humanise, num } from '../lib/format';
 
@@ -55,11 +56,13 @@ export const unassigned = (chain: StageType[], held: StageType[]) => chain.filte
  * HR with no scope of their own goes to the pipeline; an employee nobody has assigned sees the calm holding screen;
  * someone who only holds stages in several scopes picks one; then the scope screens as before.
  */
-export type FirstScreen = 'joiner' | 'hr' | 'unassigned' | 'pick' | 'stages' | 'scope' | 'overall' | 'oversight';
-export function firstScreen(w: { status?: string; external?: boolean; hr: boolean; admin: boolean; oversee?: boolean; assign: boolean; scopes: { whole: boolean }[]; current: { whole: boolean } | null }): FirstScreen {
+export type FirstScreen = 'joiner' | 'hr' | 'unassigned' | 'pick' | 'stages' | 'scope' | 'overall' | 'oversight' | 'state';
+export function firstScreen(w: { status?: string; external?: boolean; hr: boolean; admin: boolean; oversee?: boolean; stateManager?: boolean; assign: boolean; scopes: { whole: boolean }[]; current: { whole: boolean } | null }): FirstScreen {
   if (!w.external && (w.status === 'invited' || w.status === 'onboarding')) return 'joiner';
   // the admin oversees (migration 34): the platform overview, or the one scope opened from it (read-only)
   if (w.oversee) return w.current ? 'scope' : 'oversight';
+  // the State Manager (migration 41): the overview of his state, or the one scope he chose
+  if (w.stateManager) return w.current ? 'scope' : 'state';
   // nothing to work in yet: a manager or a client's login gets the (empty) overview, HR its own work, anyone else is told to wait
   if (w.scopes.length === 0) return w.admin || w.assign || w.external ? 'overall' : w.hr ? 'hr' : 'unassigned';
   if (w.current) return w.current.whole ? 'scope' : 'stages';
@@ -72,14 +75,14 @@ export function Home() {
   const wide = useWide();
   const me = ctx!.user!;
   const can = me.can ?? { ...NO_RIGHTS, admin: me.role === 'admin' };
-  const screen = firstScreen({ status: me.status, external: me.external, hr: can.hr, admin: can.admin, oversee: oversees(ctx), assign: can.assign || isManager(me.role), scopes, current });
+  const screen = firstScreen({ status: me.status, external: me.external, hr: can.hr, admin: can.admin, oversee: oversees(ctx), stateManager: actsAsStateManager(ctx), assign: can.assign || isManager(me.role), scopes, current });
   if (screen === 'joiner') return <JoinerHome />;
   if (screen === 'hr') return <Navigate to="/hr" replace />;
   if (screen === 'unassigned') return <NoAssignment />;
   return (
     <div>
       {!wide && scopes.length > 1 && screen !== 'pick' && <ScopePicker />}
-      {screen === 'oversight' ? <AdminOverview /> : screen === 'pick' ? <WorkPicker /> : screen === 'stages' ? <OperatorHome /> : screen === 'scope' ? <ScopeHome scope={current!} /> : <OverallHome />}
+      {screen === 'state' ? <StateHome /> : screen === 'oversight' ? <AdminOverview /> : screen === 'pick' ? <WorkPicker /> : screen === 'stages' ? <OperatorHome /> : screen === 'scope' ? <ScopeHome scope={current!} /> : <OverallHome />}
     </div>
   );
 }

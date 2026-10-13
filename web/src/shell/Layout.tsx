@@ -47,7 +47,7 @@ export const NAV: { to: string; key: string; icon: string; section: Section; sho
 export type Heading = 'watch' | 'audit' | 'master' | 'access' | 'me';
 export const HEADINGS: Heading[] = ['watch', 'audit', 'master', 'access', 'me'];
 export interface MenuItem { to: string; key: string; icon: string; show?: (w: NavWho) => boolean }
-export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]> } = {
+export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Record<Heading, MenuItem[]> } = {
   admin: {
     watch: [
       { to: '/', key: 'menu.overview', icon: '📊' },
@@ -79,7 +79,38 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]> } = {
       { to: '/help', key: 'menu.help', icon: '💬' },
     ],
   },
+  // The State Manager (migration 41, Veda 13 Oct 2026): his own state only. No States, no Health, no State overview (its
+  // content is his Overview); Season scopes read-only; the Ledger his state's, read-only.
+  state_manager: {
+    watch: [
+      { to: '/', key: 'menu.overview', icon: '📊' },
+      { to: '/pipeline', key: 'menu.pipeline', icon: '🔀' },
+      { to: '/flags', key: 'nav.flags', icon: '🚩' },
+    ],
+    audit: [
+      { to: '/system/ledger', key: 'nav.ledger', icon: '🔗' },
+    ],
+    master: [
+      { to: '/clients', key: 'nav.clients', icon: '🏢' },
+      { to: '/crops', key: 'menu.crops', icon: '🌿' },
+      { to: '/scopes', key: 'nav.scopes', icon: '🎯' },
+      { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾' },
+    ],
+    access: [
+      { to: '/people', key: 'nav.people', icon: '👥' },
+    ],
+    me: [
+      { to: '/onboarding', key: 'menu.my_checklist', icon: '✅', show: (w) => w.joiner },   // only while it has open steps
+      { to: '/account', key: 'nav.account', icon: '🔑' },
+      { to: '/guide', key: 'menu.guide', icon: '🧭' },
+      { to: '/help', key: 'menu.help', icon: '💬' },
+    ],
+  },
 };
+
+/** Which grouped menu a person gets, if any: the admin's, the State Manager's; everyone else the sectioned one. */
+export const groupedMenu = (ctx: Parameters<typeof oversees>[0]): 'admin' | 'state_manager' | null =>
+  oversees(ctx) ? 'admin' : ctx?.user?.can?.state_manager ? 'state_manager' : null;
 
 /** "Prasaadam Client Manager" → "PC": the first letters of the first two words, as in the prototype's top bar. */
 export const initials = (name: string) => name.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -118,6 +149,7 @@ function Frame() {
     joiner: !me.external && ((ctx?.onboarding?.open ?? 0) > 0 || me.status === 'invited' || me.status === 'onboarding'),
     joining: !me.external && (me.status === 'invited' || me.status === 'onboarding') } : null;
   const visible = NAV.filter((n) => who && n.show(who));
+  const menu = groupedMenu(ctx);
   const inSection = (s: Section) => visible.filter((n) => n.section === s);
   // The scope the frame shows: the one this page belongs to (a stage page, a scope's dashboard), else the chosen one.
   const shown = shownScope(scopes, current, pathname);
@@ -161,12 +193,12 @@ function Frame() {
         <button className="secondary" onClick={() => void leave()}>{t('nav.signout')}</button>
       </header>
       <div className="frame">
-        {who && oversees(ctx) ? (
-        <nav className="nav" aria-label="Main" data-menu="admin">
+        {who && menu ? (
+        <nav className="nav" aria-label="Main" data-menu={menu}>
           {HEADINGS.map((h) => {
-            const items = ROLE_MENUS.admin[h].filter((m) => !m.show || m.show(who)).map((m) => item(m.to, m.icon, t(m.key), m.to === '/'));
+            const items = ROLE_MENUS[menu][h].filter((m) => !m.show || m.show(who)).map((m) => item(m.to, m.icon, t(m.key), m.to === '/'));
             return <Fragment key={h}>
-              {items.length > 0 && <div className="sb-section" aria-hidden="true">{t(`menu.${h}`)}{h === 'master' && <span className="sb-hint"> · {t('menu.read_only')}</span>}</div>}
+              {items.length > 0 && <div className="sb-section" aria-hidden="true">{t(`menu.${h}`)}{h === 'master' && menu === 'admin' && <span className="sb-hint"> · {t('menu.read_only')}</span>}</div>}
               {items}
               {h === 'watch' && stages.length > 0 && section('nav.section_operations', stages.map((s) => item(`/work/${shown!.id}/${s}`, stageIcon(s), t(`stage.${s}`, undefined, humanise(s)))))}
             </Fragment>;

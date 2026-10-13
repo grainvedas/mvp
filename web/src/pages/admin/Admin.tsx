@@ -1,6 +1,7 @@
 // S3 states · S4 clients · S6 crop registry · open flags
 // Migration 34 (Veda, 10 Oct 2026): states stay the admin's; clients and crops are the State Manager's (a client in a
-// state they hold; crops are shared by every state). The admin reads both.
+// state they hold). Migration 41 (13 Oct): a crop belongs to a state; a State Manager sees and writes his state's crops,
+// and sets the state of a crop made before crops had one (once, logged). The admin reads all.
 // (S5 "Users & Roles" is gone: people are added by HR and given access on the People screens, pages/hr and pages/people.)
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -13,7 +14,7 @@ import { dateTime, humanise } from '../../lib/format';
 import type { QualityParam, StageDefinition, StageType } from '../../lib/types';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { useAuth } from '../../auth/AuthProvider';
-import { isStateManager } from '../../lib/rights';
+import { isStateManager, myStateIds } from '../../lib/rights';
 
 interface State { id: string; name: string; code: string }
 interface Client { id: string; name: string; code: string; type: string; state_id: string }
@@ -95,7 +96,13 @@ export function Clients() {
   );
 }
 
-interface CropRow { id: string; name: string; code: string; gi_tag: string | null; origin: string | null; primary_unit: string; quality_params: QualityParam[]; allowed_stages: StageType[] }
+interface CropRow { id: string; name: string; code: string; gi_tag: string | null; origin: string | null; primary_unit: string; quality_params: QualityParam[]; allowed_stages: StageType[];
+  /** migration 41: the crop's state (null: made before crops had one) */
+  state_id?: string | null }
+
+/** Pure: the crops a State Manager works with: his states' and those with no state yet (he may set it); everyone else all. */
+export const cropsFor = <T extends { state_id?: string | null }>(list: T[], states: string[] | null): T[] =>
+  states === null ? list : list.filter((c) => !c.state_id || states.includes(c.state_id));
 
 /** Text that can still become a number as typing goes on: digits with at most one point. */
 export const limitTyping = (text: string) => /^\d*\.?\d*$/.test(text.trim());
@@ -111,13 +118,18 @@ export function Crops() {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const sm = isStateManager(ctx);                          // the State Manager makes and changes crops; others read
+  const mine = sm ? myStateIds(ctx) : null;
   const list = useAsync(() => q(supabase.from('crops').select('*').order('name')) as Promise<CropRow[]>, []);
+  const stateNames = useAsync(() => q(supabase.from('states').select('id,name')) as Promise<{ id: string; name: string }[]>, []);
+  const stateName = (id: string | null | undefined) => stateNames.data?.find((s) => s.id === id)?.name ?? '';
   const defs = useAsync(() => q(supabase.from('stage_definitions').select('*').eq('is_processing', true).order('sort_order')) as Promise<StageDefinition[]>, []);
   const [edit, setEdit] = useState<CropRow | null>(null);
   const act = useAction();
   const blank: CropRow = { id: '', name: '', code: '', gi_tag: '', origin: '', primary_unit: 'kg', quality_params: [], allowed_stages: [] };
   const save = () => act.run(async () => {
     const { id, ...row } = edit!;
+    // a crop is of his state: a new one, and one with no state yet (which this save sets, once)
+    if (!row.state_id && mine && mine.length > 0) row.state_id = mine[0];
     if (id) await q(supabase.from('crops').update(row).eq('id', id).select()); else await q(supabase.from('crops').insert(row).select());
     setTyped({}); setEdit(null); await list.reload();
   });
@@ -137,8 +149,9 @@ export function Crops() {
   return (
     <div><h1><span aria-hidden="true">🌿 </span>{t('crops.title')}</h1>
       {!sm && <p className="small muted" data-testid="crops-readonly">{t('crops.sm_only')}</p>}
-      <div className="card">{list.loading ? <Loading /> : <ul>{list.data?.map((c) => (
+      <div className="card">{list.loading ? <Loading /> : <ul>{cropsFor(list.data ?? [], mine).map((c) => (
         <li key={c.id} className="row" data-testid="crop-row">{c.name} <span className="mono">{c.code}</span> {c.gi_tag && <Badge value="verified" label={c.gi_tag} />}
+          {c.state_id ? <span className="small muted" data-testid="crop-state">{stateName(c.state_id)}</span> : <Badge value="pending" label={t('crops.state_not_set')} />}
           {sm ? <button className="secondary" onClick={() => setEdit(structuredClone(c))}>{t('common.edit')}</button>
             : <span className="small muted">{c.quality_params.map((p) => `${p.label} ${p.operator === '<=' ? '≤' : '≥'} ${p.domestic_limit}/${p.export_limit}${p.unit ?? ''}`).join(' · ')}</span>}</li>))}</ul>}
         {sm && !edit && <button onClick={() => setEdit(structuredClone(blank))}>{t('common.create')}</button>}</div>
@@ -150,6 +163,8 @@ export function Crops() {
             <Field label="GI tag" htmlFor="cr-gi"><input id="cr-gi" value={edit.gi_tag ?? ''} onChange={(e) => setEdit({ ...edit, gi_tag: e.target.value })} /></Field>
             <Field label="Origin" htmlFor="cr-origin"><input id="cr-origin" value={edit.origin ?? ''} onChange={(e) => setEdit({ ...edit, origin: e.target.value })} /></Field>
           </div>
+          <p className="small" data-testid="crop-state-field">{t('lens.state')}: <strong>{stateName(edit.state_id ?? mine?.[0])}</strong>
+            {!edit.state_id && edit.id && <span className="muted"> · {t('crops.state_set_once', { state: stateName(mine?.[0]) })}</span>}</p>
           <h3>{t('crops.limits')}</h3>
           <p className="muted small">Active scopes keep the limits they were activated with; edits apply to scopes activated afterwards.</p>
           <div className="table-wrap"><table><thead><tr><th>Parameter key</th><th>Label</th><th>Unit</th><th>Rule</th><th>Domestic</th><th>Export</th><th></th></tr></thead>

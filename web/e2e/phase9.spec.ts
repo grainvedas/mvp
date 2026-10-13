@@ -170,6 +170,7 @@ test('The ledger page: every block, filters, manager acts on records, export of 
   const first = page.getByTestId('ledger-row').first();
   await expect(first.locator('code')).toHaveCount(2);                     // hash and previous hash
   await page.getByTestId('ledger-event').selectOption('seal');
+  await expect(page.getByTestId('ledger-row').first()).toHaveAttribute('data-event', 'seal');   // the filtered list is in
   for (const r of await page.getByTestId('ledger-row').all()) await expect(r).toHaveAttribute('data-event', 'seal');
   const seals = Number((await page.getByTestId('ledger-total').textContent())!.match(/\d+/)![0]);
   expect(seals).toBeLessThan(total);
@@ -187,11 +188,15 @@ test('The ledger page: every block, filters, manager acts on records, export of 
   await expectNoSideScroll(page);
   await signOut(page);
 
-  // nobody else has it
+  // the State Manager reads the ledger of his own state only (migration 41, brief A5): no manager-acts filter
   await signIn(page, USERS.sm);
+  await menu(page).getByRole('link', { name: 'Ledger' }).click();
+  await expect(page.getByRole('heading', { name: 'Ledger of your state' })).toBeVisible();
+  await expect(page.getByTestId('ledger-manager-acts')).toHaveCount(0);
+  await signOut(page);
+  // nobody else has it
+  await signIn(page, USERS.cm);
   await expect(menu(page).getByRole('link', { name: 'Ledger' })).toHaveCount(0);
-  await page.goto('/system/ledger');
-  await expect(page.locator('.alert.error')).toContainText(/the whole ledger is for the admin/i);
   await signOut(page);
 });
 

@@ -455,8 +455,10 @@ test('Health page: the admin checks the ledger on demand and sees a problem repo
   await expect(errors.getByRole('row', { name: new RegExp(marker) })).toContainText('Procurement Op (field)');
   await signOut(page);
 
+  // Health is the admin's (migration 41, State Manager brief A4): not in the State Manager's menu, and the page sends him home
   await signIn(page, USERS.sm);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Health' }).click();
-  await expect(page.getByTestId('health-ledger')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Health' })).toHaveCount(0);
+  await page.goto('/health');
+  await expect(page.getByTestId('state-home-title')).toBeVisible();
   await signOut(page);
 });

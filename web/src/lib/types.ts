@@ -115,6 +115,8 @@ export interface ScopeSummary {
   geography: string; status: string; chain: StageType[];
   /** Migration 32. manage: the person manages this scope. whole: they read all of it (managers, the client's login, an export manager). */
   state_id?: string; state_name?: string; manage?: boolean; whole?: boolean;
+  /** Migration 41: the person builds this scope (its client's Client Manager): edits, activates, closes it. */
+  build?: boolean;
 }
 // Identity layer (migrations 31–33). Two things grant access: the system role and the assignments. `role` is the
 // summary the database keeps for display and the menu; no screen decides what may be DONE from it.
@@ -130,6 +132,8 @@ export interface Can {
   oversee?: boolean; audit?: boolean; hr_seat_filled?: boolean;
   /** Migration 35: the HR Admin seats State Managers (gives the state lens). */
   state_seat?: boolean;
+  /** Migration 41: a State Manager acting as one (not also a Client Manager, HR or the admin); who builds scopes (a Client Manager). */
+  state_manager?: boolean; build_scope?: boolean;
 }
 export interface MyAssignment {
   id: string; lens: Lens; op_role: OpRole; scope_id: string | null; client_id: string | null; client_name: string | null;

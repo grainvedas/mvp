@@ -1722,4 +1722,49 @@ Found while setting Minal's base location (Delhi, added by Veda as a state): nob
   current; a smoke row not OK; a changed migration file. The app files are unchanged (113, sealed with item 34).
 
 NOT run / not known: nothing on staging yet. Windows PowerShell 5.1.
+- **On staging** 04:43 IST: `staging-hr-admin-base.cmd` `RESULT: HR ADMIN BASE ON STAGING` (head f70d2a1, 8 files; smoke
+  36/36; the new rule in place; ledger audit no findings). In the app (Veda, admin): Minal's profile offered Edit on
+  Based in; set to Delhi (added by Veda as a state). Also checked as Neha after item 34: her State filter offers only
+  Uttar Pradesh; the Joiners count reads "1 person".
 
+## 13 October 2026, 05:30 to 08:30 IST: the State Manager, Release 1 (migration 41, open item 36), local stack
+
+From Veda's brief "GrainVeda MVP — State Manager role" and her answers (a new scope in its client's home state; the
+Client Manager drafts farmers, the State Manager verifies after him; a read-only ledger of his state). Parts A, B, E, F
+and the crop's state. Parts C (crop registry) and D (farmer register) are Releases 2 and 3, not built.
+- **Probe first** (as the demo UP State Manager, on a copy of the database, before any change): he could edit every
+  crop; create and edit scopes, also of another state's client; seat HR, the admin and himself through a direct insert;
+  activate a farmer from draft (skipping the Client Manager), and a blank state switched step 2's checks off; read
+  another state's farmers through a scope; create and import farmers; see the admin, HR and other states' people;
+  change the email of a client login shared with another state; override a QC verdict. All closed by migration 41.
+- `supabase/migrations/20261016000100_state_manager.sql`: helpers, rules and the two read functions (`app.state_home`,
+  `app.state_ledger_page`); changed functions patched from their current definitions with each substitution asserted.
+  Additive: one column (`crops.state_id`), no row rewritten.
+- **A fault found by the screen suite and fixed before delivery**: with 241 people (after `phase11`'s 205 joiners)
+  People & access for the State Manager took **43.5 s** (the per-person check re-read his states for every row; the
+  screen showed "Employees (…)" and the test timed out). Now `app.sm_seen_ids()` is asked once per statement and the
+  read rules ask their no-argument helpers once: **0.34 s** (People & access), 0.48 s (directory), 25 ms (the people
+  table), 21 ms (his overview), 15 ms (his ledger, 50 blocks), on the same data; the Client Manager's own People & access
+  takes 0.33 s there. A control now breaks `sm_seen_ids`.
+- **Database**: `tests/run_local.sh`: **1,370** `ok` lines; every file passes, fresh and on the upgrade path, except
+  the timing check of `tests/13_phase3_ops.sql` (1,308 and 1,207 ms; 1,011 to 1,096 ms in three runs on their own;
+  1,049 to 1,122 before migration 41; environmental, not loosened). New `tests/35_state_manager.sql` (**73**), with
+  **16 controls** (each breaks one rule on a copy and the file fails at that rule's check): 16 of 16 caught. Changed
+  expectations in tests 08 (API surface), 09, 24, 28 (the State Manager no longer builds scopes or adds farmers).
+- **API with real logins** (local stack): `remote_create_user.mjs` **95 passed**; `remote_rls.mjs --t1` **192 passed**.
+- **Unit**: **326 passed** (new `web/tests/state_manager.test.ts`, 7). Type check clean; `npm run build:ci` builds.
+- **Screens** (stack rebuilt from nothing): default suite **68**: 67 passed, then `phase13` passed after its fix (it
+  looked for the Client Manager on the first page of a list `phase11` had made long, and checked the crop before the
+  list was in); `phase13` then passed twice more on the used stack. Four older tests changed to the new rules: Health
+  (`phase4`) and States are the admin's; the State Manager's Crops link is "Crops" (`phase5`); State overview is not in
+  his menu (`phase8`, the page still opens); he reads the ledger of his state (`phase9`). Production build **14
+  passed**; the first day from nothing **1 passed** (the wizard shows the client's state as text). Screenshots looked at, 527
+  and 1366 px: his overview and his ledger (the crops and Hindi checked by `phase13`, not by eye).
+- **`scripts/staging_state_manager.ps1`** (`staging-state-manager.cmd`) on stand-ins: the run; a second run (nothing
+  waiting, nothing to commit); wrong words; another migration waiting; the rules not in place after the push; a failed
+  push; production; functions not current; a smoke row not OK; a changed migration; a changed app file; a `.env` file
+  present (git-ignored, not committed). `staging-hr-admin-base.cmd`, `staging-small-fixes.cmd` and
+  `staging-hr-geography.cmd` now refuse. Sealed: 115 files.
+
+NOT run / not known: nothing on staging yet. Windows PowerShell 5.1. A real phone. The 66 new Hindi strings unread by
+their users. Speed with thousands of people for the State Manager (measured with 241).

@@ -16,13 +16,14 @@ import { showGuideAgain } from '../shell/RoleGuide';
 import type { MyContext } from '../lib/types';
 
 /** Pure: which help text a person reads (admin, HR Admin, HR, everyone else). */
-export function helpRole(ctx: MyContext | null | undefined): 'admin' | 'hr_admin' | 'hr' | 'joiner' | 'any' {
+export function helpRole(ctx: MyContext | null | undefined): 'admin' | 'hr_admin' | 'hr' | 'joiner' | 'state_manager' | 'any' {
   if (oversees(ctx)) return 'admin';
   // B5 (migration 37): someone not yet joined reads the joiner's help, whatever their system role
   if (!ctx?.user?.external && (ctx?.user?.status === 'invited' || ctx?.user?.status === 'onboarding')) return 'joiner';
   const sr = ctx?.user?.system_role;
   if (sr === 'hr_admin') return 'hr_admin';
   if (sr === 'hr_resource') return 'hr';
+  if (ctx?.user?.can?.state_manager) return 'state_manager';   // migration 41
   return 'any';
 }
 
@@ -50,7 +51,7 @@ export function Help() {
       <div className="card" data-testid="help-who">
         <h2>{t('help.who')}</h2>
         <ul className="guide-list">{lines.map((l) => <li key={l}>{l}</li>)}</ul>
-        {who === 'admin' && <p className="small"><Link to="/guide" data-testid="help-guide">{t('menu.guide')}</Link></p>}
+        {(who === 'admin' || who === 'state_manager') && <p className="small"><Link to="/guide" data-testid="help-guide">{t('menu.guide')}</Link></p>}
       </div>)}
       <div className="card" data-testid="help-report">
         <h2>{t('help.report')}</h2>
@@ -102,6 +103,6 @@ function JoinerHelp() {
 /** "My guide": shows the role guide again and opens the first screen, where it is. */
 export function GuideAgain() {
   const { ctx } = useAuth();
-  showGuideAgain(oversees(ctx) ? 'admin' : ctx?.user?.role ?? '');
+  showGuideAgain(oversees(ctx) ? 'admin' : ctx?.user?.can?.state_manager ? 'state_manager' : ctx?.user?.role ?? '');
   return <Navigate to="/" replace />;
 }

@@ -212,7 +212,7 @@ function ClientCard({ c, onOpen }: { c: OverviewClient; onOpen: () => void }) {
 }
 
 /** One client, read-only: its figures, its scopes (each opens the scope screen, also read-only), its open stages. */
-function ClientView({ c, d, onExit }: { c: OverviewClient; d: Overview; onExit: () => void }) {
+export function ClientView({ c, d, onExit }: { c: OverviewClient; d: { attention: { unstaffed_list: Overview['attention']['unstaffed_list'] } }; onExit: () => void }) {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const { choose } = useScope();
@@ -367,7 +367,7 @@ function Change({ pct }: { pct: number }) {
 }
 
 /** The pipeline in short: what waits, the stage holding most of it, the oldest; the full stage list is /pipeline. */
-function PipelineShort({ rows }: { rows: PipelineStage[] }) {
+export function PipelineShort({ rows }: { rows: PipelineStage[] }) {
   const { t } = useI18n();
   if (rows.length === 0) return <Empty>{t('ov.no_pipeline')}</Empty>;
   const s = pipelineInShort(rows);

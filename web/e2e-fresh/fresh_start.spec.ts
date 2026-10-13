@@ -205,7 +205,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   await page.goto('/scopes/new');
   await page.getByLabel(/Geography/).fill('Siddharthnagar');
-  await expect(page.locator('#wz-state option:checked')).toHaveText("Uttar Pradesh (client's home state)");
+  await expect(page.getByTestId('wz-state')).toContainText('Uttar Pradesh');                 // migration 41: the client's own state, not a choice
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByLabel('Crop').selectOption({ label: 'Kalanamak rice' });
   await page.getByRole('button', { name: 'Next' }).click();

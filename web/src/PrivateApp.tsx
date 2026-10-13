@@ -38,6 +38,12 @@ import type { ReactNode } from 'react';
 registerDictionary('en', en);
 registerDictionary('hi', hi);
 
+/** The admin's pages (States, Health; migration 41): anyone else goes home. The database refuses them the writes anyway. */
+export function AdminOnly({ children }: { children: ReactNode }) {
+  const { ctx } = useAuth();
+  return ctx?.user?.can?.admin ? <>{children}</> : <Navigate to="/" replace />;
+}
+
 /** HR's screens open only for HR (and the admin while the HR Admin seat is empty): brief 2.2. Anyone else goes home. */
 export function HrOnly({ children, orAdmin }: { children: ReactNode; orAdmin?: boolean }) {
   const { ctx } = useAuth();
@@ -94,7 +100,7 @@ function Private() {
         <Route path="system/audit" element={<AuditLog />} />
         <Route path="system/ledger" element={<Ledger />} />
         <Route path="clients" element={<Clients />} />
-        <Route path="states" element={<States />} />
+        <Route path="states" element={<AdminOnly><States /></AdminOnly>} />
         <Route path="crops" element={<Crops />} />
         <Route path="flags" element={<OpenFlags />} />
         <Route path="labels/:code" element={<Labels />} />
@@ -102,7 +108,7 @@ function Private() {
         <Route path="trace/:id" element={<LotTrace />} />
         <Route path="outbox" element={<Outbox />} />
         <Route path="account" element={<Account />} />
-        <Route path="health" element={<Health />} />
+        <Route path="health" element={<AdminOnly><Health /></AdminOnly>} />
         <Route path="pipeline" element={<PipelinePage />} />
         <Route path="help" element={<Help />} />
         <Route path="guide" element={<GuideAgain />} />

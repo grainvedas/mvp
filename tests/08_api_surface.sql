@@ -56,6 +56,10 @@ insert into allowed values
   -- migration 38: openings, the bulk import, invites (who may be invited; the rest is service-key only), paged lists,
   -- bulk acts, the gate on Mark as joined, a statutory step on paper, the Deputy for seating State Managers, assign many
   ('authenticated', 'save_opening'), ('authenticated', 'set_opening_status'), ('authenticated', 'openings_summary'), ('authenticated', 'opening_targets'),
+  -- migration 41: the State Manager (helpers the rules evaluate as the caller; his overview and his state's ledger)
+  ('authenticated', 'runs_client'), ('authenticated', 'sm_limited'), ('authenticated', 'sm_sees'), ('authenticated', 'sm_seen_ids'), ('authenticated', 'assert_assignable'),
+  ('authenticated', 'manages_viewer_fully'), ('authenticated', 'farmer_create'), ('authenticated', 'i_staff_farmer'), ('authenticated', 'farmer_read'),
+  ('authenticated', 'state_home'), ('authenticated', 'state_ledger_page'),
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

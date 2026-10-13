@@ -192,10 +192,10 @@ begin
 end $$;
 select t.as_user(t.u('06'));
 select t.fails($q$ select app.import_farmers('00000000-0000-4000-8000-000000000201', '[{"name":"x"}]', true) $q$,
-               'no farmer access', 'B4 QC technician cannot import farmers');
+               'farmers are added by', 'B4 QC technician cannot import farmers');
 select t.as_user(t.u('04'));
 select t.fails($q$ select app.import_farmers('00000000-0000-4000-8000-000000000201', '[{"name":"x"}]', true) $q$,
-               'no farmer access', 'B4 client view cannot import farmers');
+               'farmers are added by', 'B4 client view cannot import farmers');
 select t.as_service();
 
 -- ===========================================================================================================

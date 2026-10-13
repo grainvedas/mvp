@@ -228,6 +228,18 @@ project**, so no mail is sent: HR hands over the temporary password in person, a
 | HR holds no seat | `app.assign` refuses anyone whose system role is HR; `set_system_role(→ hr_resource)` and `appoint_hr_admin` refuse someone who holds a seat; leaving HR ends her states. The Deputy seats State Managers only in her states. Smoke row `HR holds no seat` |
 | Screens | `app.hr_scope()` (am I limited, to which states), `app.person_geo(person)`, `app.hr_people_states()`; HR · Team; "You work for: …" on the Joiners list, People & access, Openings, Import |
 
+## The State Manager (migration 41, 13 October 2026; FIX_LIST item 36)
+
+| What | How |
+|---|---|
+| Who counts | `app.sm_limited()`: holds a state seat and is not a Client Manager, HR or the admin. Someone who also holds a client's account keeps that seat's rights |
+| Whom he sees and seats | `app.sm_sees(person)`: himself; operational, non-external people with a live seat in his states (the seat's state, else the scope's, else the client's home); the unassigned based in his states. `app.assert_assignable` refuses himself, the admin, HR and anyone he does not see, also for a seat written directly (`slots_assignment`). A client login's email or password only if every client of that login is his (`manages_viewer_fully`) |
+| Scopes | written by the client's account holder (`app.runs_client`); a new scope, or one moved, is in its client's home state (`app.client_home`); a crop of another state is refused. `my_context` says `build` per scope and `can.build_scope` |
+| Farmers | created by `app.farmer_create` (the Client Manager, Procurement, Village Batch); staff = the State Manager of the farmer's state, else of the client's home (`app.farmer_staff`); read by `app.farmer_read`; any first activation needs step 1 by another person; the state is never blanked |
+| Crops | `crops.state_id`, set once (`crops_a0_state_guard`); written by a State Manager of that state; audited (`crop_added`, `crop_state_set`, `crop_changed`) |
+| His screens | `app.state_home(state)` (overview, client cards, attention lists, pipeline), `app.state_ledger_page(...)` (the blocks of his state, read-only, with the last chain check) |
+| Left as it was | He still manages his state's scopes for records (record in a stage's place, withdraw, resolve a flag): FIX_LIST K62, for Veda |
+
 ## Tests
 
 | Where | What | Count |
@@ -241,6 +253,7 @@ project**, so no mail is sent: HR hands over the temporary password in person, a
 | `tests/32_onboarding_at_scale.sql` | openings and their numbers, import (dry run, commit, re-upload), role checklists, invites (service only, one use, revoke), lists and filters, the gate and on paper, bulk acts, ready to assign, the Deputy, H2, H3, H7, direct writes refused (ten controls) | 99 |
 | `tests/33_hr_geography.sql` | HR states, reach of an HR resource (records, lists, acts, files, openings, import), the base location, HR holds no seat, the Deputy's states (ten controls) | 53 |
 | `tests/34_hr_admin_base.sql` | The admin sets the HR Admin's base location; not anyone else's while the seat is filled; nobody their own (failed without migration 40) | 12 |
+| `tests/35_state_manager.sql` | the State Manager in his own state: crops, scopes, people and seats (also the direct path), farmers (create, read, two steps on every route), QC override, his overview and ledger, the counts (16 controls) | 73 |
 | `tests/remote_create_user.mjs`, `tests/remote_rls.mjs --t1` | the same rules with real logins over the API (local stack) | 84 + 192 |
 | `web/tests/identity.test.ts`, `functions.test.ts`, `id_numbers.test.ts`, `invite.test.ts`, `scale.test.ts` | number checks, checklist states, first screen, menu, session length; the six functions; the invite function (no token in any log); import dates and columns, list filters, bulk refusals, Hindi of the new words; no number in any request, answer or log of `id-numbers` | 29 + 33 + 52 |
 | `tests/run_local.*` "upgrade path" | migrations 31 to 33 applied to a database already in use, then all 27 test files again | every run |

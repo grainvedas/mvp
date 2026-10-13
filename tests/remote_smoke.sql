@@ -231,6 +231,18 @@ select 'HR holds no seat',        case when to_regclass('public.hr_states') is n
                                                            where a.active and u.system_role in ('hr_admin', 'hr_resource')) || ': the HR Admin ends it'
                                       else 'OK' end
 union all
+select 'state manager rules',     case when to_regprocedure('app.state_home(uuid)') is null or to_regprocedure('app.sm_sees(uuid)') is null
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'crops' and column_name = 'state_id')
+                                      then 'MISSING (push migration 41)'
+                                      when exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'crops' and policyname = 'crops_write')
+                                        or not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'scopes' and policyname = 'scopes_insert' and with_check like '%runs_client%')
+                                        or not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'farmers' and policyname = 'farmers_insert' and with_check like '%farmer_create%')
+                                        or position('assert_assignable' in pg_get_functiondef(to_regprocedure('app.slots_assignment()'))) = 0
+                                        or not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'app_users' and policyname = 'users_read' and qual like '%sm_seen_ids%')
+                                        or exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'client_errors' and qual like '%state_supervisor%')
+                                      then 'OLD or OPEN: a State Manager still reaches past his own (push migration 41)'
+                                      else 'OK crops have a state; scopes are built by the Client Manager; farmers by their own state; seats only for his people' end
+union all
 select 'reminder round',          case when to_regclass('cron.job') is null then 'NO pg_cron: reminders are queued when HR opens the Joiners list'
                                       when (xpath('/row/n/text()', query_to_xml(
                                               'select count(*) as n from cron.job where jobname = ''grainveda-reminders''', false, true, '')))[1]::text::int = 1

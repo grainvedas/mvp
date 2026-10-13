@@ -9,7 +9,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { rpc } from '../../lib/api';
 import { useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
-import { oversees } from '../../lib/rights';
+import { myStateIds, oversees } from '../../lib/rights';
 import { date, kg, num } from '../../lib/format';
 import { Empty, ErrorBox, Loading } from '../../shell/ui';
 import type { PipeRow } from '../Home';
@@ -36,15 +36,18 @@ export function PipelinePage() {
   const { t } = useI18n();
   const [scope, setScope] = useState('');
   const live = (ctx?.scopes ?? []).filter((s) => s.status === 'active');
-  const all = useAsync(() => (oversees(ctx) ? rpc<Overview>('platform_overview') : Promise.resolve(null)), []);
+  // the admin: every active scope; a State Manager (migration 41): the active scopes of his state, from app.state_home
+  const smState = !oversees(ctx) && ctx?.user?.can?.state_manager ? myStateIds(ctx)[0] ?? null : null;
+  const all = useAsync(() => (oversees(ctx) ? rpc<Pick<Overview, 'pipeline'>>('platform_overview')
+    : smState ? rpc<Pick<Overview, 'pipeline'> & { state: { name: string } }>('state_home', { p_state: smState }) : Promise.resolve(null)), [smState]);
   const one = useAsync(() => (scope ? rpc<PipeRow[]>('pipeline_summary', { p_scope: scope }) : Promise.resolve(null)), [scope]);
-  if (!oversees(ctx)) return <Navigate to="/" replace />;
+  if (!oversees(ctx) && !smState) return <Navigate to="/" replace />;
   const src = scope ? one : all;
   const rows: PipeLine[] | null = scope ? (one.data ? fromScope(one.data) : null) : (all.data ? fromOverview(all.data.pipeline) : null);
   const stage = (r: PipeLine) => t(`stage.${r.stage}`, undefined, r.label);
   return (
     <>
-      <div className="band"><div><h1>{t('pipe.title')}</h1><div className="sub">{t('pipe.sub')}</div></div></div>
+      <div className="band"><div><h1>{t('pipe.title')}</h1><div className="sub">{smState ? t('pipe.sub_state') : t('pipe.sub')}</div></div></div>
       <label className="ov-state" style={{ marginBottom: 12 }}>
         <span className="small">{t('pipe.which')}</span>
         <select value={scope} onChange={(e) => setScope(e.target.value)} data-testid="pipe-scope">

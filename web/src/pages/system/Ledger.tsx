@@ -1,8 +1,11 @@
-// The whole ledger, for the admin (read-only). Every block with its number, event, what it is about, who signed it,
+// The whole ledger, for the admin (read-only); a State Manager reads his state's blocks (migration 41: app.state_ledger_page,
+// filtered by the server; the last check of the chain is shown, without a button to run one). Every block with its number, event, what it is about, who signed it,
 // their role, the time, its hash and the hash before it. Filters: event, client, scope, person, and "manager acts on
 // records" (supervisory blocks of a record). The export writes the filtered list, asked page by page from the server.
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthProvider';
+import { myStateIds, oversees } from '../../lib/rights';
 import { q, rpc } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import { downloadCsv } from '../../lib/csv';
@@ -17,7 +20,10 @@ export interface LedgerRow {
   what: string | null; about: string | null; client: string | null; scope: string | null;
   actor: string | null; actor_name: string | null; actor_role: string | null; actor_summary_role: string | null;
 }
-export interface LedgerPage { total: number; rows: LedgerRow[]; limit: number; offset: number }
+export interface LedgerPage { total: number; rows: LedgerRow[]; limit: number; offset: number;
+  /** the state ledger (migration 41): the filters' choices, and the last check of the whole chain */
+  filters?: { clients: { id: string; name: string }[]; scopes: { id: string; label: string; client_id: string }[] };
+  check?: { checked_at: string; ok: boolean; blocks: number; first_bad_seq: number | null; source: string } | null }
 
 export const LEDGER_EVENTS = ['create', 'verify', 'seal', 'override', 'supervisory', 'close', 'supersede', 'scope_activate', 'evidence'];
 const PAGE = 100;
@@ -36,21 +42,30 @@ export function blockSubject(r: LedgerRow, t: (k: string, p?: Record<string, str
   return [what, r.about].filter(Boolean).join(' · ') || '—';
 }
 
+/** The arguments of the state ledger: the admin's minus "manager acts", plus the state. */
+const stateArgs = (state: string, f: Filters, limit: number, offset: number) => ({
+  p_state: state, p_event: f.event || null, p_client: f.client || null, p_scope: f.scope || null, p_actor: f.actor || null, p_limit: limit, p_offset: offset,
+});
+
 export function Ledger() {
   const { t } = useI18n();
+  const { ctx } = useAuth();
+  const admin = oversees(ctx);
+  const smState = !admin && ctx?.user?.can?.state_manager ? myStateIds(ctx)[0] ?? null : null;
   const [f, setF] = useState<Filters>(none);
   const [offset, setOffset] = useState(0);
   const set = (p: Partial<Filters>) => { setF((x) => ({ ...x, ...p })); setOffset(0); };
-  const clients = useAsync(() => q(supabase.from('clients').select('id,name').order('name')) as Promise<{ id: string; name: string }[]>, []);
-  const scopes = useAsync(() => q(supabase.from('scopes').select('id,client_id,season_code,geography,crops(name)').order('created_at')) as unknown as Promise<{ id: string; client_id: string; season_code: string; geography: string; crops: { name: string } | null }[]>, []);
+  const ask = (limit: number, off: number) => smState ? rpc<LedgerPage>('state_ledger_page', stateArgs(smState, f, limit, off)) : rpc<LedgerPage>('ledger_page', args(f, limit, off));
+  const clients = useAsync(() => (admin ? q(supabase.from('clients').select('id,name').order('name')) as Promise<{ id: string; name: string }[]> : Promise.resolve(null)), [admin]);
+  const scopes = useAsync(() => (admin ? q(supabase.from('scopes').select('id,client_id,season_code,geography,crops(name)').order('created_at')) as unknown as Promise<{ id: string; client_id: string; season_code: string; geography: string; crops: { name: string } | null }[]> : Promise.resolve(null)), [admin]);
   const people = useAsync(() => q(supabase.from('app_users').select('id,display_name').order('display_name')) as Promise<{ id: string; display_name: string }[]>, []);
-  const page = useAsync(() => rpc<LedgerPage>('ledger_page', args(f, PAGE, offset)), [f, offset]);
+  const page = useAsync(() => ask(PAGE, offset), [f, offset, smState]);
   const exp = useAction();
 
   const exportCsv = () => void exp.run(async () => {
     const all: LedgerRow[] = [];
     for (let off = 0; ; off += 500) {
-      const p = await rpc<LedgerPage>('ledger_page', args(f, 500, off));
+      const p = await ask(500, off);
       all.push(...p.rows);
       if (p.rows.length < 500 || all.length >= p.total) break;
     }
@@ -59,11 +74,17 @@ export function Ledger() {
       all.map((r) => [r.seq, r.event, r.record, r.what, r.about, r.client, r.scope, r.actor_name, r.actor_role, r.created_at, r.hash, r.prev_hash]));
   });
 
-  const scopeList = (scopes.data ?? []).filter((s) => !f.client || s.client_id === f.client);
+  if (!admin && !smState) return <Navigate to="/" replace />;
   const d = page.data;
+  const clientList = admin ? clients.data ?? [] : d?.filters?.clients ?? [];
+  const scopeList = (admin ? (scopes.data ?? []).map((s) => ({ id: s.id, client_id: s.client_id, label: `${s.crops?.name ?? ''} · ${s.season_code} · ${s.geography}` }))
+    : d?.filters?.scopes ?? []).filter((s) => !f.client || s.client_id === f.client);
   return (
     <div style={{ maxWidth: 1100 }}>
-      <div className="page-hd"><h1><span aria-hidden="true">🔗 </span>{t('ledger.title')}</h1><div className="sub">{t('ledger.sub')}</div></div>
+      <div className="page-hd"><h1><span aria-hidden="true">🔗 </span>{smState ? t('ledger.state_title') : t('ledger.title')}</h1><div className="sub">{smState ? t('ledger.state_sub') : t('ledger.sub')}</div></div>
+      {smState && d && <p className="small" data-testid="ledger-check">{!d.check ? t('ledger.check_none')
+        : d.check.ok ? <>✓ {t('ledger.check_ok', { n: d.check.blocks, at: dateTime(d.check.checked_at) })}</>
+        : <strong>{t('ledger.check_bad', { seq: d.check.first_bad_seq ?? '?', at: dateTime(d.check.checked_at) })}</strong>}</p>}
       <div className="filters" data-testid="ledger-filters">
           <Field label={t('ledger.f_event')} htmlFor="lf-event">
             <select id="lf-event" value={f.event} onChange={(e) => set({ event: e.target.value })} data-testid="ledger-event">
@@ -74,13 +95,13 @@ export function Ledger() {
           <Field label={t('ledger.f_client')} htmlFor="lf-client">
             <select id="lf-client" value={f.client} onChange={(e) => set({ client: e.target.value, scope: '' })} data-testid="ledger-client">
               <option value="">{t('ledger.any')}</option>
-              {(clients.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {clientList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </Field>
           <Field label={t('ledger.f_scope')} htmlFor="lf-scope">
             <select id="lf-scope" value={f.scope} onChange={(e) => set({ scope: e.target.value })} data-testid="ledger-scope">
               <option value="">{t('ledger.any')}</option>
-              {scopeList.map((s) => <option key={s.id} value={s.id}>{`${s.crops?.name ?? ''} · ${s.season_code} · ${s.geography}`}</option>)}
+              {scopeList.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </Field>
           <Field label={t('ledger.f_person')} htmlFor="lf-person">
@@ -89,7 +110,7 @@ export function Ledger() {
               {(people.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
             </select>
           </Field>
-        <label className="check"><input type="checkbox" checked={f.managerActs} onChange={(e) => set({ managerActs: e.target.checked })} data-testid="ledger-manager-acts" />{t('ledger.manager_acts')}</label>
+        {admin && <label className="check"><input type="checkbox" checked={f.managerActs} onChange={(e) => set({ managerActs: e.target.checked })} data-testid="ledger-manager-acts" />{t('ledger.manager_acts')}</label>}
       </div>
       {f.managerActs && <p className="small muted">{t('ledger.manager_acts_hint')}</p>}
 

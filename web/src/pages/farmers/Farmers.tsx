@@ -11,7 +11,7 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import type { Farmer } from '../../lib/types';
-import { holdsClientAccount, isStateManager, oversees, supervisesState, type Ctx } from '../../lib/rights';
+import { actsAsStateManager, addsFarmers, holdsClientAccount, isStateManager, oversees, supervisesState, type Ctx } from '../../lib/rights';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { date } from '../../lib/format';
 
@@ -54,7 +54,9 @@ export function FarmerList() {
     if (s) r = r.or(`name.ilike.%${s}%,village.ilike.%${s}%,farmer_code.ilike.%${s}%,phone.ilike.%${s}%`);
     return await q(r) as Farmer[];
   }, [clientId, tab, search]);
-  const canEdit = me.role !== 'client_view' && !watch;
+  // Who adds farmers (migration 41): the client's Client Manager, or Procurement / Village Batch in its scopes. A State
+  // Manager verifies after the Client Manager and adds none; a server from before 41 sends no `state_manager`: as before.
+  const canEdit = me.role !== 'client_view' && !watch && (ctx?.user?.can?.state_manager === undefined || addsFarmers(ctx, clientId));
   const isSM = isStateManager(ctx) || watch;                // who sees the "inactive" tab
   return (
     <div>
@@ -62,6 +64,7 @@ export function FarmerList() {
       {picker}
       {watch && <p className="small muted" data-testid="farmers-readonly">{t('farmers.admin_reads')}</p>}
       {!watch && !cm && canEdit && <p className="small muted" data-testid="farmers-draft-note">{t('farmers.drafts_only')}</p>}
+      {actsAsStateManager(ctx) && <p className="small muted" data-testid="farmers-sm-note">{t('farmers.sm_verifies')}</p>}
       <div className="row" style={{ marginBottom: 12 }}>
         {canEdit && <Link className="btn" to="/farmers/new">{t('farmers.new')}</Link>}
         {canEdit && <Link className="btn secondary" to="/farmers/import">{t('farmers.import')}</Link>}

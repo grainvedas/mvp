@@ -205,7 +205,7 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   await expect(page.getByTestId('tb-context')).toHaveText(client);
   await page.goto('/scopes/new');
   await page.getByLabel(/Geography/).fill(`Maharajganj ${u}`);
-  await expect(page.locator('#wz-state option:checked')).toHaveText("Uttar Pradesh (client's home state)");
+  await expect(page.getByTestId('wz-state')).toContainText('Uttar Pradesh');                 // migration 41: the client's own state, not a choice
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByLabel('Crop').selectOption({ label: 'Kalanamak rice' });
   await page.getByRole('button', { name: 'Next' }).click();

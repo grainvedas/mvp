@@ -10,13 +10,13 @@ import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { humanise } from '../../lib/format';
 import { isManager, type StageDefinition, type StageType } from '../../lib/types';
-import { oversees } from '../../lib/rights';
+import { actsAsStateManager, buildsScope, buildsScopes, oversees } from '../../lib/rights';
 import { RosterEditor } from '../people/People';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 
 interface ScopeRow { id: string; client_id: string; crop_id: string; season_code: string; geography: string; chain: StageType[]; status: string; activated_at: string | null;
   state_id?: string; season_end?: string | null }
-interface Crop { id: string; name: string; code: string; allowed_stages: StageType[] }
+interface Crop { id: string; name: string; code: string; allowed_stages: StageType[]; state_id?: string | null }
 interface Client { id: string; name: string; code: string; state_id?: string }
 interface StateRow { id: string; name: string }
 
@@ -27,7 +27,8 @@ export function ScopeList() {
     <div>
       <h1><span aria-hidden="true">🎯 </span>{t('scopes.title')}</h1>
       {oversees(ctx) ? <p className="small muted" data-testid="scopes-readonly">{t('scopes.admin_reads')}</p>
-        : (ctx!.user!.can?.assign ?? isManager(ctx!.user!.role)) && <p><Link className="btn" to="/scopes/new">{t('scopes.new')}</Link></p>}
+        : actsAsStateManager(ctx) ? <p className="small muted" data-testid="scopes-sm-reads">{t('scopes.sm_reads')}</p>
+        : (ctx!.user!.can?.build_scope ?? ctx!.user!.can?.assign ?? isManager(ctx!.user!.role)) && <p><Link className="btn" to="/scopes/new">{t('scopes.new')}</Link></p>}
       {ctx!.scopes.length === 0 ? <Empty /> : (
         <div className="card table-wrap"><table>
           <thead><tr><th>Client</th><th>{t('lens.state')}</th><th>Crop</th><th>Season</th><th>Place</th><th>Chain</th><th>{t('common.status')}</th><th /></tr></thead>
@@ -58,7 +59,7 @@ export function ScopeWizard() {
   const me = ctx!.user!;
   const clients = useAsync(() => q(supabase.from('clients').select('id,name,code,state_id').order('name')) as Promise<Client[]>, []);
   const states = useAsync(() => q(supabase.from('states').select('id,name').order('name')) as Promise<StateRow[]>, []);
-  const crops = useAsync(() => q(supabase.from('crops').select('id,name,code,allowed_stages').order('name')) as Promise<Crop[]>, []);
+  const crops = useAsync(() => q(supabase.from('crops').select('*').order('name')) as Promise<Crop[]>, []);
   const defs = useAsync(() => q(supabase.from('stage_definitions').select('*').order('sort_order')) as Promise<StageDefinition[]>, []);
   const existing = useAsync(() => id ? q(supabase.from('scopes').select('*').eq('id', id).single()) as Promise<ScopeRow> : Promise.resolve(null), [id]);
   const [step, setStep] = useState(1);
@@ -100,8 +101,11 @@ export function ScopeWizard() {
   if (clients.loading || crops.loading || defs.loading || existing.loading || states.loading) return <Loading />;
   const s = existing.data;
   const frozen = !!s && s.status !== 'draft';
-  // Does the signed-in person manage THIS scope? (new scope: they would not be here otherwise; the database decides at save)
-  const canManage = s ? (ctx!.scopes.find((x) => x.scope_id === s.id)?.manage ?? isManager(me.role)) : !oversees(ctx);
+  // Does the signed-in person build THIS scope (its client's Client Manager, migration 41)? A State Manager reads it and
+  // staffs its stages, but neither builds nor changes it. (A server before migration 41 sends no `build`: manage, as before.)
+  const known = s ? ctx!.scopes.find((x) => x.scope_id === s.id) : undefined;
+  const canManage = s ? (known?.build ?? (ctx!.user!.can?.build_scope === undefined ? known?.manage ?? isManager(me.role) : buildsScope(ctx, s.id)))
+    : buildsScopes(ctx) || (ctx!.user!.can?.build_scope === undefined && !oversees(ctx));
   // Someone who reads this scope but does not manage it (the admin, a viewer): what it is, and who holds what. No editor.
   if (!canManage) return (
     <div data-testid="scope-readonly">
@@ -153,8 +157,9 @@ export function ScopeWizard() {
           <Field label="Season code" hint="two letters + year, e.g. KH26 for Kharif 2026" htmlFor="wz-season">
             <input id="wz-season" value={season} onChange={(e) => setSeason(e.target.value.toUpperCase())} maxLength={4} /></Field>
           <Field label="Geography" hint="district, block or mandi" htmlFor="wz-geo"><input id="wz-geo" value={geo} onChange={(e) => setGeo(e.target.value)} /></Field>
-          <Field label={t('lens.state')} hint={t('wizard.state_hint')} htmlFor="wz-state"><select id="wz-state" value={stateId || homeState} onChange={(e) => setStateId(e.target.value)}>
-            {(states.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}{x.id === homeState ? ` (${t('wizard.home_state')})` : ''}</option>)}</select></Field>
+          {/* migration 41 (Veda, 13 Oct): a new scope is in its client's own state; a scope made earlier elsewhere keeps its state */}
+          <p className="small" data-testid="wz-state">{t('lens.state')}: <strong>{states.data?.find((x) => x.id === (stateId || homeState))?.name ?? '—'}</strong>
+            <span className="muted"> · {t('wizard.state_home_only')}</span></p>
           <Field label={t('wizard.season_end')} hint={t('wizard.season_end_hint')} htmlFor="wz-end"><input id="wz-end" type="date" value={seasonEnd} onChange={(e) => setSeasonEnd(e.target.value)} /></Field>
           <button disabled={!clientId || !/^[A-Z]{2}[0-9]{2}$/.test(season) || !geo.trim()} onClick={() => setStep(2)}>{t('common.next')}</button>
         </div>
@@ -162,7 +167,7 @@ export function ScopeWizard() {
       {step === 2 && !frozen && (
         <div className="card">
           <Field label="Crop" htmlFor="wz-crop"><select id="wz-crop" value={cropId} onChange={(e) => { setCropId(e.target.value); setBefore([]); setAfter([]); }}>
-            <option value="">—</option>{(crops.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+            <option value="">—</option>{(crops.data ?? []).filter((c) => !c.state_id || c.state_id === (stateId || homeState)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
           <div className="row"><button className="secondary" onClick={() => setStep(1)}>{t('common.back')}</button><button disabled={!cropId} onClick={() => setStep(3)}>{t('common.next')}</button></div>
         </div>
       )}

@@ -134,7 +134,7 @@ test('Reject reasons and the grade split are shown in words (item 10)', async ({
 test('A quality limit can be typed with a decimal point (item 7)', async ({ page }) => {
   const code = `Z${uniq().replace(/[^A-Z]/g, 'Q').slice(0, 3)}`;
   await signIn(page, USERS.sm);                                            // crops are the State Manager's (migration 34)
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Crop Registry' }).click();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Crops' }).click();   // his menu by heading (migration 41)
   await page.getByRole('button', { name: 'Create' }).click();
   await page.getByLabel('Name', { exact: true }).fill(`Decimal test ${code}`); await page.getByLabel('Code', { exact: true }).fill(code);
   await page.getByRole('button', { name: '+ limit' }).click();

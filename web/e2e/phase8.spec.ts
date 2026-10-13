@@ -610,7 +610,9 @@ test.describe('at a desk', () => {
     test.setTimeout(120_000);
     // the state lens: every scope in Uttar Pradesh, none in Assam
     await signIn(page, USERS.sm);
-    await menu(page).getByRole('link', { name: 'State overview' }).click();
+    // the State overview page left his menu (migration 41: his home is his state's overview); the page still opens
+    await expect(menu(page).getByRole('link', { name: 'State overview' })).toHaveCount(0);
+    await page.goto('/state');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('State overview: Uttar Pradesh');
     await expect(page.getByTestId('state-stats')).toBeVisible();
     const rows = page.getByTestId('state-scope-row');

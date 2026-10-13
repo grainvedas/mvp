@@ -110,7 +110,8 @@ export interface StateOverviewData {
   supervisors: { employee_id: string; name: string; status: EmployeeStatus }[];
   scopes: { scope_id: string; client_id: string; client_name: string; crop_name: string; season_code: string; geography: string; status: string;
     stages: number; gaps: StageType[]; people: number }[];
-  clients: number; people: number; unassigned: number;
+  /** clients: the state's clients (home state); clients_active: those with an active scope in it (migration 41) */
+  clients: number; clients_active?: number; people: number; unassigned: number;
 }
 export interface Seat { id: string; name: string; email: string | null; status: EmployeeStatus; has_login?: boolean; system_role?: SystemRole }
 export interface Seats { admins: Seat[]; hr_admin: Seat | null; hr_resources: Seat[]; candidates: Seat[]; daily_code: { on: boolean; without_email: number }; sm_deputy?: { id: string; name: string } | null }

@@ -18,13 +18,13 @@ import { NO_RIGHTS, type EmployeeStatus, type Lens, type OpRole, type StageType,
 import { lensTone, stagesAfter, type AssignmentInfo, type DirectoryFilter, type DirectoryPerson, type Profile,
   type Roster, type StateOverviewData, type Warning } from '../../lib/people';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
-import { givesAssignments, oversees, seatsStateManagers } from '../../lib/rights';
+import { givesAssignments, myStateIds, oversees, seatsStateManagers } from '../../lib/rights';
 import { AccessBadges, Confirm, OrgLine, StatusBadge, TempPassword, WarningList, useStageName } from './shared';
 import { ReadyToAssign } from '../hr/Scale';
 import { BaseLocation, HrScopeNote, stateChoices, useHrScope } from '../hr/Geo';
 
 interface Named { id: string; name: string }
-const useClients = () => useAsync(() => q(supabase.from('clients').select('id,name').order('name')) as Promise<Named[]>, []);
+const useClients = () => useAsync(() => q(supabase.from('clients').select('id,name,state_id').order('name')) as Promise<(Named & { state_id: string | null })[]>, []);
 const useStates = () => useAsync(() => q(supabase.from('states').select('id,name').order('name')) as Promise<Named[]>, []);
 
 // ── directory ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -35,7 +35,10 @@ export function Directory() {
   const clients = useClients();
   const states = useStates();
   const scope = useHrScope();
-  const [f, setF] = useState<DirectoryFilter>({ text: '', client: '', state: '', status: '', unassigned: false, kind: 'employees' });
+  // a State Manager (migration 41): his state's clients and his state only; a client may come from his overview (?client=)
+  const sm = ctx?.user?.can?.state_manager ? myStateIds(ctx) : null;
+  const [params] = useSearchParams();
+  const [f, setF] = useState<DirectoryFilter>({ text: '', client: params.get('client') ?? '', state: '', status: '', unassigned: false, kind: 'employees' });
   const [qq, setQq] = useState('');
   const [page, setPage] = useState(0);
   useEffect(() => { const h = setTimeout(() => { setQq(f.text); setPage(0); }, 300); return () => clearTimeout(h); }, [f.text]);
@@ -59,9 +62,9 @@ export function Directory() {
         <div className="filters" data-testid="people-filters">
           <Field label={t('people.search')} htmlFor="pf-text"><input id="pf-text" type="search" value={f.text} onChange={(e) => setF({ ...f, text: e.target.value })} placeholder={t('people.search_hint')} /></Field>
           <Field label={t('people.client_lens')} htmlFor="pf-client"><select id="pf-client" value={f.client} onChange={(e) => set({ client: e.target.value })}>
-            <option value="">{t('people.any_client')}</option>{(clients.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+            <option value="">{t('people.any_client')}</option>{(clients.data ?? []).filter((c) => !sm || (!!c.state_id && sm.includes(c.state_id))).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
           <Field label={t('people.state_lens')} htmlFor="pf-state"><select id="pf-state" value={f.state} onChange={(e) => set({ state: e.target.value })}>
-            <option value="">{t('people.any_state')}</option>{stateChoices(states.data ?? [], scope.data).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
+            <option value="">{t('people.any_state')}</option>{(sm ? (states.data ?? []).filter((s) => sm.includes(s.id)) : stateChoices(states.data ?? [], scope.data)).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
           <Field label={t('common.status')} htmlFor="pf-status"><select id="pf-status" value={f.status} onChange={(e) => set({ status: e.target.value as DirectoryFilter['status'] })}>
             <option value="">{t('people.any_status')}</option>{(['invited', 'onboarding', 'active', 'suspended', 'offboarded'] as EmployeeStatus[]).map((s) => <option key={s} value={s}>{t(`pstatus.${s}`)}</option>)}</select></Field>
           <label className="check"><input type="checkbox" checked={f.unassigned} onChange={(e) => set({ unassigned: e.target.checked })} />{t('people.only_unassigned')}</label>
@@ -497,7 +500,7 @@ export function StateOverview() {
       {d.loading && sel ? <Loading /> : <ErrorBox error={d.error} onRetry={() => void d.reload()} />}
       {x && <>
         <div className="stats" data-testid="state-stats">
-          <div className="stat"><div className="stat-val">{x.clients}</div><div className="stat-label">{t('state.kpi_clients')}</div></div>
+          <div className="stat"><div className="stat-val">{x.clients}</div><div className="stat-label">{t('state.kpi_clients')}</div><div className="stat-sub" data-testid="state-clients-active">{t('state.kpi_clients_sub', { a: x.clients_active ?? 0 })}</div></div>
           <div className="stat"><div className="stat-val">{x.scopes.length}</div><div className="stat-label">{t('state.kpi_scopes')}</div></div>
           <div className="stat"><div className="stat-val">{x.people}</div><div className="stat-label">{t('state.kpi_people')}</div><div className="stat-sub">{t('state.kpi_unassigned', { n: x.unassigned })}</div></div>
           <div className="stat"><div className="stat-val">{x.scopes.reduce((n, s) => n + (s.status === 'closed' ? 0 : s.gaps.length), 0)}</div><div className="stat-label">{t('state.kpi_gaps')}</div><div className="stat-sub">{t('state.kpi_gaps_sub')}</div></div>

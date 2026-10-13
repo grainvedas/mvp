@@ -103,7 +103,7 @@ function Detail({ l }: { l: AuditLine }) {
     d.lens ? t(`lens.${String(d.lens)}`, undefined, String(d.lens)) : '', d.op_role ? t(`oprole.${String(d.op_role)}`, undefined, String(d.op_role)) : '', stages,
     d.reason ? `“${String(d.reason)}”` : '', fromTo(d.from, d.to),
     typeof d.assignments_ended === 'number' ? t('audit.ended_n', { n: d.assignments_ended }) : '', d.exit_date ? String(d.exit_date) : '',
-    d.previous ? t('audit.previous', { name: String(d.previous) }) : '', typeof d.on === 'boolean' ? (d.on ? t('seats.code_on') : t('seats.code_off')) : '',
+    d.previous ? t('audit.previous', { name: String(d.previous) }) : '', Array.isArray(d.fields) ? (d.fields as string[]).join(', ') : '', typeof d.on === 'boolean' ? (d.on ? t('seats.code_on') : t('seats.code_off')) : '',
   ].filter(Boolean);
   return <>{bits.join(' · ')}</>;
 }
@@ -137,7 +137,7 @@ export function AuditLog() {
           <li key={l.id} className={l.flagged ? 'flagged' : ''} data-testid={l.flagged ? 'audit-flagged' : 'audit-line'} data-action={l.action}>
             <div><strong>{l.actor_name}</strong>{l.actor_role && l.actor_role !== 'operational' ? <span className="muted small"> ({t(`sysrole.${l.actor_role}`)})</span> : null}
               {' '}{t(`audit.${l.action}`, undefined, humanise(l.action))}{' '}
-              {l.target ? <Link to={`/people/${l.target}`}>{l.target_name ?? '—'}</Link> : null}
+              {l.target ? <Link to={l.action.startsWith('crop_') ? '/crops' : `/people/${l.target}`}>{l.target_name ?? '—'}</Link> : null}
               {l.flagged && <> <Badge value="open" label={t(`audit.flag_${l.action}`, undefined, t('audit.flag'))} /></>}</div>
             <div className="small"><Detail l={l} /></div>
             <div className="when">{dateTime(l.at)}</div>

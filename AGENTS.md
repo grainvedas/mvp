@@ -223,6 +223,12 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   is `hr_states`. The base location (`employee_org.base_state_id`, `base_district`) grants nothing and is written only
   through its functions. A field added to the Add joiner form must also be passed by `create-user` (`JOINER_FIELDS`):
   the opening was dropped there for a day (FIX_LIST line 41).
+- **The State Manager owns one state and runs nothing in it** (migration 41, Veda 13 October 2026). `app.sm_limited()`
+  is a State Manager who is not also a Client Manager, HR or the admin; `app.sm_sees(person)` is who he may see and
+  seat. Scopes are written by the Client Manager (`app.runs_client`), a new one in its client's home state; farmers are
+  created by the Client Manager and Procurement / Village Batch (`app.farmer_create`); a farmer's own state decides its
+  staff (`app.farmer_staff`), and step 2 always follows step 1. Crops have a state, set once. A new rule about a person,
+  a scope, a farmer or a crop that a State Manager may reach needs its case in `tests/35_state_manager.sql`.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.

@@ -82,7 +82,7 @@ begin
                   'row-level security', 'farmers: the admin adds none');
   perform t.fails($q$ select app.import_farmers('00000000-0000-4000-8000-000000000201',
                       '[{"row":2,"name":"A","guardian_name":"G","village":"V","district":"D","phone":"9876507001","land_area_acres":"1"}]', false, null) $q$,
-                  'no farmer access', 'farmers: nor imports any');
+                  'farmers are added by the Client Manager', 'farmers: nor imports any');
   perform t.as_user(t.u('05'));
   insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres)
   values ('00000000-0000-4000-8000-000000000201', 'draft', 'Oversight Kisan', 'Shri G', 'Bansi', 'Siddharthnagar', '+919000007002', 1) returning id into d;
@@ -154,8 +154,9 @@ begin
   perform t.fails($q$ insert into public.crops (name, code, primary_unit) values ('CM Crop', 'CMCR', 'kg') $q$,
                   'row-level security', 'crops: nor a Client Manager');
   perform t.as_user(t.u('02'));
-  insert into public.crops (name, code, primary_unit, quality_params, allowed_stages)
-  values ('Makhana', 'MKHN', 'kg', '[{"param":"moisture_pct","label":"Moisture","unit":"%","operator":"<=","domestic_limit":14,"export_limit":12.5}]', '{milling}')
+  insert into public.crops (name, code, primary_unit, quality_params, allowed_stages, state_id)
+  values ('Makhana', 'MKHN', 'kg', '[{"param":"moisture_pct","label":"Moisture","unit":"%","operator":"<=","domestic_limit":14,"export_limit":12.5}]', '{milling}',
+          '00000000-0000-4000-8000-000000000001')                                    -- migration 41: a crop of his state
   returning id into cr;
   update public.crops set gi_tag = 'GI 666' where id = cr;
   perform t.ok((select gi_tag from public.crops where id = cr) = 'GI 666', 'control: the State Manager creates and edits a crop');
