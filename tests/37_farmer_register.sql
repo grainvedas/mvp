@@ -14,6 +14,8 @@ create or replace function pg_temp.fp(p uuid) returns public.footprints language
   select * from public.footprints where id = p $$;
 create or replace function pg_temp.reg(p jsonb) returns jsonb language sql as $$
   select app.farmer_register(jsonb_build_object('state', '00000000-0000-4000-8000-000000000001') || p) $$;
+create or replace function pg_temp.pend(f public.farmers) returns boolean language sql stable security definer as $$
+  select app.pending_duplicate(f) $$;
 create or replace function pg_temp.row_of(r jsonb, p uuid) returns jsonb language sql immutable as $$
   select x from jsonb_array_elements(r->'rows') x where x->>'id' = p::text $$;
 
@@ -45,11 +47,13 @@ select t.as_user(t.u('02'));
 select t.fails(format($q$ select app.verify_farmer(%L) $q$, pg_temp.f('R1')), 'the GI land (acres) is needed before the Farmer ID',
                'D GI land: Ram issues no Farmer ID without it');
 do $$ begin
-  update public.farmers set gi_land_acres = 1.5 where id = pg_temp.f('R1');
+  perform app.change_farmer(pg_temp.f('R1'), '{"gi_land_acres":1.5}', 'GI land measured at the visit');   -- migration 44: with a reason
   perform t.ok((app.verify_farmer(pg_temp.f('R1'))).farmer_code is not null, 'D GI land: with it (Ram may fill it in at step 2) the Farmer ID is issued');
 end $$;
 
 -- 2 · a possible duplicate: the same phone in the same state on another client's record ---------------------------------------
+-- migration 44 (Veda, 14 Oct): the same phone is the same person unless the State Manager says otherwise. The first record
+-- verified gets a new state farmer ID; a later one with that phone is LINKED to it, or (with a reason) given its own.
 select t.as_user(t.u('03'));
 do $$ declare f uuid; begin
   insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres)
@@ -65,43 +69,42 @@ do $$ declare f uuid; begin
   perform t.ok(f is not null, 'D duplicate: the same phone on another client''s record is saved (flagged, not refused)');
 end $$;
 select t.as_user(t.u('02'));
-select t.fails(format($q$ select app.verify_farmer(%L) $q$, pg_temp.f('D1')), 'possible duplicate (same phone)',
-               'D duplicate: Ram issues no Farmer ID while it is open');
 do $$ declare r jsonb; begin
   r := pg_temp.reg('{"flag":"duplicate"}');
   perform t.ok(r->'total' = '2' and pg_temp.row_of(r, pg_temp.f('D1'))->'duplicates'->0->>'name' = 'Shared Phone Too',
-               'D register: both records are flagged, each naming the other');
+               'D register: both records are flagged while neither has a state farmer ID, each naming the other');
   perform t.ok((app.state_home('00000000-0000-4000-8000-000000000001')->'attention'->>'duplicates')::int >= 2, 'D overview: "Needs my action" counts them');
+  perform t.ok((app.verify_farmer(pg_temp.f('D1'))).state_farmer_id is not null, 'D duplicate: the first one verified gets a new state farmer ID');
 end $$;
-select t.as_user(pg_temp.f('AS'));
-select t.fails(format($q$ select app.mark_not_duplicate(%L, %L, 'brothers') $q$, pg_temp.f('D1'), pg_temp.f('D2')), 'the State Manager of the farmers',
-               'D duplicate: another state''s manager does not decide');
-select t.as_user(t.u('03'));
-select t.fails(format($q$ select app.mark_not_duplicate(%L, %L, 'brothers') $q$, pg_temp.f('D1'), pg_temp.f('D2')), 'the State Manager of the farmers',
-               'D duplicate: nor the Client Manager');
+select t.as_user(pg_temp.f('DCM'));
+select app.submit_farmer(pg_temp.f('D2'));
 select t.as_user(t.u('02'));
-select t.fails(format($q$ select app.mark_not_duplicate(%L, %L, ' ') $q$, pg_temp.f('D1'), pg_temp.f('D2')), 'say why',
-               'D duplicate: a reason is needed');
-select t.fails(format($q$ select app.mark_not_duplicate(%L, %L, 'x') $q$, pg_temp.f('D1'), pg_temp.f('R1')), 'not a possible duplicate',
-               'D duplicate: only two records that share a phone');
-do $$ begin
-  perform app.mark_not_duplicate(pg_temp.f('D2'), pg_temp.f('D1'), 'two brothers, one phone');
-  perform t.ok(jsonb_array_length(app.open_duplicates(pg_temp.f('D1'))) = 0 and pg_temp.audits('farmer_duplicate_cleared', pg_temp.f('D2')) = 1,
-               'D duplicate: Ram says they are different people; logged; no longer open');
-  perform t.ok((app.verify_farmer(pg_temp.f('D1'))).farmer_code is not null, 'D duplicate: then the Farmer ID is issued');
+select t.fails(format($q$ select app.verify_farmer(%L) $q$, pg_temp.f('D2')), 'same phone as F-UP-',
+               'D duplicate: the second waits for Ram''s choice: link, or say why it is another person');
+select t.fails(format($q$ select app.verify_farmer_state(%L, null, ' ') $q$, pg_temp.f('D2')), 'same phone as F-UP-', 'D duplicate: a blank reason is no choice');
+select t.as_user(pg_temp.f('AS'));
+select t.fails(format($q$ select app.verify_farmer_state(%L, %L, null) $q$, pg_temp.f('D2'), (pg_temp.farmer(pg_temp.f('D1'))).state_farmer_id),
+               'not found or not waiting', 'D duplicate: another state''s manager does not decide');
+select t.as_user(t.u('02'));
+do $$ declare a public.farmers; b public.farmers; begin
+  b := app.verify_farmer_state(pg_temp.f('D2'), (pg_temp.farmer(pg_temp.f('D1'))).state_farmer_id, null);
+  a := pg_temp.farmer(pg_temp.f('D1'));
+  perform t.ok(b.status = 'active' and b.state_farmer_id = a.state_farmer_id and b.farmer_code like 'DEMOX-F-%' and a.farmer_code like 'PRSDM-F-%',
+               'D duplicate: Ram links it: one state farmer ID, two client farmer IDs');
+  perform t.ok(not pg_temp.pend(b) and not pg_temp.pend(a), 'D duplicate: neither is flagged any more');
 end $$;
--- a deactivated record is no duplicate
+-- a deactivated record is no candidate
 select t.as_service();
 do $$ declare a uuid; b uuid; begin
   insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres)
   values ('00000000-0000-4000-8000-000000000201', 'draft', 'Old Record', 'F', 'V', 'Siddharthnagar', '+919870000003', 1) returning id into a;
   insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres)
   values ('00000000-0000-4000-8000-000000000202', 'draft', 'New Record', 'F', 'V', 'Siddharthnagar', '+919870000003', 1) returning id into b;
-  perform t.ok(jsonb_array_length(app.open_duplicates(b)) = 1, 'D duplicate: found across clients');
+  perform t.ok(pg_temp.pend(pg_temp.farmer(b)), 'D duplicate: found across clients');
   update public.farmers set status = 'inactive', farmer_code = 'TEST-OLD-1' where id = a;
-  perform t.ok(jsonb_array_length(app.open_duplicates(b)) = 0, 'D duplicate: a deactivated record is not one');
+  perform t.ok(not pg_temp.pend(pg_temp.farmer(b)), 'D duplicate: a deactivated record is not one');
 end $$;
--- Ram's other answer: he deactivates the record waiting for him (the register's "Deactivate this record")
+-- Ram's other answer: he deactivates the record waiting for him
 do $$ declare a uuid; b uuid; begin
   insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres)
   values ('00000000-0000-4000-8000-000000000201', 'draft', 'Kept Record', 'F', 'V', 'Siddharthnagar', '+919870000004', 1) returning id into a;
@@ -112,12 +115,12 @@ end $$;
 select t.as_user(t.u('02'));
 do $$ begin
   update public.farmers set status = 'inactive' where id = pg_temp.f('K2');
-  perform t.ok((pg_temp.farmer(pg_temp.f('K2'))).status = 'inactive' and jsonb_array_length(app.open_duplicates(pg_temp.f('K1'))) = 0,
+  perform t.ok((pg_temp.farmer(pg_temp.f('K2'))).status = 'inactive' and not pg_temp.pend(pg_temp.farmer(pg_temp.f('K1'))),
                'D duplicate: Ram deactivates the record waiting for him; the other is no longer flagged');
 end $$;
 select t.as_service();
 
--- 3 · the yield check at Procurement: GI land × yield per acre; a warning past it, a flag past 120 % -------------------------
+-- 3 · the yield check at Procurement: GI land × yield per acre; a warning past it (migration 44: no flag) ------------------
 do $$ begin
   update public.farmers set gi_land_acres = 0.10 where id = t.farmer('05');      -- 100 kg of Kalanamak expected this season
   update public.farmers set gi_land_acres = 0.09 where id = t.farmer('04');      -- 90 kg expected
@@ -140,12 +143,16 @@ end $$;
 select t.as_user(t.u('02'));
 do $$ declare r jsonb; begin
   r := pg_temp.reg('{}');
-  perform t.ok(pg_temp.row_of(r, t.farmer('05'))->'flags' @> '["over_yield"]' and (pg_temp.row_of(r, t.farmer('05'))->>'ratio')::numeric > 1.9,
-               'D register: past 120 % the farmer is flagged, with his share of the expected yield');
-  perform t.ok(not (pg_temp.row_of(r, t.farmer('04'))->'flags' @> '["over_yield"]') and (pg_temp.row_of(r, t.farmer('04'))->>'ratio')::numeric between 1 and 1.2,
-               'D register: past 100 % but within 120 %: warned on the lot, not flagged');
-  perform t.ok((app.state_home('00000000-0000-4000-8000-000000000001')->'attention'->>'over_yield')::int = 1, 'D overview: one farmer past 120 % needs his look');
-  perform t.ok((r->'cards'->>'over_yield')::int = 1 and (r->'cards'->>'selling')::int >= 2 and (r->'cards'->>'sold_kg')::numeric > 0, 'D register: the cards count them');
+  -- migration 44 (Veda, 14 Oct): above the expected yield is a warning, never a flag to decide; the figures are kept
+  perform t.ok(pg_temp.row_of(r, t.farmer('05'))->'warnings' @> '["above_yield"]' and not (pg_temp.row_of(r, t.farmer('05'))->'flags' @> '["over_yield"]')
+               and (pg_temp.row_of(r, t.farmer('05'))->>'ratio')::numeric > 1.9,
+               'D register: above the expected yield is a warning with his share of it, not a flag');
+  perform t.ok(pg_temp.row_of(r, t.farmer('04'))->'warnings' @> '["above_yield"]' and (pg_temp.row_of(r, t.farmer('04'))->>'ratio')::numeric between 1 and 1.2,
+               'D register: past 100 %: warned');
+  perform t.ok((app.state_home('00000000-0000-4000-8000-000000000001')->'attention'->>'above_yield')::int = 2
+               and not (app.state_home('00000000-0000-4000-8000-000000000001')->'attention' ? 'over_yield'), 'D overview: two warnings, nothing for him to decide');
+  perform t.ok((r->'cards'->>'above_yield')::int = 2 and (r->'cards'->>'selling')::int >= 2 and (r->'cards'->>'sold_kg')::numeric > 0, 'D register: the cards count them');
+  perform t.ok((pg_temp.reg('{"flag":"above_yield"}')->>'total')::int = 2, 'D register: the Warnings filter');
 end $$;
 
 -- 4 · the register: his state only, the phone masked, filters, paging ---------------------------------------------------------

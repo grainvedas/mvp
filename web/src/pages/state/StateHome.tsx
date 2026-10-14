@@ -30,17 +30,19 @@ export interface StateHomeData {
     farmers_waiting: number; farmers_list: { id: string; name: string; village: string; client_id: string; client: string }[];
     unstaffed: number; unstaffed_list: Overview['attention']['unstaffed_list'];
     open_flags: number; flags_list: Overview['attention']['flags_list'];
-    /** migration 43: possible duplicates (same phone), farmers past 120 % of their expected yield, farmers without GI land */
-    duplicates?: number; over_yield?: number; no_gi_land?: number;
+    /** migration 43: possible duplicates (same phone), farmers without GI land; migration 44: changes after verification to
+     *  accept, and farmers above their expected yield (a warning, not counted). `over_yield` came from a server of migration 43. */
+    duplicates?: number; over_yield?: number; no_gi_land?: number; changes?: number; above_yield?: number;
   };
   pipeline: PipelineStage[];
 }
 
 /** Pure: "Needs my action" is the sum of the lines it opens, so the figure and the list never disagree. Farmers without GI
- *  land are shown but not counted: they wait for their Client Manager, and the State Manager meets them at step 2. */
+ *  land are shown but not counted: they wait for their Client Manager, and the State Manager meets them at step 2. Above
+ *  the expected yield is a warning only (migration 44, Veda 14 Oct): shown, never counted. */
 export const needsMyAction = (a: StateHomeData['attention']) =>
   Number(a.no_manager) + Number(a.farmers_waiting) + Number(a.unstaffed) + Number(a.open_flags)
-  + Number(a.duplicates ?? 0) + Number(a.over_yield ?? 0);
+  + Number(a.duplicates ?? 0) + Number(a.changes ?? 0) + (a.changes === undefined ? Number(a.over_yield ?? 0) : 0);
 
 /** Pure: the set-up checklist of the role guide, ticked from the state's own numbers (Veda's five steps, in order). */
 export function stateSetup(d: Pick<StateHomeData, 'crops' | 'clients' | 'scopes' | 'farmers' | 'attention'>): { key: string; done: boolean; to: string | null }[] {
@@ -223,12 +225,13 @@ function ActionPanel({ d }: { d: StateHomeData }) {
         <li data-testid="act-farmers">{t('sh.act_farmers', { n: a.farmers_waiting })}{Number(a.farmers_waiting) > 0 && <> · <Link to="/farmers">{t('home.view')}</Link></>}</li>
         {a.farmers_list.map((f) => <li key={f.id} className="sub-item">{f.name} · {f.village} · {f.client}</li>)}
         {a.duplicates !== undefined && <li data-testid="act-duplicates">{t('sh.act_duplicates', { n: a.duplicates })}{Number(a.duplicates) > 0 && <> · <Link to="/farmers/register?flag=duplicate">{t('home.view')}</Link></>}</li>}
-        {a.over_yield !== undefined && <li data-testid="act-over-yield">{t('sh.act_over_yield', { n: a.over_yield })}{Number(a.over_yield) > 0 && <> · <Link to="/farmers/register?flag=over_yield">{t('home.view')}</Link></>}</li>}
+        {a.changes !== undefined && <li data-testid="act-changes">{t('sh.act_changes', { n: a.changes })}{Number(a.changes) > 0 && <> · <Link to="/farmers/register?flag=changed">{t('home.view')}</Link></>}</li>}
         <li data-testid="act-unstaffed">{t('ov.att_unstaffed', { n: a.unstaffed })}</li>
         {a.unstaffed_list.map((g) => <li key={`${g.scope_id}-${g.stage_type}`} className="sub-item">{g.client} · {g.scope}: <strong>{t(`stage.${g.stage_type}`, undefined, g.stage)}</strong> · <Link to={`/scopes/${g.scope_id}/roster`}>{t('home.view')}</Link></li>)}
         <li data-testid="act-flags">{t('ov.att_flags', { n: a.open_flags })}</li>
         {a.flags_list.map((f) => <li key={f.id} className="sub-item"><Link to={`/records/${f.footprint_id}`} className="mono">{f.record}</Link> · {f.client} · {f.text} <span className="small muted">({date(f.created_at)})</span></li>)}
       </ul>
+      {Number(a.above_yield ?? 0) > 0 && <p className="small muted" data-testid="act-above-yield">{t('sh.act_above_yield', { n: a.above_yield ?? 0 })} · <Link to="/farmers/register?flag=above_yield">{t('home.view')}</Link></p>}
       {Number(a.no_gi_land ?? 0) > 0 && <p className="small muted" data-testid="act-no-gi">{t('sh.act_no_gi', { n: a.no_gi_land ?? 0 })} · <Link to="/farmers/register?flag=no_gi_land">{t('home.view')}</Link></p>}
     </div>
   );

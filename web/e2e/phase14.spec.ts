@@ -101,9 +101,10 @@ test('The crop registry: a ready crop, the wizard, the farmer\'s practice, Procu
   const nrCrop = (await cm.rows('crops', `code=eq.${NOTREADY}`))[0] as { id: string };
   const bad = await cm.insert('scopes', { client_id: PRSDM, crop_id: nrCrop.id, season_code: 'KH27', geography: `Not ready ${CODE}`, chain: ['procurement', 'qc', 'qr_activation'], state_id: UP, status: 'active' });
   expect(refusal(bad)).toContain('this crop is not ready');
-  expect((await cm.update('scopes', `id=eq.${scope}`, { status: 'active' })).ok).toBe(true);
-  for (const [who, stage] of [['00000000-0000-4000-8000-000000000305', 'procurement'], ['00000000-0000-4000-8000-000000000306', 'qc']] as const)
+  // a person at every stage first (migration 44, A3), then it is activated
+  for (const [who, stage] of [['00000000-0000-4000-8000-000000000305', 'procurement'], ['00000000-0000-4000-8000-000000000306', 'qc'], ['00000000-0000-4000-8000-000000000307', 'qr_activation']] as const)
     expect((await cm.rpc('assign', { p_employee: who, p_lens: 'scope', p_target: scope, p_op_role: 'operator', p_stages: [stage], p_posting: '', p_ends_on: null })).ok).toBe(true);
+  expect((await cm.update('scopes', `id=eq.${scope}`, { status: 'active' })).ok).toBe(true);
   // 3 · the farmer's practice, on the farmer's page
   const farmers = await cm.rows('farmers', `client_id=eq.${PRSDM}&status=eq.active&order=name&limit=2`) as { id: string; name: string }[];
   const [answered, open] = farmers;

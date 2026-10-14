@@ -60,6 +60,8 @@ export function ScopeWizard() {
   const crops = useAsync(() => q(supabase.from('crops').select('*').order('name')) as Promise<Crop[]>, []);
   const defs = useAsync(() => q(supabase.from('stage_definitions').select('*').order('sort_order')) as Promise<StageDefinition[]>, []);
   const existing = useAsync(() => id ? q(supabase.from('scopes').select('*').eq('id', id).single()) as Promise<ScopeRow> : Promise.resolve(null), [id]);
+  // what still stops activation (migration 44, Veda 14 Oct): a person on every stage, a ready crop. A server before 44: nothing listed.
+  const missing = useAsync(() => id ? rpc<ActivationMissing>('activation_missing', { p_scope: id }).catch(() => null) : Promise.resolve(null), [id]);
   const [step, setStep] = useState(1);
   const [clientId, setClientId] = useState(me.client_id ?? '');
   const [season, setSeason] = useState('KH26');
@@ -99,8 +101,8 @@ export function ScopeWizard() {
   if (clients.loading || crops.loading || defs.loading || existing.loading || states.loading) return <Loading />;
   const s = existing.data;
   const frozen = !!s && s.status !== 'draft';
-  // Does the signed-in person build THIS scope (its client's Client Manager, migration 41)? A State Manager reads it and
-  // staffs its stages, but neither builds nor changes it. (A server before migration 41 sends no `build`: manage, as before.)
+  // Does the signed-in person build THIS scope (its client's Client Manager, migration 41)? A State Manager reads it; since
+  // migration 44 he does not staff it either (the roster shows no controls to him). (A server before migration 41 sends no `build`: manage, as before.)
   const known = s ? ctx!.scopes.find((x) => x.scope_id === s.id) : undefined;
   const canManage = s ? (known?.build ?? (ctx!.user!.can?.build_scope === undefined ? known?.manage ?? isManager(me.role) : buildsScope(ctx, s.id)))
     : buildsScopes(ctx) || (ctx!.user!.can?.build_scope === undefined && !oversees(ctx));
@@ -135,6 +137,7 @@ export function ScopeWizard() {
     if (!s) nav(`/scopes/${saved.id}?step=people`, { replace: true }); else existing.setData(saved);
     setStep(4);
   });
+  const lacks = activationLacks(missing.data ?? null, label, t);
   const activate = () => act.run(async () => {
     if (!window.confirm(t('wizard.activate_warning'))) return;
     const saved = await q(supabase.from('scopes').update({ status: 'active' }).eq('id', s!.id).select().single()) as ScopeRow;
@@ -210,13 +213,29 @@ export function ScopeWizard() {
         <div className="card">
           <div className="alert info"><strong>Chain:</strong> {s.chain.map(label).join(' → ')}</div>
           <h3>{t('wizard.step4')}</h3>
-          <RosterEditor scopeId={s.id} />
+          <RosterEditor scopeId={s.id} onChanged={() => void missing.reload()} />
           <ErrorBox error={act.error} />
+          {s.status === 'draft' && canManage && lacks.length > 0 && (
+            <div className="alert warn" data-testid="activation-missing">{t('wizard.cannot_activate')}
+              <ul>{lacks.map((x) => <li key={x}>{x}</li>)}</ul></div>)}
           {s.status === 'draft' && canManage && <div className="row"><button className="secondary" onClick={() => setStep(3)}>{t('common.back')}</button>
-            <button className="gold" onClick={activate} disabled={act.busy}>{t('wizard.activate')}</button></div>}
+            <button className="gold" onClick={activate} disabled={act.busy || lacks.length > 0} data-testid="activate">{t('wizard.activate')}</button></div>}
           {s.status !== 'draft' && <p className="small"><Link to="/">{t('nav.home')}</Link> · <Link to={`/scopes/${s.id}/roster`}>{t('roster.title')}</Link></p>}
         </div>
       )}
     </div>
   );
+}
+
+/** What the server says still stops a scope's activation (migration 44). */
+export interface ActivationMissing { crop: string[]; retired: boolean; stages: StageType[] }
+/** Pure: the lines "what is missing" under the Activate button, crop first, then each stage with nobody. */
+export function activationLacks(m: ActivationMissing | null, label: (x: StageType) => string,
+  t: (k: string, v?: Record<string, string | number>, f?: string) => string): string[] {
+  if (!m) return [];
+  return [
+    ...(m.retired ? [t('wizard.lack_retired')] : []),
+    ...m.crop.map((k) => t('wizard.lack_crop', { what: t(`crops.missing_${k}`, undefined, k) })),
+    ...m.stages.map((x) => t('wizard.lack_stage', { stage: label(x) })),
+  ];
 }

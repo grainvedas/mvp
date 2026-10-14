@@ -97,8 +97,12 @@ select t.fails(format($q$ select app.assign(%L, 'client', %L, 'client_account') 
                'outside what you manage', 'assign: a client''s account cannot appoint another account');
 select t.fails(format($q$ select app.assign(%L, 'state', %L, 'state_supervisor') $q$, pg_temp.f('intern'), '00000000-0000-4000-8000-000000000001'),
                'outside what you manage', 'assign: nor a state supervisor');
-select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{procurement}') $q$, t.u('03'), t.scope('02')), 'cannot assign yourself', 'assign: nor themselves');
-select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{qc}') $q$, t.u('04'), t.scope('02')), 'only view its own client', 'assign: a client login is never given a stage');
+do $$ declare v uuid; begin
+  v := (app.assign(t.u('03'), 'scope', t.scope('02'), 'operator', '{procurement}')->'assignment'->>'id')::uuid;
+  perform t.ok(v is not null, 'assign: the Client Manager may put himself on a stage, for a small client (migration 44, Veda 14 Oct)');
+  perform t.ok((app.end_assignment(v, 'test')->'assignment'->>'active')::boolean = false, 'end: and take himself off it again');
+end $$;
+select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{qc}') $q$, t.u('04'), t.scope('02')), 'login holds no stage', 'assign: a client login is never given a stage');
 select t.as_service();
 select t.ok((select count(*) from public.slot_assignments where assignment_id = pg_temp.f('a1')) = 2
             and (select action = 'assigned' and actor = t.u('03') and detail->'stages' = '["sorting","grading"]' from pg_temp.last_audit(pg_temp.f('full')))
@@ -121,11 +125,21 @@ insert into public.scopes (id, client_id, crop_id, season_code, geography, chain
 values (pg_temp.f('sx'), '00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000101', 'KH26', 'Exporter yard', '{lot_inward,qc,qr_activation}');
 select t.as_user(t.u('03'));
 select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{qc}') $q$, pg_temp.f('intern'), pg_temp.f('sx')), 'outside what you manage', 'assign: a client''s account cannot assign into another client');
-select t.as_user(t.u('02'));   -- supervisor of UP: any client's scope in the state, and the accounts of clients homed there
-insert into fx (k, j) values ('a2', app.assign(pg_temp.f('intern'), 'scope', pg_temp.f('sx'), 'operator', '{qc}'));
+select t.as_user(t.u('02'));   -- supervisor of UP: the accounts of clients homed there; no scope's roster (migration 44)
+select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{qc}') $q$, pg_temp.f('intern'), pg_temp.f('sx')), 'outside what you manage',
+               'assign: the state supervisor staffs no scope, not even in his state (migration 44, Veda 14 Oct)');
 insert into fx (k, j) values ('a3', app.assign(pg_temp.f('intern'), 'client', '00000000-0000-4000-8000-000000000202', 'client_account'));
+select t.as_service();   -- the exporter's new account staffs its scope (here: himself, as the roster would; migration 44)
+do $$ declare v uuid; begin
+  perform set_config('app.assigning', 'on', true);
+  insert into public.assignments (employee_id, lens, op_role, scope_id, stages) values (pg_temp.f('intern'), 'scope', 'operator', pg_temp.f('sx'), '{qc}') returning id into v;
+  insert into public.slot_assignments (user_id, scope_id, stage_type, assignment_id) values (pg_temp.f('intern'), pg_temp.f('sx'), 'qc', v);
+  perform set_config('app.assigning', '', true);
+  insert into fx (k, j) values ('a2', jsonb_build_object('assignment', jsonb_build_object('id', v)));
+end $$;
+select t.as_user(t.u('02'));
 update fx set id = (j->'assignment'->>'id')::uuid where id is null;
-select t.ok((select count(*) from fx where k in ('a2', 'a3') and id is not null) = 2, 'assign: the state supervisor assigns in any client''s scope in the state, and appoints a client''s account');
+select t.ok((select count(*) from fx where k in ('a2', 'a3') and id is not null) = 2, 'assign: the state supervisor appoints a client''s account, who staffs the client''s scope');
 select t.fails(format($q$ select app.assign(%L, 'state', %L, 'state_supervisor') $q$, pg_temp.f('full'), '00000000-0000-4000-8000-000000000001'),
                'outside what you manage', 'assign: but does not appoint a fellow supervisor');
 select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{procurement}') $q$, pg_temp.f('full'), '00000000-0000-4000-8000-000000000407'),
@@ -171,7 +185,7 @@ select t.ok((app.scope_roster(t.scope('02'))->'gaps') = '["sorting"]'::jsonb
             'coverage: the scope roster flags the unstaffed stage');
 select t.fails(format($q$ select app.end_assignment(%L) $q$, pg_temp.f('a1')), 'already ended', 'end: once');
 select t.fails(format($q$ select app.end_assignment(%L) $q$, pg_temp.f('a2')), 'outside what you manage', 'end: not another client''s assignment');
-select t.fails(format($q$ select app.end_assignment(%L) $q$, (select id from public.assignments where employee_id = t.u('03') and active)), 'outside what you manage', 'end: not their own seat');
+select t.fails(format($q$ select app.end_assignment(%L) $q$, (select id from public.assignments where employee_id = t.u('03') and active and lens = 'client')), 'outside what you manage', 'end: not their own seat');
 select t.as_service();
 select t.ok(not app.is_my_stage(pg_temp.f('full'), t.scope('02'), 'grading')
             and (select action = 'revoked' and detail->>'reason' = 'moved to another mill' from pg_temp.last_audit(pg_temp.f('full')))

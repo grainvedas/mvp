@@ -53,21 +53,29 @@ export function StagePage() {
   const { t, lang } = useI18n();
   const form = useAsync(() => cached(`stage_form:${scopeId}:${stage}`, () => rpc<StageForm>('stage_form', { p_scope: scopeId, p_stage: stage })), [scopeId, stage]);
   const [draft, setDraft] = useState<OutboxItem | null>(null);
-  useEffect(() => { if (draftId) void getOutboxItem(draftId).then((d) => setDraft(d ?? null)); else setDraft(null); }, [draftId]);
+  const [draftMissing, setDraftMissing] = useState(false);
+  useEffect(() => {
+    setDraftMissing(false);
+    if (draftId) void getOutboxItem(draftId).then((d) => { setDraft(d ?? null); setDraftMissing(!d); }, () => { setDraft(null); setDraftMissing(true); });
+    else setDraft(null);
+  }, [draftId]);
   // ?replaces=<id>: record the replacement of a withdrawn record (same source lot, values prefilled, linked by supersedes_id)
   const [replaces, setReplaces] = useState<{ old: Footprint; source: Footprint | null } | null>(null);
   useEffect(() => {
     if (!replacesId) { setReplaces(null); return; }
+    setReplacesFailed(false);
     void (async () => {
       const old = await q(supabase.from('footprints').select('*').eq('id', replacesId).single()) as unknown as Footprint;
       const src = old.prev_footprint_id && !old.is_grade_lot
         ? await q(supabase.from('footprints').select('*').eq('id', old.prev_footprint_id).single()) as unknown as Footprint : null;
       setReplaces({ old, source: src });
-    })().catch(() => setReplaces(null));
+    })().catch(() => { setReplaces(null); setReplacesFailed(true); });
   }, [replacesId]);
   const [tab, setTab] = useState<'incoming' | 'new' | 'records'>('incoming');
   const [source, setSource] = useState<Footprint | null>(null);
   const [editing, setEditing] = useState<Footprint | null>(null);
+  const [editFailed, setEditFailed] = useState(false);
+  const [replacesFailed, setReplacesFailed] = useState(false);
 
   // A first stage has no "waiting" list. Someone who may not record there (a client viewer, a manager looking in, the
   // operator of another stage) lands on its records; before, the page showed its tabs and nothing under them.
@@ -76,11 +84,15 @@ export function StagePage() {
   useEffect(() => { if (form.data) setTab(wantRecords ? 'records' : form.data.stage.is_first ? (form.data.can_create ? 'new' : 'records') : 'incoming'); }, [form.data, wantRecords]);
   useEffect(() => {
     if (!editId) { setEditing(null); return; }
-    void q(supabase.from('footprints').select('*').eq('id', editId).single()).then((f) => setEditing(f as unknown as Footprint), () => setEditing(null));
+    setEditFailed(false);
+    void q(supabase.from('footprints').select('*').eq('id', editId).single()).then((f) => setEditing(f as unknown as Footprint), () => { setEditing(null); setEditFailed(true); });
   }, [editId]);
   // A form opened by a link (?edit, ?draft, ?replaces) is shown whatever tab is selected: before, the correction form
   // of any stage but the first was replaced by the "waiting" list as soon as the stage definition finished loading.
   const opened = !!(draft || replaces || editing);
+  // A link to a form (?edit, ?draft, ?replaces) whose record is still loading: nothing else is shown meanwhile. Before,
+  // the empty "new record" form stood there and took what was typed, then the correction replaced it (14 Oct 2026).
+  const opening = !opened && !!((editId && editing === null && !editFailed) || (draftId && draft === null && !draftMissing) || (replacesId && replaces === null && !replacesFailed));
   const pick = (next: 'incoming' | 'new' | 'records') => {
     if (opened) setSearch({}, { replace: true });                       // leaving the opened form
     setTab(next); setSource(null);
@@ -111,12 +123,13 @@ export function StagePage() {
       {draft && <RecordForm key={draft.id} form={f} source={draft.source as Footprint | null} editing={null} draft={draft} />}
       {!draft && replaces && <RecordForm key={`r-${replaces.old.id}`} form={f} source={replaces.source} editing={null} replaces={replaces.old} />}
       {!draft && !replaces && editing && <RecordForm key={`e-${editing.id}`} form={f} source={null} editing={editing} />}
-      {!opened && tab === 'incoming' && !source && <Incoming form={f} onPick={(fp) => setSource(fp)} />}
-      {!opened && tab === 'incoming' && source && (
+      {opening && <Loading />}
+      {!opened && !opening && tab === 'incoming' && !source && <Incoming form={f} onPick={(fp) => setSource(fp)} />}
+      {!opened && !opening && tab === 'incoming' && source && (
         <VerifyAndContinue form={f} source={source} onBack={() => setSource(null)} onReload={(fp) => setSource(fp)} />
       )}
-      {!opened && tab === 'new' && f.can_create && <RecordForm key="new" form={f} source={null} editing={null} />}
-      {!opened && tab === 'records' && <Records form={f} />}
+      {!opened && !opening && tab === 'new' && f.can_create && <RecordForm key="new" form={f} source={null} editing={null} />}
+      {!opened && !opening && tab === 'records' && <Records form={f} />}
     </div>
   );
 }
@@ -325,8 +338,12 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
   const missing = missingRequired(fields, values);
   const built = useMemo(() => buildPayload(fields, values), [fields, values]);
   const timer = useRef<number | undefined>(undefined);
+  // Only the answer to the latest values is shown: on a slow line an earlier preview could arrive last and show figures
+  // for values no longer on the form (14 Oct 2026: the correction showed "98 kg" after the weight was changed to 110).
+  const asked = useRef(0);
 
   useEffect(() => {
+    const n = ++asked.current;
     setReviewing(false); setConfirmed(false);
     if (missing.length) { setPreview(null); setVerdict(null); return; }
     window.clearTimeout(timer.current);
@@ -339,14 +356,15 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
           : await within(PREVIEW_WAIT_MS, rpc<Preview>('preview_reconcile', { p_scope: form.scope.id, p_stage: form.stage.stage_type,
               p_prev: source?.id ?? built.columns.prev_footprint_id ?? null, p_payload: built.payload, p_farmer: built.columns.farmer_id ?? null,
               p_split: built.columns.split_into_grades === true }));
+        if (n !== asked.current) return;
         setPreview(p);
         if (readingsKey && p.ok) {
           // The same judging the save runs (migration 29). No answer (no network, or a server without it): the screen
           // says the result comes with the save, as before.
-          try { setVerdict(await within(PREVIEW_WAIT_MS, rpc<VerdictPreview>('preview_verdict', { p_scope: form.scope.id, p_readings: built.payload[readingsKey] ?? {} }))); }
-          catch { setVerdict(null); }
+          try { const v = await within(PREVIEW_WAIT_MS, rpc<VerdictPreview>('preview_verdict', { p_scope: form.scope.id, p_readings: built.payload[readingsKey] ?? {} })); if (n === asked.current) setVerdict(v); }
+          catch { if (n === asked.current) setVerdict(null); }
         } else setVerdict(null);
-      } catch (e) { setVerdict(null); setPreview(isNetworkError(e) && !editing ? local() : { ok: false, error: errorText(toAppError(e), t) }); }
+      } catch (e) { if (n !== asked.current) return; setVerdict(null); setPreview(isNetworkError(e) && !editing ? local() : { ok: false, error: errorText(toAppError(e), t) }); }
     }, 350);
     return () => window.clearTimeout(timer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps

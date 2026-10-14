@@ -261,6 +261,16 @@ select 'farmer register',         case when to_regprocedure('app.farmer_register
                                       then 'OLD (push migration 43)'
                                       else 'OK GI land before the Farmer ID; duplicates by phone flagged; yield checked' end
 union all
+select 'rules and farmer ids',     case when to_regprocedure('app.stage_refusal(uuid, uuid)') is null or to_regclass('public.state_farmers') is null
+                                        or to_regclass('public.farmer_change_flags') is null
+                                      then 'MISSING (push migration 44)'
+                                      when not exists (select 1 from pg_trigger where tgname = 'scopes_a3_staffed')
+                                        or not exists (select 1 from pg_trigger where tgname = 'farmers_z3_state_id')
+                                        or position('a2.lens' in pg_get_functiondef('app.manages_place(uuid, uuid, uuid)'::regprocedure)) > 0
+                                        or position('''state''' in pg_get_functiondef('app.manages_place(uuid, uuid, uuid)'::regprocedure)) > 0
+                                      then 'OLD (push migration 44)'
+                                      else 'OK rosters by the Client Manager; every stage staffed before activation; two farmer IDs' end
+union all
 select 'reminder round',          case when to_regclass('cron.job') is null then 'NO pg_cron: reminders are queued when HR opens the Joiners list'
                                       when (xpath('/row/n/text()', query_to_xml(
                                               'select count(*) as n from cron.job where jobname = ''grainveda-reminders''', false, true, '')))[1]::text::int = 1

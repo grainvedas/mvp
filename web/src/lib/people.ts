@@ -16,6 +16,8 @@ export interface DirectoryPerson {
   id: string; name: string; email: string | null; phone: string | null; status: EmployeeStatus; system_role: SystemRole;
   external: boolean; join_date: string | null; has_login: boolean; org: OrgFacts;
   assignments: AssignmentInfo[]; elsewhere: number; unassigned: boolean;
+  /** migration 44: the server says whether "Assign" is offered on this person */
+  assignable?: boolean;
 }
 export interface Profile {
   identity: { id: string; name: string; email: string | null; phone: string | null; status: EmployeeStatus; external: boolean;

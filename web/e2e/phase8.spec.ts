@@ -316,15 +316,14 @@ test.describe('at a desk', () => {
     // grey describes; colour grants
     const qc = person(page, 'QC Technician');
     await expect(qc.locator('.org-line')).toHaveText('QC Technician · Executive · Quality · Full-time');
-    await expect(qc.getByTestId('access-badges').locator('.badge.lens-scope')).toHaveCount(6);
+    await expect(qc.getByTestId('access-badges').locator('.badge.lens-scope').nth(5)).toBeVisible();   // six in the demo (more after other tests)
     await expect(person(page, 'Prasaadam Client Manager').getByTestId('access-badges').locator('.badge.lens-client')).toHaveText('Client account: GrainVeda (Prasaadam trade scope)');
-    // the wall: someone with access outside what this manager manages is a number, not a place
-    // (the list is paged on the server since migration 38: a name late in the alphabet is found by searching for it)
-    await page.locator('#pf-text').fill('UP State Manager');
-    const sm = person(page, 'UP State Manager');
-    await expect(sm.getByTestId('elsewhere')).toHaveText('+1 elsewhere');
-    await expect(sm.getByTestId('access-badges')).not.toContainText('State Manager');
-    await expect(sm.getByTestId('access-badges').locator('.badge.lens-state')).toHaveCount(0);
+    // the wall (migration 44, A4): his client's people and his state's pool only; the State Manager, the admin and HR
+    // are not his to list (the list is paged on the server since migration 38: a name is found by searching for it)
+    for (const nobody of ['UP State Manager', 'Veda (Admin)', 'Imran (HR)']) {
+      await page.locator('#pf-text').fill(nobody);
+      await expect(page.getByTestId('person-row')).toHaveCount(0);
+    }
     await page.locator('#pf-text').fill('');
     // the lenses offered are the ones this reader's view reaches
     await expect(page.locator('#pf-client option')).toHaveText(['Any client', 'GrainVeda (Prasaadam trade scope)']);
@@ -421,13 +420,15 @@ test.describe('at a desk', () => {
       await expect(page.getByTestId('assign-warnings')).toContainText('Already working at another place this season');
       await page.getByTestId('assign-save').click();
       await expect(page.getByTestId('assignment')).toHaveCount(2);
-      // the same client in another state: allowed through the client lens, and said
+      // the same client in another state: a stage only for people based in the scope's state (migration 44, A2)
       await page.getByTestId('give-assignment').click();
       await page.locator('#a-scope').selectOption(NAGAON);
       await page.getByRole('checkbox', { name: /^Procurement/ }).check();
       await expect(page.getByTestId('assign-warnings')).toContainText('Already working in another state');
       await page.getByTestId('assign-save').click();
-      await expect(page.getByTestId('assignment')).toHaveCount(3);
+      await expect(page.locator('form').getByRole('alert')).toContainText('This person is not based in Assam', { useInnerText: true });
+      await page.goto(`/people/${made.id}`);
+      await expect(page.getByTestId('assignment')).toHaveCount(2);
       // the same place twice is refused, in the server's words
       await page.getByTestId('give-assignment').click();
       await page.locator('#a-scope').selectOption(SCOPES.siddharthnagar);
@@ -482,13 +483,12 @@ test.describe('at a desk', () => {
       const old = page.getByTestId('assignment-ended').filter({ hasText: 'Gorakhpur' });
       await expect(old).toContainText('needed at the mill');
       await expect(old.getByRole('button')).toHaveCount(0);                                         // forward only: an ended one is never reopened
-      // ending the only holder of a stage: said before, not after
-      await card('Nagaon').getByRole('button', { name: /^End/ }).click();
-      await expect(page.getByTestId('coverage-warning')).toHaveText('This will leave nobody at: Procurement (farm-gate).');
+      // ending one: with a reason, kept as ended
+      await card('Basti').getByRole('button', { name: /^End/ }).click();
       await page.getByTestId('confirm').getByLabel(/Reason/).fill('season over');
       await page.getByTestId('confirm-yes').click();
-      await expect(page.getByTestId('assignment-ended').filter({ hasText: 'Nagaon' })).toContainText('season over');
-      await expect(page.getByTestId('assignment')).toHaveCount(2);
+      await expect(page.getByTestId('assignment-ended').filter({ hasText: 'Basti' })).toContainText('season over');
+      await expect(page.getByTestId('assignment')).toHaveCount(1);
       await signOut(page);
 
       // every one of those acts is a line in the audit log
@@ -498,7 +498,7 @@ test.describe('at a desk', () => {
       for (const action of ['identity_created', 'assigned', 'activated', 'stages_changed', 'reassigned', 'revoked']) {
         await expect(lines.and(page.locator(`[data-action="${action}"]`)).first()).toBeVisible();
       }
-      await expect(lines.and(page.locator('[data-action="assigned"]'))).toHaveCount(4);          // three given, and the one the move began
+      await expect(lines.and(page.locator('[data-action="assigned"]'))).toHaveCount(3);          // two given, and the one the move began
       await expect(lines.and(page.locator('[data-action="reassigned"]'))).toContainText('needed at the mill');
     } finally {
       // leave the demo scopes as they were: HR ends whatever this person still holds (the admin no longer may, once the
@@ -624,7 +624,7 @@ test.describe('at a desk', () => {
     await expect(page.getByTestId('slot-holder-procurement').filter({ hasText: 'Procurement Op (field)' })).toBeVisible();
     await expect(page.getByTestId('roster-managers')).toContainText('Prasaadam Client Manager Client account');
     await expect(page.getByTestId('roster-managers')).toContainText('UP State Manager State Manager');
-    await expect(page.getByRole('combobox', { name: 'Assign Procurement (farm-gate)' })).toBeVisible();   // may assign in the own state
+    await expect(page.getByRole('combobox', { name: 'Assign Procurement (farm-gate)' })).toHaveCount(0);   // migration 44: he reads rosters, the Client Manager staffs them
     // … and stops at the border
     await page.goto(`/scopes/${NAGAON}/roster`);
     await expect(page.getByRole('alert').first()).toBeVisible();

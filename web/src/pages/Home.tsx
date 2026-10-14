@@ -291,7 +291,7 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
         : scopes.length > 1 && <p><button className="secondary" onClick={() => choose(null)}>{t('home.back_overall')}</button></p>}
       {manager && <LedgerHealth />}
       {draft ? (
-        <div className="card"><p>{t('home.in_setup')}</p><Link className="btn" to={`/scopes/${scope.id}`}>{t(watch ? 'ov.scope_details' : 'home.set_up')}</Link></div>
+        <div className="card"><p>{t('home.in_setup')}</p><Link className="btn" to={`/scopes/${scope.id}`}>{t(watch || actsAsStateManager(ctx) ? 'ov.scope_details' : 'home.set_up')}</Link></div>
       ) : (
         <>
           <div className="stats" data-testid="stats">

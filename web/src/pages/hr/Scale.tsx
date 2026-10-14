@@ -137,7 +137,8 @@ function OpeningForm({ opening, done }: { opening: Opening | null; done: () => v
   const clients = { data: targets.data?.clients };
   const scopes = { data: targets.data?.scopes };
   const act = useAction();
-  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  // G3 (Veda, 14 Oct): one State Manager per state, so a State Manager opening has 1 position
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value, ...(k === 'role' && e.target.value === 'state_manager' ? { positions: '1' } : {}) });
   const sc = (scopes.data ?? []).find((x) => x.id === f.scope_id);
   const stageChoices = sc ? sc.chain : STAGES;
   const needsClient = f.role === 'client_manager' || f.role === 'operator' || f.role === 'export_manager';
@@ -153,7 +154,7 @@ function OpeningForm({ opening, done }: { opening: Opening | null; done: () => v
           <option value="">—</option>{(states.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
         <Field label={t('open.role')} htmlFor="of-role"><select id="of-role" value={f.role} onChange={set('role')}>
           {HIRE_ROLES.map((r) => <option key={r} value={r}>{t(`role.${r}`)}</option>)}</select></Field>
-        <Field label={t('open.positions')} htmlFor="of-pos"><input id="of-pos" type="number" min={1} max={5000} value={f.positions} onChange={set('positions')} required /></Field>
+        <Field label={t('open.positions')} htmlFor="of-pos"><input id="of-pos" type="number" min={1} max={f.role === 'state_manager' ? 1 : 5000} value={f.positions} onChange={set('positions')} required data-testid="of-positions" /></Field>
         {needsClient && <Field label={t('lens.client')} hint={t('common.optional')} htmlFor="of-client"><select id="of-client" value={f.client_id} onChange={(e) => setF({ ...f, client_id: e.target.value, scope_id: '' })}>
           <option value="">{t('open.any_client')}</option>{(clients.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>}
         {needsScope && <Field label={t('lens.scope')} hint={t('common.optional')} htmlFor="of-scope"><select id="of-scope" value={f.scope_id} onChange={set('scope_id')}>
@@ -302,7 +303,7 @@ export function ImportJoiners() {
   const [show, setShow] = useState<'all' | 'problems'>('problems');
   const act = useAction();
   const template = () => {
-    const openings = (open.data?.openings ?? []).filter((o) => o.status === 'open');
+    const openings = (open.data?.openings ?? []).filter((o) => o.status === 'open' && o.vacant > 0);   // G4: no full opening
     return writeXlsxFile([
       [IMPORT_COLUMNS.map((c) => ({ value: c, fontWeight: 'bold' as const })),
         ['Ram Kumar', 'ram.kumar@example.com', '9876543210', '2026-11-01', 'full_time', 'B1', 'Field operations', 'Field Operator', '', openings[0]?.code ?? 'UP-OPR-001',

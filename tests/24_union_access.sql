@@ -105,7 +105,9 @@ select t.ok((select count(*) from public.scopes where id = pg_temp.f('sx')) = 1 
             'state lens: the UP supervisor sees the other client''s UP scope, not Prasaadam''s Assam scope');
 select t.ok((select count(*) from public.footprints where id = pg_temp.f('la')) = 0, 'state lens: nor its records');
 select t.fails(format($q$ insert into public.slot_assignments (user_id, scope_id, stage_type) values (%L, %L, 'qc') $q$, t.u('09'), pg_temp.f('sa')),
-               'row-level security', 'state lens: nor can they staff it');
+               'not based in', 'state lens: nor can they staff it (and the person is not based there)');
+select t.fails(format($q$ insert into public.slot_assignments (user_id, scope_id, stage_type) values (%L, %L, 'qc') $q$, t.u('09'), pg_temp.f('sx')),
+               'row-level security', 'state lens: nor any scope of their own state: the Client Manager staffs it (migration 44, Veda 14 Oct)');
 select t.fails($q$ insert into public.scopes (client_id, crop_id, state_id, season_code, geography, chain)
    values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000002', 'KH26', 'Dibrugarh', '{lot_inward,qc,qr_activation}') $q$,
    'in its client''s own state', 'state lens: nor open a scope in a state that is not theirs');
@@ -118,7 +120,8 @@ select t.ok((select count(*) from public.scopes) = 2 and (select bool_and(state_
 select t.ok((select count(*) from public.clients) = 1, 'state lens: and the one client that works in Assam, though its home is UP');
 select t.ok((select count(*) from public.farmers) = 0, 'state lens: but not that client''s farmers, who are of UP (migration 41: the farmer''s state decides)');
 select t.ok((select count(*) from public.footprints) = 1, 'state lens: and the one record made in Assam');
-select t.ok((app.withdraw_footprint(pg_temp.f('la'), 'state supervisor test')).status = 'superseded', 'state lens: which they may withdraw: they manage every scope in their state');
+select t.fails(format($q$ select app.withdraw_footprint(%L, 'state supervisor test') $q$, pg_temp.f('la')), 'only a manager',
+               'state lens: which they read but do not withdraw: the State Manager watches his state (migration 44, K62)');
 select t.as_user(t.u('03'));   -- account of Prasaadam
 select t.ok((select count(*) from public.scopes where state_id = '00000000-0000-4000-8000-000000000002') = 2
             and (select count(*) from public.scopes where id = pg_temp.f('sx')) = 0,

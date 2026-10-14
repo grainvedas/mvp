@@ -9,6 +9,7 @@ begin
   values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000101', 'RB27', 'Returning test',
           '{procurement,qc,qr_activation}', 'draft') returning * into r;
   perform t.ok(r.id is not null and r.status = 'draft', 'client manager creates a draft scope and reads it back');
+  perform t.staff(r.id);   -- migration 44: every stage has a person first
   update public.scopes set status = 'active' where id = r.id returning * into r;
   perform t.ok(r.status = 'active' and r.quality_params is not null, 'client manager activates it; limits frozen at activation');
   perform t.as_user(t.u('04'));

@@ -92,6 +92,20 @@ test('Scope wizard: build a chain, give a stage to a person from the pool, activ
   await expect(page.getByRole('row', { name: /Sorting/ })).toContainText('Sorting Operator');
   await expect(page.getByTestId('roster-gaps')).toContainText('3 stage(s) with nobody');
   await expect(page.getByTestId('gap-qc')).toBeVisible();                                   // a stage nobody holds is flagged
+  // migration 44 (Veda, 14 Oct): activation waits for a person on every stage, and says which are missing
+  await expect(page.getByTestId('activate')).toBeDisabled();
+  await expect(page.getByTestId('activation-missing')).toContainText('nobody yet at Quality Control');
+  // the pool: people based in Uttar Pradesh and the Client Manager himself; never the State Manager
+  await page.getByTestId('roster-find').fill('State Manager');
+  await expect(page.getByLabel('Assign Quality Control').locator('option')).toHaveCount(1);   // only "choose from the pool"
+  for (const [stage, who] of [['Procurement (farm-gate)', 'Procurement Op'], ['Quality Control', 'QC Technician'], ['QR Activation (seal)', 'QR Sealer']]) {
+    await page.getByTestId('roster-find').fill(who);
+    await expect(page.getByLabel(`Assign ${stage}`).locator('option', { hasText: who })).toHaveCount(1);
+    await page.getByLabel(`Assign ${stage}`).selectOption({ index: 1 });
+    await expect(page.getByRole('row', { name: new RegExp(stage.replace(/[()]/g, '.')) })).toContainText(who);
+  }
+  await expect(page.getByTestId('roster-covered')).toBeVisible();
+  await expect(page.getByTestId('activation-missing')).toHaveCount(0);
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Activate scope' }).click();
   await expect(page.getByRole('heading', { name: new RegExp(`Deoria ${u}`) })).toContainText('Active');
@@ -130,6 +144,8 @@ test('Farmer: operator saves a draft; the Client Manager verifies it; the State 
   await row.getByRole('link', { name: 'Add it' }).click();
   await expect(page.getByLabel('Name *', { exact: true })).toHaveValue(`Kalawati ${u}`);
   await page.getByTestId('farmer-gi-land').fill('1.5');
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();       // migration 44: it has a client farmer ID
+  await page.getByTestId('farmer-why').fill('GI land measured at the visit');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByLabel('Client').selectOption({ label: 'GrainVeda (Prasaadam trade scope)' });
   await page.getByRole('tab', { name: 'Ready to verify' }).click();

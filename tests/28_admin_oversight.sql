@@ -107,6 +107,7 @@ begin
   get diagnostics n = row_count;
   perform t.ok(n = 0 and (select status from public.farmers where id = d) = 'active', 'farmers: the admin deactivates no farmer');
   perform t.as_user(t.u('02'));
+  perform set_config('app.change_reason', 'control', true);   -- migration 44: a farmer with an ID changes with a reason
   update public.farmers set status = 'inactive' where id = d;
   perform t.ok((select status from public.farmers where id = d) = 'inactive', 'control: the State Manager deactivates');
   perform t.as_service();

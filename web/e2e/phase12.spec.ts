@@ -31,7 +31,7 @@ test('HR by geography: an HR resource works for her states; the HR Admin gives t
   await page.goto(`/hr/joiners/${as.id}`);
   await expect(page.getByRole('heading', { name: asName })).toHaveCount(0);
   await page.goto('/hr/joiners/new');
-  await expect(page.locator('#j-base option')).toHaveText(['Uttar Pradesh', 'Uttar Pradesh']);   // the default (his one state), and it
+  await expect(page.locator('#j-base option')).toHaveText(['Uttar Pradesh']);   // his one state, once (migration 44, G9: it was listed twice)
   // the opening chosen on the form reaches the joiner (the fault of 12 Oct: create-user dropped it)
   const api = await apiAs(page);
   const opening = (await api.rpc('save_opening', { p: { state_id: '00000000-0000-4000-8000-000000000001', role: 'operator', stage: 'qc',

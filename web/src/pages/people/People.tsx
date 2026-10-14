@@ -36,7 +36,12 @@ export function Directory() {
   const states = useStates();
   const scope = useHrScope();
   // a State Manager (migration 41): his state's clients and his state only; a client may come from his overview (?client=)
-  const sm = ctx?.user?.can?.state_manager ? myStateIds(ctx) : null;
+  const sm0 = ctx?.user?.can?.state_manager ? myStateIds(ctx) : null;
+  // a Client Manager (migration 44, Veda 14 Oct): his clients and their state only
+  const myClients = (ctx?.assignments ?? []).filter((a) => a.lens === 'client' && a.op_role === 'client_account').map((a) => a.client_id ?? '');
+  const cm = !sm0 && !oversees(ctx) && !can.hr && myClients.length > 0
+    ? [...new Set((clients.data ?? []).filter((c) => myClients.includes(c.id)).map((c) => c.state_id).filter((x): x is string => !!x))] : null;
+  const sm = sm0 ?? cm;
   const [params] = useSearchParams();
   const [f, setF] = useState<DirectoryFilter>({ text: '', client: params.get('client') ?? '', state: '', status: '', unassigned: false, kind: 'employees' });
   const [qq, setQq] = useState('');
@@ -80,7 +85,7 @@ export function Directory() {
               <td><Link to={`/people/${p.id}`}><strong>{p.name}</strong></Link><OrgLine org={p.org} /><div className="small muted">{p.email ?? p.phone ?? ''}</div></td>
               <td><StatusBadge status={p.status} />{!p.has_login && <> <Badge value="draft" label={t('people.no_login')} /></>}</td>
               <td><AccessBadges systemRole={p.system_role} assignments={p.assignments} elsewhere={p.elsewhere} unassigned={p.unassigned && !p.external} /></td>
-              <td>{givesAssignments(ctx) && !p.external && p.system_role !== 'admin' && ['invited', 'onboarding', 'active'].includes(p.status) && p.id !== ctx?.user?.id &&
+              <td>{(p.assignable ?? (givesAssignments(ctx) && !p.external && p.system_role !== 'admin' && ['invited', 'onboarding', 'active'].includes(p.status) && p.id !== ctx?.user?.id)) &&
                 <Link className="btn secondary" to={`/people/${p.id}/assign`} aria-label={`${t('assign.title')}: ${p.name}`}>{t('assign.title')}</Link>}</td>
             </tr>))}</tbody>
         </table></div>)}
@@ -310,7 +315,8 @@ export function AssignPage() {
   // The HR Admin seats State Managers (a state, nothing else); a State Manager also gives a client's account; the admin
   // gives nothing (migration 35, Veda 10 Oct).
   const seatOnly = seatsStateManagers(ctx) && !can.assign;
-  const [lens, setLens] = useState<Lens>(seatOnly ? 'state' : 'scope');
+  // migration 44 (Veda, 14 Oct): "A scope" only for whoever runs a scope (its Client Manager); the State Manager keeps "A client's account"
+  const [lens, setLens] = useState<Lens>(seatOnly ? 'state' : scopes.length > 0 || !can.state_lens ? 'scope' : 'client');
   const [target, setTarget] = useState(search.get('scope') ?? '');
   const [role, setRole] = useState<OpRole>('operator');
   const [stages, setStages] = useState<StageType[]>(search.get('stage') ? [search.get('stage') as StageType] : []);
@@ -331,7 +337,7 @@ export function AssignPage() {
   const who = person.data.identity;
   const sc = scopes.find((s) => s.scope_id === target);
   if (!givesAssignments(ctx)) return <div className="alert info" data-testid="assign-not-yours">{t('assign.not_yours')}</div>;
-  const lenses: Lens[] = seatOnly ? ['state'] : ['scope', ...(can.state_lens ? ['client' as Lens] : []), ...(seatsStateManagers(ctx) ? ['state' as Lens] : [])];
+  const lenses: Lens[] = seatOnly ? ['state'] : [...(scopes.length > 0 || !can.state_lens ? ['scope' as Lens] : []), ...(can.state_lens ? ['client' as Lens] : []), ...(seatsStateManagers(ctx) ? ['state' as Lens] : [])];
   const ready = !!target && (lens !== 'scope' || role === 'export_manager' || stages.length > 0);
   const submit = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
     await rpc('assign', { p_employee: id, p_lens: lens, p_target: target, p_op_role: opRole, p_stages: lens === 'scope' ? stages : [], p_posting: posting, p_ends_on: endsOn || null });
@@ -399,10 +405,10 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
   const [find, setFind] = useState('');
   const [findQ, setFindQ] = useState('');
   useEffect(() => { const h = setTimeout(() => setFindQ(find), 300); return () => clearTimeout(h); }, [find]);
-  // the pool, from the server, searched (migration 38: hundreds of people; the first 100 by name, or those matching)
-  const pool = useAsync(async () => canManage ? ((await rpc<{ rows: DirectoryPerson[] }>('people_page', { p: { q: findQ || null, limit: 100 } })).rows)
-    .filter((p) => !p.external && ['invited', 'onboarding', 'active'].includes(p.status) && p.system_role !== 'hr_admin' && p.system_role !== 'hr_resource')   // HR holds no seat (migration 39)
-    .map((p) => ({ id: p.id, name: p.name }) as Pool) : [], [canManage, findQ]);
+  // the pool, from the server (migration 44, Veda 14 Oct): operational people based in the scope's state, and the
+  // Client Manager himself; never the admin, HR or a State Manager. Searched by name; 200 at most.
+  const pool = useAsync(async () => canManage ? (await rpc<{ id: string; name: string; me: boolean }[]>('roster_pool', { p_scope: scopeId, p_q: findQ || null }))
+    .map((p) => ({ id: p.id, name: p.me ? t('roster.me', { name: p.name }) : p.name }) as Pool) : [], [canManage, findQ, scopeId]);
   const act = useAction();
   const [note, setNote] = useState<string | null>(null);
   if (r.loading && !r.data) return <Loading />;
@@ -450,7 +456,7 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
             </select></div>}
         </div>))}</div>
       {canManage && <Field label={t('roster.find')} hint={t('roster.find_hint')} htmlFor={`find-${scopeId}`}><input id={`find-${scopeId}`} type="search" value={find} onChange={(e) => setFind(e.target.value)} data-testid="roster-find" /></Field>}
-      {canManage && (pool.data?.length ?? 0) >= 100 && !findQ && <p className="small" data-testid="roster-pool-more">{t('roster.pool_more')}</p>}
+      {canManage && (pool.data?.length ?? 0) >= 200 && !findQ && <p className="small" data-testid="roster-pool-more">{t('roster.pool_more')}</p>}
       {canManage && <p className="small muted">{t('roster.pool_note')}</p>}
       <ErrorBox error={act.error} />
     </div>

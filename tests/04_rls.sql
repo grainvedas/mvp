@@ -61,8 +61,12 @@ select t.ok((select count(*) from public.footprints where lot_closed) = (select 
 -- Client manager: full client access, may activate a scope and override QC
 select t.as_user(t.u('03'));
 select t.ok((select count(*) from public.scopes) = 7, 'client_manager: sees the client''s 7 scopes (seeds 02, 04, 05, and the Assam one of seed 06)');
--- Migration 32: people are no longer "of a client". Whoever assigns reads the pool of employees (18) and the client's own login (1).
-select t.ok((select count(*) from public.app_users) = 19, 'client_manager: reads the pool of employees and the client''s own login');
+-- Migration 32: people are no longer "of a client". Migration 44 (Veda, 14 Oct, A4): the Client Manager reads his client's
+-- people and the eligible pool of his state (14 employees) and the client's own login (1); never the admin, HR or a State Manager.
+select t.ok((select count(*) from public.app_users) = 15, 'client_manager: reads his client''s people, his state''s pool and the client''s own login');
+select t.ok(not exists (select 1 from public.app_users where system_role in ('admin', 'hr_admin', 'hr_resource')
+                          or id in (select employee_id from public.assignments where lens = 'state' and active)),
+            'client_manager: no admin, HR or State Manager among them (migration 44)');
 
 -- State manager: sees UP clients (both), not Assam
 select t.as_user(t.u('02'));

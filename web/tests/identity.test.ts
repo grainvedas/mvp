@@ -213,15 +213,16 @@ describe('the menu follows what the server says a person may do', () => {
   const links = (w: Omit<Partial<NavWho>, 'can'> & { can?: Partial<Can> }) =>
     NAV.filter((n) => n.show({ role: 'operator', farmerSlot: false, joiner: false, employee: true, ...w, can: { ...NO_RIGHTS, ...(w.can ?? {}) } })).map((n) => n.to);
   it('someone who only holds stages: the dashboard, and Farmers only with a stage that needs them', () => {
-    expect(links({})).toEqual(['/']);
-    expect(links({ farmerSlot: true })).toEqual(['/', '/farmers']);
+    expect(links({})).toEqual(['/', '/guide']);   // migration 44: every role reads its guide
+    expect(links({ farmerSlot: true })).toEqual(['/', '/farmers', '/guide']);
   });
   it('a joiner gets the checklist', () => {
-    expect(links({ joiner: true })).toEqual(['/', '/onboarding']);
+    expect(links({ joiner: true })).toEqual(['/', '/onboarding', '/guide']);
+    expect(links({ joiner: true, joining: true })).toEqual(['/', '/onboarding', '/help']);   // not yet joined: Help, not the guide
   });
   it('HR makes people and assigns nobody: HR and People, nothing of scopes, flags, seats', () => {
-    expect(links({ can: { hr: true } })).toEqual(['/', '/hr', '/hr/openings', '/people']);
-    expect(links({ can: { hr: true, hr_admin: true } })).toEqual(['/', '/hr', '/hr/openings', '/people', '/system/audit']);
+    expect(links({ can: { hr: true } })).toEqual(['/', '/hr', '/hr/openings', '/people', '/guide']);
+    expect(links({ can: { hr: true, hr_admin: true } })).toEqual(['/', '/hr', '/hr/openings', '/people', '/system/audit', '/guide']);
   });
   it('a manager assigns and makes nobody: People without HR', () => {
     const cm = links({ role: 'client_manager', can: { assign: true } });

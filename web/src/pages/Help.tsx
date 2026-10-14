@@ -3,16 +3,16 @@
 //   in the same list as the problems phones report on their own (app.report_client_error, kind 'report', migration 35).
 // "My guide" (/guide) shows the role guide again on the first screen and goes there.
 import { Fragment, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { rpc } from '../lib/api';
 import { BUILD_ID } from '../lib/errorLog';
 import { useI18n } from '../lib/i18n';
-import { oversees } from '../lib/rights';
+import { oversees, type Ctx } from '../lib/rights';
 import { useAction, useAsync } from '../lib/useAsync';
 import { joinerTrack, type Contact, type MyOnboarding } from '../lib/people';
 import { ErrorBox } from '../shell/ui';
-import { showGuideAgain } from '../shell/RoleGuide';
+import { RoleGuide, showGuideAgain } from '../shell/RoleGuide';
 import type { MyContext } from '../lib/types';
 
 /** Pure: which help text a person reads (admin, HR Admin, HR, everyone else). */
@@ -100,9 +100,31 @@ function JoinerHelp() {
   );
 }
 
-/** "My guide": shows the role guide again and opens the first screen, where it is. */
+/** Pure: whose guide a person reads (migration 44, Veda 14 Oct: "My guide" opens the guide for every role). */
+export function guideRole(ctx: Ctx): string {
+  const u = ctx?.user;
+  if (!u) return '';
+  if (oversees(ctx)) return 'admin';
+  if (!u.external && (u.status === 'invited' || u.status === 'onboarding')) return 'joiner';
+  if (u.system_role === 'hr_admin') return 'hr_admin';
+  if (u.system_role === 'hr_resource') return 'hr_resource';
+  if (u.can?.state_manager) return 'state_manager';
+  if ((ctx?.assignments ?? []).some((a) => a.lens === 'client' && a.op_role === 'client_account')) return 'client_manager';
+  if (u.external) return 'client_view';
+  return 'operator';
+}
+
+/** "My guide": the role guide on a page of its own (it is shown again on the first screen too). */
 export function GuideAgain() {
   const { ctx } = useAuth();
-  showGuideAgain(oversees(ctx) ? 'admin' : ctx?.user?.can?.state_manager ? 'state_manager' : ctx?.user?.role ?? '');
-  return <Navigate to="/" replace />;
+  const { t } = useI18n();
+  const role = guideRole(ctx);
+  showGuideAgain(role);
+  return (
+    <div data-testid="guide-page">
+      <h1><span aria-hidden="true">🧭 </span>{t('menu.guide')}</h1>
+      <RoleGuide role={role} />
+      <p><Link to="/">{t('guide.to_home')}</Link></p>
+    </div>
+  );
 }

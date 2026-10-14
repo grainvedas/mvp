@@ -172,6 +172,8 @@ export interface Farmer {
   state_id?: string | null; reviewed_by?: string | null; reviewed_at?: string | null;
   /** Migration 43: acres under the GI crop; needed before the Farmer ID (a draft may go without). Absent before it. */
   gi_land_acres?: number | null;
+  /** Migration 44: the state farmer ID (F-UP-00001) once the State Manager has verified, and the public-page consent. */
+  state_farmer_id?: string | null; public_id_consent?: boolean;
 }
 
 export interface FootprintDetail {
@@ -179,7 +181,7 @@ export interface FootprintDetail {
   stage_label: string;
   created_by_name: string | null;
   verified_by_name: string | null;
-  farmer: { name: string; farmer_code: string | null; village: string } | null;
+  farmer: { name: string; farmer_code: string | null; village: string; /** migration 44 */ state_farmer_code?: string | null } | null;
   prev: { id: string; footprint_code: string; stage_type: StageType } | null;
   available_kg: number;
   qc: null | { domestic_verdict: string; export_verdict: string; readings: Record<string, number>;

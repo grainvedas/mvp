@@ -19,13 +19,13 @@ describe('the farmer register (migration 43)', () => {
     expect(maskedPhone(null)).toBe('—');
     expect(maskedPhone('')).toBe('—');
   });
-  it('the yield: sold against GI land × yield per acre; above 100 % warned, past 120 % flagged', () => {
+  it('the yield: sold against GI land × yield per acre; above 100 % a warning only (migration 44)', () => {
     expect(yieldShare(294, 100)).toBe(294);
     expect(yieldShare(98, 90)).toBe(109);
     expect(yieldShare(50, 0)).toBeNull();                 // nothing expected: no GI land, or no yield on the crop
     expect(yieldShare(null, 100)).toBeNull();
     expect(yieldShare('120', '100')).toBe(120);
-    expect([null, 80, 100, 101, 120, 121].map(yieldLevel)).toEqual(['none', 'within', 'within', 'above', 'above', 'flagged']);
+    expect([null, 80, 100, 101, 120, 121].map(yieldLevel)).toEqual(['none', 'within', 'within', 'above', 'above', 'above']);
   });
   it('the GI land: empty on a draft; else more than 0 and not more than the land', () => {
     expect(giLandProblem('', '2')).toBeNull();

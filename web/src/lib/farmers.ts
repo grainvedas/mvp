@@ -1,7 +1,11 @@
 // The farmer register of a state (migration 43, Veda 13 Oct 2026). Pure helpers, unit-tested in tests/farmer_register.test.ts.
 
-export type RegisterFlag = 'duplicate' | 'over_yield' | 'no_gi_land';
-export const REGISTER_FLAGS: RegisterFlag[] = ['duplicate', 'over_yield', 'no_gi_land'];
+// Flags to decide (migration 44, Veda 14 Oct): a possible duplicate, a change after verification, no GI land yet.
+// Above the expected yield is a warning only (the 120 % flag is gone); the figures are kept for later thresholds.
+export type RegisterFlag = 'duplicate' | 'changed' | 'no_gi_land';
+export const REGISTER_FLAGS: RegisterFlag[] = ['duplicate', 'changed', 'no_gi_land'];
+export type RegisterWarning = 'above_yield';
+export const REGISTER_WARNINGS: RegisterWarning[] = ['above_yield'];
 
 export interface RegisterRow {
   id: string; farmer_code: string | null; name: string; guardian_name: string; village: string; district: string;
@@ -9,11 +13,14 @@ export interface RegisterRow {
   phone_last4: string; land_area_acres: number | null; gi_land_acres: number | null;
   sold_kg: number | null; expected_kg: number | null; ratio: number | null;
   flags: RegisterFlag[]; duplicates: { id: string; name: string; farmer_code: string | null; client: string }[];
+  /** migration 44 */
+  state_farmer_code?: string | null; warnings?: RegisterWarning[]; changes?: number;
+  candidates?: { id: string; code: string; records: { name: string; farmer_code: string | null; client: string; village: string }[] | null }[];
 }
 export interface RegisterCards {
   farmers: number; active: number; under_review: number; draft: number; inactive: number;
   gi_acres: number; land_acres: number; sold_kg: number; expected_kg: number; selling: number;
-  over_yield: number; duplicates: number; no_gi_land: number;
+  duplicates: number; no_gi_land: number; /** migration 44 */ changed?: number; above_yield?: number; state_ids?: number;
   by_district: { district: string; farmers: number; sold_kg: number; gi_acres: number }[];
 }
 export interface Register {
@@ -45,9 +52,9 @@ export function yieldShare(sold: number | string | null | undefined, expected: n
   return Math.round((s / e) * 100);
 }
 
-/** How the share reads: within, above (warned on the lot), or past 120 % (flagged for the State Manager). */
-export const yieldLevel = (pct: number | null): 'none' | 'within' | 'above' | 'flagged' =>
-  pct === null ? 'none' : pct > 120 ? 'flagged' : pct > 100 ? 'above' : 'within';
+/** How the share reads: within, or above the expected yield (a warning on the lot and the register; nothing to decide). */
+export const yieldLevel = (pct: number | null): 'none' | 'within' | 'above' =>
+  pct === null ? 'none' : pct > 100 ? 'above' : 'within';
 
 /** The Farmer ID needs the GI land (and the database also refuses it while a possible duplicate is open). */
 export const needsGiLand = (f: { gi_land_acres?: number | string | null }) =>

@@ -13,7 +13,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import type { Farmer } from '../../lib/types';
 import { actsAsStateManager, addsFarmers, holdsClientAccount, isStateManager, oversees, supervisesState, type Ctx } from '../../lib/rights';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
-import { date } from '../../lib/format';
+import { date, dateTime } from '../../lib/format';
 import { gapMissing, type GapItem } from '../../lib/crops';
 import { giLandProblem, needsGiLand } from '../../lib/farmers';
 import { RegisterLink } from './FarmerRegister';
@@ -51,11 +51,16 @@ export function FarmerList() {
   const [tab, setTab] = useState<'draft' | 'under_review' | 'active' | 'inactive'>(isStateManager(ctx) ? 'under_review' : cm ? 'draft' : 'active');
   const [search, setSearch] = useState('');
   const list = useAsync(async () => {
-    if (!clientId) return [] as Farmer[];
-    let r = supabase.from('farmers').select('*,state:states(name),reviewer:app_users!farmers_reviewed_by_fkey(display_name)').eq('client_id', clientId).eq('status', tab).order('created_at', { ascending: false }).limit(500);
-    const s = search.trim();
-    if (s) r = r.or(`name.ilike.%${s}%,village.ilike.%${s}%,farmer_code.ilike.%${s}%,phone.ilike.%${s}%`);
-    return await q(r) as Farmer[];
+    if (!clientId) return [] as FarmerRow[];
+    // migration 44: with the state farmer ID; a server before it has none to join (the list asks again without it)
+    const ask = (withStateIds: boolean) => {
+      let r = supabase.from('farmers').select('*,state:states(name),reviewer:app_users!farmers_reviewed_by_fkey(display_name)' + (withStateIds ? ',state_farmer:state_farmers(code)' : ''))
+        .eq('client_id', clientId).eq('status', tab).order('created_at', { ascending: false }).limit(500);
+      const s = search.trim();
+      if (s) r = r.or(`name.ilike.%${s}%,village.ilike.%${s}%,farmer_code.ilike.%${s}%,phone.ilike.%${s}%`);
+      return q(r) as unknown as Promise<FarmerRow[]>;
+    };
+    try { return await ask(true); } catch { return await ask(false); }
   }, [clientId, tab, search]);
   // Who adds farmers (migration 41): the client's Client Manager, or Procurement / Village Batch in its scopes. A State
   // Manager verifies after the Client Manager and adds none; a server from before 41 sends no `state_manager`: as before.
@@ -82,15 +87,17 @@ export function FarmerList() {
         ))}
       </div>
       {list.loading ? <Loading /> : <ErrorBox error={list.error} onRetry={list.reload} />}
-      {list.data && list.data.length === 0 && <Empty />}
-      {list.data && list.data.length > 0 && (
+      {/* the list of the client and tab now chosen only: while another loads, the one before is not shown (a click on
+          it could act on the other client's farmer, 14 Oct 2026) */}
+      {!list.loading && list.data && list.data.length === 0 && <Empty />}
+      {!list.loading && list.data && list.data.length > 0 && (
         <div className="card table-wrap"><table>
           <thead><tr><th>{t('farmer.name')}</th><th>{t('farmer.code')}</th><th>{t('farmer.village')}</th><th className="hide-mobile">{t('farmer.phone')}</th><th className="hide-mobile">{t('farmer.land_gi')}</th><th></th></tr></thead>
           <tbody>{list.data.map((f) => (
             <tr key={f.id} data-testid="farmer-row">
               <td>{f.name}<div className="muted small">{f.guardian_name}</div>
                 {typeof f.extra?.sent_back_reason === 'string' && <div className="small" style={{ color: 'var(--warn)' }}>{t('farmers.sent_back')}: {f.extra.sent_back_reason as string}</div>}</td>
-              <td className="mono">{f.farmer_code ?? '—'}</td><td>{f.village}</td><td className="hide-mobile">{f.phone}</td><td className="hide-mobile num">{f.land_area_acres} · {f.gi_land_acres ?? '—'}</td>
+              <td className="mono">{f.farmer_code ?? '—'}{f.state_farmer?.code && <div className="small muted" data-testid="farmer-state-id">{f.state_farmer.code}</div>}</td><td>{f.village}</td><td className="hide-mobile">{f.phone}</td><td className="hide-mobile num">{f.land_area_acres} · {f.gi_land_acres ?? '—'}</td>
               <td><FarmerActions farmer={f} canEdit={canEdit} onDone={list.reload} /></td>
             </tr>
           ))}</tbody>
@@ -101,7 +108,9 @@ export function FarmerList() {
 }
 
 /** The farmer row as the list reads it: with its state's name and the name of whoever did step 1 (when readable). */
-type FarmerRow = Farmer & { state?: { name: string } | null; reviewer?: { display_name: string } | null };
+type FarmerRow = Farmer & { state?: { name: string } | null; reviewer?: { display_name: string } | null; state_farmer?: { code: string } | null };
+/** A state farmer the State Manager may link a record to at step 2 (migration 44). */
+interface StateCandidate { id: string; code: string; records: { name: string; farmer_code: string | null; client: string; village: string }[] | null }
 
 type FarmerStep = Pick<Farmer, 'client_id' | 'status' | 'state_id' | 'reviewed_by'>;
 /** Pure: who may do what to this farmer now, from the server's own context. */
@@ -115,6 +124,8 @@ export function farmerRights(ctx: Ctx, f: FarmerStep) {
     sameHands: f.status === 'under_review' && sm && !!f.reviewed_by && f.reviewed_by === me,
     sendBack: f.status === 'under_review' && sm,
     afterwards: (f.status === 'active' || f.status === 'inactive') && sm,
+    // migration 44 (Veda, 14 Oct): the Client Manager also changes a verified farmer (with a reason)
+    cmEdits: (f.status === 'under_review' || f.status === 'active') && holdsClientAccount(ctx, f.client_id),
   };
 }
 
@@ -127,6 +138,13 @@ function FarmerActions({ farmer, canEdit, onDone }: { farmer: FarmerRow; canEdit
   const r = farmerRights(ctx, farmer);
   // migration 43: the Farmer ID needs the GI land; a server from before it sends no such field (undefined): as before
   const noGi = 'gi_land_acres' in farmer && needsGiLand(farmer);
+  // migration 44: at step 2, the state farmers with this phone; Ram links to one, or says why it is another person
+  const choice = useAsync(() => r.step2 ? rpc<StateCandidate[]>('state_choice', { p_farmer: farmer.id }).catch(() => [] as StateCandidate[])
+    : Promise.resolve([] as StateCandidate[]), [farmer.id, r.step2]);
+  const [notSame, setNotSame] = useState(false);
+  const [why, setWhy] = useState('');
+  const [flipping, setFlipping] = useState(false);
+  const cands = choice.data ?? [];
   if (farmer.status === 'draft' && canEdit) return (
     <div className="row">
       <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>
@@ -142,31 +160,52 @@ function FarmerActions({ farmer, canEdit, onDone }: { farmer: FarmerRow; canEdit
         <div className="muted">{farmer.reviewed_at ? t('farmers.step1_by', { name: farmer.reviewer?.display_name ?? t('farmers.the_cm'), at: date(farmer.reviewed_at) }) : t('farmers.step1_legacy')}</div>
       </div>
       {r.sameHands ? <div className="small" style={{ color: 'var(--warn)' }}>{t('farmers.same_hands')}</div> : (
-        <div className="row">
-          <button onClick={() => act.run(async () => { await rpc('verify_farmer', { p_farmer: farmer.id }); onDone(); })} disabled={act.busy || noGi} data-testid="farmer-step2">{t('farmers.verify_step2')}</button>
-          <button className="secondary" onClick={() => setSending(!sending)}>{t('farmers.send_back')}</button>
+        <div className="stack">
+          {cands.map((c) => (
+            <div key={c.id} className="alert warn small" data-testid="farmer-same-phone">
+              <div>{t('farmers.same_phone', { code: c.code, who: (c.records ?? []).map((x) => `${x.name} (${x.client})`).join(', ') })}</div>
+              <button className="small-btn" disabled={act.busy || noGi} data-testid="farmer-link"
+                onClick={() => act.run(async () => { await rpc('verify_farmer_state', { p_farmer: farmer.id, p_link: c.id, p_reason: null }); onDone(); })}>
+                {t('farmers.link_to', { code: c.code })}</button>
+            </div>))}
+          <div className="row">
+            {cands.length === 0 && <button onClick={() => act.run(async () => { await rpc('verify_farmer', { p_farmer: farmer.id }); onDone(); })} disabled={act.busy || noGi} data-testid="farmer-step2">{t('farmers.verify_step2')}</button>}
+            {cands.length > 0 && <button className="secondary" onClick={() => setNotSame(!notSame)} data-testid="farmer-not-same">{t('reg.not_same')}</button>}
+            <button className="secondary" onClick={() => setSending(!sending)}>{t('farmers.send_back')}</button>
+          </div>
+          {notSame && <div className="row"><input aria-label={t('reg.why_distinct')} placeholder={t('reg.why_distinct')} value={why} maxLength={200} onChange={(e) => setWhy(e.target.value)} data-testid="farmer-not-same-why" />
+            <button disabled={!why.trim() || act.busy || noGi} data-testid="farmer-new-id"
+              onClick={() => act.run(async () => { await rpc('verify_farmer_state', { p_farmer: farmer.id, p_link: null, p_reason: why.trim() }); onDone(); })}>{t('farmers.new_state_id')}</button></div>}
         </div>)}
       {!r.sameHands && noGi && <div className="small" style={{ color: 'var(--warn)' }} data-testid="farmer-needs-gi">{t('farmers.needs_gi')} <Link to={`/farmers/${farmer.id}`}>{t('farmers.add_gi')}</Link></div>}
-      {!r.sameHands && 'gi_land_acres' in farmer && <div className="small muted">{t('farmers.dup_note')} <Link to="/farmers/register?flag=duplicate">{t('reg.open')}</Link></div>}
       {sending && <div className="row"><input aria-label={t('farmers.send_back_reason')} placeholder={t('farmers.send_back_reason')} value={reason} onChange={(e) => setReason(e.target.value)} />
         <button className="secondary" disabled={!reason.trim() || act.busy} onClick={() => act.run(async () => { await rpc('send_back_farmer', { p_farmer: farmer.id, p_reason: reason }); onDone(); })}>{t('farmers.send_back')}</button></div>}
       <ErrorBox error={act.error} />
     </div>
   );
-  if (farmer.status === 'under_review') return <span className="small muted">{t('farmers.waits_sm', { state: farmer.state?.name ?? '—' })}</span>;
-  // After verification only the State Manager changes a farmer; every change is a ledger block (migration 22).
+  if (farmer.status === 'under_review') return (
+    <div className="stack"><span className="small muted">{t('farmers.waits_sm', { state: farmer.state?.name ?? '—' })}</span>
+      {r.cmEdits && <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>}</div>);
+  // After verification the State Manager (and, migration 44, the Client Manager) changes a farmer, each time with a
+  // reason; every change is a ledger block (migration 22). Activating and deactivating stay the State Manager's.
   if (r.afterwards) {
     const flip = farmer.status === 'active' ? 'inactive' : 'active';
     return (
-      <div className="row">
-        <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>
-        <button className="secondary" disabled={act.busy} data-testid={`farmer-${flip}`}
-          onClick={() => act.run(async () => { await q(supabase.from('farmers').update({ status: flip }).eq('id', farmer.id).select()); onDone(); })}>
-          {t(flip === 'inactive' ? 'farmers.deactivate' : 'farmers.reactivate')}</button>
+      <div className="stack">
+        <div className="row">
+          <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>
+          <button className="secondary" disabled={act.busy} data-testid={`farmer-${flip}`} onClick={() => setFlipping(!flipping)}>
+            {t(flip === 'inactive' ? 'farmers.deactivate' : 'farmers.reactivate')}</button>
+        </div>
+        {flipping && <div className="row"><input aria-label={t('farmers.why_change')} placeholder={t('farmers.why_change')} value={why} maxLength={200} onChange={(e) => setWhy(e.target.value)} data-testid="farmer-flip-why" />
+          <button disabled={!why.trim() || act.busy} data-testid={`farmer-${flip}-confirm`}
+            onClick={() => act.run(async () => { await rpc('change_farmer', { p_farmer: farmer.id, p: { status: flip }, p_reason: why.trim() }); onDone(); })}>
+            {t(flip === 'inactive' ? 'farmers.deactivate' : 'farmers.reactivate')}</button></div>}
         <ErrorBox error={act.error} />
       </div>
     );
   }
+  if (r.cmEdits) return <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>;
   return <span className="muted small">{farmer.status === 'active' ? <Badge value="active" /> : date(farmer.created_at)}</span>;
 }
 
@@ -176,7 +215,11 @@ export function FarmerForm() {
   const nav = useNavigate();
   const { ctx } = useAuth();
   const { clientId: chosenClient, picker } = useClientChoice();
-  const [f, setF] = useState({ name: '', guardian_name: '', village: '', district: '', phone: '', land_area_acres: '', gi_land_acres: '', photo_consent: false, notes: '' });
+  const [f, setF] = useState({ name: '', guardian_name: '', village: '', district: '', phone: '', land_area_acres: '', gi_land_acres: '', photo_consent: false, public_id_consent: false, notes: '' });
+  const [code, setCode] = useState<string | null>(null);          // the client farmer ID: from then on, a change says why (migration 44)
+  const [hasIds, setHasIds] = useState(false);                     // false: a server from before migration 44
+  const [why, setWhy] = useState('');
+  const [tick, setTick] = useState(0);
   const [status, setStatus] = useState<Farmer['status']>('draft');
   const [ownClient, setOwnClient] = useState<string | null>(null);      // an existing farmer's client
   const [stateId, setStateId] = useState('');
@@ -203,12 +246,14 @@ export function FarmerForm() {
       if (gone) return;
       const x = r as unknown as Farmer;
       setStatus(x.status);
+      setCode(x.farmer_code);
+      setHasIds('public_id_consent' in x);
       setOwnClient(x.client_id);
       setStateId(x.state_id ?? '');
       setExtra(x.extra ?? {});
       setF({ name: x.name, guardian_name: x.guardian_name, village: x.village, district: x.district, phone: x.phone,
         land_area_acres: String(x.land_area_acres), gi_land_acres: x.gi_land_acres == null ? '' : String(x.gi_land_acres),
-        photo_consent: x.photo_consent, notes: String(x.extra?.notes ?? '') });
+        photo_consent: x.photo_consent, public_id_consent: !!x.public_id_consent, notes: String(x.extra?.notes ?? '') });
       setHasGi('gi_land_acres' in x);
     });
     return () => { gone = true; };
@@ -222,18 +267,26 @@ export function FarmerForm() {
       land_area_acres: Number(f.land_area_acres), photo_consent: f.photo_consent,
       ...(hasGi ? { gi_land_acres: f.gi_land_acres.trim() ? Number(f.gi_land_acres.trim().replace(',', '.')) : null } : {}),
       ...(status === 'draft' && stateId ? { state_id: stateId } : {}), extra: (() => { const e = { ...extra }; if (f.notes) e.notes = f.notes; else delete e.notes; return e; })() };
-    const saved = id
-      ? await q(supabase.from('farmers').update(row).eq('id', id).select().single()) as Farmer
-      : await q(supabase.from('farmers').insert({ ...row, client_id: clientId, status: 'draft' }).select().single()) as Farmer;
+    // migration 44: a farmer with a Farmer ID changes through the server's change, with the reason (kept in the ledger)
+    const withReason = !!id && !!code && hasIds;
+    const saved = withReason
+      ? await rpc<Farmer>('change_farmer', { p_farmer: id, p_reason: why.trim(), p: { name: row.name, guardian_name: row.guardian_name, village: row.village,
+          district: row.district, phone: row.phone, land_area_acres: String(row.land_area_acres), gi_land_acres: f.gi_land_acres.trim().replace(',', '.'),
+          photo_consent: row.photo_consent, public_id_consent: f.public_id_consent, notes: f.notes } })
+      : id
+      ? await q(supabase.from('farmers').update({ ...row, ...(hasIds ? { public_id_consent: f.public_id_consent } : {}) }).eq('id', id).select().single()) as Farmer
+      : await q(supabase.from('farmers').insert({ ...row, ...(hasIds ? { public_id_consent: f.public_id_consent } : {}), client_id: clientId, status: 'draft' }).select().single()) as Farmer;
     if (andSubmit) await rpc('submit_farmer', { p_farmer: saved.id });
     nav('/farmers');
   }); };
+  const needReason = !!id && !!code && hasIds && !watch;
   const input = (k: keyof typeof f, label: string, extra: Record<string, unknown> = {}) => (
     <Field label={`${label} *`} htmlFor={`farmer-${k}`}><input id={`farmer-${k}`} value={f[k] as string} onChange={set(k)} required {...extra} /></Field>
   );
   return (
     <div className="card" style={{ maxWidth: 560 }}>
       <h1>{id ? t('common.edit') : t('farmers.new')}</h1>
+      {id && hasIds && <FarmerIds farmerId={id} tick={tick} />}
       {!id && picker}
       {watch && <div className="alert info" data-testid="farmers-readonly">{t('farmers.admin_reads')}</div>}
       {status !== 'draft' && <div className="alert info" data-testid="farmer-verified-note">{t(farmerNote(status))}</div>}
@@ -260,14 +313,18 @@ export function FarmerForm() {
           <Field label={t('farmer.notes')} htmlFor="farmer-notes"><textarea id="farmer-notes" value={f.notes} onChange={set('notes')} rows={2} /></Field>
         </details>
         <label className="check"><input type="checkbox" checked={f.photo_consent} onChange={set('photo_consent')} />{t('farmers.consent')}</label>
+        {hasIds && <label className="check"><input type="checkbox" checked={f.public_id_consent} onChange={set('public_id_consent')} data-testid="farmer-id-consent" />{t('farmers.id_consent')}</label>}
+        {needReason && <Field label={`${t('farmers.why_change')} *`} hint={t('farmers.why_hint')} htmlFor="farmer-why">
+          <input id="farmer-why" value={why} maxLength={200} onChange={(e) => setWhy(e.target.value)} data-testid="farmer-why" /></Field>}
         <ErrorBox error={act.error} />
         {!watch && (
           <div className="row">
-            <button type="submit" className="secondary" disabled={act.busy || !!giProblem}>{t(status === 'draft' ? 'farmers.save_draft' : 'common.save')}</button>
-            {status === 'draft' && cm && <button type="button" disabled={act.busy || !!giProblem} onClick={(e) => submit(e as unknown as FormEvent, true)} data-testid="farmer-save-verify">{t('farmers.save_verify')}</button>}
+            <button type="submit" className="secondary" disabled={act.busy || !!giProblem || (needReason && !why.trim())}>{t(status === 'draft' ? 'farmers.save_draft' : 'common.save')}</button>
+            {status === 'draft' && cm && <button type="button" disabled={act.busy || !!giProblem || (needReason && !why.trim())} onClick={(e) => submit(e as unknown as FormEvent, true)} data-testid="farmer-save-verify">{t('farmers.save_verify')}</button>}
           </div>)}
       </form>
       {id && clientId && <FarmerGap farmerId={id} clientId={clientId} stateId={stateId} />}
+      {id && hasIds && <FarmerHistory farmerId={id} tick={tick} onAccepted={() => setTick(tick + 1)} />}
     </div>
   );
 }
@@ -324,4 +381,71 @@ export function FarmerGap({ farmerId, clientId, stateId }: { farmerId: string; c
       {canEdit && <button className="secondary" onClick={save} disabled={act.busy} data-testid="gap-save">{t('gap.save')}</button>}
     </div>
   );
+}
+
+/** The farmer's history (migration 44, E3): who drafted, who verified (Client Manager, then State Manager), every later change. */
+interface FarmerHistoryData {
+  farmer_code: string | null; state_farmer_code: string | null;
+  drafted: { by: string | null; at: string; role: string | null };
+  client_verified: { by: string | null; at: string } | null; state_verified: { by: string | null; at: string } | null;
+  events: { seq: number; at: string; kind: string; by: string | null; role: string | null; before: Record<string, unknown> | null;
+    after: Record<string, unknown> | null; reason: string | null; farmer_code: string | null; state_farmer_code: string | null; linked: boolean | null }[];
+  open_changes: { id: string; field: string; before: string | null; after: string | null; reason: string | null; by: string | null; at: string }[];
+  can_accept: boolean;
+}
+const useHistory = (farmerId: string, tick: number) =>
+  useAsync(() => rpc<FarmerHistoryData>('farmer_history', { p_farmer: farmerId }).catch(() => null), [farmerId, tick]);
+
+function FarmerIds({ farmerId, tick }: { farmerId: string; tick: number }) {
+  const { t } = useI18n();
+  const h = useHistory(farmerId, tick);
+  if (!h.data) return null;
+  return (
+    <p className="small" data-testid="farmer-ids">
+      <span>{t('farmers.client_id')}: <strong className="mono" data-testid="farmer-client-id">{h.data.farmer_code ?? '—'}</strong></span>
+      {' · '}<span>{t('farmers.state_id')}: <strong className="mono" data-testid="farmer-state-id">{h.data.state_farmer_code ?? '—'}</strong></span>
+    </p>);
+}
+
+/** Pure: one history line's words, from the block's kind (the farmer's ledger). */
+export function historyLine(e: FarmerHistoryData['events'][number], t: (k: string, v?: Record<string, string | number>, f?: string) => string): string {
+  const fields = (o: Record<string, unknown> | null) => Object.keys(o ?? {}).map((k) => t(`farmer.f_${k}`, undefined, k.replace(/_/g, ' '))).join(', ');
+  switch (e.kind) {
+    case 'farmer_verified_client': return t('fh.client', { code: e.farmer_code ?? '—' });
+    case 'farmer_verified_state': return t(e.linked ? 'fh.state_linked' : 'fh.state_new', { code: e.state_farmer_code ?? '—' });
+    case 'state_farmer_id_given': return t('fh.state_given', { code: e.state_farmer_code ?? '—' });
+    case 'farmer_verified': return t('fh.verified_old', { code: e.farmer_code ?? '—' });
+    case 'farmer_changed': return t('fh.changed', { what: fields(e.after) });
+    default: return e.kind;
+  }
+}
+
+function FarmerHistory({ farmerId, tick, onAccepted }: { farmerId: string; tick: number; onAccepted: () => void }) {
+  const { t } = useI18n();
+  const h = useHistory(farmerId, tick);
+  const act = useAction();
+  const role = (r: string | null) => (r ? t(`wrole.${r}`, undefined, r) : '');
+  if (!h.data) return null;
+  const x = h.data;
+  return (
+    <div className="stack" data-testid="farmer-history">
+      <h2>{t('fh.title')}</h2>
+      <ul className="ov-list">
+        <li>{t('fh.drafted', { name: x.drafted.by ?? '—', at: dateTime(x.drafted.at) })}{x.drafted.role && <span className="muted small"> ({role(x.drafted.role)})</span>}</li>
+        {x.events.map((e) => (
+          <li key={e.seq} data-testid="fh-event">{historyLine(e, t)} · {e.by ?? '—'}{e.role && <span className="muted small"> ({role(e.role)})</span>}
+            <span className="muted small"> · {dateTime(e.at)}</span>
+            {e.reason && <div className="small">{t('fh.reason', { reason: e.reason })}</div>}</li>))}
+      </ul>
+      {x.open_changes.length > 0 && (
+        <div className="alert warn small" data-testid="fh-open-changes">
+          <strong>{t('fh.open_changes')}</strong>
+          <ul>{x.open_changes.map((c) => (
+            <li key={c.id}>{t('fh.change_line', { field: t(`farmer.f_${c.field}`, undefined, c.field), before: c.before ?? '—', after: c.after ?? '—', by: c.by ?? '—' })}
+              {c.reason && <> · {c.reason}</>}
+              {x.can_accept && <> <button className="secondary small-btn" disabled={act.busy} data-testid="fh-accept"
+                onClick={() => act.run(async () => { await rpc('accept_farmer_change', { p_flag: c.id }); onAccepted(); })}>{t('fh.accept')}</button></>}</li>))}</ul>
+          <ErrorBox error={act.error} />
+        </div>)}
+    </div>);
 }

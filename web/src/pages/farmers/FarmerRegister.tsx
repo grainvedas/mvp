@@ -15,7 +15,7 @@ import { myStateIds, oversees } from '../../lib/rights';
 import { kg, num } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { StatButton } from '../dashboard/parts';
-import { maskedPhone, NO_FILTER, PAGE, REGISTER_FLAGS, registerParams, yieldLevel, yieldShare,
+import { maskedPhone, NO_FILTER, PAGE, REGISTER_FLAGS, REGISTER_WARNINGS, registerParams, yieldLevel, yieldShare,
   type Register, type RegisterFilter, type RegisterRow } from '../../lib/farmers';
 
 export function FarmerRegister() {
@@ -60,9 +60,9 @@ export function FarmerRegister() {
             <Stat testId="reg-card-gi" value={num(d.cards.gi_acres, 2)} label={t('reg.c_gi')} sub={t('reg.c_gi_sub', { land: num(d.cards.land_acres, 2) })} />
             <Stat testId="reg-card-sold" value={kg(d.cards.sold_kg)} label={t('reg.c_sold', { season: d.season ?? '—' })}
               sub={Number(d.cards.expected_kg) > 0 ? t('reg.c_sold_sub', { pct: yieldShare(d.cards.sold_kg, d.cards.expected_kg) ?? 0, n: d.cards.selling }) : t('reg.c_sold_none')} />
-            <StatButton testId="reg-card-flags" open={!!f.flag} onClick={() => flagTile(Number(d.cards.duplicates) > 0 ? 'duplicate' : Number(d.cards.over_yield) > 0 ? 'over_yield' : 'no_gi_land')}
-              value={String(Number(d.cards.duplicates) + Number(d.cards.over_yield))} label={t('reg.c_flags')}
-              sub={t('reg.c_flags_sub', { d: d.cards.duplicates, o: d.cards.over_yield, g: d.cards.no_gi_land })} />
+            <StatButton testId="reg-card-flags" open={!!f.flag} onClick={() => flagTile(Number(d.cards.duplicates) > 0 ? 'duplicate' : Number(d.cards.changed ?? 0) > 0 ? 'changed' : 'no_gi_land')}
+              value={String(Number(d.cards.duplicates) + Number(d.cards.changed ?? 0))} label={t('reg.c_flags')}
+              sub={t('reg.c_flags_sub2', { d: d.cards.duplicates, c: d.cards.changed ?? 0, g: d.cards.no_gi_land, w: d.cards.above_yield ?? 0 })} />
           </div>
 
           {d.cards.by_district.length > 0 && (
@@ -86,7 +86,8 @@ export function FarmerRegister() {
               {['active', 'under_review', 'draft', 'inactive'].map((s) => <option key={s} value={s}>{t(`reg.st_${s}`)}</option>)}</select>
             <select aria-label={t('reg.f_flag')} value={f.flag} onChange={(e) => set('flag')(e.target.value)} data-testid="reg-flag">
               <option value="">{t('reg.all_flags')}</option>
-              {REGISTER_FLAGS.map((x) => <option key={x} value={x}>{t(`reg.flag_${x}`)}</option>)}</select>
+              {REGISTER_FLAGS.map((x) => <option key={x} value={x}>{t(`reg.flag_${x}`)}</option>)}
+              {REGISTER_WARNINGS.map((x) => <option key={x} value={x}>{t(`reg.warn_${x}`)}</option>)}</select>
             <input aria-label={t('common.search')} placeholder={t('reg.search')} value={search} onChange={(e) => setSearch(e.target.value)} data-testid="reg-search" />
           </div>
           <p className="small muted" data-testid="reg-total">{t('reg.total', { n: d.total })}</p>
@@ -115,10 +116,11 @@ function RegisterCard({ r, canAct, onDone }: { r: RegisterRow; stateName: string
   return (
     <li className="card reg-card" data-testid="reg-row">
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <div><strong>{r.name}</strong> <span className="small muted">{r.guardian_name}</span></div>
+        <div><Link to={`/farmers/${r.id}`} data-testid="reg-open"><strong>{r.name}</strong></Link> <span className="small muted">{r.guardian_name}</span></div>
         <Badge value={r.status} label={t(`reg.st_${r.status}`)} />
       </div>
       <div className="small">
+        {r.state_farmer_code && <><span className="mono" data-testid="reg-state-id">{r.state_farmer_code}</span> · </>}
         {r.farmer_code ? <span className="mono">{r.farmer_code}</span> : <span className="muted">{t('reg.no_code')}</span>} · {r.village}, {r.district} · {r.client}
       </div>
       <div className="small muted" data-testid="reg-phone">{t('reg.phone', { p: maskedPhone(r.phone_last4) })}</div>
@@ -126,43 +128,42 @@ function RegisterCard({ r, canAct, onDone }: { r: RegisterRow; stateName: string
         ? <span className="muted">{t('reg.no_gi', { land: num(r.land_area_acres, 2) })}</span>
         : t('reg.land', { gi: num(r.gi_land_acres, 2), land: num(r.land_area_acres, 2) })}</div>
       {r.sold_kg !== null && (
-        <div className="small" data-testid="reg-yield" style={level === 'flagged' ? { color: 'var(--red)' } : level === 'above' ? { color: 'var(--warn)' } : undefined}>
+        <div className="small" data-testid="reg-yield" style={level === 'above' ? { color: 'var(--warn)' } : undefined}>
           {pct === null ? t('reg.sold_only', { sold: kg(r.sold_kg) }) : t('reg.sold', { sold: kg(r.sold_kg), exp: kg(r.expected_kg), pct })}</div>)}
-      {r.flags.length > 0 && <div className="chips" data-testid="reg-flags">{r.flags.map((x) => (
-        <span key={x} className={`badge ${x === 'no_gi_land' ? 'pending' : 'open'}`} data-testid={`reg-flag-${x}`}>{t(`reg.flag_${x}`)}</span>))}</div>}
-      {r.duplicates.map((o) => <Duplicate key={o.id} r={r} other={o} canAct={canAct} onDone={onDone} />)}
+      {(r.flags.length > 0 || (r.warnings ?? []).length > 0) && <div className="chips" data-testid="reg-flags">{r.flags.map((x) => (
+        <span key={x} className={`badge ${x === 'no_gi_land' ? 'pending' : 'open'}`} data-testid={`reg-flag-${x}`}>{t(`reg.flag_${x}`)}</span>))}
+        {(r.warnings ?? []).map((x) => <span key={x} className="badge pending" data-testid={`reg-warn-${x}`}>{t(`reg.warn_${x}`)}</span>)}</div>}
+      {r.flags.includes('changed') && <div className="alert warn small" data-testid="reg-changed">{t('reg.changed_line', { n: r.changes ?? 0 })} <Link to={`/farmers/${r.id}`}>{t('reg.review')}</Link></div>}
+      {r.flags.includes('duplicate') && <Duplicate r={r} canAct={canAct} onDone={onDone} />}
     </li>
   );
 }
 
-function Duplicate({ r, other, canAct, onDone }: { r: RegisterRow; other: RegisterRow['duplicates'][number]; canAct: boolean; onDone: () => void }) {
+/** A record waiting for its state farmer ID whose phone is already in the state (migration 44): Ram links it or says
+ *  why it is another person when he verifies it (step 2, on Farmers); or he deactivates this record, with a reason. */
+function Duplicate({ r, canAct, onDone }: { r: RegisterRow; canAct: boolean; onDone: () => void }) {
   const { t } = useI18n();
   const act = useAction();
-  const [mode, setMode] = useState<'' | 'distinct' | 'deactivate'>('');
+  const [mode, setMode] = useState<'' | 'deactivate'>('');
   const [reason, setReason] = useState('');
   return (
     <div className="alert warn small" data-testid="reg-dup">
-      <div>{t('reg.dup_line', { name: other.name, code: other.farmer_code ?? t('reg.no_code'), client: other.client })}</div>
+      {(r.candidates ?? []).map((c) => (
+        <div key={c.id}>{t('reg.dup_state', { code: c.code, who: (c.records ?? []).map((x) => `${x.name} (${x.client})`).join(', ') })}</div>))}
+      {r.duplicates.map((o) => <div key={o.id}>{t('reg.dup_line', { name: o.name, code: o.farmer_code ?? t('reg.no_code'), client: o.client })}</div>)}
+      <div className="muted">{t(r.status === 'under_review' ? 'reg.dup_decide' : 'reg.dup_wait')}</div>
       {canAct && mode === '' && (
         <div className="row" style={{ marginTop: 6 }}>
-          <button type="button" className="secondary" onClick={() => setMode('distinct')} data-testid="reg-dup-distinct">{t('reg.not_same')}</button>
+          {r.status === 'under_review' && <Link className="btn secondary" to="/farmers" data-testid="reg-dup-verify">{t('reg.to_verify')}</Link>}
           {r.status !== 'inactive' && <button type="button" className="secondary" onClick={() => setMode('deactivate')} data-testid="reg-dup-deactivate">{t('reg.deactivate_this')}</button>}
-        </div>)}
-      {mode === 'distinct' && (
-        <div className="stack" style={{ marginTop: 6 }}>
-          <input aria-label={t('reg.why_distinct')} placeholder={t('reg.why_distinct')} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} data-testid="reg-dup-reason" />
-          <div className="row">
-            <button type="button" disabled={!reason.trim() || act.busy} data-testid="reg-dup-save"
-              onClick={() => act.run(async () => { await rpc('mark_not_duplicate', { p_farmer: r.id, p_other: other.id, p_note: reason.trim() }); onDone(); })}>{t('reg.not_same')}</button>
-            <button type="button" className="secondary" onClick={() => setMode('')}>{t('reg.cancel')}</button>
-          </div>
         </div>)}
       {mode === 'deactivate' && (
         <div className="stack" style={{ marginTop: 6 }}>
-          <div>{r.farmer_code ? t('reg.deactivate_coded', { name: r.name }) : t('reg.deactivate_uncoded', { name: r.name })}</div>
+          <div>{r.state_farmer_code ? t('reg.deactivate_coded', { name: r.name }) : t('reg.deactivate_uncoded', { name: r.name })}</div>
+          <input aria-label={t('farmers.why_change')} placeholder={t('farmers.why_change')} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} data-testid="reg-dup-reason" />
           <div className="row">
-            <button type="button" className="danger" disabled={act.busy} data-testid="reg-dup-deactivate-confirm"
-              onClick={() => act.run(async () => { await q(supabase.from('farmers').update({ status: 'inactive' }).eq('id', r.id).select()); onDone(); })}>{t('reg.deactivate_this')}</button>
+            <button type="button" className="danger" disabled={act.busy || !reason.trim()} data-testid="reg-dup-deactivate-confirm"
+              onClick={() => act.run(async () => { await rpc('change_farmer', { p_farmer: r.id, p: { status: 'inactive' }, p_reason: reason.trim() }); onDone(); })}>{t('reg.deactivate_this')}</button>
             <button type="button" className="secondary" onClick={() => setMode('')}>{t('reg.cancel')}</button>
           </div>
         </div>)}

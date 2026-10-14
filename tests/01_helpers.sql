@@ -77,3 +77,22 @@ begin
   return v;
 end $$;
 grant execute on all functions in schema t to anon, authenticated;
+
+-- Migration 44: a scope is activated only when every stage has a person. Put one person (by default the demo procurement
+-- operator, based in Uttar Pradesh) on every stage of a draft scope, the way the roster would, before a test activates it.
+create or replace function t.staff(p_scope uuid, p_user uuid default null) returns void language plpgsql security definer as $$
+declare a uuid; ch public.stage_type[]; st public.stage_type; u uuid := coalesce(p_user, t.u('05'));
+begin
+  select chain into ch from public.scopes where id = p_scope;
+  perform set_config('app.assigning', 'on', true);
+  select id into a from public.assignments where employee_id = u and scope_id = p_scope and lens = 'scope' and active;
+  if a is null then
+    insert into public.assignments (employee_id, lens, op_role, scope_id, stages, created_by)
+    values (u, 'scope', 'operator', p_scope, ch, u) returning id into a;
+  end if;
+  foreach st in array ch loop
+    insert into public.slot_assignments (user_id, scope_id, stage_type, assignment_id) values (u, p_scope, st, a) on conflict do nothing;
+  end loop;
+  perform set_config('app.assigning', '', true);
+end $$;
+grant execute on function t.staff(uuid, uuid) to anon, authenticated;

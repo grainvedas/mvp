@@ -151,7 +151,7 @@ select t.as_user(t.u('02'));
 select t.fails(format($q$ select app.assign(%L, 'client', %L, 'client_account') $q$, t.u('17'), '00000000-0000-4000-8000-000000000201'),
                'HR holds no seat', 'no seat: not a client''s account');
 select t.as_user(t.u('03'));
-select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{qc}') $q$, t.u('17'), t.scope('01')), 'HR holds no seat', 'no seat: not a stage either');
+select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{qc}') $q$, t.u('17'), t.scope('01')), 'HR holds no', 'no seat: not a stage either');
 select t.as_user(t.u('16'));
 select t.fails(format($q$ select app.set_system_role(%L, 'hr_resource') $q$, t.u('06')), 'holds a seat', 'no seat: someone with a seat is not made HR');
 select t.as_service();

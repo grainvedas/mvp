@@ -161,6 +161,7 @@ select t.fails(format('select app.send_back_farmer(%L, %L)', pg_temp.f('F1'), 'n
 select t.as_user(t.u('02'));
 select t.ok((app.verify_farmer(pg_temp.f('F1'))).farmer_code is not null, 'A6 farmers: Ram verifies after the Client Manager: the Farmer ID');
 do $$ begin
+  perform set_config('app.change_reason', 'test', true);   -- migration 44: a farmer with an ID changes with a reason
   update public.farmers set status = 'inactive' where id = pg_temp.f('F1');
   update public.farmers set status = 'active', verified_by = t.u('02') where id = pg_temp.f('F1');
   perform t.ok((pg_temp.farmer(pg_temp.f('F1'))).status = 'active', 'farmers: he deactivates and reactivates a farmer of his state');
@@ -176,13 +177,12 @@ select t.ok(not exists (select 1 from jsonb_array_elements((app.people_page('{"l
                         where r->>'system_role' <> 'operational' or r->>'id' in (pg_temp.f('AO')::text, pg_temp.f('AB')::text)),
             'A3 people: People & access lists none of them');
 select t.fails(format('select app.employee_profile(%L)', t.u('17')), 'not found', 'A3 people: an HR profile does not open by its address');
-select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{sorting}') $q$, pg_temp.f('AO'), t.scope('02')), 'not in your state',
+-- migration 44 (Veda, 14 Oct, A1): a scope's roster is its Client Manager's; the State Manager staffs no scope at all
+select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{sorting}') $q$, pg_temp.f('AO'), t.scope('02')), 'outside what you manage',
                'A3 assign: not to another state''s person');
-select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{sorting}') $q$, pg_temp.f('AB'), t.scope('02')), 'not in your state',
-               'A3 assign: nor to someone based in another state');
-select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{sorting}') $q$, t.u('17'), t.scope('02')), 'HR holds no seat', 'A3 assign: never to HR');
-select t.ok((app.assign(t.u('18'), 'scope', t.scope('02'), 'operator', '{sorting}', null, null))->'assignment'->>'id' is not null,
-            'A3 assign: to his state''s person, yes');
+select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{sorting}') $q$, t.u('17'), t.scope('02')), 'outside what you manage', 'A3 assign: never to HR');
+select t.fails(format($q$ select app.assign(%L, 'scope', %L, 'operator', '{sorting}', null, null) $q$, t.u('18'), t.scope('02')), 'outside what you manage',
+               'A1 assign: not even his state''s person: the Client Manager staffs the scope (migration 44)');
 select t.fails(format($q$ insert into public.slot_assignments (user_id, scope_id, stage_type) values (%L, %L, 'qc') $q$, t.u('17'), t.scope('01')),
                'HR holds no seat', 'A3 seats: a seat inserted directly does not seat HR');
 select t.fails(format($q$ insert into public.slot_assignments (user_id, scope_id, stage_type) values (%L, %L, 'qc') $q$, t.u('01'), t.scope('01')),
@@ -194,7 +194,7 @@ select t.fails(format($q$ insert into public.slot_assignments (user_id, scope_id
 select t.fails(format($q$ select app.assign(%L, 'client', %L, 'client_account') $q$, t.u('18'), pg_temp.f('ASMX')), 'outside what you manage',
                'A3 assign: no Client Manager for another state''s client');
 select t.as_user(t.u('03'));
-select t.ok((select count(*) from public.app_users where id in (t.u('16'), t.u('17'))) = 2, 'A3 people: the Client Manager''s view has not changed');
+select t.ok((select count(*) from public.app_users where id in (t.u('16'), t.u('17'))) = 0, 'A4 people: the Client Manager reads no HR person either (migration 44)');
 
 -- client logins: one serving clients of two states is not Ram's alone
 select t.as_user(t.u('02'));

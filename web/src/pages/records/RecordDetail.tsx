@@ -57,7 +57,7 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
         <div className="row"><Badge value={f.status} />{f.lot_closed && <Badge value="closed" label={t('record.lot_closed')} />}{f.grade && <Badge value="verified" label={t('record.grade', { grade: f.grade })} />}</div>
         <dl className="kv" style={{ marginTop: 12 }}>
           <dt>{t('record.stage')}</dt><dd>{t(`stage.${f.stage_type}`, undefined, r.stage_label)}</dd>
-          {r.farmer && <><dt>{t('record.farmer')}</dt><dd>{r.farmer.name} <span className="mono">{r.farmer.farmer_code}</span> · {r.farmer.village}</dd></>}
+          {r.farmer && <><dt>{t('record.farmer')}</dt><dd>{r.farmer.name} <span className="mono">{r.farmer.farmer_code}</span>{r.farmer.state_farmer_code && <> · <span className="mono" data-testid="record-state-farmer">{r.farmer.state_farmer_code}</span></>} · {r.farmer.village}</dd></>}
           {r.prev && <><dt>{t('record.came_from')}</dt><dd><Link className="mono" to={`/records/${r.prev.id}`}>{r.prev.footprint_code}</Link> ({t(`stage.${r.prev.stage_type}`, undefined, humanise(r.prev.stage_type))})</dd></>}
           <dt>{t('record.qty_in')}</dt><dd>{kg(f.qty_in)}</dd>
           <dt>{t('record.qty_out')}</dt><dd className="big">{kg(f.qty_out)}</dd>

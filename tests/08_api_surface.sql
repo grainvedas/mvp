@@ -65,6 +65,11 @@ insert into allowed values
   ('authenticated', 'correct_crop_state'),
   -- migration 43: the farmer register (the register, a possible duplicate's open list and its decision)
   ('authenticated', 'farmer_register'), ('authenticated', 'open_duplicates'), ('authenticated', 'mark_not_duplicate'),
+  -- migration 44: the roster's pool and the activation check, the State Manager's step 2 with his choice, a farmer's change
+  -- with its reason, the State Manager's acceptance, the farmer's history; the rules' helpers about the caller
+  ('authenticated', 'roster_pool'), ('authenticated', 'activation_missing'), ('authenticated', 'verify_farmer_state'),
+  ('authenticated', 'change_farmer'), ('authenticated', 'accept_farmer_change'), ('authenticated', 'farmer_history'), ('authenticated', 'state_choice'),
+  ('authenticated', 'watches_state'), ('authenticated', 'watches_scope'), ('authenticated', 'cm_limited'), ('authenticated', 'cm_seen_ids'),
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

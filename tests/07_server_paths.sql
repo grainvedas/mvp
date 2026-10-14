@@ -114,10 +114,12 @@ select t.ok((select farmer_code from public.farmers where id = '00000000-0000-40
             'farmer id: then PRSDM-F-0007');
 select t.fails(format($q$ update public.farmers set farmer_code = 'PRSDM-F-0099' where id = %L $q$, '00000000-0000-4000-8000-000000000591'),
                'issued by verification only', 'farmer id: a signed-in user cannot change a Farmer ID');
+select set_config('app.change_reason', 'checked again', true);   -- migration 44: a farmer with an ID changes with a reason
 update public.farmers set status = 'under_review' where id = '00000000-0000-4000-8000-000000000591';
 update public.farmers set gi_land_acres = coalesce(gi_land_acres, land_area_acres), status = 'active', verified_by = t.u('02') where id = '00000000-0000-4000-8000-000000000591';
 select t.ok((select farmer_code from public.farmers where id = '00000000-0000-4000-8000-000000000591') = 'PRSDM-F-0006',
             'farmer id: re-verification keeps the ID issued the first time');
+select set_config('app.change_reason', '', true);
 
 -- ---------------------------------------------------------------------------
 -- Identifiers past 9999 (migration 12)

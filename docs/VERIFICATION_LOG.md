@@ -1854,3 +1854,61 @@ farmer flagged past 120 %; GI land needed before the Farmer ID, a draft may go w
 
 NOT run / not known: nothing of Release 3 on staging yet. Windows PowerShell 5.1. A real phone. About 60 new Hindi
 strings unread by their users.
+- **On staging** 17:44 IST: `staging-farmer-register.cmd` `RESULT: FARMER REGISTER ON STAGING` (head 365b307, 40 files;
+  smoke 39/39; the new rules in place; farmers 0, so nothing without GI land, waiting or duplicated; ledger audit no
+  findings). Vercel built 365b307 itself (Ready, 32 s). In the app as Ram: **Farmer register** in his menu, "Farmer
+  register — Uttar Pradesh", every card 0, filters, the note; **Needs my action** lists "Possible duplicate farmers
+  (same phone): 0" and "Farmers past 120% of their expected yield this season: 0" beside the two clients without a
+  Client Manager. Release 2 checked at the same time: Kalanamak still **Not ready** ("Still needed: yield per acre,
+  recommended chain"; Ram completes it himself); the state ledger's "Signed by" now lists Minal, who signed all three of
+  its blocks (it listed Ram before migration 42). Not checked yet: everything that needs a Client Manager, a ready crop
+  or a scope; the admin's view of the register and the admin's audit line (need Veda signed in as admin).
+
+## 14 October 2026: rules and farmer IDs, Release 4 (migration 44, open item 39), local stack
+
+From Veda's follow-up brief of 14 Oct (sections 0, A, E, D1, D2, D6, G) and her answer "go with your recommendations"
+(test data hidden, not deleted; the State Manager reads scope records, K62 closed; the roster pool leaves out people
+with no base; the order R4, R5, R6). **Nothing of it is on staging** (it waits for Veda's say-so).
+
+The two checks of the brief, read from the practice data and the code:
+- **TCUP-F-0001**: Lucky did step 1 ("Save and verify": `reviewed_at` 0.4 s after the record was made), Ram step 2.
+  Step 1 wrote no ledger block (only step 2 did): from migration 44 step 1 writes `farmer_verified_client`.
+- **The farmer ID scheme**: the client farmer ID (`PRSDM-F-0001`) at step 1; the state farmer ID `F-UP-00001` (state
+  code, five digits, a counter per state) at step 2; the same phone already a state farmer's in the state: linked, or a
+  new ID with the reason; a consent tick before a state farmer ID is ever shown publicly (Release 5).
+
+Ran:
+- `supabase/migrations/20261019000100_rules_and_farmer_ids.sql`: new parts (`app.stage_refusal`, `app.roster_pool`,
+  `app.activation_missing`, `scopes_a3_staffed`, the Client Manager's view, `app.working_role_at`, test data, the state
+  farmer IDs, `app.change_farmer`, `farmer_change_flags`, `app.farmer_history`, `app.practice_fix_14oct`) and functions
+  patched from their current definitions, each substitution asserted.
+- **Database**: `tests/run_local.sh`: **1,546** `ok` lines, **ALL TESTS PASSED**, fresh and on the upgrade path. New
+  `tests/38_rules_and_farmer_ids.sql` (**67 checks**) with **17 controls**: 17 of 17 caught; tests 35, 36 and 37's
+  controls 16/16, 15/15, 11/11. Older tests changed for the new rules: 04, 07, 08, 11, 14, 24, 25, 28, 32, 33, 35, 36, 37.
+  The timing check of `tests/13_phase3_ops.sql` that failed on this machine since 13 Oct now passes: migration 44 first
+  made the incoming list slower (620 → 900 ms), so `app.incoming_records` now asks who may see the list once instead of
+  for every lot (the same answer: every row has that scope and stage): **8 ms**.
+- **The practice corrections** on an upgraded copy of the practice-like data: the scope back to draft with its ledger
+  block, UP-SM-001 to 1 position, TEST Mine hidden; a second run says "already"; the ledger audit: **NO FINDINGS**; the
+  smoke row `rules and farmer ids` OK.
+- **API with real logins** (local stack): `remote_create_user.mjs` **95 passed**; `remote_rls.mjs --t1` **192 passed**.
+- **Unit**: **346 passed** (new `web/tests/rules_and_ids.test.ts`, 6). Type check clean; production build.
+- **Screens** (stack rebuilt): default suite **71 passed** (14.5 min) with the new `phase16` at 527 px (the pool,
+  activation waiting for people, the refusals in words, People & access, My guide, both IDs, the same phone linked, the
+  history, a change with a reason accepted from the register, the working role on the ledger, one position on a State
+  Manager opening). Older tests changed for the new rules: `phase1`, `phase4`, `phase6`, `phase7`, `phase8`, `phase12`,
+  `phase14`, `phase15` (rewritten to the new duplicate model). Production build **14 passed**; the first day from nothing
+  **1 passed** (the first state farmer ID is `F-UP-00001`). Two faults of the app found and fixed on the way: a
+  correction's form could take typing into the empty new-record form while the record loaded (`phase1` failed once);
+  the farmer list showed the previous client's farmers while another client's loaded, so a click could act on the
+  wrong one. Screenshots looked at, 527 and 1366 px: the People step, the State Manager's scope, the farmer's page, the
+  register, the ledger, My guide.
+- **`scripts/staging_rules_and_ids.ps1`** (`staging-rules-and-ids.cmd`) on stand-ins: the run (S1b reports the three
+  corrections); a second run ("already"); wrong words; another migration waiting; the rules not in place after the
+  push; a failed push; the corrections failing; production; functions not current; a smoke row not OK; a changed
+  migration; a changed app file. `staging-farmer-register.cmd` and the earlier scripts now refuse. Sealed: 122 files.
+
+NOT run / not known: nothing of Release 4 on staging yet. Windows PowerShell 5.1. A real phone. About 80 new or changed
+Hindi strings unread by their users. Not built: Release 5 (openings, the scope wizard, the GI badge kept off Lot
+Inward, the public state farmer ID) and Release 6 (the Client Manager's home, menu and ledger; ranges, required limits,
+units).

@@ -36,6 +36,7 @@ export const NAV: { to: string; key: string; icon: string; section: Section; sho
   { to: '/system/seats', key: 'nav.seats', icon: '🪑', section: 'system', show: (w) => w.can.admin },
   { to: '/system/ledger', key: 'nav.ledger', icon: '🔗', section: 'system', show: (w) => w.can.admin },
   { to: '/system/audit', key: 'nav.audit', icon: '📜', section: 'system', show: (w) => w.can.audit ?? w.can.hr_admin },
+  { to: '/guide', key: 'menu.guide', icon: '🧭', section: 'system', show: (w) => !w.joining },   // migration 44: every role's guide
 ];
 
 /**

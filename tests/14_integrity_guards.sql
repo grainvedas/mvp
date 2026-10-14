@@ -264,6 +264,7 @@ begin
   values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000101', 'KH26', 'Guard test', '{procurement,qc,qr_activation}', 'draft',
           now() - interval '50 days', now() - interval '50 days') returning * into r;
   perform t.ok(r.created_at = now() and r.activated_at is null, 'S1 a new draft cannot arrive back-dated or pre-activated');
+  perform t.staff(r.id);   -- migration 44
   update public.scopes set status = 'active', activated_at = now() - interval '50 days' where id = r.id returning * into r;
   perform t.ok(r.status = 'active' and r.activated_at = now(), 'S1 activation is stamped by the server');
   update public.scopes set status = 'closed' where id = r.id returning * into r;
@@ -281,37 +282,39 @@ do $$
 declare f1 text := quote_literal(t.farmer('01')); d uuid; r public.farmers; b jsonb;
 begin
   perform t.as_user(t.u('05'));
-  perform t.fails('update public.farmers set name = ''Someone Else'', village = ''Elsewhere'' where id = ' || f1, 'only a State Manager', 'R1 a procurement operator cannot rename a verified farmer');
-  perform t.fails('update public.farmers set photo_consent = true where id = ' || f1, 'only a State Manager', 'R1 nor switch photo consent on');
-  perform t.fails('update public.farmers set status = ''inactive'' where id = ' || f1, 'only a State Manager', 'R1 nor deactivate him');
-  perform t.fails('update public.farmers set status = ''draft'' where id = ' || f1, 'only a State Manager', 'R1 nor send him back to draft');
+  perform t.fails('update public.farmers set name = ''Someone Else'', village = ''Elsewhere'' where id = ' || f1, 'only its Client Manager or the State Manager', 'R1 a procurement operator cannot rename a verified farmer');
+  perform t.fails('update public.farmers set photo_consent = true where id = ' || f1, 'only its Client Manager or the State Manager', 'R1 nor switch photo consent on');
+  perform t.fails('update public.farmers set status = ''inactive'' where id = ' || f1, 'only its Client Manager or the State Manager', 'R1 nor deactivate him');
+  perform t.fails('update public.farmers set status = ''draft'' where id = ' || f1, 'only its Client Manager or the State Manager', 'R1 nor send him back to draft');
   insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, created_at)
   values ('00000000-0000-4000-8000-000000000201', 'draft', 'Naya Kisan', 'Shri Ram', 'Itwa', 'Siddharthnagar', '+919000001234', 1.2, now() - interval '99 days') returning * into r;
   d := r.id;
   perform t.ok(r.created_at = now(), 'R1 a new farmer cannot be back-dated');
-  update public.farmers set village = 'Bansi', photo_consent = true where id = d returning * into r;
+  update public.farmers set village = 'Bansi', photo_consent = true, gi_land_acres = 1 where id = d returning * into r;
   perform t.ok(r.village = 'Bansi' and r.photo_consent, 'the operator still edits his own draft, consent included');
   perform t.as_user(t.u('03'));   -- step 1 is the Client Manager's (migration 34)
   perform app.submit_farmer(d);
   perform t.as_user(t.u('05'));
-  perform t.fails(format('update public.farmers set village = ''Changed after submit'' where id = %L', d), 'only a State Manager', 'R1 a submitted farmer is not edited by the operator while it waits for verification');
+  perform t.fails(format('update public.farmers set village = ''Changed after submit'' where id = %L', d), 'only its Client Manager or the State Manager', 'R1 a submitted farmer is not edited by the operator while it waits for verification');
   perform t.as_user(t.u('03'));
-  perform t.fails('update public.farmers set name = ''Someone Else'' where id = ' || f1, 'only a State Manager', 'R1 a Client Manager cannot rename a verified farmer either');
+  perform t.fails('update public.farmers set name = ''Someone Else'' where id = ' || f1, 'say why you change it', 'R1 a Client Manager renames a verified farmer only with a written reason (migration 44)');
 
   perform t.as_user(t.u('02'));
   update public.farmers set gi_land_acres = coalesce(gi_land_acres, land_area_acres), status = 'active', verified_by = t.u('02'), verified_at = now() - interval '60 days', created_at = now() - interval '99 days' where id = d returning * into r;
   perform t.ok(r.status = 'active' and r.farmer_code is not null and r.verified_at = now() and r.created_at = now(), 'R1 the State Manager verifies; verification cannot be back-dated');
   perform t.as_service();
   select payload into b from public.ledger order by seq desc limit 1;
-  perform t.ok(b->>'kind' = 'farmer_verified' and b->>'name' = 'Naya Kisan' and b->>'village' = 'Bansi' and b->>'farmer_code' = r.farmer_code and not (b::text like '%9000001234%'),
+  perform t.ok(b->>'kind' = 'farmer_verified_state' and b->>'name' = 'Naya Kisan' and b->>'village' = 'Bansi' and b->>'farmer_code' = r.farmer_code and not (b::text like '%9000001234%'),
                'R1 a farmer''s verification is a ledger block with the verified name and village, without the phone');
   perform t.as_user(t.u('02'));
+  perform set_config('app.change_reason', 'name corrected from the Aadhaar card', true);   -- migration 44: with a reason
   update public.farmers set name = 'Naya Kisan Yadav', phone = '+919000005678' where id = d;
   perform t.as_service();
   select payload into b from public.ledger order by seq desc limit 1;
   perform t.ok(b->>'kind' = 'farmer_changed' and b->'before'->>'name' = 'Naya Kisan' and b->'after'->>'name' = 'Naya Kisan Yadav' and b->'after'->>'phone' = 'changed'
-               and not (b::text like '%9000005678%') and (select actor from public.ledger order by seq desc limit 1) = t.u('02'),
-               'R1 a later change to a verified farmer is a ledger block: before, after, who (phone: only that it changed)');
+               and not (b::text like '%9000005678%') and (select actor from public.ledger order by seq desc limit 1) = t.u('02')
+               and b->>'reason' = 'name corrected from the Aadhaar card',
+               'R1 a later change to a verified farmer is a ledger block: before, after, who, why (phone: only that it changed)');
   perform t.as_user(t.u('02'));
   update public.farmers set status = 'inactive' where id = d;
   perform t.as_service();

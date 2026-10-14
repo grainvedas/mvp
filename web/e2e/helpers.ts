@@ -129,7 +129,8 @@ export async function addJoiner(page: Page, p: { name: string; email: string; ty
   // where the person is based (migration 39): given, or the first state when the form needs one (an HR resource with
   // one state needs none: it is hers)
   const base = page.locator('#j-base');
-  await expect(base.locator('option').nth(1)).toBeAttached();
+  // the states are in: two or more choices, or (an HR resource of one state, migration 44 G9) her state as the only one
+  await expect.poll(() => base.evaluate((el) => { const o = (el as HTMLSelectElement).options; return o.length >= 2 || (o.length === 1 && o[0].value !== ''); })).toBe(true);
   if (p.baseState) await base.selectOption({ label: p.baseState });
   else if (await base.evaluate((el) => (el as HTMLSelectElement).required && !(el as HTMLSelectElement).value)) await base.selectOption({ index: 1 });
   if (p.district) await page.locator('#j-district').fill(p.district);

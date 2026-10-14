@@ -366,7 +366,7 @@ test('A manager gives a stage to a person and takes it away again', async ({ pag
   await signOut(page);
 });
 
-test('A verified farmer is changed only by the State Manager; deactivated farmers cannot be bought from', async ({ page }) => {
+test('A verified farmer is changed with a reason; deactivated farmers cannot be bought from', async ({ page }) => {
   test.setTimeout(180_000);
   const u = uniq();
   const name = `Kamla ${u}`;
@@ -403,10 +403,15 @@ test('A verified farmer is changed only by the State Manager; deactivated farmer
   await row.getByRole('link', { name: 'Edit' }).click();
   await expect(page.getByTestId('farmer-verified-note')).toBeVisible();                    // every change is ledgered
   await page.getByLabel('Village *').fill('Bansi Khurd');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();       // migration 44: a reason first
+  await page.getByTestId('farmer-why').fill('village name corrected');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByRole('tab', { name: 'Active', exact: true }).click();
   await expect(page.getByTestId('farmer-row').filter({ hasText: name })).toContainText('Bansi Khurd');
   await page.getByTestId('farmer-row').filter({ hasText: name }).getByTestId('farmer-inactive').click();
+  await expect(page.getByTestId('farmer-inactive-confirm')).toBeDisabled();
+  await page.getByTestId('farmer-flip-why').fill('moved out of the district');
+  await page.getByTestId('farmer-inactive-confirm').click();
   await page.getByRole('tab', { name: 'Inactive' }).click();
   await expect(page.getByTestId('farmer-row').filter({ hasText: name })).toHaveCount(1);
   await signOut(page);
@@ -425,6 +430,8 @@ test('A verified farmer is changed only by the State Manager; deactivated farmer
   await page.getByLabel('Client').selectOption({ label: 'GrainVeda (Prasaadam trade scope)' });
   await page.getByRole('tab', { name: 'Inactive' }).click();
   await page.getByTestId('farmer-row').filter({ hasText: name }).getByTestId('farmer-active').click();
+  await page.getByTestId('farmer-flip-why').fill('back in the village');
+  await page.getByTestId('farmer-active-confirm').click();
   await page.getByRole('tab', { name: 'Active', exact: true }).click();
   await expect(page.getByTestId('farmer-row').filter({ hasText: name })).toHaveCount(1);
   await signOut(page);

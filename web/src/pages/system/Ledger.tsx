@@ -19,6 +19,8 @@ export interface LedgerRow {
   footprint_id: string | null; record: string | null; stage_type: string | null;
   what: string | null; about: string | null; client: string | null; scope: string | null;
   actor: string | null; actor_name: string | null; actor_role: string | null; actor_summary_role: string | null;
+  /** migration 44: the role the signer held when the block was written (State Manager, Client Manager, Operator…) */
+  actor_working_role?: string | null;
 }
 export interface LedgerPage { total: number; rows: LedgerRow[]; limit: number; offset: number;
   /** the state ledger (migration 41): the filters' choices, and the last check of the whole chain */
@@ -73,7 +75,7 @@ export function Ledger() {
     }
     downloadCsv(`ledger-${todayIST()}.csv`,
       ['seq', 'event', 'record', 'what', 'about', 'client', 'scope', 'signed_by', 'role', 'time', 'hash', 'prev_hash'],
-      all.map((r) => [r.seq, r.event, r.record, r.what, r.about, r.client, r.scope, r.actor_name, r.actor_role, r.created_at, r.hash, r.prev_hash]));
+      all.map((r) => [r.seq, r.event, r.record, r.what, r.about, r.client, r.scope, r.actor_name, r.actor_working_role ?? r.actor_role, r.created_at, r.hash, r.prev_hash]));
   });
 
   if (!admin && !smState) return <Navigate to="/" replace />;
@@ -143,7 +145,8 @@ export function Ledger() {
                       {(r.client || r.scope) && <div className="small muted">{[r.client, r.scope].filter(Boolean).join(' · ')}</div>}
                     </td>
                     <td>{r.actor_name ?? t('ledger.system')}</td>
-                    <td>{r.actor_role ? t(`sysrole.${r.actor_role}`, undefined, humanise(r.actor_role)) : '—'}</td>
+                    <td>{r.actor_working_role ? t(`wrole.${r.actor_working_role}`, undefined, humanise(r.actor_working_role))
+                      : r.actor_role ? t(`sysrole.${r.actor_role}`, undefined, humanise(r.actor_role)) : '—'}</td>
                     <td>{dateTime(r.created_at)}</td>
                     <td><code title={r.hash}>{shortHash(r.hash)}</code></td>
                     <td><code title={r.prev_hash ?? ''}>{shortHash(r.prev_hash)}</code></td>

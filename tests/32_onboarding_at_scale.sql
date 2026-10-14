@@ -292,10 +292,10 @@ select t.as_user(t.u('03'));                        -- the Client Manager manage
 select t.ok(jsonb_array_length(app.ready_to_assign('scope', '00000000-0000-4000-8000-000000000401')) = 6
             and (select count(*) from jsonb_array_elements(app.ready_to_assign('scope', '00000000-0000-4000-8000-000000000401')) x where x->>'stage' = 'procurement') = 5,
             'ready to assign: on the scope, the five for procurement and the intern who joined for QC, each with their stage');
-insert into fx (k, j) values ('many', app.assign_many(array[pg_temp.f('op1'), pg_temp.f('op2'), pg_temp.f('op3'), pg_temp.f('op4'), pg_temp.f('op5'), t.u('03')],
+insert into fx (k, j) values ('many', app.assign_many(array[pg_temp.f('op1'), pg_temp.f('op2'), pg_temp.f('op3'), pg_temp.f('op4'), pg_temp.f('op5'), t.u('02')],
                                                       'scope', '00000000-0000-4000-8000-000000000401', 'operator', '{procurement}'));
 select t.ok((pg_temp.j('many')->>'done')::int = 5 and (select count(*) from jsonb_array_elements(pg_temp.j('many')->'results') x where not (x->>'ok')::boolean) = 1,
-            'assign many: five on the stage in one act; oneself refused on its own line');
+            'assign many: five on the stage in one act; a State Manager refused on its own line (migration 44)');
 select t.as_service();
 select t.ok((select count(*) from public.audit_log where action = 'assigned' and target in (pg_temp.f('op1'), pg_temp.f('op2'), pg_temp.f('op3'), pg_temp.f('op4'), pg_temp.f('op5'))) = 5,
             'assign many: one audit line per person');

@@ -157,8 +157,8 @@ export function AddJoiner() {
             <Field label={t('open.col_opening')} hint={t('aj.opening_hint')} htmlFor="j-opening"><select id="j-opening" value={f.opening_id}
               onChange={(e) => { const o = (openings.data?.openings ?? []).find((x) => x.id === e.target.value); setF({ ...f, opening_id: e.target.value, base_state_id: o?.state_id ?? f.base_state_id }); }}>
               <option value="">{t('aj.no_opening')}</option>
-              {(openings.data?.openings ?? []).filter((o) => o.status === 'open').map((o) => (
-                <option key={o.id} value={o.id} disabled={o.vacant === 0}>{o.code} · {t(`role.${o.role}`)}{o.stage ? ` · ${stage(o.stage)}` : ''} · {t('aj.vacant', { n: o.vacant })}</option>))}</select></Field>
+              {(openings.data?.openings ?? []).filter((o) => o.status === 'open' && o.vacant > 0).map((o) => (   // G4 (Veda, 14 Oct): no full or closed opening
+                <option key={o.id} value={o.id}>{o.code} · {t(`role.${o.role}`)}{o.stage ? ` · ${stage(o.stage)}` : ''} · {t('aj.vacant', { n: o.vacant })}</option>))}</select></Field>
             {!f.opening_id && <Field label={t('open.role')} hint={t('common.optional')} htmlFor="j-role"><select id="j-role" value={f.intended_role} onChange={set('intended_role')}>
               <option value="">—</option>{HIRE_ROLES.map((r) => <option key={r} value={r}>{t(`role.${r}`)}</option>)}</select></Field>}
             {!f.opening_id && f.intended_role === 'operator' && <Field label={t('open.stage')} hint={t('common.optional')} htmlFor="j-stage"><select id="j-stage" value={f.intended_stage} onChange={set('intended_stage')}>
@@ -166,9 +166,11 @@ export function AddJoiner() {
             {chosen && <p className="small" data-testid="opening-role"><RoleLabel role={chosen.role} stage={chosen.stage} /> · {chosen.state_name}</p>}
             <Field label={t('jl.owner')} htmlFor="j-owner"><select id="j-owner" value={f.hr_owner} onChange={set('hr_owner')}>
               <option value="">{t('jl.owner_none')}</option>{(hrPeople.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
-            <Field label={t('geo.based_in')} hint={t('geo.based_hint')} htmlFor="j-base"><select id="j-base" value={f.base_state_id} onChange={set('base_state_id')}
+            {/* G9 (Veda, 14 Oct): an HR resource of one state saw that state twice; now it is the one choice, chosen */}
+            <Field label={t('geo.based_in')} hint={t('geo.based_hint')} htmlFor="j-base"><select id="j-base"
+              value={f.base_state_id || (scope.data && !scope.data.full && scope.data.states.length === 1 ? scope.data.states[0].id : '')} onChange={set('base_state_id')}
               required={!!scope.data && !(!scope.data.full && scope.data.states.length === 1)}>
-              <option value="">{scope.data && !scope.data.full && scope.data.states.length === 1 ? scope.data.states[0].name : '—'}</option>
+              {!(scope.data && !scope.data.full && scope.data.states.length === 1) && <option value="">—</option>}
               {stateChoices(allStates.data ?? [], scope.data).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
             <Field label={t('geo.district')} hint={t('common.optional')} htmlFor="j-district"><input id="j-district" value={f.base_district} onChange={set('base_district')} maxLength={60} /></Field>
           </div>

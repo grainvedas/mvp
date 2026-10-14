@@ -236,12 +236,21 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   farmer's good farming practice is written only by `app.save_farmer_gap`; Procurement asks it in `check_new_footprint`
   (a required practice open refuses the lot). A crop's code is unique within its state. `tests/36_crop_registry.sql`
   needs a case for any new crop rule.
-- **No Farmer ID without GI land, nor while a possible duplicate is open** (migration 43, Veda 13 October 2026).
-  `farmers_z2_register_rules` asks both of a person acting; a possible duplicate is another record, not deactivated, with
-  the same `app.phone10` in the same `app.farmer_home` state, not cleared in `farmer_dup_reviews` (written only by
-  `app.mark_not_duplicate`). The yield check (GI land × yield per acre, per season) is in `procurement_crop_checks`: a
-  warning, never a refusal. The register (`app.farmer_register`) shows a phone only as its last four digits: no screen
-  that lists farmers across clients shows a whole number. `tests/37_farmer_register.sql` needs a case for any new rule.
+- **No state farmer ID without GI land** (migration 43, Veda 13 October 2026; the duplicate model of migration 44).
+  `farmers_z2_register_rules` asks it at the State Manager's first verification. The yield check (GI land × yield per
+  acre, per season) is in `procurement_crop_checks` and `app.above_yield`: a warning, never a refusal or a flag. The
+  register (`app.farmer_register`) shows a phone only as its last four digits: no screen that lists farmers across
+  clients shows a whole number. `tests/37_farmer_register.sql` needs a case for any new register rule.
+- **A stage only for who the roster may hold; activation only when every stage has a person; two farmer IDs**
+  (migration 44, Veda 14 October 2026). `app.stage_refusal` is the one rule for a stage (an operational person based in
+  the scope's state, or the client's own Client Manager), asked by `assign`, `set_stages`, `slots_assignment`,
+  `ready_to_assign` and `app.roster_pool`; `scopes_a3_staffed` refuses an activation while `app.coverage_gaps` is not
+  empty. The State Manager reads scopes (`app.watches_state`, `app.watches_scope`) and manages none (`manages_place` is
+  the client's account only). The client farmer ID is given at step 1, the state farmer ID (`state_farmers`,
+  `F-<state>-00001`) at step 2 by `farmers_z3_state_id`: the same phone already a state farmer's is linked
+  (`app.state_link`) or given a new ID with a reason. A change to a farmer with an ID goes through `app.change_farmer`
+  with a reason (`app.change_reason`); every step and change is a ledger block (`farmers_ledger`). People marked
+  `test_data` are left out of every list. `tests/38_rules_and_farmer_ids.sql` needs a case for any new rule here.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.

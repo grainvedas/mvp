@@ -136,10 +136,11 @@ end $$;
 select t.fails(format($q$ update public.crops set yield_per_acre_kg = 0 where id = %L $q$, pg_temp.f('TSTA_UP')), 'check constraint', 'C yield: a yield of 0 is refused');
 select t.as_user(t.u('03'));
 do $$ declare n int; begin
+  perform app.assign(t.u('05'), 'scope', pg_temp.f('SC'), 'operator', '{procurement}', '', null);   -- migration 44: people first
+  perform app.assign(t.u('06'), 'scope', pg_temp.f('SC'), 'operator', '{qc}', '', null);
+  perform app.assign(t.u('07'), 'scope', pg_temp.f('SC'), 'operator', '{qr_activation}', '', null);
   update public.scopes set status = 'active' where id = pg_temp.f('SC'); get diagnostics n = row_count;
   perform t.ok(n = 1, 'C ready: the Client Manager activates the scope once the crop is ready');
-  perform app.assign(t.u('05'), 'scope', pg_temp.f('SC'), 'operator', '{procurement}', '', null);
-  perform app.assign(t.u('06'), 'scope', pg_temp.f('SC'), 'operator', '{qc}', '', null);
 end $$;
 
 -- 6 · the farmer's practice: answered by the Client Manager; checked at Procurement ------------------------------------------

@@ -191,7 +191,7 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   await signIn(page, USERS.sm);
   await page.goto(`/people/${made.manager.id}`);
   await page.getByTestId('give-assignment').click();
-  await page.getByRole('tab', { name: "A client's account" }).click();
+  await expect(page.getByRole('tab', { name: 'A scope' })).toHaveCount(0);       // migration 44: "A client's account" is all he gives
   await page.getByLabel('Client', { exact: true }).selectOption({ label: client });
   await page.getByTestId('assign-save').click();
   await expect(page.getByTestId('assignment')).toContainText(client);

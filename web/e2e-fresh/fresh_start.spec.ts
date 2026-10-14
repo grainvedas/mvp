@@ -203,7 +203,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
 
   await page.goto(`/people/${made.manager.id}`);
   await page.getByTestId('give-assignment').click();
-  await page.getByRole('tab', { name: "A client's account" }).click();
+  await expect(page.getByRole('tab', { name: 'A scope' })).toHaveCount(0);       // migration 44: "A client's account" is all he gives
   await page.getByLabel('Client', { exact: true }).selectOption({ label: 'Prasaadam' });
   await page.getByTestId('assign-save').click();
   await expect(page.getByTestId('assignment')).toContainText('Prasaadam');
@@ -256,6 +256,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await row.getByTestId('farmer-step2').click();
   await page.getByRole('tab', { name: 'Active', exact: true }).click();
   await expect(page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` })).toContainText('PRSDM-F-0001');
+  await expect(page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` }).getByTestId('farmer-state-id')).toHaveText('F-UP-00001');   // migration 44: the first state farmer ID
   await signOut(page);
 
   // 8. Buy, test against the limits the State Manager typed in step 5, seal
