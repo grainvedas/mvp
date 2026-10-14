@@ -1,0 +1,63 @@
+# The daily outside copy of the ledger's fingerprint (migration 45, Veda 14 Oct 2026). Installed as
+# .github/workflows/ledger-anchor.yml by scripts/staging_safeguards.ps1 (Claude's tools cannot write into .github/).
+#
+# Once a day it asks each project set up below whether the fingerprints copied on earlier days still match, then adds
+# today's, on the branch `ledger-anchors` (never main: no app build, no database test run). A rewritten ledger or change
+# log fails the run: GitHub marks it red and emails the person who last changed this schedule.
+# Set up (docs/PRODUCTION_SAFEGUARDS.md, step 6): repository Settings → Secrets and variables → Actions → Variables:
+#   GV_STAGING_URL, GV_STAGING_ANON_KEY (the practice system), later GV_PROD_URL, GV_PROD_ANON_KEY (production).
+# The public (anon) key only: it reads two fingerprints and nothing else.
+name: ledger anchor
+
+on:
+  schedule:
+    - cron: '45 20 * * *'          # 02:15 IST, after the nightly ledger check (02:00 IST)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ledger-anchor
+  cancel-in-progress: false
+
+jobs:
+  anchor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: the ledger-anchors branch
+        run: |
+          if git ls-remote --exit-code --heads origin ledger-anchors >/dev/null; then
+            git fetch origin ledger-anchors
+            git worktree add anchors-wt FETCH_HEAD
+            git -C anchors-wt switch -C ledger-anchors
+          else
+            git worktree add --detach anchors-wt
+            git -C anchors-wt switch --orphan ledger-anchors
+          fi
+      - name: practice system
+        env:
+          GV_TARGET: staging
+          GV_SUPABASE_URL: ${{ vars.GV_STAGING_URL }}
+          GV_SUPABASE_ANON_KEY: ${{ vars.GV_STAGING_ANON_KEY }}
+          ANCHOR_FILE: anchors-wt/staging.csv
+        run: node scripts/anchor_ledger.mjs
+      - name: production
+        env:
+          GV_TARGET: production
+          GV_SUPABASE_URL: ${{ vars.GV_PROD_URL }}
+          GV_SUPABASE_ANON_KEY: ${{ vars.GV_PROD_ANON_KEY }}
+          ANCHOR_FILE: anchors-wt/production.csv
+        run: node scripts/anchor_ledger.mjs
+      - name: keep today's copy
+        run: |
+          cd anchors-wt
+          git add -A
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          git -c user.name="ledger anchor" -c user.email="ledger-anchor@users.noreply.github.com" commit -q -m "ledger fingerprints $(date -u +%F) [skip ci]"
+          git push -q origin ledger-anchors

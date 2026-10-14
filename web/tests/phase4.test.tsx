@@ -197,9 +197,11 @@ describe('hosting config', () => {
   // JSON has no comments, so notes on this file live in docs/DEPLOY.md. Check a new property against
   // https://openapi.vercel.sh/vercel.json before adding it here.
   it('vercel.json holds only properties Vercel accepts', () => {
-    const accepted = ['$schema', 'framework', 'installCommand', 'buildCommand', 'outputDirectory', 'rewrites', 'headers'];
+    const accepted = ['$schema', 'framework', 'installCommand', 'buildCommand', 'outputDirectory', 'rewrites', 'headers', 'git'];
     const config = JSON.parse(readFileSync(join(__dirname, '..', 'vercel.json'), 'utf8'));
     expect(Object.keys(config).filter((k) => !accepted.includes(k))).toEqual([]);
+    // migration 45: the daily ledger copy's branch is never built (Vercel's git.deploymentEnabled); main still is
+    expect(config.git).toEqual({ deploymentEnabled: { 'ledger-anchors': false } });
   });
   // A package.json above web/ that names it as a workspace makes npm ignore web/package-lock.json: `npm ci` in web/ then
   // installs from the lockfile above, which was written on Windows and held no Linux build of rollup.

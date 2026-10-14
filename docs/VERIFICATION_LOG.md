@@ -1912,3 +1912,70 @@ NOT run / not known: nothing of Release 4 on staging yet. Windows PowerShell 5.1
 Hindi strings unread by their users. Not built: Release 5 (openings, the scope wizard, the GI badge kept off Lot
 Inward, the public state farmer ID) and Release 6 (the Client Manager's home, menu and ledger; ranges, required limits,
 units).
+- **On staging** 14 Oct 07:29 IST: `staging-rules-and-ids.cmd` `RESULT: RULES AND IDS ON STAGING` (head 49adf35, 59
+  files; one migration waiting and pushed; S1b: scope TCUP KH26 gkp back to draft with its ledger block, UP-SM-001 10 →
+  1 position, TEST Mine marked as test data; smoke 40/40; the new rules in place; farmers 1, with a state farmer ID 1,
+  verified without one 0, changes to accept 0, active scopes not fully staffed 0; ledger audit NO FINDINGS (29 blocks);
+  NO LOGIN WITHOUT A PERSON; functions current). Vercel built 49adf35 itself (Ready, 10 s, the current Production).
+  Not checked yet: the 14 checks in the app (`docs/RUNSHEET_rules_and_ids.md`, Afterwards).
+- **In the app as Lucky** (14 Oct, after the run): check 1 — TCUP KH26 gkp is **Draft**, the People step lists the 7
+  stages with nobody, **Activate** off. Check 2 — the pool offers only "Lucky (you)": nobody else on staging is an
+  operational person based in Uttar Pradesh (no Veda, HR or Ram). Check 4 — People & access lists Lucky alone; the
+  filters offer Test Client UP and Uttar Pradesh only. Farmer 1 shows TCUP-F-0001 and F-UP-00001 and its history
+  (drafted by Lucky; verified by Ram; the state ID given by the push, with its reason); Lucky's step 1 of 13 Oct is not
+  its own line (it wrote no block then). Check 7 as written cannot pass: one client uses a phone once (`farmers_client_phone_key`,
+  since phase 1), so Lucky's same-phone farmer was refused, "This already exists (same phone, email or code)", nothing
+  saved. The run sheet now asks for the Client Manager of a second UP client. Not done yet: 3 (activation: needs stage
+  people based in UP, or Lucky on every stage), 5–6, 8–14.
+- **As Ram**: check 5 — the scope reads "You read this scope…", no lists, no Remove; on a person's Assign page only "A
+  client's account" (Demo Client 1, Test Client UP). Check 6 — farmer 1 with both IDs and its history. Check 11 — the
+  state ledger's new Role column (Client Manager, State Manager, HR Admin). Found: the S1b block 29 ("Activation
+  reversed") names **Lucky** as signer (the correction chose the scope's Client Manager first, then the admin); its reason
+  says it was the practice correction of migration 44, but the name is misleading. Not changed (a block is never
+  edited); asked Veda whether to add a correcting block.
+- **As Veda (admin)**: check 12 — My guide opens the admin's guide. Check 14 — People & access lists 6 employees,
+  TEST Mine not among them (TEST Other, left, still listed: only TEST Mine was decided); Openings: UP-SM-001 has 1
+  position; the closed UP-OPR-001 is left out of the totals (12 = 1 + 10 + 1).
+- Open: 3 (stage people based in UP), 7–8 (a second UP client's Client Manager; Demo Client 1 exists), 9–10 (Lucky
+  changes, Ram accepts), 13 (HR Admin).
+
+
+## 14 October 2026: production safeguards (migration 45, open item 40), local stack
+
+Veda, after Release 4: "when in production and in real time can such thing happen and not recorded? … ok go ahead".
+The go-live checklist: `docs/PRODUCTION_SAFEGUARDS.md`. **Nothing of it is on staging** (it waits for Veda's say-so).
+
+Ran:
+- `supabase/migrations/20261020000100_production_safeguards.sql`: `change_log` (21 tables, `app.log_change`,
+  `app.change_path`, `app.verify_change_log`), `corrections` (`request_correction`, `decide_correction`,
+  `open_correction`, `close_correction`, `owner_correction`), `ledger_head`, `anchor_check`, `safeguards_report`,
+  `practice_note_15oct`, the ledger's truncate guard.
+- **Database**: `tests/run_local.sh`: **1,611** `ok` lines, **ALL TESTS PASSED**, fresh and on the upgrade path, with
+  four sessions at once. New `tests/39_production_safeguards.sql` (**63 checks**) with **17 controls**: 17 of 17
+  caught; the controls of tests 35–38 still 16/16, 15/15, 11/11, 17/17. A first run found a fault of the migration,
+  fixed before this one: the change log had its own lock, and four sessions that saved lots and verified farmers at
+  once took the two locks in either order and deadlocked (`tests/concurrency`); the change log now waits for the
+  ledger's lock, and the concurrency test also checks the change log's chain. The timing check: incoming list 8 ms.
+- **API with real logins**: `remote_create_user.mjs` **95 passed**; `remote_rls.mjs --t1` **192 passed**.
+- **Unit**: **350 passed** (new `web/tests/safeguards.test.ts`, 4; the menus; `vercel.json` may now hold `git`, and
+  holds exactly "do not build the branch ledger-anchors").
+- **Screens**: default suite **72 passed** (15.0 min) with the new `phase17` at 527 px (the admin's page: the log
+  intact, how changes came, ten changes behind the app then the rest, the fingerprints; a correction asked with a reason,
+  not approvable by the asker; a Client Manager refused, no menu entry; the HR Admin approves, a refusal needs a reason).
+  Production build **14 passed**; the first day from nothing **1 passed**, after a fix: emptying the practice system
+  truncates every table, and the ledger and change log now refuse truncate; `empty_staging.sql` sets those two guards
+  aside for that one statement, as it already did for the audit log, and reports them back on (K93). Screenshots
+  looked at, 527 and 1366 px; the list of changes behind the app was shortened to ten at first after the first look (on a
+  phone it pushed the corrections out of sight).
+- **The daily outside copy**: `scripts/anchor_ledger.mjs` against the local stack: first run adds the line; second run
+  "2 earlier fingerprints still match", nothing added; a copy changed by hand: `ANCHOR MISMATCH`, exit 1; not set up:
+  skipped. The GitHub job's branch handling on a local repository, three days: the branch `ledger-anchors` holds only
+  `staging.csv`, three commits, main untouched. GitHub Actions itself not run.
+- **`scripts/staging_safeguards.ps1`** (`staging-safeguards.cmd`) on stand-ins: the run (S1b adds the correcting block;
+  "statement logging" listed as a set-up row, not stopping; S3 installs the job and commits it); a second run
+  ("explained already"); wrong words; another migration waiting; the safeguards not in place after the push; a failed
+  push; the correcting block failing; production; functions not current; a smoke row not OK; a changed migration; a
+  changed app file. `staging-rules-and-ids.cmd` and the earlier scripts now refuse. Sealed: 124 files.
+
+NOT run / not known: nothing of it on staging; GitHub Actions; pgaudit (not on this machine); Windows PowerShell 5.1;
+about 50 new Hindi strings unread by their users.

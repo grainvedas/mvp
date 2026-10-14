@@ -42,7 +42,17 @@ begin
   end loop;
 
   alter table public.audit_log disable trigger audit_log_no_truncate;
+  -- migration 45: the ledger and the change log refuse TRUNCATE too; set aside the same way, here only (a practice
+  -- system started afresh: its daily outside copy must then be started again, docs/PRODUCTION_SAFEGUARDS.md)
+  if exists (select 1 from pg_trigger where tgname = 'ledger_no_truncate') then
+    alter table public.ledger disable trigger ledger_no_truncate;
+    alter table public.change_log disable trigger change_log_no_truncate;
+  end if;
   execute 'truncate table ' || list || ' restart identity';
+  if exists (select 1 from pg_trigger where tgname = 'ledger_no_truncate') then
+    alter table public.ledger enable trigger ledger_no_truncate;
+    alter table public.change_log enable trigger change_log_no_truncate;
+  end if;
   alter table public.audit_log enable trigger audit_log_no_truncate;
 
   -- The checklists the migrations wrote stay: the standard one (migration 31; HR needs it for the first joiner) and
@@ -76,5 +86,7 @@ select 'fresh start: people=' || (select count(*) from public.app_users)
     || ' stage_definitions=' || (select count(*) from public.stage_definitions)
     || ' checklist_tasks=' || (select count(*) from public.template_tasks)
     || ' audit_guard=' || (select case when tgenabled = 'O' then 'on' else 'OFF' end from pg_trigger where tgname = 'audit_log_no_truncate')
+    || ' ledger_guards=' || (select case when count(*) filter (where tgenabled <> 'O') = 0 then 'on' else 'OFF' end
+                              from pg_trigger where tgname in ('ledger_no_truncate', 'change_log_no_truncate'))
     || ' links_back=' || (select count(*) from pg_constraint where contype = 'f' and conrelid = 'public.onboarding_templates'::regclass)
     as result;

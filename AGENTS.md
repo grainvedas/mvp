@@ -251,6 +251,12 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   (`app.state_link`) or given a new ID with a reason. A change to a farmer with an ID goes through `app.change_farmer`
   with a reason (`app.change_reason`); every step and change is a ledger block (`farmers_ledger`). People marked
   `test_data` are left out of every list. `tests/38_rules_and_farmer_ids.sql` needs a case for any new rule here.
+- **Every change to the tables that matter is in the change log; live data is corrected only through the door**
+  (migration 45, Veda 14 October 2026). A new table people or lots depend on gets a `zz_change_log` trigger (and the count
+  in `tests/39_production_safeguards.sql` and the smoke row). A migration that changes rows declares itself first:
+  `select set_config('app.change_path', 'migration NN', true);`. A correction of live data, on any system, runs inside
+  `app.open_correction(id)` … `app.close_correction()` (or `app.owner_correction(reason)` while two-person approval is
+  off), never as a bare update; a practice-data function refuses production. The change log keeps no values.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.

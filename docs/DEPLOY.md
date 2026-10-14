@@ -98,9 +98,12 @@ explanation of each step.
 5. **Functions and secrets**: `supabase functions deploy create-user`, `reset-password`, `daily-code`, `id-numbers`, and
    `ledger-check --no-verify-jwt`, `invite --no-verify-jwt` (with `ID_HMAC_KEY` of production: `docs/OPERATIONS.md`); a new `LEDGER_CHECK_TOKEN` for production (`scripts/make_ledger_token.mjs` with
    `ENV_FILE=.env.production`), uploaded with `supabase secrets set --env-file .env.functions.production`.
-6. **Checks, read-only**: `tests/remote_smoke.sql` (40 rows; "environment" must say `OK production`, "demo data" must
+6. **Checks, read-only**: `tests/remote_smoke.sql` (42 rows; "environment" must say `OK production`, "demo data" must
    say `OK production: no demo people or scopes`), `ENV_FILE=.env.production node tests/remote_auth_settings.mjs`
    (must end `AUTH SETTINGS PASSED`; on production an open setting is a failure, not a warning).
+6b. **Production safeguards** (migration 45): the go-live checklist of `docs/PRODUCTION_SAFEGUARDS.md` (two owners,
+   MFA, keys, statement logging, backups, the daily outside copy, two-person approval); "statement logging" in the smoke
+   check must then say `OK`.
 7. **First admin**: `ENV_FILE=.env.production node scripts/bootstrap_admin.mjs --email <Veda's address> --name "Veda"`.
    The temporary password is written to `.env.admin-login`, not shown. Sign in, choose an own password when the app
    asks, delete the file.

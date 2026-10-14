@@ -6,6 +6,10 @@ begin
   perform t.ok(not exists (select 1 from public.ledger group by prev_hash having count(*) > 1),
                'concurrency: no two blocks share a predecessor (the chain never forked)');
   perform t.ok((select count(*) from public.footprints) = 100, 'concurrency: all 100 lots saved');
+  -- migration 45: the change log is written by the same writers, under the ledger's lock (one lock: no deadlock)
+  perform t.ok(not exists (select 1 from app.verify_change_log()), 'concurrency: change log chain valid after 4 sessions wrote at once');
+  perform t.ok(not exists (select 1 from public.change_log group by prev_hash having count(*) > 1),
+               'concurrency: no two change-log lines share a predecessor');
   select count(*) into v_switches
     from (select f.farmer_id, lag(f.farmer_id) over (order by l.seq) as prev
             from public.ledger l join public.footprints f on f.id = l.footprint_id where l.event = 'create') s

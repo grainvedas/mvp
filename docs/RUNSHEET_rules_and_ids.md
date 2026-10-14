@@ -72,7 +72,7 @@ Last line: `RESULT: RULES AND IDS ON STAGING` or `RESULT: STOPPED`. Record:
 | 4 | Lucky | **People & access** | His client's people and the UP pool; no Veda, no HR, no Ram; the state filter shows Uttar Pradesh only |
 | 5 | Ram | That scope | Read only: no lists, no Remove; on a person's **Assign** only "A client's account" |
 | 6 | Ram | **Farmers** → TCUP-F-0001 → Edit | Both IDs: TCUP-F-0001 and a state farmer ID F-UP-…; **History**: Ram's verification of 13 Oct and the state farmer ID given by the push. Lucky's step 1 of 13 Oct is shown from the record: it wrote no ledger block then (from now on it does) |
-| 7 | Lucky | A new farmer with the **same phone** as TCUP-F-0001 → Save and verify | A client farmer ID at once |
+| 7 | the Client Manager of a **second** UP client | A new farmer with the **same phone** as TCUP-F-0001 → Save and verify | A client farmer ID of that client at once. (Within one client a phone is used once: Lucky gets "This already exists (same phone, email or code)" and nothing is saved; checked 14 Oct) |
 | 8 | Ram | **Farmers** → Ready to verify → that farmer | "Same phone as F-UP-00001": **Same person: link** or **Not the same person** (a reason) → a new ID |
 | 9 | Lucky | TCUP-F-0001: GI land changed | **Save** is off until "Why" is filled in |
 | 10 | Ram | Overview → **Needs my action** → changes | The register card "1 change of GI land or mobile" → the farmer → **Accept** |

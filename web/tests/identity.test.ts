@@ -222,7 +222,7 @@ describe('the menu follows what the server says a person may do', () => {
   });
   it('HR makes people and assigns nobody: HR and People, nothing of scopes, flags, seats', () => {
     expect(links({ can: { hr: true } })).toEqual(['/', '/hr', '/hr/openings', '/people', '/guide']);
-    expect(links({ can: { hr: true, hr_admin: true } })).toEqual(['/', '/hr', '/hr/openings', '/people', '/system/audit', '/guide']);
+    expect(links({ can: { hr: true, hr_admin: true } })).toEqual(['/', '/hr', '/hr/openings', '/people', '/system/audit', '/system/safeguards', '/guide']);   // migration 45: she decides corrections
   });
   it('a manager assigns and makes nobody: People without HR', () => {
     const cm = links({ role: 'client_manager', can: { assign: true } });

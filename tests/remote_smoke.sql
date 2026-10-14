@@ -1,6 +1,6 @@
 -- READ-ONLY smoke check for a Supabase project after `db push` + seeds. Safe on production: no writes.
 -- Run: psql "$SUPABASE_DB_URL" -f tests/remote_smoke.sql   (or paste into Dashboard → SQL Editor)
--- Every row must start with OK (32 rows; the last, the nightly check, is how the project is set up). The same file serves staging (demo seed expected) and production (demo
+-- Every row must start with OK (42 rows; three of them, statement logging, the reminder round and the nightly check, say how the project is set up). The same file serves staging (demo seed expected) and production (demo
 -- seed forbidden): the 'environment' row says which one it found, from app.environment() (migration 23).
 -- API exposure of the `app` schema is not checked here: hosted Supabase keeps that setting in PostgREST's config, which
 -- SQL cannot read. Prove it with tests/remote_api_check.ps1 (REST call with the public key).
@@ -270,6 +270,26 @@ select 'rules and farmer ids',     case when to_regprocedure('app.stage_refusal(
                                         or position('''state''' in pg_get_functiondef('app.manages_place(uuid, uuid, uuid)'::regprocedure)) > 0
                                       then 'OLD (push migration 44)'
                                       else 'OK rosters by the Client Manager; every stage staffed before activation; two farmer IDs' end
+union all
+select 'production safeguards',    case when to_regclass('public.change_log') is null or to_regclass('public.corrections') is null
+                                        or to_regprocedure('app.ledger_head()') is null
+                                      then 'MISSING (push migration 45)'
+                                      when (select count(*) from pg_trigger where tgname = 'zz_change_log') < 21
+                                        or not exists (select 1 from pg_trigger where tgname = 'change_log_no_update_delete')
+                                        or not exists (select 1 from pg_trigger where tgname = 'ledger_no_truncate')
+                                      then 'INCOMPLETE: a change-log trigger or a guard is missing'
+                                      when exists (select 1 from app.verify_change_log())
+                                      then 'CHANGE LOG BROKEN at line ' || (select seq from app.verify_change_log() limit 1)
+                                      else 'OK change log on 21 tables, intact; corrections through one door; fingerprint for an outside copy' end
+union all
+select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
+                                        and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
+                                                     where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')
+                                      then 'OK the database owner''s writes are logged (pgaudit)'
+                                      when exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
+                                                     where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'log_statement=(mod|all)')
+                                      then 'OK the database owner''s writes are logged (log_statement)'
+                                      else 'NOT SET: the database owner''s writes are not logged (docs/PRODUCTION_SAFEGUARDS.md, step 4)' end
 union all
 select 'reminder round',          case when to_regclass('cron.job') is null then 'NO pg_cron: reminders are queued when HR opens the Joiners list'
                                       when (xpath('/row/n/text()', query_to_xml(

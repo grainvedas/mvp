@@ -36,6 +36,7 @@ export const NAV: { to: string; key: string; icon: string; section: Section; sho
   { to: '/system/seats', key: 'nav.seats', icon: '🪑', section: 'system', show: (w) => w.can.admin },
   { to: '/system/ledger', key: 'nav.ledger', icon: '🔗', section: 'system', show: (w) => w.can.admin },
   { to: '/system/audit', key: 'nav.audit', icon: '📜', section: 'system', show: (w) => w.can.audit ?? w.can.hr_admin },
+  { to: '/system/safeguards', key: 'nav.safeguards', icon: '🛡', section: 'system', show: (w) => !!w.can.hr_admin },   // migration 45: she decides corrections
   { to: '/guide', key: 'menu.guide', icon: '🧭', section: 'system', show: (w) => !w.joining },   // migration 44: every role's guide
 ];
 
@@ -60,6 +61,7 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Re
       { to: '/system/ledger', key: 'nav.ledger', icon: '🔗' },
       { to: '/system/audit', key: 'nav.audit', icon: '📜' },
       { to: '/health', key: 'nav.health', icon: '🩺' },
+      { to: '/system/safeguards', key: 'nav.safeguards', icon: '🛡' },   // migration 45
     ],
     master: [                                              // set-up order: states → clients → crops → scopes → farmers
       { to: '/states', key: 'nav.states', icon: '📍' },

@@ -70,6 +70,10 @@ insert into allowed values
   ('authenticated', 'roster_pool'), ('authenticated', 'activation_missing'), ('authenticated', 'verify_farmer_state'),
   ('authenticated', 'change_farmer'), ('authenticated', 'accept_farmer_change'), ('authenticated', 'farmer_history'), ('authenticated', 'state_choice'),
   ('authenticated', 'watches_state'), ('authenticated', 'watches_scope'), ('authenticated', 'cm_limited'), ('authenticated', 'cm_seen_ids'),
+  -- migration 45: the admin asks for a correction, a second person decides, the admin's safeguards report; the
+  -- ledger's fingerprint and the check of earlier copies, for the daily outside copy (public key: hashes only)
+  ('authenticated', 'request_correction'), ('authenticated', 'decide_correction'), ('authenticated', 'safeguards_report'),
+  ('authenticated', 'ledger_head'), ('authenticated', 'anchor_check'), ('anon', 'ledger_head'), ('anon', 'anchor_check'),
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

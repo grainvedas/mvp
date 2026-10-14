@@ -23,6 +23,7 @@ import { Checklist, Goals, TaskPage, Welcome } from './pages/onboarding/Onboardi
 import { AssignPage, Directory, ProfilePage, RosterPage, StateOverview } from './pages/people/People';
 import { AuditLog, Seats } from './pages/system/System';
 import { Ledger } from './pages/system/Ledger';
+import { Safeguards } from './pages/system/Safeguards';
 import { DailyCode } from './auth/DailyCode';
 import { rpc } from './lib/api';
 import { Health } from './pages/admin/Health';
@@ -101,6 +102,7 @@ function Private() {
         <Route path="system/seats" element={<Seats />} />
         <Route path="system/audit" element={<AuditLog />} />
         <Route path="system/ledger" element={<Ledger />} />
+        <Route path="system/safeguards" element={<Safeguards />} />   {/* migration 45: the server decides who reads it */}
         <Route path="clients" element={<Clients />} />
         <Route path="states" element={<AdminOnly><States /></AdminOnly>} />
         <Route path="crops" element={<Crops />} />

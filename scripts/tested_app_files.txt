@@ -1,10 +1,10 @@
-# The app as tested on 14 October 2026 (migration 44, rules and farmer IDs: database tests, API tests, unit tests, screen suites)
-# SHA-256 of the text with line ends as LF. Read by scripts/staging_rules_and_ids.ps1 (step S0). Do not edit by hand.
+# The app as tested on 14 October 2026 (migration 45, production safeguards: database tests, API tests, unit tests, screen suites)
+# SHA-256 of the text with line ends as LF. Read by scripts/staging_safeguards.ps1 (step S0). Do not edit by hand.
 ad11e4e0ad6777fa9c689ab392cac74c19cb92c4d987580167f4b2e4b71cd26d  web/index.html
 b715cea12d7d05f45a22b630d4607b06818befdbbb1f3f921be62a63e1c65bf4  web/package-lock.json
 7e38e126c135678cf35a9e5d0dd05c0c886e0f21738e86ff0f5eef3c6eaf7810  web/package.json
 9a6c9312c9c0cd52d3950ea8d295746cb32fd079f9b53bced8316c5773e31723  web/tsconfig.json
-bf0e042dc375b34df8139c3bd90ea98800002862369c65b21e8e4e6d1dde3935  web/vercel.json
+bdcbd5b68314d975686fba0b9798eeb43d710169a324802308a67a3f9474f98d  web/vercel.json
 94aae4da1796144cea95572bfeae3aee3f87d62565c7128d9c452a542028c104  web/vite.config.ts
 7f94dc78e025ebf0528d2c39e2a5c293779958c55152e1cbb3cc251a32375a5b  supabase/functions/_shared/mail.ts
 2384aa4e58ee608b9c0de3f23c5e2fdd24f0dfa033929485056a1d6458428e94  supabase/functions/create-user/handler.ts
@@ -23,7 +23,7 @@ c4db03cbdd1293eef532cab25c4b20c206470cba07237a2b576f99812c8ee485  web/public/ico
 d9faae838b51cdf417d1e7dd3ac6f8ab8de5c010ce7bd30ee5be3138e4916012  web/public/manifest.webmanifest
 8c3096185976f639a56e0629194d557d6eacc3d78a2466f5a42b5c391282bb9a  web/public/sw.js
 d1ce56e666fd72911e629719eb08777f358fe52ddda501fdedbad11dbe508232  web/src/App.tsx
-0d3c2c864c7063e2f458b1e4b28ff92cea6d96a6c6e012b03a8c52c16dd8c13e  web/src/PrivateApp.tsx
+37532288d5b956b86e678c62f0c4fe01aa0384e05ff95448a2aaa65189b1cd59  web/src/PrivateApp.tsx
 e96ce9d66018a0139663445eae2636d70afbbcfb1edd8dcc125707d37394e36e  web/src/auth/AuthProvider.tsx
 2b9a6ddb8a80e8eee56cff3236f783f259bb64d3afe58aa2fafa115b7ab6b67d  web/src/auth/DailyCode.tsx
 58d758e3996e1e11acaab5dcbac48e7ca4edec16248c0cd17fcca59c82d36725  web/src/auth/SetPassword.tsx
@@ -43,8 +43,8 @@ c622615a0bf932fb7e03407398c976c241a17d8d016840483885e8ed1dc1d496  web/src/lib/cs
 4e0230fc79cf158ab857832220b0b6b4ff9a58157fd63251e35f5805469b88ca  web/src/lib/errors.ts
 c95b6e80ce5332d1d584b6799b2938dc0565172097017f832d442fca04a72993  web/src/lib/farmers.ts
 07ffe3496dc20c0630d83dc4ff6ef0557febfb07c0385cc0d8d577bab2b38f0b  web/src/lib/format.ts
-5db1f4ae4213ae16983b2b8e7c1be33680aa868ee42c72ec6b3d2d9d2d73eab2  web/src/lib/i18n.en.ts
-8773afe1b98e30741427e01ce18b00dbf291023d5fcfb394767c3415695ce883  web/src/lib/i18n.hi.ts
+0ca479c15418c6dc0d3a4f3f3e548a16d37a155cac7eb1302e7977900d851558  web/src/lib/i18n.en.ts
+266dd50e73f06c719240cdcd47db2703fdc65e0acc95d0ef9da7385f32b0037e  web/src/lib/i18n.hi.ts
 90564f72633ab0a54d65a0186e6c434016b5f80bded395e8679a19e01338a403  web/src/lib/i18n.public.ts
 6de6e8130b05021c691fe8a294c2e43d00ba7c5be9b8c5567df1e2849118195f  web/src/lib/i18n.tsx
 52812e432ee089d7a24250ddcf8cd894e3745dc3cd0056abdb94f2b15b16238c  web/src/lib/idNumbers.ts
@@ -90,17 +90,18 @@ b28d829462e5558422eadff54b80aea886ec4ac5a8e9ed8c9dd49c100f32ade4  web/src/pages/
 b9220c0c30e477a8b08d82a7118e9dc771bc720d4f8252ada50397bf1e6e5d31  web/src/pages/scopes/Scopes.tsx
 3e0631da8e090c2fdff9b636faf0867fc9cfd3bce13e0c9dd86ffcaa9ff43cb8  web/src/pages/state/StateHome.tsx
 dbb34c9167f93070418e29f4f32a92cb99ab37ab57b8418b9b8d422ceca79ca9  web/src/pages/system/Ledger.tsx
+b4f7cb66fee91c844b5c7ecbf6b74d9683d5fea200cc3468913c3dc0982d0cfb  web/src/pages/system/Safeguards.tsx
 c7302daacfb30c8412ea93019f6d2bd9f2235be06e5b517138a3db00f9ddbad3  web/src/pages/system/System.tsx
 dc4bd0dfa129ca764a55e69d8c199b66b56fab6fd6b79570897ae86c0bbc95f9  web/src/pages/trace/LotTrace.tsx
 3139cab8b6edb763ee545d909dc3c78d1c33cf78a409a6a937b3981014b9a7aa  web/src/shell/ErrorBoundary.tsx
-efff66da3a15788ba5b0241d0218a57fa3228fe4cb9ee80c14919b1820705f5f  web/src/shell/Layout.tsx
+347bba5e613641e37d09907e5d6133df5eed855c18d941d5b58c3dd54cde20c5  web/src/shell/Layout.tsx
 acb4c36a586eace15213682f34d5b4def838c702af35ba41be3d9003e81c26f4  web/src/shell/PracticeStrip.tsx
 cdd069b41e8cdf60bf184c2c4ef290cdd8ff8b1b70b50635443a8f8af998d5db  web/src/shell/RoleGuide.tsx
 b9150121dc6b3019afc499eb7a8d57a05941a2caca4e4219ee39613549b371b1  web/src/shell/scope.tsx
 cc7789bd84bb5c9e2aa76086b7408c36059479244dcfcc7b9e027a05e9089057  web/src/shell/ui.tsx
 4f33174d2a7a053863c82d127aae2f4d2cae5d901dc0ed570dcc29f1e159c5c6  web/src/styles.css
 8b321512f2271155e536b2f533bbf1440e4ffec7d2bedb18684fbab3ae27fa7b  web/tests/admin_oversight.test.ts
-9b53b27c97fd7385faebf28142317f2cc2ea38d5c55f9dfbe313f74aa406b063  web/tests/admin_two_jobs.test.ts
+9b08285766da5d63591473e7e8c885961dce5cbbc02a163f8a8afd12e6fcab8d  web/tests/admin_two_jobs.test.ts
 337c92066fb7a56d135dcba8d93a51622d4ef296e7c8465f1023bdbf962f513c  web/tests/crop_registry.test.ts
 a4f7a28dea93682ed8e33a97c00ae0b9da48a79dc2058de09a3eb135865e97eb  web/tests/engine.test.tsx
 28a96a08d012cb2aa43fa06195bbdeabe10c08a24792f6776f62a554ae0f8a24  web/tests/farmer_register.test.ts
@@ -112,12 +113,13 @@ f80af8db3e38e931f88b7b8e79ab96d8d4c432dc7586456049f9253d2eb6920b  web/tests/func
 1c116af284f0b85b2faaab67a3a084392fe7dd48ac474ce00b642b105938c56c  web/tests/hr_admin_joined.test.ts
 8ec1d45c06c1a12581a6bfccf7be77ee133d11433588ccf04c49f59c4106463f  web/tests/i18n_split.test.ts
 55b8cb86042710033bd257cbb49010caefc467a572a137e5bc4f256a60c54ae1  web/tests/id_numbers.test.ts
-0151045bf9dd41d215fd642d9efde2fa2351b03e3b48c1c49569cb4b5b9dd743  web/tests/identity.test.ts
+68ce3c42bffb8349e2b04b3174d8f2e6599cec05d4e570acdb17460076bad29b  web/tests/identity.test.ts
 c2e52c415af775903751a315b0328c93bffe4623ae4e545b93f3203befd829dd  web/tests/invite.test.ts
 fd0604cc008a7b94309d3ede6707c19ad16e3a10a2881414d7d8c9d50df31d6c  web/tests/look_b.test.tsx
 9eb90fcd15d9a06ce9bbc2e7b96ed9a50e3b485ec5a9141db5a5c7e313a6c30f  web/tests/phase3.test.ts
-4bf1799369df54237d2fe5975576a2cffcc98bcd6596989ee4a9c184974e6e06  web/tests/phase4.test.tsx
+122595a65080b4ed9a125e5862b91b72f81969bdf43bca98985f1ae703da5770  web/tests/phase4.test.tsx
 3fc460d02375570d0d985290873efa3f487ae86daa7e52d23eb5dce34896a428  web/tests/rules_and_ids.test.ts
+c3b9c00010cdf47b46057acf8576d09ecfe103afecacedaf280d238b50ec8613  web/tests/safeguards.test.ts
 9c64a8ad8cd115585184538055e99e855f37cc322f12c065504dd7f673dc58ff  web/tests/scale.test.ts
 2b2b430e567c80ab6586604f11bf46e70f7644fe118c7abcdf420222240a0dcd  web/tests/setup.ts
 cef191293fe781011bc3eb9b8210c8093073aa28c11552879d19bb047113cb95  web/tests/state_manager.test.ts

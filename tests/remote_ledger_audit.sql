@@ -7,7 +7,7 @@
 --       could call app.ledger_append), nor
 --   (b) a record that was changed underneath its block: an evidence fingerprint rewritten in public.attachments, a
 --       record without its 'create' block, a seal whose hash is not the ledger's.
--- This audit checks both directions. It knows every kind of block written up to migration 44, and needs migration 31
+-- This audit checks both directions. It knows every kind of block written up to migration 45, and needs migration 31
 -- on the project (it reads public.assignments): push the migrations first.
 -- Migration 44: a scope put back to draft by the owner's correction keeps its activation blocks; the correcting block
 -- ('activation_reversed', after them) is their counterpart.
@@ -36,6 +36,13 @@ with blocks as (
           -- migration 44: the owner's correction of a scope activated in a test (it is a draft again)
           when l.payload->>'act' = 'activation_reversed'
             then exists (select 1 from public.scopes s where s.id = l.scope_id)
+          -- migration 45: a correction opened and closed through the door, in the name of the admin who asked
+          when l.payload->>'act' = 'correction_opened'
+            then exists (select 1 from public.corrections c where c.id::text = l.payload->>'correction_id' and c.requested_by = l.actor
+                           and c.status in ('open', 'done'))
+          when l.payload->>'act' = 'correction_closed'
+            then exists (select 1 from public.corrections c where c.id::text = l.payload->>'correction_id' and c.requested_by = l.actor
+                           and c.status = 'done' and c.rows_changed::text = l.payload->>'rows_changed')
           -- identity layer (migration 31): who was given, or lost, a client's account, a state, or an export manager's view
           when l.payload->>'act' = 'assignment_given'
             then exists (select 1 from public.assignments a where a.id::text = l.payload->>'assignment_id' and a.employee_id::text = l.payload->>'user_id')
