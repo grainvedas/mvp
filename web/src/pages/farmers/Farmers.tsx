@@ -17,6 +17,7 @@ import { date, dateTime } from '../../lib/format';
 import { gapMissing, type GapItem } from '../../lib/crops';
 import { giLandProblem, needsGiLand } from '../../lib/farmers';
 import { RegisterLink } from './FarmerRegister';
+import { ProposalsCard } from './FarmerPractice';
 
 /** The client whose farmers this user works with; State Managers and admins pick one. */
 export function useClientChoice() {
@@ -79,6 +80,7 @@ export function FarmerList() {
         {(actsAsStateManager(ctx) || watch) && <RegisterLink />}
         <input aria-label={t('common.search')} placeholder={t('common.search')} value={search} onChange={(e) => setSearch(e.target.value)} style={{ flex: '1 1 200px', width: 'auto' }} />
       </div>
+      {cm && clientId && <ProposalsCard clientId={clientId} onDecided={() => void list.reload()} />}
       <div className="tabs" role="tablist">
         {(isSM ? ['draft', 'under_review', 'active', 'inactive'] as const : ['draft', 'under_review', 'active'] as const).map((s) => (
           <button key={s} role="tab" aria-selected={tab === s} className={tab === s ? 'active' : ''} onClick={() => setTab(s)}>
@@ -185,7 +187,8 @@ function FarmerActions({ farmer, canEdit, onDone }: { farmer: FarmerRow; canEdit
   );
   if (farmer.status === 'under_review') return (
     <div className="stack"><span className="small muted">{t('farmers.waits_sm', { state: farmer.state?.name ?? '—' })}</span>
-      {r.cmEdits && <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>}</div>);
+      {r.cmEdits && <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>}
+      {!r.cmEdits && canEdit && <Link className="btn secondary" to={`/farmers/${farmer.id}/practice`} data-testid="farmer-practice-link">{t('fp.open')}</Link>}</div>);
   // After verification the State Manager (and, migration 44, the Client Manager) changes a farmer, each time with a
   // reason; every change is a ledger block (migration 22). Activating and deactivating stay the State Manager's.
   if (r.afterwards) {
@@ -206,6 +209,9 @@ function FarmerActions({ farmer, canEdit, onDone }: { farmer: FarmerRow; canEdit
     );
   }
   if (r.cmEdits) return <Link className="btn secondary" to={`/farmers/${farmer.id}`}>{t('common.edit')}</Link>;
+  // migration 47 (Veda, 14 Oct): Procurement answers good farming practice, and proposes other corrections to the Client Manager
+  if (canEdit && farmer.status === 'active')
+    return <Link className="btn secondary" to={`/farmers/${farmer.id}/practice`} data-testid="farmer-practice-link">{t('fp.open')}</Link>;
   return <span className="muted small">{farmer.status === 'active' ? <Badge value="active" /> : date(farmer.created_at)}</span>;
 }
 

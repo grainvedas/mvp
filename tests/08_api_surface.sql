@@ -79,6 +79,9 @@ insert into allowed values
   ('authenticated', 'request_people'), ('authenticated', 'requester_act'), ('authenticated', 'scope_requirement'),
   ('authenticated', 'state_requirements'), ('authenticated', 'hr_requirements'), ('authenticated', 'decide_lines'),
   ('authenticated', 'hr_requirement_counts'), ('authenticated', 'save_people_step'), ('authenticated', 'save_openings'),
+  -- migration 47: Procurement proposes a correction of a verified farmer; the Client Manager decides; he withdraws his own
+  ('authenticated', 'propose_farmer_change'), ('authenticated', 'farmer_proposals'), ('authenticated', 'decide_farmer_proposal'),
+  ('authenticated', 'withdraw_farmer_proposal'),
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

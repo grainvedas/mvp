@@ -295,6 +295,11 @@ export function localStack() {
       return /(\d{6}) is your GrainVeda sign-in code/.exec(box.at(-1)?.subject ?? '')?.[1] ?? null;
     },
     emptyOutbox: () => fetch(outbox, { method: 'DELETE' }),
+    /** A crop's good farming practice list, set as the State Manager would (migration 47's test); put it back afterwards. */
+    setCropGap: async (cropId: string, items: unknown[]) => {
+      const r = await raw('PATCH', `crops?id=eq.${cropId}`, { gap_items: items });
+      if (!r.ok) throw new Error(`the crop's practices could not be set: ${r.status} ${await r.text()}`);
+    },
     /** A farmer record as a seed or an import by another client's people would leave it (the farmer register's duplicate). */
     seedFarmer: async (row: Record<string, unknown>) => {
       const r = await raw('POST', 'farmers', row, { prefer: 'return=representation' });

@@ -264,6 +264,11 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   status or act writes its Audit line through `app.line_status`. One person may hold two stages in a row (Veda's
   decision): never bring back the "verified by its own creator" refusal; it is marked (ledger `same_person`, the public
   page's approved words, `app.same_person_counts`), not refused.
+- **A verified farmer is corrected by its Client Manager; Procurement proposes** (migration 47, Veda 14 October 2026).
+  Good farming practice is the exception: Procurement and Village Batch answer it and it counts at once. Any other
+  detail from them goes through `app.propose_farmer_change` and the CM's `app.decide_farmer_proposal`, which changes the
+  farmer only through `app.change_farmer` (so every rule on a farmer's change still applies). A release script's summary
+  takes a number's maximum (`max(seq)`), never `seq::text … order by seq` (that sorts the text).
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,

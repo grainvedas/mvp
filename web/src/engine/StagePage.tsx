@@ -512,7 +512,7 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
             </div>
           ))}
         </fieldset>
-        <MathsPanel preview={preview} missing={missing} aggregates={form.stage.aggregates} />
+        <MathsPanel preview={preview} missing={missing} aggregates={form.stage.aggregates} farmerId={typeof built.columns.farmer_id === 'string' ? built.columns.farmer_id : null} />
         {readingsKey && preview?.ok && !reviewing && <VerdictLine v={verdict} params={form.quality_params} />}   {/* at review it is in the summary below */}
         {!reviewing && <button type="submit" disabled={!preview?.ok || unsupported.length > 0}>{t('engine.review')}</button>}
       </form>
@@ -555,11 +555,13 @@ function VerdictLine({ v, params }: { v: VerdictPreview | null; params: QualityP
   );
 }
 
-function MathsPanel({ preview, missing, aggregates }: { preview: Preview | OfflinePreview | null; missing: string[]; aggregates: boolean }) {
+function MathsPanel({ preview, missing, aggregates, farmerId }: { preview: Preview | OfflinePreview | null; missing: string[]; aggregates: boolean; farmerId?: string | null }) {
   const { t } = useI18n();
   if (missing.length) return <div className="alert info" aria-live="polite">{t('engine.preview_wait')} <span className="small">({missing.join(', ')})</span></div>;
   if (!preview) return <div className="alert info" aria-live="polite">{t('common.loading')}</div>;
-  if (!preview.ok) return <div className="alert error" aria-live="polite" data-testid="preview-error">{t('engine.refused')} {preview.error}</div>;
+  // migration 47: the farmer's good farming practice is missing: the way to fill it in, from the form itself
+  if (!preview.ok) return <div className="alert error" aria-live="polite" data-testid="preview-error">{t('engine.refused')} {preview.error}
+    {farmerId && /good farming practice/i.test(preview.error ?? '') && <div><Link to={`/farmers/${farmerId}/practice`} data-testid="fill-practice">{t('fp.fill_practice')}</Link></div>}</div>;
   const off = (preview as OfflinePreview).offline;
   if (off && (preview as OfflinePreview).provisional)
     return <div className="alert warn" aria-live="polite" data-testid="preview-ok">{t('engine.offline_provisional')}</div>;

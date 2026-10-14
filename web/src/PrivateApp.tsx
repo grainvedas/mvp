@@ -12,6 +12,7 @@ import { Home } from './pages/Home';
 import { StagePage } from './engine/StagePage';
 import { RecordDetail } from './pages/records/RecordDetail';
 import { FarmerForm, FarmerList } from './pages/farmers/Farmers';
+import { FarmerPractice } from './pages/farmers/FarmerPractice';
 import { FarmerImport } from './pages/farmers/FarmerImport';
 import { FarmerRegister } from './pages/farmers/FarmerRegister';
 import { ScopeList, ScopeWizard } from './pages/scopes/Scopes';
@@ -79,6 +80,7 @@ function Private() {
         <Route path="farmers/import" element={<FarmerImport />} />
         <Route path="farmers/register" element={<FarmerRegister />} />
         <Route path="farmers/:id" element={<FarmerForm />} />
+        <Route path="farmers/:id/practice" element={<FarmerPractice />} />   {/* migration 47 */}
         <Route path="scopes" element={<ScopeList />} />
         <Route path="scopes/new" element={<ScopeWizard />} />
         <Route path="scopes/:id" element={<ScopeWizard />} />

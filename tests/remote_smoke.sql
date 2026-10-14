@@ -1,6 +1,6 @@
 -- READ-ONLY smoke check for a Supabase project after `db push` + seeds. Safe on production: no writes.
 -- Run: psql "$SUPABASE_DB_URL" -f tests/remote_smoke.sql   (or paste into Dashboard → SQL Editor)
--- Every row must start with OK (43 rows; three of them, statement logging, the reminder round and the nightly check, say how the project is set up). The same file serves staging (demo seed expected) and production (demo
+-- Every row must start with OK (44 rows; three of them, statement logging, the reminder round and the nightly check, say how the project is set up). The same file serves staging (demo seed expected) and production (demo
 -- seed forbidden): the 'environment' row says which one it found, from app.environment() (migration 23).
 -- API exposure of the `app` schema is not checked here: hosted Supabase keeps that setting in PostgREST's config, which
 -- SQL cannot read. Prove it with tests/remote_api_check.ps1 (REST call with the public key).
@@ -290,6 +290,11 @@ select 'requirements',             case when to_regclass('public.requirements') 
                                         or position('own creator' in (select prosrc from pg_proc where oid = 'app.footprints_before_update()'::regprocedure)) > 0
                                       then 'INCOMPLETE: a requirements trigger, the openings'' source, or the two-stages rule is missing'
                                       else 'OK requirements and their lines; openings say where they came from; one person may verify at the next stage' end
+union all
+select 'farmer corrections',       case when to_regclass('public.farmer_proposals') is null
+                                        or to_regprocedure('app.decide_farmer_proposal(uuid, boolean, text)') is null
+                                      then 'MISSING (push migration 47)'
+                                      else 'OK Procurement proposes a correction of a verified farmer; the Client Manager decides' end
 union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole

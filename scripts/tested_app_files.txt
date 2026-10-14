@@ -1,5 +1,5 @@
-# The app as tested for migration 46 (HR requirements and staffing a scope), 14 Oct 2026
-# SHA-256 of the text with line ends as LF. Read by scripts/staging_requirements.ps1 (step S0). Do not edit by hand.
+# The app as tested for migration 47 (farmer corrections), 14 Oct 2026
+# SHA-256 of the text with line ends as LF. Read by scripts/staging_farmer_corrections.ps1 (step S0). Do not edit by hand.
 ad11e4e0ad6777fa9c689ab392cac74c19cb92c4d987580167f4b2e4b71cd26d  web/index.html
 b715cea12d7d05f45a22b630d4607b06818befdbbb1f3f921be62a63e1c65bf4  web/package-lock.json
 7e38e126c135678cf35a9e5d0dd05c0c886e0f21738e86ff0f5eef3c6eaf7810  web/package.json
@@ -23,12 +23,12 @@ c4db03cbdd1293eef532cab25c4b20c206470cba07237a2b576f99812c8ee485  web/public/ico
 d9faae838b51cdf417d1e7dd3ac6f8ab8de5c010ce7bd30ee5be3138e4916012  web/public/manifest.webmanifest
 8c3096185976f639a56e0629194d557d6eacc3d78a2466f5a42b5c391282bb9a  web/public/sw.js
 d1ce56e666fd72911e629719eb08777f358fe52ddda501fdedbad11dbe508232  web/src/App.tsx
-8e4f7bc683a8eabb71e796ea15a0cd16e13a6dfe62357fe045eb896210c44560  web/src/PrivateApp.tsx
+fd06b9d3ef1b62da5298ca26b519799902d5e5e272eea4c49fc771955d2cb0cf  web/src/PrivateApp.tsx
 e96ce9d66018a0139663445eae2636d70afbbcfb1edd8dcc125707d37394e36e  web/src/auth/AuthProvider.tsx
 2b9a6ddb8a80e8eee56cff3236f783f259bb64d3afe58aa2fafa115b7ab6b67d  web/src/auth/DailyCode.tsx
 58d758e3996e1e11acaab5dcbac48e7ca4edec16248c0cd17fcca59c82d36725  web/src/auth/SetPassword.tsx
 2a1c6a7240d6da0f1c75fa3c676dc252f8413d60cf38bc6ddbf5655441daa2c1  web/src/auth/SignIn.tsx
-74212e112db0f65db2e3eaf1f5631c404e7185a40ca84f018be6923f8c252ffb  web/src/engine/StagePage.tsx
+d0f9e65ae2bcd713ff2141016f013bb345148d75e12b1366cda2fea898c2c3a5  web/src/engine/StagePage.tsx
 258e94fd23b47e35d45448001f141cde90b8c274990a5fa8a974ceb464076f37  web/src/engine/evidence.ts
 a3498a0fd1d6fe1c273a7f3f724e11783eece880500ea9e84178d5a9ab3e0610  web/src/engine/icons.ts
 85e3582bc7b6bb68f70cdeb2c8f7c5c1a444c50a7291bf5d8b909aa530d3193d  web/src/engine/localise.ts
@@ -43,8 +43,8 @@ c622615a0bf932fb7e03407398c976c241a17d8d016840483885e8ed1dc1d496  web/src/lib/cs
 4e0230fc79cf158ab857832220b0b6b4ff9a58157fd63251e35f5805469b88ca  web/src/lib/errors.ts
 c95b6e80ce5332d1d584b6799b2938dc0565172097017f832d442fca04a72993  web/src/lib/farmers.ts
 07ffe3496dc20c0630d83dc4ff6ef0557febfb07c0385cc0d8d577bab2b38f0b  web/src/lib/format.ts
-b9f455c350bb40e89393ff5e8602fc9e061c9738e64b6f9309876a0704bf3d35  web/src/lib/i18n.en.ts
-df155a822dd5af139409b89847de73c42a8acc4450756cb53984470d663bbf8d  web/src/lib/i18n.hi.ts
+5ada5d61bd88b890647eb7a4a7ac128492fd52b11dfeed2c958b9991482b69cc  web/src/lib/i18n.en.ts
+cea581307a1d9a076696390e57ba01f9ff3fbac83d8c0e9a7f282d420e233b10  web/src/lib/i18n.hi.ts
 52a72d728ae51710be8251a0643eaac273cfe1be6b0099f296b5f56b7ce8e824  web/src/lib/i18n.public.ts
 6de6e8130b05021c691fe8a294c2e43d00ba7c5be9b8c5567df1e2849118195f  web/src/lib/i18n.tsx
 52812e432ee089d7a24250ddcf8cd894e3745dc3cd0056abdb94f2b15b16238c  web/src/lib/idNumbers.ts
@@ -75,8 +75,9 @@ a5fcd85e5e0027c4b8d57fb4b1f882e8db1c221688693832280cc8dcf17a1c72  web/src/pages/
 16fb0c18726bd9803c39df6036375315d195e946c6c33b1239708339869a9a77  web/src/pages/dashboard/ScopeDashboard.tsx
 fe1c5c5de0d4f0236bdf549c50011779db5108b4ee2a98ff0225bd25d42db7bb  web/src/pages/dashboard/parts.tsx
 aaaece2effb58355c708b171b73be9512a9b9d58a7c608434ea713941d070948  web/src/pages/farmers/FarmerImport.tsx
+e6fef7280096a40aa2bc504740645d126c7812147315e6d2419ac5da719684f1  web/src/pages/farmers/FarmerPractice.tsx
 4fcecbb49154e18554d980afc5aa823ce8e12722afc1f01f67b39ea6c096f0f1  web/src/pages/farmers/FarmerRegister.tsx
-5354989f18b90f51ca4c51a9c09aadc978e4c6c3cc0728ca792f9a0e00a295b5  web/src/pages/farmers/Farmers.tsx
+c795f0a955f8f0ce36c9d4b70d91c1f15e661f1071a5bdb0b5ce6fc14dd1cfc0  web/src/pages/farmers/Farmers.tsx
 d63bac288bb4ed0b964a87e9bfbcd3c91626cbe29d9e717a387f8f158a29b5cc  web/src/pages/hr/Geo.tsx
 ec4c1eaaaf709b1f27e18fb8b66847b309ef0fae97bc1415652fa27d21718f00  web/src/pages/hr/Hr.tsx
 ccdbac52f782f921d2d11b2649a92ac764adf8cb333b6a83ac2d060107b03f8b  web/src/pages/hr/Requirements.tsx
@@ -108,6 +109,7 @@ f7f6686e9a8a8e4d819c22c45b1363e870b3636263fb61643161d1a1f6ffb821  web/src/styles
 9b08285766da5d63591473e7e8c885961dce5cbbc02a163f8a8afd12e6fcab8d  web/tests/admin_two_jobs.test.ts
 337c92066fb7a56d135dcba8d93a51622d4ef296e7c8465f1023bdbf962f513c  web/tests/crop_registry.test.ts
 a4f7a28dea93682ed8e33a97c00ae0b9da48a79dc2058de09a3eb135865e97eb  web/tests/engine.test.tsx
+0f80c7866d25e89f91958754670eef2a0c0e48c74fd6cb982df366ecdeaa40a0  web/tests/farmer_proposals.test.ts
 28a96a08d012cb2aa43fa06195bbdeabe10c08a24792f6776f62a554ae0f8a24  web/tests/farmer_register.test.ts
 86eb5a8c77e4bb91ef14cb77a4c0c6724418ed8892a43b0671435fa52b2794e3  web/tests/faults_oct4.test.tsx
 40dc9ed01738b175c2e8a73c57189a9cb8727138dd5a448306bcea9dea823d8b  web/tests/field_day.test.ts

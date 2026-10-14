@@ -2031,3 +2031,32 @@ NOT run / not known: nothing of it on staging; the 400 Veda saw on staging when 
 not reproduced locally: the wizard now shows the server's words, so the run sheet's step 12 will show it if it comes
 back; the ledger's "same person, next stage" mark is tested in the database and the export, not by a screen test;
 about 85 new Hindi strings unread by their users; Windows PowerShell 5.1.
+- **On staging** 14 Oct 17:34 IST: `staging-requirements.cmd` `RESULT: REQUIREMENTS ON STAGING` (head 4a70907, 42 files;
+  smoke 42 of 43, `statement logging` standing; S1b `scopes=0 clients=1 requested_lines=1`: no scope being set up had an
+  empty stage; KH26 gkp is fully staffed (p on Procurement, Lucky on the other six), so it raised no lines, as designed;
+  one Client Manager line for a client without one). The summary's `ledger_head=9` was again the text sort of the
+  number (34 blocks): fixed in the next script (`max(seq)`). In the app (browser pane, as Lucky): the new build live;
+  KH26 gkp's Roster "Every stage has someone", Activate, "People asked from HR: nothing is asked". p's home and menu
+  right once the scope was active. p's lot for TCUP-F-0001: "The database will refuse this: good farming practice not
+  complete … GAP 1, gap 2", and nothing let p fill it in: open item 42.
+
+## 14 October 2026, evening: farmer corrections (migration 47, open item 42), local stack
+
+Veda: "give access to Good farming practice section only. also if other details need omission then if p does it it
+should go to lucky for verification"; then "count at once" and "propose; Lucky approves".
+
+- **Database**: `tests/run_local.sh` **ALL TESTS PASSED, 1,705 ok**. New `tests/41_farmer_proposals.sql`: **26 checks**
+  (a lot refused without the required practice; Procurement answers it and the lot is saved; QC cannot; a correction
+  proposed with only what differs and the values it replaces; nothing changes until approved; refused without a reason,
+  for the status, for bad acres, by the CM himself, by QC, by another client's operator; the CM reads and approves: made
+  in his name, "proposed by …" in the farmer's history; GI land then waits for the State Manager; refused with a reason;
+  withdrawn by its own proposer only; every step in the Audit log). **10 controls**, each caught.
+- **API**: `remote_create_user.mjs` 95 passed; `remote_rls.mjs --t1` 192 passed. **Unit**: 361 passed (new
+  `farmer_proposals.test.ts`, 2).
+- **Screens**: default suite **75 passed** (17.8 min) with the new `phase19` at 527 px (the refused lot links to the
+  practice; answered, the lot is saved; a correction proposed from the Farmers list, not approvable by p; the Client
+  Manager approves it on his Farmers page). Production build 14 passed; the first day from nothing 1 passed.
+- **`scripts/staging_farmer_corrections.ps1`** on stand-ins: the run, a second run, and the ten refusals as before;
+  `staging-requirements.cmd` and the earlier scripts now refuse. Sealed: 131 files.
+
+NOT run / not known: nothing of it on staging; about 30 new Hindi strings unread by their users.
