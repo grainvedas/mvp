@@ -18,7 +18,7 @@ create or replace function pg_temp.corr(p uuid) returns public.corrections langu
 insert into fx values ('START', null, coalesce((select max(seq) from public.change_log), 0));
 
 -- 1 · the log is there, on the tables that matter, and cannot be read, changed or emptied from outside -----------------
-select t.ok((select count(*) from pg_trigger where tgname = 'zz_change_log') = 21, 'the change log is written for 21 tables');
+select t.ok((select count(*) from pg_trigger where tgname = 'zz_change_log') >= 21, 'the change log is written for 21 tables (and the requirements of migration 46)');
 select t.ok((select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid where t.tgname = 'zz_change_log'
                and c.relname in ('farmers', 'app_users', 'scopes', 'footprints', 'assignments', 'openings', 'app_meta')) = 7,
             'among them farmers, people, scopes, lots, assignments, openings and the system settings');

@@ -106,6 +106,8 @@ export interface Roster {
   stages: { stage: StageType; position: number; label: string;
     holders: { assignment_id: string; employee_id: string; name: string; status: EmployeeStatus; posting: string | null; since: string; lapsed: boolean }[] }[];
   managers: { employee_id: string; name: string; op_role: OpRole; status: EmployeeStatus }[];
+  /** migration 46: records verified by their own maker, and made on a lot the same person recorded at the stage before */
+  same_person?: { verified_own: number; made_on_own: number };
 }
 export interface StateOverviewData {
   state: { id: string; name: string; code: string } | null;

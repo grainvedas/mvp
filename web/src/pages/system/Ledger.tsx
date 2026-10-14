@@ -21,6 +21,9 @@ export interface LedgerRow {
   actor: string | null; actor_name: string | null; actor_role: string | null; actor_summary_role: string | null;
   /** migration 44: the role the signer held when the block was written (State Manager, Client Manager, Operator…) */
   actor_working_role?: string | null;
+  /** migration 46: the stage the signer acted as (a verification: the receiving stage), and whether the same person
+   *  recorded the record before (two stages in a row) */
+  stage_role?: string | null; same_person?: boolean;
 }
 export interface LedgerPage { total: number; rows: LedgerRow[]; limit: number; offset: number;
   /** the state ledger (migration 41): the filters' choices, and the last check of the whole chain */
@@ -74,8 +77,9 @@ export function Ledger() {
       if (p.rows.length < 500 || all.length >= p.total) break;
     }
     downloadCsv(`ledger-${todayIST()}.csv`,
-      ['seq', 'event', 'record', 'what', 'about', 'client', 'scope', 'signed_by', 'role', 'time', 'hash', 'prev_hash'],
-      all.map((r) => [r.seq, r.event, r.record, r.what, r.about, r.client, r.scope, r.actor_name, r.actor_working_role ?? r.actor_role, r.created_at, r.hash, r.prev_hash]));
+      ['seq', 'event', 'record', 'what', 'about', 'client', 'scope', 'signed_by', 'role', 'stage_role', 'same_person', 'time', 'hash', 'prev_hash'],
+      all.map((r) => [r.seq, r.event, r.record, r.what, r.about, r.client, r.scope, r.actor_name, r.actor_working_role ?? r.actor_role, r.stage_role ?? '',
+        r.same_person ? 'yes' : '', r.created_at, r.hash, r.prev_hash]));
   });
 
   if (!admin && !smState) return <Navigate to="/" replace />;
@@ -146,7 +150,9 @@ export function Ledger() {
                     </td>
                     <td>{r.actor_name ?? t('ledger.system')}</td>
                     <td>{r.actor_working_role ? t(`wrole.${r.actor_working_role}`, undefined, humanise(r.actor_working_role))
-                      : r.actor_role ? t(`sysrole.${r.actor_role}`, undefined, humanise(r.actor_role)) : '—'}</td>
+                      : r.actor_role ? t(`sysrole.${r.actor_role}`, undefined, humanise(r.actor_role)) : '—'}
+                      {r.stage_role && <div className="small" data-testid="ledger-stage-role">{t('ledger.as_stage', { stage: t(`stage.${r.stage_role}`, undefined, humanise(r.stage_role)) })}</div>}
+                      {r.same_person && <div><span className="same-person" data-testid="ledger-same-person">{t('ledger.same_person')}</span></div>}</td>
                     <td>{dateTime(r.created_at)}</td>
                     <td><code title={r.hash}>{shortHash(r.hash)}</code></td>
                     <td><code title={r.prev_hash ?? ''}>{shortHash(r.prev_hash)}</code></td>

@@ -13,6 +13,8 @@ import { stageIcon } from '../engine/icons';
 import { CrashCard, ErrorBoundary } from './ErrorBoundary';
 import { ScopeProvider, shownScope, useScope, useWide, worksInOneScope } from './scope';
 import { oversees } from '../lib/rights';
+import { rpc } from '../lib/api';
+import { useAsync } from '../lib/useAsync';
 
 type Section = 'overview' | 'registry' | 'people' | 'system';
 /** What the menu needs to know about the person. `can` comes from the server (identity layer); the role is the summary. */
@@ -27,6 +29,7 @@ export const NAV: { to: string; key: string; icon: string; section: Section; sho
   { to: '/crops', key: 'nav.crops', icon: '🌿', section: 'registry', show: (w) => w.can.admin || w.can.state_lens },   // the State Manager's; the admin reads
   { to: '/states', key: 'nav.states', icon: '📍', section: 'registry', show: (w) => w.can.admin },
   // People: HR makes them, managers assign them. Two different jobs, two different entries.
+  { to: '/hr/requirements', key: 'req.title', icon: '📝', section: 'people', show: (w) => w.can.hr },   // migration 46: first, with its badge
   { to: '/hr', key: 'nav.hr', icon: '🧑‍💼', section: 'people', show: (w) => w.can.hr },
   { to: '/hr/openings', key: 'open.title', icon: '📋', section: 'people', show: (w) => w.can.hr },
   { to: '/people', key: 'nav.people', icon: '👥', section: 'people', show: (w) => w.can.hr || w.can.assign },
@@ -153,6 +156,9 @@ function Frame() {
     joiner: !me.external && ((ctx?.onboarding?.open ?? 0) > 0 || me.status === 'invited' || me.status === 'onboarding'),
     joining: !me.external && (me.status === 'invited' || me.status === 'onboarding') } : null;
   const visible = NAV.filter((n) => who && n.show(who));
+  // HR's badge on Requirements: the new lines of her states (migration 46); read again on each page change
+  const reqs = useAsync(() => can.hr ? rpc<{ new: number }>('hr_requirement_counts').catch(() => null) : Promise.resolve(null), [can.hr, pathname]);
+  const badges: Record<string, number> = { '/hr/requirements': reqs.data?.new ?? 0 };
   const menu = groupedMenu(ctx);
   const inSection = (s: Section) => visible.filter((n) => n.section === s);
   // The scope the frame shows: the one this page belongs to (a stage page, a scope's dashboard), else the chosen one.
@@ -163,7 +169,8 @@ function Frame() {
     : shown.status === 'draft' ? [] : shown.chain;
   const single = worksInOneScope(scopes);                  // only holds stages: one scope at a time, no "Overall"
   const item = (to: string, icon: string, label: string, end = false) => (
-    <NavLink key={to} to={to} end={end}><span className="sb-icon" aria-hidden="true">{icon}</span>{label}</NavLink>);
+    <NavLink key={to} to={to} end={end}><span className="sb-icon" aria-hidden="true">{icon}</span>{label}
+      {(badges[to] ?? 0) > 0 && <span className="nav-badge" data-testid="nav-badge" aria-label={t('req.badge', { n: badges[to] })}>{badges[to]}</span>}</NavLink>);
   const section = (key: string, items: ReactElement[]) => items.length === 0 ? null : (
     <>
       <div className="sb-section" aria-hidden="true">{t(key)}</div>
@@ -213,7 +220,7 @@ function Frame() {
         <nav className="nav" aria-label="Main">
           {section('nav.section_overview', inSection('overview').map((n) => item(n.to, n.icon, t(n.key), n.to === '/')))}
           {section('nav.section_registry', inSection('registry').map((n) => item(n.to, n.icon, t(n.key))))}
-          {section('nav.section_people', inSection('people').map((n) => item(n.to, n.icon, t(n.key))))}
+          {section('nav.section_people', inSection('people').map((n) => item(n.to, n.icon, t(n.key), n.to === '/hr')))}
           {section('nav.section_operations', stages.map((s) => item(`/work/${shown!.id}/${s}`, stageIcon(s), t(`stage.${s}`, undefined, humanise(s)))))}
           {section('nav.section_system', inSection('system').map((n) => item(n.to, n.icon, t(n.key))))}
           {section('nav.section_support', [

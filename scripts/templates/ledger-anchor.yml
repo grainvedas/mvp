@@ -40,6 +40,12 @@ jobs:
             git worktree add --detach anchors-wt
             git -C anchors-wt switch --orphan ledger-anchors
           fi
+          # Vercel reads its settings from the branch it builds: this one says "never build me" (14 Oct 2026: without it,
+          # the first copy made a failed preview build)
+          if [ ! -f anchors-wt/web/vercel.json ]; then
+            mkdir -p anchors-wt/web
+            echo '{ "git": { "deploymentEnabled": false } }' > anchors-wt/web/vercel.json
+          fi
       - name: practice system
         env:
           GV_TARGET: staging

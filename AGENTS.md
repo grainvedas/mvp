@@ -257,8 +257,19 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   `select set_config('app.change_path', 'migration NN', true);`. A correction of live data, on any system, runs inside
   `app.open_correction(id)` … `app.close_correction()` (or `app.owner_correction(reason)` while two-person approval is
   off), never as a bare update; a practice-data function refuses production. The change log keeps no values.
+- **A need for people is a requirement, and HR publishes it** (migration 46, Veda 14 October 2026). Nobody types an
+  opening for a scope's empty stages: they become requirement lines when the People step is saved, and HR publishes them
+  (`app.decide_lines`), which makes the opening and links it back. A new place that changes who holds a stage, a scope's
+  chain or a client's Client Manager keeps the `zy_requirements` triggers' effect (the lines follow), and a new line
+  status or act writes its Audit line through `app.line_status`. One person may hold two stages in a row (Veda's
+  decision): never bring back the "verified by its own creator" refusal; it is marked (ledger `same_person`, the public
+  page's approved words, `app.same_person_counts`), not refused.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
+- **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,
+  "How Claude and other helpers work once production is live"). No production data, keys, seats or settings; releases
+  are scripts Veda runs; a settings change only after her yes for that one step; her browser is read, not clicked, unless
+  she approves the step. What is allowed on staging (practice data) is not allowed on production.
 - Secrets stay in git-ignored `.env.*` files. Never on a command line, in chat, in a log or in a test's output.
 
 ## Stack (PRD §10)

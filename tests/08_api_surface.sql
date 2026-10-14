@@ -74,6 +74,11 @@ insert into allowed values
   -- ledger's fingerprint and the check of earlier copies, for the daily outside copy (public key: hashes only)
   ('authenticated', 'request_correction'), ('authenticated', 'decide_correction'), ('authenticated', 'safeguards_report'),
   ('authenticated', 'ledger_head'), ('authenticated', 'anchor_check'), ('anon', 'ledger_head'), ('anon', 'anchor_check'),
+  -- migration 46: requirements (the requester raises and answers, HR decides; the HR menu's badge), the People step
+  -- saved, a manual opening for several stages
+  ('authenticated', 'request_people'), ('authenticated', 'requester_act'), ('authenticated', 'scope_requirement'),
+  ('authenticated', 'state_requirements'), ('authenticated', 'hr_requirements'), ('authenticated', 'decide_lines'),
+  ('authenticated', 'hr_requirement_counts'), ('authenticated', 'save_people_step'), ('authenticated', 'save_openings'),
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

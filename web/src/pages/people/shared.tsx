@@ -9,6 +9,7 @@ import { humanise } from '../../lib/format';
 import { lensTone, safeFileName, statusTone, type AssignmentInfo, type OrgFacts, type Warning } from '../../lib/people';
 import type { EmployeeStatus, StageType, SystemRole } from '../../lib/types';
 import { Badge } from '../../shell/ui';
+import { inSentence } from '../../lib/requirements';
 
 export const MAX_HR_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -53,8 +54,12 @@ export function WarningList({ warnings }: { warnings: Warning[] | null | undefin
   const { t } = useI18n();
   const stage = useStageName();
   if (!warnings?.length) return null;
+  // migration 46: two stages in a row names the person and what it means ("p also holds Procurement (farm-gate). At
+  // Milling he will verify his own procurement records."); several stages lists them
   const text = (w: Warning) => t(`warn.${w.code}`, { place: String(w.place ?? ''), state: String(w.state ?? ''), client: String(w.client ?? ''),
-    first: stage(String(w.first ?? '')), second: stage(String(w.second ?? '')), status: w.status ? t(`pstatus.${String(w.status)}`) : '' }, w.code);
+    first: stage(String(w.first ?? '')), second: stage(String(w.second ?? '')), status: w.status ? t(`pstatus.${String(w.status)}`) : '',
+    name: String(w.name ?? t('warn.this_person')), first_lower: inSentence(stage(String(w.first ?? ''))),
+    stages: Array.isArray(w.stages) ? (w.stages as string[]).map(stage).join(', ') : '' }, w.code);
   return (
     <div className="alert warn" role="status" data-testid="assign-warnings">
       <strong>{t('warn.title')}</strong>

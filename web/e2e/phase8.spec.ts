@@ -404,10 +404,11 @@ test.describe('at a desk', () => {
       await page.getByRole('checkbox', { name: /^Procurement/ }).check();
       await expect(page.getByTestId('assign-warnings')).toContainText('still Invited');             // HR has not marked them joined
       await page.getByRole('checkbox', { name: /^Quality Control/ }).check();
-      await expect(page.getByTestId('assign-warnings')).toContainText('Procurement (farm-gate) and Quality Control follow each other');
+      // migration 46 (Veda, 14 Oct): allowed; the warning names the person and what it means
+      await expect(page.getByTestId('assign-warnings')).toContainText('also holds Procurement (farm-gate). At Quality Control he will verify his own procurement records.');
       await expect(page.getByTestId('assign-save')).toBeEnabled();                                  // a warning, not a wall
       await page.getByRole('checkbox', { name: /^Quality Control/ }).uncheck();
-      await expect(page.getByTestId('assign-warnings')).not.toContainText('follow each other');
+      await expect(page.getByTestId('assign-warnings')).not.toContainText('will verify his own');
       await page.getByLabel(/Posting/).fill('Bansi collection centre');
       await page.getByTestId('assign-save').click();
       await expect(card('Siddharthnagar')).toContainText('Procurement (farm-gate)');

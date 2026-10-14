@@ -18,9 +18,10 @@ import { NO_RIGHTS, type EmployeeStatus, type Lens, type OpRole, type StageType,
 import { lensTone, stagesAfter, type AssignmentInfo, type DirectoryFilter, type DirectoryPerson, type Profile,
   type Roster, type StateOverviewData, type Warning } from '../../lib/people';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
-import { givesAssignments, myStateIds, oversees, seatsStateManagers } from '../../lib/rights';
+import { buildsScope, givesAssignments, myStateIds, oversees, seatsStateManagers } from '../../lib/rights';
 import { AccessBadges, Confirm, OrgLine, StatusBadge, TempPassword, WarningList, useStageName } from './shared';
 import { ReadyToAssign } from '../hr/Scale';
+import { ScopeRequirementCard } from '../scopes/ScopeRequirement';
 import { BaseLocation, HrScopeNote, stateChoices, useHrScope } from '../hr/Geo';
 
 interface Named { id: string; name: string }
@@ -407,10 +408,13 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
   useEffect(() => { const h = setTimeout(() => setFindQ(find), 300); return () => clearTimeout(h); }, [find]);
   // the pool, from the server (migration 44, Veda 14 Oct): operational people based in the scope's state, and the
   // Client Manager himself; never the admin, HR or a State Manager. Searched by name; 200 at most.
-  const pool = useAsync(async () => canManage ? (await rpc<{ id: string; name: string; me: boolean }[]>('roster_pool', { p_scope: scopeId, p_q: findQ || null }))
-    .map((p) => ({ id: p.id, name: p.me ? t('roster.me', { name: p.name }) : p.name }) as Pool) : [], [canManage, findQ, scopeId]);
+  // migration 46: who HR got ready for this scope comes first, marked with the stage they are for
+  const [rev, setRev] = useState(0);
+  const pool = useAsync(async () => canManage ? (await rpc<{ id: string; name: string; me: boolean; ready_for?: StageType | null }[]>('roster_pool', { p_scope: scopeId, p_q: findQ || null }))
+    .map((p) => ({ id: p.id, name: (p.me ? t('roster.me', { name: p.name }) : p.name) + (p.ready_for ? ` · ${t('req.ready_for', { stage: stage(p.ready_for) })}` : '') }) as Pool) : [], [canManage, findQ, scopeId, rev]);
   const act = useAction();
   const [note, setNote] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<Warning[] | null>(null);
   if (r.loading && !r.data) return <Loading />;
   if (!r.data) return <ErrorBox error={r.error} onRetry={() => void r.reload()} />;
   const x = r.data;
@@ -418,12 +422,14 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
   const after = async (gaps?: StageType[], lost?: StageType[]) => {
     const g = (gaps ?? []).filter((s) => !lost || lost.includes(s));
     setNote(g.length ? t('assign.left_unstaffed', { stages: g.map(stage).join(', ') }) : null);
-    await r.reload(); onChanged?.();
+    await r.reload(); setRev((n) => n + 1); onChanged?.();
   };
   const give = (s: StageType, person: string) => act.run(async () => {
     const mine = held(person);
-    if (mine.length > 0) await rpc('set_stages', { p_assignment: mine[0].holders.find((h) => h.employee_id === person)!.assignment_id, p_stages: [...mine.map((m) => m.stage), s] });
-    else await rpc('assign', { p_employee: person, p_lens: 'scope', p_target: scopeId, p_op_role: 'operator', p_stages: [s] });
+    // migration 46 (Veda, 14 Oct): one person may hold several stages, also two in a row; what that means is said, not refused
+    const res = mine.length > 0 ? await rpc<{ warnings?: Warning[] }>('set_stages', { p_assignment: mine[0].holders.find((h) => h.employee_id === person)!.assignment_id, p_stages: [...mine.map((m) => m.stage), s] })
+      : await rpc<{ warnings?: Warning[] }>('assign', { p_employee: person, p_lens: 'scope', p_target: scopeId, p_op_role: 'operator', p_stages: [s] });
+    setWarnings((res?.warnings ?? []).filter((w) => w.code === 'adjacent_stages' || w.code === 'several_stages'));
     await after();
   });
   const take = (s: StageType, h: Roster['stages'][number]['holders'][number]) => act.run(async () => {
@@ -439,6 +445,9 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
       {x.gaps.length > 0 && x.scope.status !== 'closed' && <div className="alert warn" data-testid="roster-gaps">{t('roster.gaps', { n: x.gaps.length, stages: x.gaps.map(stage).join(', ') })}</div>}
       {x.gaps.length === 0 && <div className="alert ok" data-testid="roster-covered">{t('roster.covered')}</div>}
       {note && <div className="alert warn" data-testid="coverage-warning">{note}</div>}
+      <WarningList warnings={warnings} />
+      {(x.same_person?.verified_own ?? 0) + (x.same_person?.made_on_own ?? 0) > 0 && (
+        <p className="small" data-testid="same-person-count"><span className="same-person">{t('ledger.same_person')}</span> {t('sp.count', { v: x.same_person!.verified_own, m: x.same_person!.made_on_own })}</p>)}
       <div className="slots" role="table" aria-label={t('wizard.step4')} data-testid="slots">{x.stages.map((s) => (
         <div className="slot" role="row" key={s.stage}>
           <div role="cell"><strong>{stage(s.stage)}</strong></div>
@@ -459,6 +468,8 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
       {canManage && (pool.data?.length ?? 0) >= 200 && !findQ && <p className="small" data-testid="roster-pool-more">{t('roster.pool_more')}</p>}
       {canManage && <p className="small muted">{t('roster.pool_note')}</p>}
       <ErrorBox error={act.error} />
+      {x.scope.status !== 'closed' && <ScopeRequirementCard scopeId={scopeId} chain={x.stages.map((s) => s.stage)} gaps={x.gaps}
+        reloadKey={`${rev}-${x.gaps.join(',')}`} onChanged={() => setRev((n) => n + 1)} />}
     </div>
   );
 }
@@ -467,6 +478,13 @@ export function RosterPage() {
   const { id = '' } = useParams();
   const { t } = useI18n();
   const r = useAsync(() => rpc<Roster>('scope_roster', { p_scope: id }), [id]);
+  const { ctx } = useAuth();
+  const stage = useStageName();
+  // a draft: whether it can be activated, and the way to do it (14 Oct 2026, brief F: the Roster had no Activate)
+  const missing = useAsync(() => rpc<{ crop: string[]; retired: boolean; stages: StageType[] }>('activation_missing', { p_scope: id }).catch(() => null), [id]);
+  const builds = buildsScope(ctx, id);
+  const lacks = missing.data ? [...missing.data.crop.map((k) => t('wizard.lack_crop', { what: t(`crops.missing_${k}`, undefined, k) })),
+    ...missing.data.stages.map((x) => t('wizard.lack_stage', { stage: stage(x) }))] : null;
   return (
     <div>
       <p className="small"><Link to={`/scopes/${id}`}>{t('scopes.title')}</Link></p>
@@ -474,7 +492,15 @@ export function RosterPage() {
       {r.data && <>
         <div className="page-hd"><h1><span aria-hidden="true">🗂 </span>{t('roster.title')}</h1>
           <div className="sub">{r.data.scope.client_name} · {r.data.scope.crop_name} · {r.data.scope.season_code} · {r.data.scope.geography} · {r.data.scope.state_name} <Badge value={r.data.scope.status} /></div></div>
-        <div className="card"><RosterEditor scopeId={id} /></div>
+        {r.data.scope.status === 'draft' && builds && lacks && (
+          <div className="card" data-testid="roster-activation">
+            {lacks.length === 0
+              ? <><div className="alert ok">{t('roster.covered')}</div>
+                  <Link className="btn gold" to={`/scopes/${id}?step=people`} data-testid="roster-activate">{t('wizard.activate')}</Link></>
+              : <div className="alert warn">{t('wizard.cannot_activate')}<ul>{lacks.map((x, i) => { const st = missing.data?.stages[i - (lacks.length - (missing.data?.stages.length ?? 0))];   // migration 46: a stage links to its request
+                return <li key={x}>{st ? <a href={`#req-${st}`} data-testid="lack-link">{x}</a> : x}</li>; })}</ul></div>}
+          </div>)}
+        <div className="card"><RosterEditor scopeId={id} onChanged={() => void missing.reload()} /></div>
         <div className="card"><h2 style={{ marginTop: 0 }}>{t('roster.managers')}</h2>
           {r.data.managers.length === 0 ? <Empty /> : <ul data-testid="roster-managers">{r.data.managers.map((m) => (
             <li key={`${m.employee_id}-${m.op_role}`}><Link to={`/people/${m.employee_id}`}>{m.name}</Link> <span className="muted small">{t(`oprole.${m.op_role}`)}</span></li>))}</ul>}

@@ -215,7 +215,8 @@ test('Onboarding at scale: 205 joiners from one spreadsheet to 40 on a stage, th
   for (const [k, label] of [['050', 'Assign Procurement (farm-gate)'], ['049', 'Assign Quality Control'], ['048', 'Assign QR Activation (seal)']] as const) {
     await page.getByTestId('roster-find').fill(`A${u} ${k}`);
     await expect(page.getByLabel(label).locator('option', { hasText: `A${u} ${k}` })).toHaveCount(1);
-    await page.getByLabel(label).selectOption({ label: `Scale A${u} ${k}` });
+    // migration 46: joined on this scope's opening, they come first in the pool, marked with the stage they were hired for
+    await page.getByLabel(label).selectOption({ label: `Scale A${u} ${k} · ready for Procurement (farm-gate)` });
     await expect(page.getByTestId('slots').getByRole('link', { name: `Scale A${u} ${k}` })).toBeVisible();
   }
   await expect(page.getByTestId('roster-covered')).toBeVisible();

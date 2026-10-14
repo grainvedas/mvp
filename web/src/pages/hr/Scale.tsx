@@ -5,7 +5,7 @@
 //   Invites        one-time links (copy, QR), emailed when a mail sender is set up
 //   AssignMany     several people on one assignment in one act; "ready to assign" first
 // Who may do what is the database's: each control is shown when the server says the reader may use it.
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import readXlsxFile from 'read-excel-file';
 import writeXlsxFile from 'write-excel-file';
@@ -17,7 +17,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { date } from '../../lib/format';
 import { NO_RIGHTS, type Lens, type OpRole, type StageType } from '../../lib/types';
 import { joinWords, waitingOn } from '../../lib/people';
-import { HIRE_ROLES, IMPORT_COLUMNS, NO_FILTER, NUMBER_KEYS, filterArgs, joinerRows, linksText, bulkError, pageCount, sendInvites,
+import { HIRE_ROLES, IMPORT_COLUMNS, NO_FILTER, NUMBER_KEYS, filterArgs, groupOpenings, joinerRows, linksText, bulkError, pageCount, sendInvites,
   type HireRole, type ImportResult, type InviteResult, type JoinerFilter, type JoinersPage, type Opening, type OpeningsSummary } from '../../lib/scale';
 import { STAGE_ICON } from '../../engine/icons';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
@@ -25,6 +25,7 @@ import { RoleGuide } from '../../shell/RoleGuide';
 import { StatusBadge, useStageName } from '../people/shared';
 import { Owner, TaskTitle, taskKey } from './Hr';
 import { HrScopeNote, stateChoices, useHrScope } from './Geo';
+import { RequirementsFigure } from './Requirements';
 
 const STAGES = Object.keys(STAGE_ICON) as StageType[];
 const PAGE = 50;
@@ -37,9 +38,10 @@ export const useHrPeople = () => useAsync(async () => ((await q(supabase.from('a
   .map((p) => ({ id: p.id, name: p.display_name })), []);
 
 /** HR's pages, one row of links. */
-export function HrLinks({ here }: { here: 'joiners' | 'openings' | 'import' | 'templates' | 'team' }) {
+export function HrLinks({ here }: { here: 'requirements' | 'joiners' | 'openings' | 'import' | 'templates' | 'team' }) {
   const { t } = useI18n();
-  const items: [typeof here, string, string][] = [['joiners', '/hr', 'hr.pipeline_title'], ['openings', '/hr/openings', 'open.title'],
+  // migration 46: the requirements first (what the managers need), then the joiners, the openings …
+  const items: [typeof here, string, string][] = [['requirements', '/hr/requirements', 'req.title'], ['joiners', '/hr', 'hr.pipeline_title'], ['openings', '/hr/openings', 'open.title'],
     ['import', '/hr/import', 'imp.title'], ['templates', '/hr/templates', 'hr.templates'], ['team', '/hr/team', 'geo.team']];
   return <p className="row hr-links" data-testid="hr-links">{items.map(([k, to, key]) => k === here
     ? <strong key={k} className="btn secondary active" aria-current="page">{t(key)}</strong>
@@ -92,9 +94,15 @@ export function Openings() {
               <h2 style={{ marginTop: 0 }}>{name}</h2>
               <table className="wide" data-testid="openings">
                 <thead><tr><th>{t('open.col_opening')}</th><th>{t('open.col_place')}</th>{NUMBER_KEYS.map((k) => <th key={k} className="num">{t(`open.n_${k}`)}</th>)}<th>{t('common.status')}</th><th /></tr></thead>
-                <tbody>{list.map((o) => (
+                <tbody>{groupOpenings(list).map((c) => <Fragment key={c.client ?? '-'}>
+                  <tr className="group-row" data-testid="openings-client"><td colSpan={NUMBER_KEYS.length + 4}><strong>{c.client ?? t('open.no_client')}</strong></td></tr>
+                  {c.scopes.map((g) => <Fragment key={g.key || '-'}>
+                    {(g.title || g.group) && <tr className="group-row" data-testid="openings-scope"><td colSpan={NUMBER_KEYS.length + 4} className="small">
+                      {g.title ?? '—'}{g.group && <span className="muted"> · {t('open.group', { n: g.rows.length })}</span>}</td></tr>}
+                    {g.rows.map((o) => (
                   <tr key={o.id} data-testid="opening-row" data-code={o.code}>
                     <td><strong>{o.code}</strong><div className="small"><RoleLabel role={o.role} stage={o.stage} /></div>
+                      <div className="small muted" data-testid="opening-source">{o.source === 'requirement' ? t('open.from_req', { who: o.requested_by_name ?? '—' }) : t('open.by_hr')}</div>
                       {o.target_join && <div className="small muted">{t('open.target', { d: date(o.target_join) })}</div>}</td>
                     <td className="small">{[o.client_name, o.scope_name].filter(Boolean).join(' · ') || '—'}
                       {!o.ready_target && <div className="muted">{t(o.role === 'client_manager' ? 'open.no_client_yet' : 'open.scope_not_active')}</div>}</td>
@@ -108,6 +116,9 @@ export function Openings() {
                       {x.can_plan && o.status !== 'closed' && <button type="button" className="secondary small-btn" onClick={() => void status(o, 'closed')} disabled={act.busy}>{t('open.close')}</button>}
                     </td>
                   </tr>))}
+                    {g.rows.length > 1 && <tr className="total-row" data-testid="scope-subtotal"><td colSpan={2} className="small">{t('open.subtotal')}</td>{nums(g.total as unknown as Record<string, number>)}<td colSpan={2} /></tr>}
+                  </Fragment>)}
+                </Fragment>)}
                   <tr className="total-row" data-testid="state-total"><td colSpan={2}><strong>{t('open.state_total')}</strong></td>{nums(tot as unknown as Record<string, number>)}<td colSpan={2} /></tr>
                 </tbody>
               </table>
@@ -136,6 +147,13 @@ function OpeningForm({ opening, done }: { opening: Opening | null; done: () => v
     'opening_targets', { p_state: f.state_id }) : Promise.resolve({ clients: [], scopes: [] }), [f.state_id]);
   const clients = { data: targets.data?.clients };
   const scopes = { data: targets.data?.scopes };
+  // migration 46 (section D): a new opening may start from the scope: it fills the state and the client; an operator
+  // opening of a scope may be for several of its stages at once (one opening per stage, one group)
+  type AnyScope = { id: string; season_code: string; geography: string; status: string; client_id: string; chain: StageType[]; state_id: string; state_name: string };
+  const allScopes = useAsync(async () => opening || !states.data ? [] as AnyScope[] : (await Promise.all(states.data.map((st) =>
+    rpc<{ scopes: Omit<AnyScope, 'state_id' | 'state_name'>[] }>('opening_targets', { p_state: st.id })
+      .then((x) => x.scopes.map((sc) => ({ ...sc, state_id: st.id, state_name: st.name })), () => [] as AnyScope[])))).flat(), [opening?.id, states.data?.map((x) => x.id).join(',')]);
+  const [many, setMany] = useState<StageType[]>([]);
   const act = useAction();
   // G3 (Veda, 14 Oct): one State Manager per state, so a State Manager opening has 1 position
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value, ...(k === 'role' && e.target.value === 'state_manager' ? { positions: '1' } : {}) });
@@ -143,13 +161,22 @@ function OpeningForm({ opening, done }: { opening: Opening | null; done: () => v
   const stageChoices = sc ? sc.chain : STAGES;
   const needsClient = f.role === 'client_manager' || f.role === 'operator' || f.role === 'export_manager';
   const needsScope = f.role === 'operator' || f.role === 'export_manager';
+  const severalStages = !opening && f.role === 'operator' && !!sc;
   const save = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
-    await rpc('save_opening', { p: { ...f, id: opening?.id, positions: Number(f.positions) } }); done();
+    const more = many.filter((x) => x !== f.stage);
+    if (severalStages && more.length > 0) await rpc('save_openings', { p: { ...f, stage: undefined, stages: [f.stage, ...more], positions: Number(f.positions) } });
+    else await rpc('save_opening', { p: { ...f, id: opening?.id, positions: Number(f.positions) } });
+    done();
   }); };
   return (
     <form className="card" onSubmit={save} aria-label={t(opening ? 'open.edit' : 'open.new')} data-testid="opening-form">
       <h2 style={{ marginTop: 0 }}>{opening ? `${t('open.edit')}: ${opening.code}` : t('open.new')}</h2>
       <div className="form-grid">
+        {!opening && needsScope && (allScopes.data?.length ?? 0) > 0 && <Field label={t('open.start_scope')} hint={t('open.start_scope_hint')} htmlFor="of-anyscope">
+          <select id="of-anyscope" value={f.scope_id} data-testid="of-anyscope" onChange={(e) => {
+            const x = allScopes.data!.find((y) => y.id === e.target.value);
+            setF({ ...f, scope_id: e.target.value, ...(x ? { state_id: x.state_id, client_id: x.client_id } : {}) }); setMany([]);
+          }}><option value="">—</option>{allScopes.data!.map((x) => <option key={x.id} value={x.id}>{x.state_name} · {x.season_code} · {x.geography}{x.status === 'draft' ? ` (${t('open.draft')})` : ''}</option>)}</select></Field>}
         <Field label={t('lens.state')} htmlFor="of-state"><select id="of-state" value={f.state_id} onChange={(e) => setF({ ...f, state_id: e.target.value, client_id: '', scope_id: '' })} required>
           <option value="">—</option>{(states.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
         <Field label={t('open.role')} htmlFor="of-role"><select id="of-role" value={f.role} onChange={set('role')}>
@@ -162,6 +189,10 @@ function OpeningForm({ opening, done }: { opening: Opening | null; done: () => v
             <option key={x.id} value={x.id}>{x.season_code} · {x.geography}{x.status === 'draft' ? ` (${t('open.draft')})` : ''}</option>))}</select></Field>}
         {f.role === 'operator' && <Field label={t('open.stage')} htmlFor="of-stage"><select id="of-stage" value={f.stage} onChange={set('stage')} required>
           <option value="">—</option>{stageChoices.map((s) => <option key={s} value={s}>{stage(s)}</option>)}</select></Field>}
+        {severalStages && <fieldset className="field" data-testid="of-stages"><legend className="small">{t('open.stages')}</legend>
+          {sc!.chain.filter((s) => s !== f.stage).map((s) => <label key={s} className="check"><input type="checkbox" checked={many.includes(s)} data-testid={`of-stage-${s}`}
+            onChange={(e) => setMany(e.target.checked ? [...many, s] : many.filter((y) => y !== s))} />{stage(s)}</label>)}
+          <p className="small muted">{t('open.stages_hint')}</p></fieldset>}
         <Field label={t('open.target_join')} hint={t('common.optional')} htmlFor="of-join"><input id="of-join" type="date" value={f.target_join} onChange={set('target_join')} /></Field>
         <Field label={t('open.title_f')} hint={t('common.optional')} htmlFor="of-title"><input id="of-title" value={f.title} onChange={set('title')} maxLength={120} /></Field>
       </div>
@@ -398,6 +429,7 @@ export function JoinersList() {
       <div className="page-hd"><h1><span aria-hidden="true">🧑‍💼 </span>{t('hr.pipeline_title')}</h1><div className="sub">{t('hr.pipeline_sub')}</div></div>
       <RoleGuide role={ctx?.user?.system_role === 'hr_admin' ? 'hr_admin' : 'hr_resource'} />
       <HrScopeNote />
+      <RequirementsFigure />
       <p className="row">
         <Link className="btn" to="/hr/joiners/new" data-testid="add-joiner">{t('hr.add_joiner')}</Link>
         <Link className="btn secondary" to="/hr/import" data-testid="to-import">{t('imp.title')}</Link>

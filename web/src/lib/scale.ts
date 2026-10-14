@@ -12,6 +12,24 @@ export interface Opening extends OpeningNumbers {
   id: string; code: string; state_id: string; state_name: string; role: HireRole; stage: StageType | null;
   client_id: string | null; client_name: string | null; scope_id: string | null; scope_name: string | null;
   target_join: string | null; status: OpeningStatus; title: string | null; note: string | null; ready_target: boolean;
+  /** migration 46: where it came from ("From requirement by …" / "Created by HR"), and the group of a scope's stages */
+  source?: 'hr' | 'requirement'; requested_by_name?: string | null; requirement_line_id?: string | null; group_id?: string | null; group_title?: string | null;
+}
+
+/** Pure (migration 46, section D): a state's openings by client, then by scope (or a group made for a scope's stages),
+ *  each with its subtotal of the open ones (a closed opening plans nothing, as in the state's total). */
+export function groupOpenings(list: Opening[]): { client: string | null; scopes: { key: string; title: string | null; group: boolean; rows: Opening[]; total: OpeningNumbers }[] }[] {
+  const out: ReturnType<typeof groupOpenings> = [];
+  for (const o of list) {
+    let c = out.find((x) => x.client === o.client_name);
+    if (!c) { c = { client: o.client_name, scopes: [] }; out.push(c); }
+    const key = o.group_id ?? o.scope_id ?? '';
+    let s = c.scopes.find((x) => x.key === key);
+    if (!s) { s = { key, title: o.group_title ?? o.scope_name, group: !!o.group_id, rows: [], total: Object.fromEntries(NUMBER_KEYS.map((k) => [k, 0])) as unknown as OpeningNumbers }; c.scopes.push(s); }
+    s.rows.push(o);
+    if (o.status !== 'closed') for (const k of NUMBER_KEYS) (s.total as unknown as Record<string, number>)[k] += Number(o[k] ?? 0);
+  }
+  return out;
 }
 export interface OpeningsSummary {
   openings: Opening[]; states: (OpeningNumbers & { state_id: string; state_name: string })[]; total: OpeningNumbers;

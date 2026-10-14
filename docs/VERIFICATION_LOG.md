@@ -1979,3 +1979,55 @@ Ran:
 
 NOT run / not known: nothing of it on staging; GitHub Actions; pgaudit (not on this machine); Windows PowerShell 5.1;
 about 50 new Hindi strings unread by their users.
+- **On staging** 14 Oct 10:15 IST: `staging-safeguards.cmd` `RESULT: SAFEGUARDS ON STAGING` (head 5c75525, 31 files, among
+  them `.github/workflows/ledger-anchor.yml`; migration 45 alone waiting and pushed; S1b: block 29 explained, correction
+  40e098ae…, signed by the admin; smoke 41 of 42, `statement logging` NOT SET (a go-live step, standing); the safeguards
+  in place and the change log intact (0 lines: nothing had changed yet); corrections 1; two-person approval off; ledger
+  audit NO FINDINGS (34 blocks); logins and functions as before). The summary's "ledger_head=9" is wrong: the script's
+  query sorted the block number as text (9 after 34); the Safeguards page's own `app.ledger_head()` sorts numbers.
+  Fixed in the next release script. Not checked yet: Vercel built 5c75525 (Chrome could not be reached), the GitHub
+  variables and the first run of the daily copy, the run-sheet checks in the app.
+- **The daily copy set up** (14 Oct, at Veda's word, in her Chrome): GitHub repository variables `GV_STAGING_URL` and
+  `GV_STAGING_ANON_KEY` (the public key, copied with Supabase's Copy button, never typed; its token says role "anon");
+  Actions → "ledger anchor" → Run workflow: **Success** (17 s); the branch `ledger-anchors` holds `staging.csv` with
+  ledger block #34 and change-log line #10. Found: Vercel tried to build the new branch (a preview, "Error", 1 s): it
+  reads `git.deploymentEnabled` from the branch it builds, and `web/vercel.json` of main does not reach it. Fixed with
+  Veda's yes: commit 7180b72 on `ledger-anchors` only adds `web/vercel.json` = never build this branch; Vercel made no
+  deployment for it. The job's template now writes that file itself when the branch is new (for production);
+  simulated on a local repository. The app as Lucky: no Safeguards entry; the page refuses him.
+
+
+## 14 October 2026: HR requirements and staffing a scope (migration 46, open item 41), local stack
+
+Veda's brief "GrainVeda MVP — HR requirements list and staffing a scope" (it replaces section B of the follow-up brief).
+
+- **Database**: `tests/run_local.sh` **ALL TESTS PASSED, 1,679 ok** (was 1,611), with the upgrade path, the production
+  build and four sessions at once. New `tests/40_requirements.sql`: **68 checks** (lines raised by the People step and
+  not before; closed "filled from the pool" and withdrawn when the chain or the scope changes; a client with no Client
+  Manager in the State Manager's name; by hand, refused for the wrong person, stage, number or date; HR's figure, her
+  states only, the HR Admin all; return, answer, publish in one act as one group with a correction logged, decline,
+  hold, every status in the Audit log; Joining and Ready to assign with names; ready people first in the pool; a
+  multi-stage opening; two stages in a row allowed, warned, verified by its maker, marked in both ledgers, on the public
+  page and in the counts). **17 controls**, each caught. Older tests updated: the API allowlist (nine functions), the
+  public page's keys (`same_person`), the change-log trigger count (21 → at least 21).
+- **API with real logins**: `remote_create_user.mjs` **95 passed**; `remote_rls.mjs --t1` **192 passed**.
+- **Unit**: **359 passed** (new `web/tests/requirements.test.ts`, 9; the menus: Requirements first for HR).
+- **Screens**: default suite **74 passed** (16.2 min) with `phase18` at 527 px: brief F (a reopened draft reaches step 4
+  and is activated by clicks; the Roster offers Activate) and A–E end to end (Save People step → five Requested lines;
+  Procurement and Packing to one person, then QC next to Procurement: the warning in the brief's words; Request people;
+  HR's badge and figure; return with a question, the answer, publish the scope in one act as one opening of three
+  stages "From requirement by Prasaadam Client Manager"; a new opening from a scope for two stages, "Created by HR";
+  decline with a reason; the State Manager's open requirements). Three older screens updated: the two-stages warning's
+  new words (phase8), the ledger export's two new columns (phase9), the pool's "ready for" mark (phase11). Production
+  build **14 passed**; the first day from nothing **1 passed**. Screenshots looked at, 527 and 1366 px: "Save People
+  step" was shown when every empty stage was already asked for; now only when one is not.
+- **`scripts/staging_requirements.ps1`** (`staging-requirements.cmd`) on stand-ins: the run (S1b reads back what the
+  migration raised; smoke 42 of 43 with `statement logging` standing; S3 42 files); a second run; wrong words; another
+  migration waiting; the requirements not in place after the push; a failed push; the read-back failing; production;
+  functions not current; a smoke row not OK; a changed migration; a changed app file. `staging-safeguards.cmd` and the
+  earlier scripts now refuse. Sealed: 129 files.
+
+NOT run / not known: nothing of it on staging; the 400 Veda saw on staging when a reopened draft was saved (brief F) was
+not reproduced locally: the wizard now shows the server's words, so the run sheet's step 12 will show it if it comes
+back; the ledger's "same person, next stage" mark is tested in the database and the export, not by a screen test;
+about 85 new Hindi strings unread by their users; Windows PowerShell 5.1.

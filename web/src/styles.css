@@ -101,7 +101,7 @@ button.secondary, .btn.secondary { background: #fff; color: var(--g600); border-
 button.secondary:hover, .btn.secondary:hover { background: #fff; border-color: var(--g400); }
 button.danger { background: var(--red-bg); border-color: var(--red-border); color: var(--red); }
 button.danger:hover { background: var(--red); color: #fff; }
-button.gold { background: var(--gold-500); border-color: var(--gold-700); color: var(--ink); }
+button.gold, .btn.gold { background: var(--gold-500); border-color: var(--gold-700); color: var(--ink); }
 button:disabled, button:disabled:hover { opacity: .5; cursor: not-allowed; }
 label { display: block; font-weight: 600; margin-bottom: 4px; }
 .field { margin-bottom: 14px; }
@@ -160,6 +160,8 @@ tr.clickable { cursor: pointer; } tbody tr:hover td { background: var(--g50); }
 .stepper li.done { background: var(--g100); color: var(--g700); }
 .stepper li.current { background: var(--g600); color: #fff; font-weight: 700; }
 .stepper li.skipped { background: transparent; border: 1px dashed var(--border); }
+/* a step of a saved draft, or one already done, opens with a tap (14 Oct 2026, brief F) */
+.stepper .step-link { background: none; border: 0; padding: 0; margin: 0; min-height: 0; width: 100%; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
@@ -460,3 +462,9 @@ button.stat:focus-visible { outline: 3px solid var(--g500); outline-offset: 2px;
 .reg-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; }
 .reg-card { margin: 0; display: flex; flex-direction: column; gap: 4px; }
 .reg-card .alert { margin: 4px 0 0; }
+
+/* migration 46: HR's badge on Requirements; a requirement line on the People step and the Roster */
+.nav-badge { display: inline-block; margin-left: 6px; min-width: 1.4em; padding: 0 6px; border-radius: 999px; background: var(--gold, #c9a227); color: #1a1a1a; font-size: .75rem; font-weight: 700; text-align: center; line-height: 1.5; }
+.req-lines { list-style: none; padding: 0; margin: 8px 0; }
+.req-lines li { border-bottom: 1px solid var(--line, #ddd); padding: 6px 0; overflow-wrap: anywhere; }
+.same-person { display: inline-block; font-size: .75rem; padding: 0 6px; border-radius: 999px; background: var(--yellow-bg); color: var(--yellow); white-space: nowrap; }

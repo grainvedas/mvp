@@ -100,6 +100,7 @@ export const enPublic: Record<string, string> = {
   'nav.ledger': 'Ledger',
   'pv.how_mixed': 'Every step was recorded by the person who handled the lot. Some steps were recorded and checked by the same person, or recorded by a manager for the stage, not checked by the next person. The record cannot be edited afterwards.',
   'pv.how_basic': 'Every step was recorded when it happened. The record cannot be edited afterwards.',
+  'pv.how_same_person': 'Some steps of this lot were recorded and checked by the same person. The full record is kept in the ledger.',
 };
 
 export const hiPublic: Record<string, string> = {
@@ -211,4 +212,5 @@ export const hiPublic: Record<string, string> = {
   'nav.ledger': 'लेजर',
   'pv.how_mixed': 'हर चरण उसी व्यक्ति ने दर्ज किया जिसने लॉट संभाला। कुछ चरण एक ही व्यक्ति ने दर्ज भी किए और जाँचे भी, या चरण की ओर से किसी मैनेजर ने दर्ज किए; उन्हें अगले व्यक्ति ने नहीं जाँचा। बाद में रिकॉर्ड बदला नहीं जा सकता।',
   'pv.how_basic': 'हर चरण उसी समय दर्ज किया गया जब वह हुआ। बाद में रिकॉर्ड बदला नहीं जा सकता।',
+  'pv.how_same_person': 'इस लॉट के कुछ चरण एक ही व्यक्ति ने दर्ज भी किए और जाँचे भी। पूरा रिकॉर्ड लेजर में रखा है।',
 };

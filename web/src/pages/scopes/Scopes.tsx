@@ -1,10 +1,11 @@
 // S7 scope list · S8 scope wizard (season + place → crop → chain with live problems → people) · scope view
 // Identity layer (6 Oct 2026): a scope has its own state (a client may work in several); the People step gives stages
 // to people from the pool HR has made (pages/people: RosterEditor) and no longer creates anybody.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { rpc, q } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
+import { toAppError, type AppError } from '../../lib/errors';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
@@ -76,7 +77,9 @@ export function ScopeWizard() {
   const [commercial, setCommercial] = useState(false);
   const [shipment, setShipment] = useState(false);
   const [problems, setProblems] = useState<string[] | null>(null);
+  const [checkError, setCheckError] = useState<AppError | null>(null);
   const act = useAction();
+  const placed = useRef<string | null>(null);           // the scope whose first step was chosen (14 Oct: a save sent it back)
 
   useEffect(() => {
     const s = existing.data;
@@ -88,13 +91,22 @@ export function ScopeWizard() {
     const proc = (x: StageType) => defs.data?.find((d) => d.stage_type === x)?.is_processing;
     setBefore(c.slice(1, qi).filter(proc)); setAfter(c.slice(qi + 1).filter(proc));
     setCommercial(c.includes('commercial')); setShipment(c.includes('shipment'));
-    setStep(s.status === 'draft' && search.get('step') !== 'people' ? 3 : 4);
+    // a draft whose chain is saved opens on step 4, People (14 Oct 2026, brief F); ?step=chain opens the chain. Chosen once
+    // per scope: before, every save re-ran this and put a reopened draft back on step 3, so "Save draft → People" seemed
+    // to do nothing.
+    if (placed.current !== s.id || search.get('step')) {
+      placed.current = s.id;
+      const want = search.get('step');
+      setStep(s.status !== 'draft' ? 4 : want === 'chain' ? 3 : want === 'crop' ? 2 : want === 'season' ? 1 : 4);
+    }
   }, [existing.data, defs.data, search]);
 
   const chain = useMemo(() => assembleChain({ entry, villageBatch, before, after, commercial, shipment }), [entry, villageBatch, before, after, commercial, shipment]);
   useEffect(() => {
     if (!cropId) return;
-    const h = setTimeout(() => { void rpc<string[]>('check_chain', { p_chain: chain, p_crop: cropId }).then(setProblems).catch(() => setProblems(null)); }, 250);
+    // a refusal of the check is shown, never swallowed (14 Oct 2026, brief F: the button stayed off with no word)
+    const h = setTimeout(() => { void rpc<string[]>('check_chain', { p_chain: chain, p_crop: cropId })
+      .then((p) => { setProblems(p); setCheckError(null); }, (e) => { setProblems(null); setCheckError(toAppError(e)); }); }, 250);
     return () => clearTimeout(h);
   }, [chain, cropId]);
 
@@ -148,7 +160,12 @@ export function ScopeWizard() {
     <div>
       <p className="small"><Link to="/scopes">{t('scopes.title')}</Link></p>
       <h1>{s ? `${crop?.name ?? ''} · ${s.season_code} · ${s.geography}` : t('scopes.new')} {s && <Badge value={s.status} />}</h1>
-      <ol className="stepper">{[1, 2, 3, 4].map((n) => <li key={n} className={n < step ? 'done' : n === step ? 'current' : ''}>{n} {t(`wizard.step${n}`)}</li>)}</ol>
+      <ol className="stepper">{[1, 2, 3, 4].map((n) => {
+        const open = !frozen && n !== step && (n < step || (!!s && s.status === 'draft'));   // a saved draft: every step; a new one: the steps done
+        return <li key={n} className={n < step ? 'done' : n === step ? 'current' : ''} aria-current={n === step ? 'step' : undefined}>
+          {open ? <button type="button" className="step-link" onClick={() => setStep(n)} data-testid={`step-${n}`}>{n} {t(`wizard.step${n}`)}</button>
+                : <>{n} {t(`wizard.step${n}`)}</>}</li>;
+      })}</ol>
       {frozen && <div className="alert info">{t('wizard.activate_warning')}</div>}
 
       {step === 1 && !frozen && (
@@ -204,6 +221,7 @@ export function ScopeWizard() {
           <div className="alert info" data-testid="chain-preview"><strong>Chain:</strong> {chain.map(label).join(' → ')}</div>
           {problems && problems.length > 0 && <div className="alert error" data-testid="chain-problems">{t('wizard.problems')}<ul>{problems.map((p) => <li key={p}>{p}</li>)}</ul></div>}
           {problems && problems.length === 0 && <div className="alert ok">{t('wizard.ok')}</div>}
+          <ErrorBox error={checkError} />
           <ErrorBox error={act.error} />
           <div className="row">{!s && <button className="secondary" onClick={() => setStep(2)}>{t('common.back')}</button>}
             <button onClick={saveDraft} disabled={act.busy || !problems || problems.length > 0}>{t('wizard.save_draft')} → {t('wizard.step4')}</button></div>
@@ -217,7 +235,8 @@ export function ScopeWizard() {
           <ErrorBox error={act.error} />
           {s.status === 'draft' && canManage && lacks.length > 0 && (
             <div className="alert warn" data-testid="activation-missing">{t('wizard.cannot_activate')}
-              <ul>{lacks.map((x) => <li key={x}>{x}</li>)}</ul></div>)}
+              <ul>{lacks.map((x, i) => { const st = missing.data?.stages[i - (lacks.length - (missing.data?.stages.length ?? 0))];   // migration 46: a stage links to its request
+                return <li key={x}>{st ? <a href={`#req-${st}`} data-testid="lack-link">{x}</a> : x}</li>; })}</ul></div>)}
           {s.status === 'draft' && canManage && <div className="row"><button className="secondary" onClick={() => setStep(3)}>{t('common.back')}</button>
             <button className="gold" onClick={activate} disabled={act.busy || lacks.length > 0} data-testid="activate">{t('wizard.activate')}</button></div>}
           {s.status !== 'draft' && <p className="small"><Link to="/">{t('nav.home')}</Link> · <Link to={`/scopes/${s.id}/roster`}>{t('roster.title')}</Link></p>}

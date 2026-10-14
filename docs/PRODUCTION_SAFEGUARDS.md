@@ -62,6 +62,22 @@ The ledger then shows *correction opened* (in the name of the admin who asked, w
 *correction closed* (how many rows changed); the change log marks the update as that correction. A change made any
 other way shows as **direct**.
 
+## How Claude and other helpers work once production is live (Veda, 14 Oct 2026: "after production we have to be careful")
+
+On staging (practice data) Claude has worked directly in GitHub and Vercel with Veda's word. On production it does not.
+The same rules hold for any other helper (Tarun, another AI tool, a contractor).
+
+| On production | The rule |
+|---|---|
+| Data | Never changed by Claude. A correction goes through the door: the admin asks, a second person approves, an owner runs it |
+| Releases | Claude prepares a script; Veda runs it and types the words; Claude reads the record |
+| Keys and accounts | Claude holds no production key, password or seat in the production Supabase organization |
+| Settings (Supabase, GitHub, Vercel) | Changed by Veda, or by Claude only after her yes for that one step, said in the chat |
+| Veda's browser | Claude reads (dashboards, logs, deployments); it clicks only what she has approved, one step at a time |
+| Every act | Leaves a trace (change log, ledger, GitHub history, the release record), so she can see what was done and by whom |
+
+*Draft of 14 Oct, to be changed by Veda before go-live.*
+
 ## What this does not do (said plainly)
 
 - An owner can still switch the guards off and change data. That is detected (the chains break, the outside copy stops

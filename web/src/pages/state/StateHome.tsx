@@ -15,6 +15,7 @@ import { Badge, Empty, ErrorBox, Loading } from '../../shell/ui';
 import { RoleGuide } from '../../shell/RoleGuide';
 import { StatButton } from '../dashboard/parts';
 import { ClientView, PipelineShort, type OverviewClient, type Overview, type PipelineStage } from '../admin/Overview';
+import { StateRequirements } from './StateRequirements';
 
 export interface StateClient extends OverviewClient { scopes_setup: number; lots: number; waiting: number; managers: string | null }
 export interface StateHomeData {
@@ -23,7 +24,8 @@ export interface StateHomeData {
   clients: { total: number; active: number; without_manager: number; list: StateClient[] };
   crops: { total: number; state_not_set: number; /** migration 42: crops of his state that are ready for a scope */ ready?: number;
     list: { id: string; name: string; code: string; scopes_active: number; scopes_total: number; ready?: boolean; missing?: string[] }[] };
-  scopes: { active: number; setup: number; closed: number; qr_issued: number; list: { scope_id: string; client: string; crop: string; scope: string; status: string }[] };
+  scopes: { active: number; setup: number; closed: number; qr_issued: number; list: { scope_id: string; client: string; crop: string; scope: string; status: string;
+    /** migration 46: one person on two stages in a row */ same_person?: { verified_own: number; made_on_own: number } }[] };
   farmers: { total: number; active: number };
   attention: {
     no_manager: number; no_manager_list: { id: string; name: string; code: string }[];
@@ -125,6 +127,9 @@ export function StateHome() {
             <ul className="ov-list card" data-testid="sh-gaps">{d.attention.unstaffed_list.map((g) => (
               <li key={`${g.scope_id}-${g.stage_type}`}>{g.client} · {g.scope}: <strong>{t(`stage.${g.stage_type}`, undefined, g.stage)}</strong> · <Link to={`/scopes/${g.scope_id}/roster`}>{t('home.view')}</Link></li>))}</ul>)}
 
+          <StateRequirements stateId={stateId} clients={d.clients.list.map((c) => ({ id: c.id, name: c.name }))} />
+          <SamePerson d={d} />
+
           <h2 className="section-title">{t('sh.client_cards')}</h2>
           {d.clients.list.length === 0 ? <Empty>{t('sh.no_clients')}</Empty> : (
             <div className="scope-cards" data-testid="sh-clients">{d.clients.list.map((c) => <ClientCard key={c.id} c={c} onOpen={() => openClient(c.id)} />)}</div>)}
@@ -199,6 +204,20 @@ function ClientsPanel({ d, onOpen }: { d: StateHomeData; onOpen: (id: string) =>
   );
 }
 
+/** Migration 46 (Veda, 14 Oct): where one person recorded a step and checked it (two stages in a row), per scope. */
+function SamePerson({ d }: { d: StateHomeData }) {
+  const { t } = useI18n();
+  const rows = d.scopes.list.filter((s) => (s.same_person?.verified_own ?? 0) + (s.same_person?.made_on_own ?? 0) > 0);
+  if (rows.length === 0) return null;
+  return (
+    <div className="card" data-testid="sh-same-person">
+      <h3 style={{ marginTop: 0 }}>{t('sp.title')}</h3>
+      <ul className="ov-list">{rows.map((s) => <li key={s.scope_id}><Link to={`/scopes/${s.scope_id}/roster`}>{s.scope}</Link>
+        <span className="small"> · {t('sp.count', { v: s.same_person!.verified_own, m: s.same_person!.made_on_own })}</span></li>)}</ul>
+      <p className="small muted">{t('sp.note')}</p>
+    </div>);
+}
+
 function ScopesPanel({ d }: { d: StateHomeData }) {
   const { t } = useI18n();
   return (
@@ -207,7 +226,8 @@ function ScopesPanel({ d }: { d: StateHomeData }) {
       <p className="small muted">{t('sh.scopes_detail', { a: d.scopes.active, s: d.scopes.setup, c: d.scopes.closed })}</p>
       {d.scopes.list.length === 0 ? <Empty /> : (
         <ul className="ov-list">{d.scopes.list.map((s) => (
-          <li key={s.scope_id}><Link to={`/scopes/${s.scope_id}`}>{s.scope}</Link><span className="small muted"> · {s.client}</span> <Badge value={s.status} /></li>))}</ul>)}
+          <li key={s.scope_id}><Link to={`/scopes/${s.scope_id}`}>{s.scope}</Link><span className="small muted"> · {s.client}</span> <Badge value={s.status} />
+            {(s.same_person?.verified_own ?? 0) > 0 && <> <span className="same-person">{t('sp.short', { n: s.same_person!.verified_own })}</span></>}</li>))}</ul>)}
       <p className="small muted">{t('sh.scopes_note')}</p>
     </div>
   );

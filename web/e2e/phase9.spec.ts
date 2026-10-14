@@ -183,7 +183,7 @@ test('The ledger page: every block, filters, manager acts on records, export of 
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('ledger-export').click()]);
   const text = await (await import('node:fs/promises')).readFile((await download.path())!, 'utf8');
   const lines = text.replace(/^﻿/, '').trim().split(/\r?\n/);
-  expect(lines[0]).toBe('seq,event,record,what,about,client,scope,signed_by,role,time,hash,prev_hash');
+  expect(lines[0]).toBe('seq,event,record,what,about,client,scope,signed_by,role,stage_role,same_person,time,hash,prev_hash');   // migration 46
   expect(lines.length - 1).toBe(seals);
   await expectNoSideScroll(page);
   await signOut(page);
