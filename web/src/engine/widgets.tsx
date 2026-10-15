@@ -21,14 +21,17 @@ export interface WidgetProps {
   scopeId?: string;
   stageType?: string;
   allowed?: string[];      // select with a gate: only these options are offered
+  /** migration 53: the lot this record is made from (QC picks the sample drawn from it) */ sourceId?: string;
 }
 
 /** Types this build can render. Anything else shows a notice and blocks save if required. */
 export const SUPPORTED = new Set(['number', 'integer', 'number[3]', 'text', 'select', 'date', 'boolean', 'attachment', 'readings', 'farmer',
-  'breakdown', 'packets[]', 'footprint[]', 'collection_point', 'gps']);   // migration 52: where the lot was weighed, and its GPS
+  'breakdown', 'packets[]', 'footprint[]', 'collection_point', 'gps',
+  'mill', 'lab', 'packing_unit', 'qc_sample', 'sku_packs']);                         // migration 53: Milling, QC, Packing   // migration 52: where the lot was weighed, and its GPS
 
 /** Field types that take the whole width of a two-column form (lists, pickers, files, groups of inputs). */
-export const FULL_WIDTH = new Set(['number[3]', 'attachment', 'readings', 'farmer', 'breakdown', 'packets[]', 'footprint[]', 'boolean', 'gps']);
+export const FULL_WIDTH = new Set(['number[3]', 'attachment', 'readings', 'farmer', 'breakdown', 'packets[]', 'footprint[]', 'boolean', 'gps',
+  'qc_sample', 'sku_packs']);
 
 /** Consecutive fields with the same `section` form one block of the form; a registry without sections gives one block. */
 export function groupSections(fields: FieldDef[]): { section: string | null; fields: FieldDef[] }[] {
@@ -129,6 +132,20 @@ export function Widget(p: WidgetProps) {
       return <RowsEditor id={id} value={value} onChange={onChange} cols={[{ key: 'reason', label: t('widget.reason'), numeric: false }, { key: 'kg', label: t('widget.kg'), numeric: true }]} addLabel={t('widget.add_reason')} />;
     case 'packets[]':
       return <RowsEditor id={id} value={value} onChange={onChange} cols={[{ key: 'units', label: t('widget.packets'), numeric: true }, { key: 'size_kg', label: t('widget.size_kg'), numeric: true }]} addLabel={t('widget.add_packet')} />;
+    case 'mill':
+      return <ListPicker id={id} name={field.key} value={(value as string) ?? ''} onChange={(v) => onChange(v)} cacheKey={`mills:${p.clientId}`}
+        load={async () => (await listRows('mills', 'id,name,place,ownership,dedicated_crop_id', 'client_id', p.clientId)).map((m) => ({ id: m.id, label: `${m.name} · ${m.place}` }))} />;
+    case 'packing_unit':
+      return <ListPicker id={id} name={field.key} value={(value as string) ?? ''} onChange={(v) => onChange(v)} cacheKey={`packing_units:${p.clientId}`}
+        load={async () => (await listRows('packing_units', 'id,name,place', 'client_id', p.clientId)).map((m) => ({ id: m.id, label: `${m.name} · ${m.place}` }))} />;
+    case 'lab':
+      return <ListPicker id={id} name={field.key} value={(value as string) ?? ''} onChange={(v) => onChange(v)} cacheKey={`labs:${p.scopeId}`}
+        load={async () => (await listRows('labs', 'id,name,kind,accreditation_no', null, null)).map((m) => ({ id: m.id,
+          label: `${m.name}${m.kind === 'in_house' ? ` · ${t('opt.in_house')}` : m.accreditation_no ? ` · ${m.accreditation_no}` : ''}` }))} />;
+    case 'qc_sample':
+      return <SamplePicker id={id} sourceId={p.sourceId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
+    case 'sku_packs':
+      return <SkuPacks id={id} clientId={p.clientId} value={value} onChange={onChange} />;
     case 'footprint[]':
       return <LotPicker id={id} scopeId={p.scopeId ?? ''} stageType={p.stageType ?? ''} value={Array.isArray(value) ? value as string[] : []} onChange={onChange} />;
     default:
@@ -310,6 +327,11 @@ export function buildPayload(fields: FieldDef[], values: Record<string, FieldVal
       const arr = (v as string[]).map(toNum);
       if (arr.some((x) => x === undefined)) continue;
       out = arr;
+    } else if (f.type === 'sku_packs') {
+      // migration 53: packs from the client's pack list: the pack, how many, its own size (kg)
+      const rows = (v as unknown as Record<string, string>[]).filter((r) => r.sku_id && r.units);
+      if (!rows.length) continue;
+      out = rows.map((r) => ({ sku_id: r.sku_id, units: toNum(r.units), size_kg: toNum(r.size_kg) }));
     } else if (f.type === 'breakdown' || f.type === 'packets[]') {
       const rows = (v as unknown as Record<string, string>[]).filter((r) => Object.values(r).some((x) => x !== ''));
       if (!rows.length) continue;
@@ -341,7 +363,7 @@ export function buildPayload(fields: FieldDef[], values: Record<string, FieldVal
 export function withScopeRules(fields: FieldDef[], scope: object): FieldDef[] {
   const on = (k: string) => (scope as Record<string, unknown>)[k] === true;
   // migration 52: a field marked `shown_when` is on the form only where the scope's setting is on (price and payment)
-  return fields.filter((f) => !f.shown_when || on(f.shown_when))
+  return fields.filter((f) => (!f.shown_when || on(f.shown_when)) && (!f.hidden_when || !on(f.hidden_when)))   // migration 53: hidden_when
     .map((f) => (f.required_when && on(f.required_when) ? { ...f, required: true } : f));
 }
 
@@ -357,6 +379,7 @@ export function missingRequired(fields: FieldDef[], values: Record<string, Field
     if (f.type === 'number[3]') return !Array.isArray(v) || (v as string[]).filter((x) => x !== '' && x !== undefined).length < 3;
     if (f.type === 'readings') return !v || Object.values(v as Record<string, string>).every((x) => x === '');
     if (f.type === 'packets[]') return !Array.isArray(v) || !(v as unknown as Record<string, string>[]).some((r) => r.units && r.size_kg);
+    if (f.type === 'sku_packs') return !Array.isArray(v) || !(v as unknown as Record<string, string>[]).some((r) => r.sku_id && r.units);
     if (f.type === 'footprint[]') return !Array.isArray(v) || (v as string[]).length === 0;
     if (f.type === 'gps') { const g = v as Record<string, string> | null; return !g || !String(g.lat ?? '').trim() || !String(g.lng ?? '').trim(); }
     return v === undefined || v === null || v === '';
@@ -447,5 +470,89 @@ function FarmerCard({ farmerId, scopeId }: { farmerId: string; scopeId: string }
       <div>{c.gap.required.length ? <span style={{ color: 'var(--red)' }}>{t('fc.gap_open', { what: c.gap.required.join(', ') })}</span>
         : c.gap.optional.length ? t('fc.gap_optional', { what: c.gap.optional.join(', ') }) : t('fc.gap_done')}</div>
       <div data-testid="farmer-card-gi">{t(`fc.gi_${c.gi_area}`)}{over ? ` · ${t('fc.above_yield')}` : ''}</div>
+    </div>);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Migration 53 (C4–C6): the mill, the packing unit and the lab from the lists; the sample drawn first; packs from the
+// client's pack list. Each list is kept on the phone (a form opened once works without a network).
+// ---------------------------------------------------------------------------------------------------------------------
+async function listRows(table: string, cols: string, col: string | null, val: string | null): Promise<Record<string, string>[]> {
+  let qy = supabase.from(table).select(cols).eq('active', true).order('name');
+  if (col && val) qy = qy.eq(col, val);
+  const { data, error } = await qy;
+  if (error) throw error;
+  return (data ?? []) as unknown as Record<string, string>[];
+}
+function ListPicker({ id, name, value, onChange, cacheKey, load }: { id: string; name: string; value: string; onChange: (v: string) => void;
+  cacheKey: string; load: () => Promise<{ id: string; label: string }[]> }) {
+  const [opts, setOpts] = useState<{ id: string; label: string }[]>([]);
+  useEffect(() => {
+    let live = true;
+    void cached(cacheKey, load).then((l) => { if (live) setOpts(l); }).catch(() => undefined);
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cacheKey]);
+  return (
+    <select id={id} name={name} value={value} onChange={(e) => onChange(e.target.value)} data-testid={`pick-${name}`}>
+      <option value="">—</option>
+      {opts.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+    </select>);
+}
+
+interface SampleRow { id: string; code: string; status: string; qty_kg: number; drawn_on: string; lab_name: string | null }
+function SamplePicker({ id, sourceId, value, onChange }: { id: string; sourceId?: string; value: string; onChange: (v: string) => void }) {
+  const { t } = useI18n();
+  const [rows, setRows] = useState<SampleRow[] | null>(null);
+  useEffect(() => {
+    if (!sourceId) { setRows([]); return; }
+    let live = true;
+    void cached(`samples:${sourceId}`, () => rpc<SampleRow[]>('lot_samples', { p_fp: sourceId }))
+      .then((r) => { if (live) setRows(r.filter((x) => x.status === 'sent' || x.id === value)); }).catch(() => { if (live) setRows([]); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceId]);
+  if (rows && !rows.length) return <p className="alert info" id={id} data-testid="no-samples">{t('smp.none_to_pick')}</p>;
+  return (
+    <select id={id} name="sample_ref" value={value} onChange={(e) => onChange(e.target.value)} data-testid="pick-sample">
+      <option value="">—</option>
+      {(rows ?? []).map((r) => <option key={r.id} value={r.id}>{r.code} · {Number(r.qty_kg).toLocaleString('en-IN')} kg{r.lab_name ? ` · ${r.lab_name}` : ''}</option>)}
+    </select>);
+}
+
+interface SkuRow { id: string; size: number; unit: string; material: string; market: string }
+export const skuKg = (s: { size: number; unit: string }) => (s.unit === 'g' ? Number(s.size) / 1000 : Number(s.size));
+function SkuPacks({ id, clientId, value, onChange }: { id: string; clientId: string; value: FieldValue; onChange: (v: FieldValue) => void }) {
+  const { t } = useI18n();
+  const [skus, setSkus] = useState<SkuRow[]>([]);
+  useEffect(() => {
+    let live = true;
+    void cached(`pack_skus:${clientId}`, async () => {
+      const { data, error } = await supabase.from('pack_skus').select('id,size,unit,material,market').eq('client_id', clientId).eq('active', true).order('size');
+      if (error) throw error;
+      return (data ?? []) as SkuRow[];
+    }).then((l) => { if (live) setSkus(l); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [clientId]);
+  type R = { sku_id: string; units: string; size_kg: string };
+  const rows: R[] = Array.isArray(value) ? (value as unknown as R[]) : [];
+  const list = rows.length ? rows : [{ sku_id: '', units: '', size_kg: '' }];
+  const set = (n: R[]) => onChange(n as unknown as FieldValue);
+  const name = (s: SkuRow) => `${s.size} ${s.unit} · ${t(`mat.${s.material}`, undefined, s.material)}${s.market === 'export' ? ` · ${t('opt.export', undefined, 'export')}` : ''}`;
+  if (!skus.length) return <p className="alert info" id={id} data-testid="no-skus">{t('pk.no_skus')}</p>;
+  return (
+    <div className="stack" id={id} data-testid="sku-packs">
+      {list.map((r, i) => (
+        <div key={i} className="row">
+          <select aria-label={`${t('pk.pack')} ${i + 1}`} value={r.sku_id} style={{ flex: '1 1 160px', width: 'auto' }} data-testid={`sku-${i}`}
+            onChange={(e) => { const s = skus.find((x) => x.id === e.target.value); const n = list.map((x) => ({ ...x }));
+              n[i] = { ...n[i], sku_id: e.target.value, size_kg: s ? String(skuKg(s)) : '' }; set(n); }}>
+            <option value="">—</option>{skus.map((s) => <option key={s.id} value={s.id}>{name(s)}</option>)}</select>
+          <input aria-label={`${t('widget.packets')} ${i + 1}`} placeholder={t('widget.packets')} inputMode="numeric" style={{ flex: '0 0 110px', width: 'auto' }}
+            value={r.units} data-testid={`sku-units-${i}`}
+            onChange={(e) => { const n = list.map((x) => ({ ...x })); n[i].units = e.target.value.replace(/[^0-9]/g, ''); set(n); }} />
+          {list.length > 1 && <button type="button" className="secondary" aria-label={t('widget.remove_row', { n: i + 1 })} onClick={() => set(list.filter((_, j) => j !== i))}>✕</button>}
+        </div>))}
+      <button type="button" className="secondary" onClick={() => set([...list, { sku_id: '', units: '', size_kg: '' }])}>{t('widget.add_packet')}</button>
     </div>);
 }

@@ -21,7 +21,10 @@ interface ScopeRow { id: string; client_id: string; crop_id: string; season_code
   /** migration 50 (C5): the lab record names the lab, the report and attaches it (set before activation) */ qc_report_required?: boolean;
   state_id?: string; season_end?: string | null;
   /** migration 52 (C1): Procurement records price and payment; asks where, the GPS and who delivered. Changed at any time. */
-  record_price?: boolean; procurement_details_required?: boolean }
+  record_price?: boolean; procurement_details_required?: boolean;
+  /** migration 53 (C4–C6): Milling, Quality Control and Packing ask the mill, sample, lab, packing unit and packs from
+   *  the lists; the markets QC judges each lot against. Changed at any time. */
+  stage_details_required?: boolean; market_codes?: string[] }
 type Crop = CropFull;   // migration 42: with its readiness and recommended chain
 interface Client { id: string; name: string; code: string; state_id?: string }
 interface StateRow { id: string; name: string }
@@ -177,6 +180,7 @@ export function ScopeWizard() {
       })}</ol>
       {frozen && <div className="alert info">{t('wizard.activate_warning')}</div>}
       {s && s.chain.includes('procurement') && <ProcurementSettings s={s} onSaved={(x) => existing.setData(x)} />}
+      {s && s.chain.some((x) => x === 'milling' || x === 'qc' || x === 'packing') && <StageSettings s={s} onSaved={(x) => existing.setData(x)} />}
 
       {step === 1 && !frozen && (
         <div className="card">
@@ -297,6 +301,40 @@ function ProcurementSettings({ s, onSaved }: { s: ScopeRow; onSaved: (x: ScopeRo
       <label className="check"><input type="checkbox" checked={on.price} disabled={act.busy}
         onChange={(e) => set('record_price', e.target.checked)} data-testid="ps-price" />{t('ps.price')}</label>
       <p className="hint">{t('ps.price_hint')}</p>
+      <ErrorBox error={act.error} />
+    </div>);
+}
+
+/** Migration 53 (C4–C6): how this scope's Milling, Quality Control and Packing forms work, and which markets each lot is
+ *  judged against at QC. Like the farm-gate settings, these decide what the next records ask, not what was recorded. */
+function StageSettings({ s, onSaved }: { s: ScopeRow; onSaved: (x: ScopeRow) => void }) {
+  const { t } = useI18n();
+  const act = useAction();
+  const profiles = useAsync(() => q(supabase.from('market_profiles').select('code, name').eq('crop_id', s.crop_id).eq('status', 'active').order('code')) as Promise<{ code: string; name: string }[]>, [s.crop_id]);
+  const [details, setDetails] = useState(s.stage_details_required !== false);
+  const [codes, setCodes] = useState<string[]>(s.market_codes ?? ['domestic', 'export']);
+  const save = (patch: Partial<ScopeRow>, undo: () => void) => void act.run(async () => {
+    try { onSaved(await q(supabase.from('scopes').update(patch).eq('id', s.id).select().single()) as ScopeRow); }
+    catch (e) { undo(); throw e; }
+  });
+  const toggle = (code: string, v: boolean) => {
+    const was = codes;
+    const next = v ? [...codes.filter((c) => c !== code), code] : codes.filter((c) => c !== code);
+    if (next.length === 0) return;   // at least one market: the database refuses none
+    setCodes(next); save({ market_codes: next }, () => setCodes(was));
+  };
+  return (
+    <div className="card" data-testid="stage-settings">
+      <h3>{t('ss.title')}</h3>
+      <label className="check"><input type="checkbox" checked={details} disabled={act.busy} data-testid="ss-details"
+        onChange={(e) => { const v = e.target.checked; setDetails(v); save({ stage_details_required: v }, () => setDetails(!v)); }} />{t('ss.details')}</label>
+      <p className="hint">{t('ss.details_hint')}</p>
+      <p className="small"><strong>{t('ss.markets')}</strong></p>
+      {profiles.loading ? <Loading /> : (profiles.data ?? []).length === 0 ? <p className="small muted" data-testid="ss-no-markets">{t('ss.no_markets')}</p>
+        : (profiles.data ?? []).map((m) => (
+          <label key={m.code} className="check"><input type="checkbox" checked={codes.includes(m.code)} disabled={act.busy || (codes.length === 1 && codes.includes(m.code))}
+            onChange={(e) => toggle(m.code, e.target.checked)} data-testid={`ss-market-${m.code}`} />{m.name}</label>))}
+      <p className="hint">{t('ss.markets_hint')}</p>
       <ErrorBox error={act.error} />
     </div>);
 }

@@ -23,6 +23,8 @@ export interface FieldDef {
   label_as?: string;
   /** migration 52: on the form only where the scope's setting of this name is on (price and payment: record_price) */
   shown_when?: string;
+  /** migration 53: the field is NOT on the form where the scope's setting of this name is on */
+  hidden_when?: string;
 }
 
 export interface StageDefinition {
@@ -67,6 +69,8 @@ export interface StageForm {
     qc_report_required?: boolean;
     /** migration 52 (C1): Procurement records the price and the payment; asks where, the GPS and who delivered */
     record_price?: boolean; procurement_details_required?: boolean;
+    /** migration 53 (C4–C6): Milling, QC and Packing ask the mill, sample, lab, packing unit and packs from the lists */
+    stage_details_required?: boolean; market_codes?: string[];
     client: { id: string; name: string; code: string };
     crop: { id: string; name: string; code: string; gi_tag: string | null; primary_unit: string;
       /** migration 52: the crop's thresholds (moisture_spread_pct, batch_loss_pct …) */ thresholds?: Record<string, number> | null };
@@ -222,6 +226,11 @@ export interface FootprintDetail {
   can_return?: boolean;
   /** migration 50: a packing record's batch and packs; a shipment's delivery; a sealed lot's release status */
   packs?: { batch_code: string | null; packed: number; void: number; prints: number; best_before: string | null } | null;
+  /** migration 53: the lab's verdict per market profile of the scope; a closed lot; the net weight check of a packing record */
+  profile_verdicts?: { code: string; name: string; version: number; verdict: 'pass' | 'fail' | 'pending'; failed: string[]; missing: string[] }[];
+  closure?: { floor_loss_kg: number; reason: string; closed_at: string; closed_by_name: string | null } | null;
+  net_weight?: { needed: boolean; check: null | { serials: string[]; weights: Record<string, { g: number; size_g: number; allowed_short_g: number; ok: boolean }> | null;
+    result: 'pass' | 'fail' | null; checked_at: string | null } } | null;
   delivery?: Delivery | null;
   release?: ReleaseStatus | null;
   attachments: { id: string; kind: string; storage_path: string; sha256: string; created_at: string; label?: string | null }[];

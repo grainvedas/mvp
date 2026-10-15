@@ -116,6 +116,7 @@ export const enPublic: Record<string, string> = {
   'pv.pack_not_found': 'No GrainVeda pack has the code {code}. Check the code on the label.',
   'pv.not_released': 'Packed, not yet released. Its full record shows here once the lot is released.',
   'pv.pack_void': 'This pack is void: do not use it.',
+  'pv.by_market': 'By market',
 };
 
 export const hiPublic: Record<string, string> = {
@@ -243,4 +244,5 @@ export const hiPublic: Record<string, string> = {
   'pv.pack_not_found': 'किसी GrainVeda पैक का कोड {code} नहीं है। लेबल पर कोड जाँचें।',
   'pv.not_released': 'पैक हो चुका, अभी जारी नहीं हुआ। लॉट जारी होने पर इसका पूरा रिकॉर्ड यहाँ दिखेगा।',
   'pv.pack_void': 'यह पैक रद्द है: इसका उपयोग न करें।',
+  'pv.by_market': 'बाज़ार के अनुसार',
 };

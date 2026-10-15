@@ -12,6 +12,8 @@ export interface JourneyStep {
   source?: { type: string; name: string };
   readings?: Record<string, number> | null;
   batch_code?: string; destination?: string; dispatched_on?: string;
+  /** migration 53 (C5): the lab's verdict per market the lot was judged against (names and verdicts only) */
+  markets?: { code: string; name: string; verdict: 'pass' | 'fail' | 'pending'; failed?: string[] }[];
 }
 export interface Journey {
   qr_code: string; sealed_at: string; ledger_hash: string; batch_codes: string[]; season: string; geography: string;

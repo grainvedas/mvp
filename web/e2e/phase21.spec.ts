@@ -48,7 +48,7 @@ test('system checks and physical ticks, what is left, the outturn ceiling, no re
   await page.getByRole('button', { name: /Record Milling/ }).click();
   await expect(page.getByLabel(/Paddy in/)).toHaveValue('119');
   await page.getByLabel(/Paddy in/).fill('60');
-  await page.getByLabel(/Rice out/).fill('45'); await page.getByLabel(/^Bran/).fill('14'); await page.getByLabel(/^Loss/).fill('1');
+  await page.getByLabel(/^Head rice/).fill('45'); await page.getByLabel(/^Broken rice/).fill('0'); await page.getByLabel(/^Husk/).fill('14'); await page.getByLabel(/^Bran/).fill('0');
   await expect(page.getByTestId('preview-ok')).toContainText("Outturn 75.0 % is above the crop's ceiling of 70 %");
   const m = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}/);
   // 3 · "New record" without reloading (A5/G11); the lab lot shows what is left, and the next run starts from it (A3/G2)

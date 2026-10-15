@@ -14,4 +14,5 @@ export const SECTION_ICON: Record<string, string> = {
   grades: '📊', storage: '❄️', retrieval: '📤', packing: '📦', sample: '🧪', readings: '🔬', lab: '🏷️', buyer: '🤝', quantity: '⚖️',
   transport: '🚚', documents: '📄',
   where: '📍', optional: '➕', payment: '💰',                 // migration 52: the farm-gate form
+  mill: '🏭',                                                 // migration 53: Milling
 };

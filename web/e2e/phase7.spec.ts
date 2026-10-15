@@ -212,6 +212,10 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   await expect(page.getByTestId('chain-preview')).toContainText('Procurement (farm-gate) → Quality Control → QR Activation (seal)');
   await page.getByRole('button', { name: /Save draft/ }).click();
   await expect(page.getByRole('heading', { name: new RegExp(`Maharajganj ${u}`) })).toContainText('Draft');
+  // migration 53 (C5): a new scope asks the sample drawn first (from a lab on the state's list); this test is the new client's first lot
+  // with the lab record typed as before, and e2e/phase25 tests the sample path. Saved at once, from the scope's page.
+  await page.getByTestId('ss-details').uncheck();
+  await expect(page.getByTestId('ss-details')).toBeEnabled();
   await expect(page.getByTestId('roster-gaps')).toContainText('3 stage(s) with nobody');
   await expect(page.getByRole('button', { name: '+ new person' })).toHaveCount(0);                 // a manager creates nobody
   for (const [label, k] of [['Assign Procurement (farm-gate)', 'procurement'], ['Assign Quality Control', 'qc'], ['Assign QR Activation (seal)', 'qr']] as const) {

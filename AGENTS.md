@@ -326,6 +326,18 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   words, `tests/procurement_batch.test.ts`) and into `plainErrors.ts`; `tests/46_procurement_batch.sql` needs a case.
   The journey forward is `app.lot_forward` (whole-scope readers only). A GPS pair typed in one box is split on paste or
   when the box is left, never while typing.
+- **Milling, QC and Packing record what is there, from the lists** (migration 53, Veda 15 October 2026). Milling types
+  head rice, broken, husk and bran; the loss and the recovery are worked out, never typed (a payload with `head_rice_kg`
+  takes the new path; a record of before keeps rice out, bran and loss). The sample is drawn first (`app.draw_sample`,
+  `qc_samples`) and the lab record chooses it (`sample_ref`); a lab test is never read in-house. Each active market
+  profile of the scope's `market_codes` is judged at the QC save (`qc_profile_verdicts`). Packs come from the client's
+  pack list (`sku_packs`, each keeps its size); a packing record of export packs or packs of 5 kg or less is verified
+  only after the net weight check passes. A lot with 2 % or less left is closed only through `app.close_lot`. The mill,
+  sample, lab, packing unit and packs are asked where `scopes.stage_details_required` (the default); the form marks such
+  fields `required_when` / `shown_when` / `hidden_when`. `app.public_lot_journey` names the markets and their verdicts
+  only, and never reads `computed` (smoke row "public page data"). A new rule here needs a case in
+  `tests/47_milling_qc_packing.sql`, its plain words in `plainErrors.ts` (EN and HI) and, for a form field, the fixture
+  `web/tests/fixtures/stage_definitions.json` refreshed from a built database.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,

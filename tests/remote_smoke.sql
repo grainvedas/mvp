@@ -347,6 +347,18 @@ select 'procurement batch',        case when to_regclass('public.lot_payments') 
                                       then 'NOT OK (the payments table is there; its change log, its trigger, its read rule or the Collection Batch form is missing)'
                                       else 'OK where/GPS/who delivered, price and payment kept apart, the farmer card, the Collection Batch of one place, the journey forward' end
 union all
+select 'milling qc packing',       case when to_regclass('public.qc_samples') is null or to_regclass('public.net_weight_checks') is null
+                                        or to_regclass('public.lot_closures') is null or to_regclass('public.qc_profile_verdicts') is null
+                                        or to_regprocedure('app.draw_sample(uuid, jsonb)') is null or to_regprocedure('app.close_lot(uuid, text)') is null
+                                        or to_regprocedure('app.record_net_weights(uuid, jsonb)') is null
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'scopes' and column_name = 'stage_details_required')
+                                      then 'MISSING (push migration 53)'
+                                      when (select count(*) from pg_trigger where tgname = 'zz_change_log') < 46
+                                        or not exists (select 1 from pg_trigger where tgname = 'footprints_z7_sample')
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'milling' and form_schema @> '[{"key": "head_rice_kg"}]')
+                                      then 'NOT OK (the tables are there; their change log, the sample trigger or the new milling form is missing)'
+                                      else 'OK the mill and its line clearance, head rice and broken, close a lot; the sample drawn first, a verdict per market; packs from the list, the net weight check' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

@@ -24,8 +24,8 @@ test('T3: domestic-only lot is not offered for export; export-passed lot is; a m
   await signIn(page, USERS.qc);
   const qA = await recordQc(page, S, pA, '12.1');
   await page.getByRole('link', { name: `Open ${qA}` }).click();
-  await expect(page.getByText(/Domestic\s*Pass/)).toBeVisible();
-  await expect(page.getByText(/Export\s*Fail/)).toBeVisible();
+  await expect(page.getByText(/Domestic\s*Pass/).first()).toBeVisible();   // the derived verdict (migration 53: the markets line follows)
+  await expect(page.getByText(/Export\s*Fail/).first()).toBeVisible();   // the derived verdict (migration 53: the markets line follows)
   const qcUrlA = page.url();
   await page.goto('/');
   const qB = await recordQc(page, S, pB, '11.9');
@@ -36,14 +36,14 @@ test('T3: domestic-only lot is not offered for export; export-passed lot is; a m
   await verifyIncoming(page, qA);
   await page.getByRole('button', { name: /Record Milling/ }).click();
   await expect(page.getByLabel(/Paddy in/)).toHaveValue('119');                       // 120 − 1 kg sample
-  await page.getByLabel(/Rice out/).fill('80'); await page.getByLabel(/^Bran/).fill('30'); await page.getByLabel(/^Loss/).fill('9');
+  await page.getByLabel(/^Head rice/).fill('80'); await page.getByLabel(/^Broken rice/).fill('0'); await page.getByLabel(/^Husk/).fill('30'); await page.getByLabel(/^Bran/).fill('0');
   const mA = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}/);
   await page.goto('/');
   await openSlot(page, 'milling', S);
   await verifyIncoming(page, qB);
   await page.getByRole('button', { name: /Record Milling/ }).click();
   await expect(page.getByLabel(/Paddy in/)).toHaveValue('146.5');
-  await page.getByLabel(/Rice out/).fill('100'); await page.getByLabel(/^Bran/).fill('36.5'); await page.getByLabel(/^Loss/).fill('10');
+  await page.getByLabel(/^Head rice/).fill('100'); await page.getByLabel(/^Broken rice/).fill('0'); await page.getByLabel(/^Husk/).fill('36.5'); await page.getByLabel(/^Bran/).fill('0');
   const mB = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}/);
   await signOut(page);
 
@@ -91,7 +91,7 @@ test('T3: domestic-only lot is not offered for export; export-passed lot is; a m
   await page.getByTestId('acceptance-file').setInputFiles({ name: 'acceptance.pdf', mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4\n% acceptance ${Date.now()}\n%%EOF\n`) });
   await page.getByRole('button', { name: 'Override the export verdict' }).click();
   await expect(page.getByText(/Override: export · “Buyer accepts 12.1%/)).toBeVisible();
-  await expect(page.getByText(/Export\s*Fail/)).toBeVisible();                           // the derived verdict is not rewritten
+  await expect(page.getByText(/Export\s*Fail/).first()).toBeVisible();                           // the derived verdict is not rewritten
   await expect(page.getByRole('row', { name: /Override\s+Prasaadam Client Manager/ })).toBeVisible();   // audit entry
   await signOut(page);
 

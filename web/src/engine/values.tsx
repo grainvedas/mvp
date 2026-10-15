@@ -11,6 +11,8 @@ export type T = (key: string, vars?: Record<string, string | number>, fallback?:
 /** The order worked-out values are listed in, whatever order the server (or the phone, offline) sends them. */
 const ORDER = ['net_kg', 'moisture_avg', 'moisture_min', 'moisture_max', 'variance_kg', 'variance_pct', 'source_count',
   'total_kg', 'farmers', 'villages', 'collection_point',                                     // migration 52: the Collection Batch
+  'mill', 'line_clearance', 'head_rice_kg', 'broken_kg', 'husk_kg', 'recovery_pct', 'head_rice_pct', 'transit_loss_kg',   // migration 53
+  'sample_code', 'lab', 'lab_kind', 'packing_unit', 'wastage_pct',
   'clean_kg', 'reject_kg', 'reject_reasons', 'grade_split', 'yield_pct', 'bran_kg', 'loss_kg', 'expected_out_kg',
   'water_removed_kg', 'grain_loss_kg', 'pop_rate_pct', 'weight_yield_pct', 'foreign_matter_kg', 'water_uptake_kg',
   'spoilage_kg', 'packed_kg', 'wastage_kg', 'batch_code', 'sample_qty_kg', 'forwarding_kg', 'market', 'buyer',
@@ -70,6 +72,7 @@ export function showEntered(fd: FieldDef | undefined, key: string, v: unknown, t
   if (type === 'number[3]' && Array.isArray(v)) return `${v.map((x) => num(Number(x), 2)).join(' · ')}${fd?.unit ? ` ${fd.unit}` : ''}`;
   if (type === 'date' && typeof v === 'string') return fmtDate(v);
   if (type === 'collection_point') return v === 'farm' ? t('cp.at_farm') : t('cp.a_point');   // its name is with the worked-out values
+  if (type === 'mill' || type === 'packing_unit' || type === 'lab' || type === 'qc_sample') return t(`pick.${type}`);    // migration 53: likewise
   if (type === 'gps' && typeof v === 'object' && !Array.isArray(v)) { const g = v as { lat?: unknown; lng?: unknown }; return `${String(g.lat ?? '')}, ${String(g.lng ?? '')}`; }
   if (typeof v === 'number') return number(key, v, fd?.unit);
   if (typeof v === 'boolean') return t(v ? 'common.yes' : 'common.no');
@@ -94,7 +97,14 @@ export function EnteredRows({ payload: raw, fields, stage, params, computed, t }
   for (const f of fields.filter((x) => x.type === 'gps')) {
     if ('gps_lat' in payload || 'gps_lng' in payload) { payload[f.key] = { lat: payload.gps_lat, lng: payload.gps_lng }; delete payload.gps_lat; delete payload.gps_lng; }
   }
-  const named = (f: FieldDef) => f.type === 'collection_point' && payload[f.key] !== 'farm' && typeof computed?.collection_point === 'string' ? String(computed.collection_point) : null;
+  // the name of what was picked from a list, from the record's worked-out values (migration 53: the mill, the packing
+  // unit, the lab, the sample)
+  const NAME_OF: Record<string, string> = { collection_point: 'collection_point', mill: 'mill', packing_unit: 'packing_unit', lab: 'lab', qc_sample: 'sample_code' };
+  const named = (f: FieldDef) => {
+    const k = NAME_OF[f.type];
+    if (!k || (f.type === 'collection_point' && payload[f.key] === 'farm')) return null;
+    return typeof computed?.[k] === 'string' ? String(computed[k]) : null;
+  };
   const known = fields.filter((f) => f.key in payload);
   const extra = Object.keys(payload).filter((k) => !fields.some((f) => f.key === k));
   const label = (f: FieldDef) => t(`field.${stage}.${f.key}`, undefined, t(`field.${f.key}`, undefined, f.label));

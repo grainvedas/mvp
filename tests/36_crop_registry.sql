@@ -119,6 +119,7 @@ do $$ declare sc uuid; begin
   returning id into sc;
   insert into fx values ('SC', sc);
   update public.scopes set qc_report_required = false where id = sc;   -- migration 50: this test's lab record carries no report file
+  update public.scopes set stage_details_required = false where id = sc;   -- migration 53: nor a sample drawn first
   perform t.ok(sc is not null, 'C ready: a draft scope may use a crop that is not ready yet');
 end $$;
 select t.fails(format($q$ update public.scopes set status = 'active' where id = %L $q$, pg_temp.f('SC')),

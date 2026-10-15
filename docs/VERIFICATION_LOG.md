@@ -2262,3 +2262,60 @@ sent.
   but the standing ones"; e2e phase2 (the public page counts the batch's farmers and names its villages), phase22,
   phase24: 7 passed. The script now expects 52b waiting (52 on staging), or both in order; rehearsed in 21 scenarios.
   No app file changed (the sealed list stands, 146 files).
+
+## 15 October 2026, 22:55 IST: release 5 on staging, and its checks
+
+- `RESULT: PROCUREMENT AND BATCH ON STAGING` (migration 52b pushed, 52 already there; app a231413, Vercel Ready).
+  Smoke 48/49 (statement logging); change log intact; ledger audit NO FINDINGS (131 blocks, 24 records, 3 seals).
+- Run-sheet checks in KH26 Bansi (Lucky signed in by Veda; Claude in Chrome): all passed (see FIX_LIST item 47).
+  Practice records: TCUP-KNM-KH26-BNS-P-0001 (UPI, receipt), P-0002 (cash, paid later), VB-0001 (247 kg).
+- Found: the menu line "Collection Batch (one collection point)" overlaps the next one on a laptop; `app.norm_place`
+  merges villages that differ only by a number. Not tried on staging: two places in one batch, airplane mode (both in
+  `e2e/phase24`).
+
+## 16 October 2026, early: Milling, Quality Control and Packing, release 6 (migration 53, open item 48), local stack
+
+Veda: "ok proceed ahead with release 53" (G19), after the release-5 checks on staging. Release 5 is on staging (15 Oct
+22:55, a231413); `staging-milling-qc-packing.cmd` expects only migration 53.
+
+- **Database**: `tests/run_local.sh` **ALL TESTS PASSED, 1,974 ok** on the fresh build; the smoke check on the fresh
+  build (every row OK but the standing ones); production build; **upgrade path** (1–30 with demo data, then 31–53, then
+  all 47 test files again: it first failed because seed 01's new "pack count per size" check needs the physical checks
+  of migration 49; the seed now skips it on a database from before); concurrency. New
+  `tests/47_milling_qc_packing.sql` (**65 checks, 32 controls**, each caught): the scope's settings; the sample drawn
+  first (who, when, how much, the state's lab, the counter-sample, a buyer's sample, keep-until, disposal); the lab
+  record on the sample (once; results in; superseded back), a lab test never in-house, a verdict per market of the
+  scope, the export release naming who accepted it; Milling (the client's mill, the operator, the line clearance,
+  "dedicated", the outputs never more than the paddy, recovery from head rice and broken, sent vs received, the mill's
+  own range); Packing (the unit, packs from the list keeping their size, the wastage worked out and its reason,
+  best-before by material, the net weight check before verification, a short pack fails); closing a lot with 2 % or
+  less left; the public page's markets. Tests 08, 19 and 36 adapted.
+- **API**: `remote_create_user.mjs` 95 passed; `remote_rls.mjs --t1` 192 passed. `scripts/restore_drill.mjs`: RESTORE
+  DRILL PASSED.
+- **Smoke check**: the new row `milling qc packing` (50 rows): MISSING before 53, OK after.
+- **Unit**: 513 passed (new `milling_qc_packing.test.ts`, 33: the three forms by the scope's setting, the packs from the
+  list in the record, the order and words of the worked-out values, plain words for every refusal the migration raises
+  for these stages (read from the migration's text) and the two warnings, every new word in English and Hindi, the
+  panels and the scope's settings wired, the public page reading no `computed`, the menu fix).
+- **Screens**: default suite 85 tests: **83 passed** in the full run; the 2 that failed (phase1, t3_t5: "Domestic
+  Pass" now also in the markets line) were adapted and passed on a rebuilt stack. Before that, phase22 (an export
+  release on the demo scope, which asks no stage details: the client's names were required by the screen; now only
+  where the scope asks) and phase5 (a lot captured three hours back across midnight, India time: a test fault, fixed in
+  the test) were fixed and passed. Production build 14 passed; the first day from nothing 1 passed (its scope unticks
+  the stage details). New `phase25` at 527 px: the Client Manager ticks the stage details on an active scope; the lab
+  on the state's list, the mill, packing unit and packs on the client's; QC verifies the lot and draws the sample (sent
+  to the lab, awaiting results), records the results on it (results in), a verdict per market; Milling with the mill,
+  line clearance and operator, head rice, broken, husk and bran (loss 3 kg, recovery 68.06 %); the 3 kg left of the lab
+  lot closed as floor loss; Packing from the pack list (wastage worked out); the net weight check failed by one short
+  pack, passed when weighed again; Commercial verifies after counting the packs per size. Screens looked at at 527 px:
+  the scope's settings, the sample form on the QC screen, the lab record's markets line, the milling form, the packing
+  record with the net weight check. One wording fault found that way and fixed: two lines both said "Wastage" (the
+  share is now "Wastage share").
+- **`scripts/staging_milling_qc_packing.ps1`** on stand-ins, 18 scenarios: 53 waiting runs through to `RESULT: MILLING
+  QC PACKING ON STAGING`; a second run; refused: 52b and 53 waiting, 52b alone, another migration, wrong words, rule
+  not in place, push fails, read-back fails, an old form, a sample already there, production, functions not current, a
+  smoke row not OK, a changed migration, a changed smoke check, a changed or a new app file; the earlier scripts now
+  refuse. Its read-back queries run on a migrated local database. Sealed: 148 files.
+- **Not done**: the brief's deferred items (broken rice as its own lot, variety in the mill's range, the buyer's
+  specification in QC, telling the State Manager of an export release, a counter-sample photo); the net weight check on
+  a real scale.

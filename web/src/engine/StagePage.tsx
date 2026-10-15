@@ -17,6 +17,7 @@ import type { Footprint, FootprintReturn, IncomingLot, LotMarkets, Preview, Qual
 import { giLabel } from '../lib/gi';
 import { ErrorBox, Loading, Badge, Empty, Field, errorText, plainText } from '../shell/ui';
 import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, KNOWN_LOTS, loadIncomingLots, type FieldValue } from './widgets';
+import { SamplesPanel } from '../pages/records/Samples';
 import { SECTION_ICON, stageIcon } from './icons';
 import { uploadEvidence, UPLOAD_WAIT_MS } from './evidence';
 import { offlinePreview, paymentProblem, type OfflinePreview, type OfflineRules } from './offlinePreview';
@@ -320,6 +321,8 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
       {verified && (
         <>
           <div className="alert ok">{t('engine.verified')}</div>
+          {/* migration 53 (C5): where the scope asks the details, the sample is drawn (and sent to the lab) before its results are recorded */}
+          {form.stage.stage_type === 'qc' && form.can_create && form.scope.stage_details_required === true && <SamplesPanel f={source} />}
           <ErrorBox error={act.error} />
           {form.stage.is_gate && form.can_create && sealAsManager && <Field label={t('mgr.record_why')} htmlFor="s-why" hint={t('mgr.min10')}>
             <input id="s-why" value={why} maxLength={500} onChange={(e) => setWhy(e.target.value)} data-testid="seal-why" /></Field>}
@@ -665,6 +668,7 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
                     <label htmlFor={`f-${fd.key}`}>{fd.label}{fd.unit ? ` (${fd.unit})` : ''}{fd.required ? ' *' : ''}</label>
                     <Widget id={`f-${fd.key}`} field={fd} value={values[fd.key] ?? null} qualityParams={form.quality_params}
                       clientId={form.scope.client.id} scopeId={form.scope.id} stageType={form.stage.stage_type}
+                      sourceId={source?.id ?? (editing?.prev_footprint_id ?? undefined)}
                       allowed={fd.gate === 'market_verdict' && markets ? markets.markets : undefined}
                       onChange={(v) => setValues((s) => ({ ...s, [fd.key]: v }))} />
                     {fd.gate === 'market_verdict' && markets && !markets.export_allowed && (

@@ -183,3 +183,59 @@ update public.stage_definitions set form_schema = form_schema || '[
   {"key": "report_file", "type": "attachment", "label": "Lab report (PDF or photo)", "accept": "document", "section": "lab", "required": false, "required_when": "qc_report_required", "label_as": "lab_report"}
 ]'::jsonb
  where stage_type = 'qc' and not (form_schema @> '[{"key": "report_no"}]');
+
+-- Migration 53: Milling, Quality Control and Packing (the same edits as the migration, so a database built from nothing
+-- has them).
+-- Milling: head rice, broken, husk and bran replace "rice out / bran / loss" (the loss is worked out). Records of before
+-- keep their payloads and are read and corrected as before (app.reconcile reads both).
+update public.stage_definitions set form_schema = '[
+  {"key": "mill_id", "type": "mill", "label": "Mill", "section": "mill", "required": false, "required_when": "stage_details_required"},
+  {"key": "line_clearance", "type": "select", "label": "Line clearance", "options": ["fully_cleaned", "quick_clean", "same_crop"], "section": "mill", "required": false},
+  {"key": "mill_operator", "type": "text", "label": "Mill operator", "section": "mill", "required": false, "required_when": "stage_details_required"},
+  {"key": "input_kg", "type": "number", "unit": "kg", "label": "Paddy in", "section": "input", "required": true},
+  {"key": "sent_kg", "type": "number", "unit": "kg", "label": "Sent from the lot (when the mill is elsewhere)", "section": "input", "required": false},
+  {"key": "head_rice_kg", "type": "number", "unit": "kg", "label": "Head rice", "section": "output", "required": true},
+  {"key": "broken_kg", "type": "number", "unit": "kg", "label": "Broken rice", "section": "output", "required": true},
+  {"key": "husk_kg", "type": "number", "unit": "kg", "label": "Husk", "section": "output", "required": true},
+  {"key": "bran_kg", "type": "number", "unit": "kg", "label": "Bran", "section": "output", "required": true},
+  {"key": "polish", "type": "select", "label": "Polish", "options": ["light", "medium", "full"], "section": "optional", "required": false},
+  {"key": "slip", "type": "attachment", "label": "Mill slip (photo)", "section": "optional", "required": false, "label_as": "document"}
+]'::jsonb,
+  handoff_checks = '["Loss worked out from the outputs", "Recovery and head rice reviewed", "Head rice forwarded"]'::jsonb
+ where stage_type = 'milling';
+
+-- Quality Control: where the scope asks the details, the sample drawn first (its quantity, lab and counter-sample come
+-- with it) replaces the typed sample quantity and lab name; elsewhere the form is as before.
+update public.stage_definitions d set form_schema = (
+    select coalesce(jsonb_agg(y order by k), '[]'::jsonb) from (
+      select case
+               when x->>'key' in ('sample_qty_kg', 'lab_name') then x || '{"hidden_when": "stage_details_required"}'::jsonb
+               when x->>'key' = 'sample_id' then x || '{"label": "Shared sample ID (two lots tested on one sample)"}'::jsonb
+               else x end as y, n::numeric as k
+        from jsonb_array_elements(d.form_schema) with ordinality as e(x, n) where x->>'key' not in ('sample_ref', 'lab_id')
+      union all   -- the sample stands next to the lot quantity, in the "sample" section
+      select '{"key": "sample_ref", "type": "qc_sample", "label": "Sample (drawn and sent to the lab)", "section": "sample", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required"}'::jsonb,
+             coalesce((select n from jsonb_array_elements(d.form_schema) with ordinality as e(x, n) where x->>'key' = 'qty_kg'), 0) + 0.5
+    ) z)
+ where stage_type = 'qc';
+
+-- Packing: the packing unit; packs from the client's pack list (where the scope asks the details; typed sizes
+-- otherwise); the wastage worked out, with a reason above 2 %.
+update public.stage_definitions set form_schema = '[
+  {"key": "input_kg", "type": "number", "unit": "kg", "label": "Input", "section": "input", "required": true},
+  {"key": "packing_unit_id", "type": "packing_unit", "label": "Packing unit", "section": "packing", "required": false, "required_when": "stage_details_required"},
+  {"key": "packets", "type": "sku_packs", "label": "Packs (from the pack list)", "section": "packing", "required": true, "shown_when": "stage_details_required"},
+  {"key": "packets", "type": "packets[]", "label": "Packets", "section": "packing", "required": true, "hidden_when": "stage_details_required"},
+  {"key": "wastage_reason", "type": "text", "label": "Why the wastage is above 2 % (when it is)", "section": "packing", "required": false}
+]'::jsonb,
+  handoff_checks = '["Batch code given by the system", "Packs + wastage = input", "Packed quantity forwarded"]'::jsonb
+ where stage_type = 'packing';
+
+-- Commercial checks the pack count per size, then accepts or returns (C6).
+-- A database from before migration 49 has no physical checks (the upgrade path): nothing to add.
+do $seed53$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stage_definitions' and column_name = 'physical_checks') then
+    execute $q$ update public.stage_definitions set physical_checks = physical_checks || '["Pack count per size matches the packing record"]'::jsonb
+                 where stage_type = 'packing' and not (physical_checks @> '["Pack count per size matches the packing record"]'::jsonb) $q$;
+  end if;
+end $seed53$;

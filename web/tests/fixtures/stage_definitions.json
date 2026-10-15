@@ -335,6 +335,34 @@
         "stage_type": "milling",
         "form_schema": [
             {
+                "key": "mill_id",
+                "type": "mill",
+                "label": "Mill",
+                "section": "mill",
+                "required": false,
+                "required_when": "stage_details_required"
+            },
+            {
+                "key": "line_clearance",
+                "type": "select",
+                "label": "Line clearance",
+                "options": [
+                    "fully_cleaned",
+                    "quick_clean",
+                    "same_crop"
+                ],
+                "section": "mill",
+                "required": false
+            },
+            {
+                "key": "mill_operator",
+                "type": "text",
+                "label": "Mill operator",
+                "section": "mill",
+                "required": false,
+                "required_when": "stage_details_required"
+            },
+            {
                 "key": "input_kg",
                 "type": "number",
                 "unit": "kg",
@@ -343,10 +371,34 @@
                 "required": true
             },
             {
-                "key": "rice_kg",
+                "key": "sent_kg",
                 "type": "number",
                 "unit": "kg",
-                "label": "Rice out",
+                "label": "Sent from the lot (when the mill is elsewhere)",
+                "section": "input",
+                "required": false
+            },
+            {
+                "key": "head_rice_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Head rice",
+                "section": "output",
+                "required": true
+            },
+            {
+                "key": "broken_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Broken rice",
+                "section": "output",
+                "required": true
+            },
+            {
+                "key": "husk_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Husk",
                 "section": "output",
                 "required": true
             },
@@ -359,20 +411,32 @@
                 "required": true
             },
             {
-                "key": "loss_kg",
-                "type": "number",
-                "unit": "kg",
-                "label": "Loss",
-                "section": "output",
-                "required": true
+                "key": "polish",
+                "type": "select",
+                "label": "Polish",
+                "options": [
+                    "light",
+                    "medium",
+                    "full"
+                ],
+                "section": "optional",
+                "required": false
+            },
+            {
+                "key": "slip",
+                "type": "attachment",
+                "label": "Mill slip (photo)",
+                "section": "optional",
+                "label_as": "document",
+                "required": false
             }
         ],
         "yield_alarm": true,
         "is_processing": true,
         "handoff_checks": [
-            "Input = rice + bran + loss",
-            "Yield reviewed",
-            "Rice quantity forwarded"
+            "Loss worked out from the outputs",
+            "Recovery and head rice reviewed",
+            "Head rice forwarded"
         ],
         "splits_forward": false,
         "physical_checks": [
@@ -770,32 +834,49 @@
                 "required": true
             },
             {
+                "key": "packing_unit_id",
+                "type": "packing_unit",
+                "label": "Packing unit",
+                "section": "packing",
+                "required": false,
+                "required_when": "stage_details_required"
+            },
+            {
+                "key": "packets",
+                "type": "sku_packs",
+                "label": "Packs (from the pack list)",
+                "section": "packing",
+                "required": true,
+                "shown_when": "stage_details_required"
+            },
+            {
                 "key": "packets",
                 "type": "packets[]",
                 "label": "Packets",
                 "section": "packing",
-                "required": true
+                "required": true,
+                "hidden_when": "stage_details_required"
             },
             {
-                "key": "wastage_kg",
-                "type": "number",
-                "unit": "kg",
-                "label": "Wastage",
+                "key": "wastage_reason",
+                "type": "text",
+                "label": "Why the wastage is above 2 % (when it is)",
                 "section": "packing",
-                "required": true
+                "required": false
             }
         ],
         "yield_alarm": false,
         "is_processing": true,
         "handoff_checks": [
-            "Batch code assigned",
-            "Σ packets + wastage = input",
+            "Batch code given by the system",
+            "Packs + wastage = input",
             "Packed quantity forwarded"
         ],
         "splits_forward": false,
         "physical_checks": [
             "Packs sealed; the labels match the batch",
-            "Wastage bagged and weighed"
+            "Wastage bagged and weighed",
+            "Pack count per size matches the packing record"
         ],
         "allows_exceed_input": false
     },
@@ -817,12 +898,22 @@
                 "required": true
             },
             {
+                "key": "sample_ref",
+                "type": "qc_sample",
+                "label": "Sample (drawn and sent to the lab)",
+                "section": "sample",
+                "required": false,
+                "shown_when": "stage_details_required",
+                "required_when": "stage_details_required"
+            },
+            {
                 "key": "sample_qty_kg",
                 "type": "number",
                 "unit": "kg",
                 "label": "Sample drawn",
                 "section": "sample",
-                "required": true
+                "required": true,
+                "hidden_when": "stage_details_required"
             },
             {
                 "key": "readings",
@@ -844,6 +935,7 @@
                 "label": "Lab",
                 "section": "lab",
                 "required": false,
+                "hidden_when": "stage_details_required",
                 "required_when": "qc_report_required"
             },
             {
@@ -865,7 +957,7 @@
             {
                 "key": "sample_id",
                 "type": "text",
-                "label": "Sample ID",
+                "label": "Shared sample ID (two lots tested on one sample)",
                 "section": "lab",
                 "required": false
             },

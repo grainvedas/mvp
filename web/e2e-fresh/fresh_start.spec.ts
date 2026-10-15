@@ -222,6 +222,10 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await expect(page.getByTestId('chain-preview')).toContainText('Procurement (farm-gate) → Quality Control → QR Activation (seal)');
   await page.getByRole('button', { name: /Save draft/ }).click();
   await expect(page.getByRole('heading', { name: /Siddharthnagar/ })).toContainText('Draft');
+  // migration 53 (C5): a new scope asks the sample drawn first (from a lab on the state's list); this test is the first day from nothing
+  // with the lab record typed as before, and e2e/phase25 tests the sample path. Saved at once, from the scope's page.
+  await page.getByTestId('ss-details').uncheck();
+  await expect(page.getByTestId('ss-details')).toBeEnabled();
   for (const [label, k] of [['Assign Procurement (farm-gate)', 'buy'], ['Assign Quality Control', 'lab'], ['Assign QR Activation (seal)', 'seal']] as const) {
     await page.getByLabel(label).selectOption({ label: who[k].name });
     await expect(page.getByTestId('slots').getByRole('link', { name: who[k].name })).toBeVisible();

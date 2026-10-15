@@ -24,7 +24,7 @@ test('batch code, one label per pack, reprint and void, delivery, the summary be
   await openSlot(page, 'milling', S);
   await verifyIncoming(page, q);
   await page.getByRole('button', { name: /Record Milling/ }).click();
-  await page.getByLabel(/Rice out/).fill('130'); await page.getByLabel(/^Bran/).fill('54'); await page.getByLabel(/^Loss/).fill('10');
+  await page.getByLabel(/^Head rice/).fill('130'); await page.getByLabel(/^Broken rice/).fill('0'); await page.getByLabel(/^Husk/).fill('54'); await page.getByLabel(/^Bran/).fill('0');
   const m = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}/); await signOut(page);
 
   // 1 · G1: the system gives the batch code; G8: one serial, one label per pack
@@ -36,7 +36,6 @@ test('batch code, one label per pack, reprint and void, delivery, the summary be
   await page.getByLabel('Packets 1').fill('100'); await page.getByLabel('Size (kg) 1').fill('1');
   await page.getByRole('button', { name: '+ packet size' }).click();
   await page.getByLabel('Packets 2').fill('58'); await page.getByLabel('Size (kg) 2').fill('0.5');
-  await page.getByLabel(/^Wastage/).fill('1');
   const pk = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?PK-\d{4}/);
   const batch = (await page.getByTestId('packed').textContent())!.match(/PRSDM-KNM-KH26-B\d{4}/)![0];
   const pkId = await savedId(page);

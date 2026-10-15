@@ -19,6 +19,7 @@ import { cached } from '../../offline/cache';
 import { lotPayment } from './Receipt';
 import { ForwardPanel } from '../trace/Forward';
 import { paymentProblem } from '../../engine/offlinePreview';
+import { SamplesPanel } from './Samples';
 
 export function RecordDetail() {
   const { id = '' } = useParams();
@@ -91,11 +92,14 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
       </div>
       <LotFacts r={r} />
       {f.stage_type === 'procurement' && <PaymentPanel f={f} mayAct={!watch && me.role !== 'client_view'} />}
+      {sf.data?.next_stage?.stage_type === 'qc' && f.status === 'verified' && !watch && <SamplesPanel f={f} />}
+      {f.stage_type === 'packing' && r.net_weight?.needed && <NetWeightPanel f={f} nw={r.net_weight} mayAct={!watch && me.role !== 'client_view'} onDone={reload} />}
+      <ClosePanel r={r} mayAct={!watch && me.role !== 'client_view'} onDone={reload} />
       {f.status === 'verified' && (oversees(ctx) || (ctx?.scopes ?? []).some((x) => x.scope_id === f.scope_id && x.whole)) && <ForwardPanel fp={f.id} />}
       <WithdrawalInfo f={f} canRecord={me.role !== 'client_view' && !watch} />
       <ReturnsPanel r={r} senderReturned={senderReturned} canCorrect={canCorrect} onDone={reload} />
       {(boss || senderReturned) && (f.status === 'pending' || f.status === 'verified') && !r.seal && <WithdrawPanel f={f} onDone={reload} />}
-      {r.qc && <QcPanel detail={r} onChange={reload} canOverride={boss} params={form?.quality_params ?? []} />}
+      {r.qc && <QcPanel detail={r} onChange={reload} canOverride={boss} params={form?.quality_params ?? []} asksNames={form?.scope.stage_details_required === true} />}
       {r.seal && <SealPanel code={r.seal.qr_code} hash={r.seal.ledger_hash} batch={r.seal.batch_codes} />}
       {r.seal && r.release && <ReleasePanel r={r} mayChange={!watch && (boss || isStateManager(ctx))} onDone={reload} />}
       {r.packs && <PacksPanel r={r} mayAct={me.role !== 'client_view' && !watch} onDone={reload} />}
@@ -155,6 +159,60 @@ function PaymentPanel({ f, mayAct }: { f: Footprint; mayAct: boolean }) {
           <div className="row"><button onClick={save} disabled={act.busy || !!problem} data-testid="pay-save">{t('pay.save')}</button>
             <button className="secondary" onClick={() => setOpen(false)}>{t('common.cancel')}</button></div>
         </div>)}
+    </div>);
+}
+
+/** Migration 53 (C6): the net weight check: the system picks 5 packs; the operator weighs them (grams). */
+function NetWeightPanel({ f, nw, mayAct, onDone }: { f: Footprint; nw: NonNullable<FootprintDetail['net_weight']>; mayAct: boolean; onDone: () => void }) {
+  const { t } = useI18n();
+  const act = useAction();
+  const [g, setG] = useState<Record<string, string>>({});
+  const c = nw.check;
+  const pick = () => act.run(async () => { await rpc('pick_net_weight', { p_fp: f.id }); onDone(); });
+  const save = () => act.run(async () => {
+    await rpc('record_net_weights', { p_fp: f.id, p_weights: Object.fromEntries(Object.entries(g).map(([k, x]) => [k, Number(x)])) });
+    setG({}); onDone();
+  });
+  return (
+    <div className="card" data-testid="net-weight" data-result={c?.result ?? ''}>
+      <h2>{t('nw.title')}</h2>
+      <p className="small muted">{t('nw.why')}</p>
+      {c?.result && <div className={`alert ${c.result === 'pass' ? 'ok' : 'error'}`} data-testid="nw-result">{t(`nw.${c.result}`)}</div>}
+      {!c && mayAct && <button onClick={pick} disabled={act.busy} data-testid="nw-pick">{t('nw.pick')}</button>}
+      {c && (
+        <div className="stack">
+          {c.serials.map((s) => {
+            const w = c.weights?.[s];
+            return (
+              <div key={s} className="row">
+                <label htmlFor={`nw-${s}`} className="mono small" style={{ flex: '1 1 180px', margin: 0 }}>{s}</label>
+                {w && <span className="small" data-ok={w.ok}>{w.g} g {w.ok ? '✓' : '✗'} <span className="muted">({t('nw.allowed', { size: w.size_g, short: w.allowed_short_g })})</span></span>}
+                {mayAct && <input id={`nw-${s}`} inputMode="decimal" placeholder={t('nw.grams')} style={{ flex: '0 0 110px', width: 'auto' }} value={g[s] ?? ''}
+                  onChange={(e) => setG({ ...g, [s]: e.target.value.replace(',', '.') })} data-testid="nw-g" />}
+              </div>);
+          })}
+          {mayAct && <button onClick={save} disabled={act.busy || c.serials.some((s) => !g[s])} data-testid="nw-save">{t(c.result ? 'nw.again' : 'nw.save')}</button>}
+        </div>)}
+      <ErrorBox error={act.error} />
+    </div>);
+}
+
+/** Migration 53 (C4): a lot with 2 % or less left is closed by the next stage or a manager; the rest is floor loss. */
+function ClosePanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: boolean; onDone: () => void }) {
+  const { t } = useI18n();
+  const f = r.footprint;
+  const act = useAction();
+  const [why, setWhy] = useState('');
+  if (r.closure) return <div className="card" data-testid="lot-closure"><p className="small">{t('cl.closed', { kg: kg(r.closure.floor_loss_kg), why: r.closure.reason, by: r.closure.closed_by_name ?? '—', at: dateTime(r.closure.closed_at) })}</p></div>;
+  const left = Number(r.available_kg);
+  if (!mayAct || f.status !== 'verified' || f.lot_closed || !(left > 0) || left > Math.max(Number(f.qty_out) * 0.02, 2)) return null;
+  const close = () => act.run(async () => { await rpc('close_lot', { p_fp: f.id, p_reason: why.trim() }); onDone(); });
+  return (
+    <div className="card" data-testid="close-lot">
+      <p className="small">{t('cl.offer', { kg: kg(left) })}</p>
+      <Field label={`${t('cl.why')} *`} htmlFor="cl-why"><input id="cl-why" value={why} onChange={(e) => setWhy(e.target.value)} data-testid="close-why" /></Field>
+      <ErrorBox error={act.error} />
+      <button className="secondary" onClick={close} disabled={act.busy || why.trim().length < 5} data-testid="close-go">{t('cl.go')}</button>
     </div>);
 }
 
@@ -275,7 +333,8 @@ function WithdrawPanel({ f, onDone }: { f: Footprint; onDone: () => void }) {
   );
 }
 
-function QcPanel({ detail, onChange, canOverride, params }: { detail: FootprintDetail; onChange: () => void; canOverride: boolean; params: QualityParam[] }) {
+function QcPanel({ detail, onChange, canOverride, params, asksNames }: { detail: FootprintDetail; onChange: () => void; canOverride: boolean; params: QualityParam[];
+  /** migration 53: the scope asks the stage details: the export release names who accepted it, their title and the date */ asksNames: boolean }) {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const qc = detail.qc!;
@@ -285,9 +344,13 @@ function QcPanel({ detail, onChange, canOverride, params }: { detail: FootprintD
   const hasAcceptance = detail.attachments.some((a) => a.label === 'acceptance');
   const [acceptance, setAcceptance] = useState<File | null>(null);
   const act = useAction();
+  // migration 53 (C5): who at the client accepted it, their title, the date of the acceptance
+  const [person, setPerson] = useState(''); const [title, setTitle] = useState(''); const [accOn, setAccOn] = useState('');
   const override = () => act.run(async () => {
     if (!hasAcceptance && acceptance) await uploadEvidence(detail.footprint, acceptance, 'acceptance');
-    await q(supabase.from('qc_verdicts').update({ override: { market: 'export', reason, authoriser: ctx!.user!.id } })
+    const named = { client_person: person.trim(), client_title: title.trim(), accepted_on: accOn };
+    await q(supabase.from('qc_verdicts').update({ override: { market: 'export', reason, authoriser: ctx!.user!.id,
+      ...Object.fromEntries(Object.entries(named).filter(([, x]) => x !== '')) } })
       .eq('footprint_id', detail.footprint.id).select());
     onChange();
   });
@@ -295,12 +358,18 @@ function QcPanel({ detail, onChange, canOverride, params }: { detail: FootprintD
     <div className="card">
       <h2>{t('record.qc_title')}</h2>
       <p>{t('record.domestic')} <Badge value={qc.domestic_verdict} /> · {t('record.export')} <Badge value={qc.export_verdict} /> <span className="muted small">{t('record.derived')}</span></p>
+      {(detail.profile_verdicts ?? []).length > 0 && (
+        <p data-testid="profile-verdicts">{t('qcm.by_market')}: {(detail.profile_verdicts ?? []).map((v, i) => (
+          <span key={v.code} data-market={v.code} data-verdict={v.verdict}>{i > 0 ? ' · ' : ''}{v.name} <Badge value={v.verdict} />
+            {v.failed.length > 0 && <span className="small"> ({v.failed.join(', ')})</span>}
+            {v.verdict === 'pending' && v.missing.length > 0 && <span className="small muted"> ({t('qcm.not_read', { what: v.missing.join(', ') })})</span>}</span>))}</p>)}
       <div className="table-wrap"><table>
         <thead><tr><th>{t('record.param')}</th><th>{t('record.reading')}</th><th>{t('record.domestic')}</th><th>{t('record.export')}</th></tr></thead>
         <tbody>{qc.judged.map((j) => <tr key={j.param}><td>{t(`qp.${j.param}`, undefined, unit(j.param).label ?? paramName(j.param))}</td><td className="num">{typeof j.value === 'boolean' ? t(j.value ? 'common.yes' : 'common.no') : typeof j.value === 'string' ? j.value : <>{num(j.value)}{j.value !== null && unit(j.param).unit ? ` ${unit(j.param).unit}` : ''}</>}</td>
           <td><Badge value={j.domestic} /></td><td><Badge value={j.export} /></td></tr>)}</tbody>
       </table></div>
-      {qc.override && <div className="alert warn">{t('record.override_done', { market: t(`opt.${String(qc.override.market)}`, undefined, String(qc.override.market)), reason: String(qc.override.reason), at: dateTime(String(qc.override.at)) })}</div>}
+      {qc.override && <div className="alert warn">{t('record.override_done', { market: t(`opt.${String(qc.override.market)}`, undefined, String(qc.override.market)), reason: String(qc.override.reason), at: dateTime(String(qc.override.at)) })}
+        {qc.override.client_person ? <div className="small" data-testid="override-by-client">{t('ov.accepted_by', { person: String(qc.override.client_person), title: String(qc.override.client_title ?? ''), on: date(String(qc.override.accepted_on ?? '')) })}</div> : null}</div>}
       {canOverride && !qc.override && qc.export_verdict === 'fail' && (
         <div className="stack">
           <h3>{t('record.override')}</h3>
@@ -308,8 +377,11 @@ function QcPanel({ detail, onChange, canOverride, params }: { detail: FootprintD
           {hasAcceptance ? <p className="small" data-testid="acceptance-on-file">{t('ov.acceptance_on_file')}</p>
             : <Field label={`${t('ov.acceptance')} *`} htmlFor="ov-acc" hint={t('ov.acceptance_hint')}>
                 <input id="ov-acc" type="file" accept={EVIDENCE_ACCEPT} onChange={(e) => setAcceptance(e.target.files?.[0] ?? null)} data-testid="acceptance-file" /></Field>}
+          <Field label={`${t('ov.client_person')}${asksNames ? ' *' : ''}`} htmlFor="ov-person"><input id="ov-person" value={person} onChange={(e) => setPerson(e.target.value)} data-testid="ov-person" /></Field>
+          <Field label={`${t('ov.client_title')}${asksNames ? ' *' : ''}`} htmlFor="ov-title"><input id="ov-title" value={title} onChange={(e) => setTitle(e.target.value)} data-testid="ov-title" /></Field>
+          <Field label={`${t('ov.accepted_on')}${asksNames ? ' *' : ''}`} htmlFor="ov-on"><input id="ov-on" type="date" value={accOn} max={todayIST()} onChange={(e) => setAccOn(e.target.value)} data-testid="ov-on" /></Field>
           <ErrorBox error={act.error} />
-          <button className="danger" disabled={!reason.trim() || act.busy || (!hasAcceptance && !acceptance)} onClick={override}>{t('record.override')}</button>
+          <button className="danger" disabled={!reason.trim() || act.busy || (!hasAcceptance && !acceptance) || (asksNames && (person.trim().length < 2 || title.trim().length < 2 || !accOn))} onClick={override}>{t('record.override')}</button>
         </div>
       )}
     </div>

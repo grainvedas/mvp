@@ -95,7 +95,8 @@ test('The crop registry: a ready crop, the wizard, the farmer\'s practice, Procu
   await expectNoSideScroll(page);
   // the scope itself, and its people, as the wizard would make them
   const cm = await apiAs(page);
-  const sc = await cm.insert('scopes', { client_id: PRSDM, crop_id: crop.id, season_code: 'KH27', geography: `Registry ${CODE}`, chain: ['procurement', 'qc', 'qr_activation'], state_id: UP });
+  const sc = await cm.insert('scopes', { client_id: PRSDM, crop_id: crop.id, season_code: 'KH27', geography: `Registry ${CODE}`, chain: ['procurement', 'qc', 'qr_activation'], state_id: UP,
+    stage_details_required: false });   // migration 53: this test is the crop registry; e2e/phase25 draws the sample first
   expect(sc.ok, refusal(sc)).toBe(true);
   const scope = (sc.data as { id: string }[])[0].id;
   const nrCrop = (await cm.rows('crops', `code=eq.${NOTREADY}`))[0] as { id: string };

@@ -46,8 +46,8 @@ test('Lot Inward → QC (export fail) → seal; Client Manager overrides with a 
   const qcSaved = await reviewAndSave(page);
   const qcCode = qcSaved.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?QC-\d{4}/)![0];
   await page.getByRole('link', { name: `Open ${qcCode}` }).click();
-  await expect(page.getByText(/Domestic\s*Pass/)).toBeVisible();
-  await expect(page.getByText(/Export\s*Fail/)).toBeVisible();
+  await expect(page.getByText(/Domestic\s*Pass/).first()).toBeVisible();   // the derived verdict (migration 53: the markets line follows)
+  await expect(page.getByText(/Export\s*Fail/).first()).toBeVisible();   // the derived verdict (migration 53: the markets line follows)
   await expect(page.getByRole('button', { name: 'Override the export verdict' })).toHaveCount(0);   // operators cannot
   const qcUrl = page.url();
   await signOut(page);
@@ -59,7 +59,7 @@ test('Lot Inward → QC (export fail) → seal; Client Manager overrides with a 
   await page.getByTestId('acceptance-file').setInputFiles({ name: 'acceptance.pdf', mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4\n% acceptance ${Date.now()}\n%%EOF\n`) });
   await page.getByRole('button', { name: 'Override the export verdict' }).click();
   await expect(page.getByText(/Override: export · “Buyer accepts 12.5%/)).toBeVisible();
-  await expect(page.getByText(/Export\s*Fail/)).toBeVisible();                                         // derived verdict kept
+  await expect(page.getByText(/Export\s*Fail/).first()).toBeVisible();                                         // derived verdict kept
   await signOut(page);
 
   await signIn(page, USERS.qr);

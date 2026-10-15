@@ -119,6 +119,10 @@ function Step({ s }: { s: JourneyStep }) {
         {s.readings && Object.keys(s.readings).length > 0 && (
           <table className="small"><tbody>{Object.entries(s.readings).map(([k, v]) => <tr key={k}><td>{pretty(k)}</td><td className="num">{v}{k.endsWith('_pct') ? ' %' : k.endsWith('_kg') ? ' kg' : ''}</td></tr>)}</tbody></table>
         )}
+        {s.markets && s.markets.length > 0 && (
+          <div className="small" data-testid="pv-markets">{t('pv.by_market')}: {s.markets.map((m, i) => (
+            <span key={m.code}>{i > 0 ? ' · ' : ''}{m.name} <span className={`badge ${m.verdict}`}>{t(`pv.v_${m.verdict}`)}</span></span>))}</div>
+        )}
         {s.batch_code && <div className="small">{t('pv.batch')} <span className="mono">{s.batch_code}</span></div>}
         {s.destination && <div>{t('pv.shipped_to', { place: s.destination })}{s.dispatched_on ? ` · ${date(s.dispatched_on)}` : ''}</div>}
       </div>

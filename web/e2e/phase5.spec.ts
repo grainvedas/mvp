@@ -40,7 +40,7 @@ test('Text values are shown as text and lists as words: review, arrival check an
   await openSlot(page, 'milling', SCOPES.bastiMill);
   await verifyIncoming(page, q);
   await page.getByRole('button', { name: /Record Milling/ }).click();
-  await page.getByLabel(/Rice out/).fill('130'); await page.getByLabel(/^Bran/).fill('54'); await page.getByLabel(/^Loss/).fill('10');
+  await page.getByLabel(/^Head rice/).fill('130'); await page.getByLabel(/^Broken rice/).fill('0'); await page.getByLabel(/^Husk/).fill('54'); await page.getByLabel(/^Bran/).fill('0');
   const m = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}/); await signOut(page);
 
   // Packing: the batch code is text (at review it once read "Batch Code NaN"). Migration 50 (G1): the system gives it at the save.
@@ -49,7 +49,6 @@ test('Text values are shown as text and lists as words: review, arrival check an
   await verifyIncoming(page, m);
   await page.getByRole('button', { name: /Record Packing/ }).click();
   await page.getByLabel('Packets 1').fill('129'); await page.getByLabel('Size (kg) 1').fill('1');
-  await page.getByLabel(/^Wastage/).fill('1');
   await expect(page.getByLabel(/Batch code/)).toHaveCount(0);
   await expect(page.getByTestId('preview-ok')).toContainText('129 kg');
   await page.getByRole('button', { name: 'Review' }).click();
@@ -208,8 +207,10 @@ test('A record saved without network keeps the time it was captured (item 8)', a
       const store = open.result.transaction('outbox', 'readwrite').objectStore('outbox');
       const all = store.getAll();
       all.onsuccess = () => {
-        const item = (all.result as { state: string; captured_at: string }[]).find((x) => x.state === 'queued')!;
+        const item = (all.result as { state: string; captured_at: string; row?: { happened_on?: string } }[]).find((x) => x.state === 'queued')!;
         item.captured_at = new Date(Date.now() - 3 * 3600_000).toISOString();
+        // the day it happened is the day it was captured (India time): three hours back can be yesterday, near midnight
+        if (item.row?.happened_on) item.row.happened_on = new Date(Date.now() - 3 * 3600_000 + 5.5 * 3600_000).toISOString().slice(0, 10);
         store.put(item).onsuccess = () => resolve(item.captured_at);
       };
     };

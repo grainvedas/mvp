@@ -60,7 +60,7 @@ test('T4: procure → QC → mill → pack → two buyers → ship → seal → 
   await verifyIncoming(page, q);
   await page.getByRole('button', { name: /Record Milling/ }).click();
   await expect(page.getByLabel(/Paddy in/)).toHaveValue('194');
-  await page.getByLabel(/Rice out/).fill('130'); await page.getByLabel(/^Bran/).fill('54'); await page.getByLabel(/^Loss/).fill('10');
+  await page.getByLabel(/^Head rice/).fill('130'); await page.getByLabel(/^Broken rice/).fill('0'); await page.getByLabel(/^Husk/).fill('54'); await page.getByLabel(/^Bran/).fill('0');
   await expect(page.getByTestId('preview-ok')).toBeVisible();
   await expect(page.getByTestId('preview-ok')).not.toContainText(/outturn|yield below/i);   // migration 49 (A7/G5): no fixed threshold; 67 % is not warned
   const m = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}/); await signOut(page);
@@ -72,7 +72,6 @@ test('T4: procure → QC → mill → pack → two buyers → ship → seal → 
   await page.getByLabel('Packets 1').fill('100'); await page.getByLabel('Size (kg) 1').fill('1');
   await page.getByRole('button', { name: '+ packet size' }).click();
   await page.getByLabel('Packets 2').fill('58'); await page.getByLabel('Size (kg) 2').fill('0.5');
-  await page.getByLabel(/^Wastage/).fill('1');
   // PRD §12 T4 "batch code mandatory": migration 50 (G1) gives it from the system at the save; the form asks none
   await expect(page.getByLabel(/Batch code/)).toHaveCount(0);
   await expect(page.getByTestId('preview-ok')).toContainText('129 kg');

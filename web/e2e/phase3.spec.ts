@@ -95,7 +95,7 @@ test('A processing save refused at sync stays on the phone with the reason, is f
   await page.getByRole('button', { name: 'Verify this lot' }).click();              // verifying needs the network
   await page.getByRole('button', { name: /Record Milling/ }).click();
   await context.setOffline(true);
-  await page.getByLabel(/Rice out/).fill('130'); await page.getByLabel(/^Bran/).fill('54'); await page.getByLabel(/^Loss/).fill('40');
+  await page.getByLabel(/^Head rice/).fill('130'); await page.getByLabel(/^Broken rice/).fill('0'); await page.getByLabel(/^Husk/).fill('54'); await page.getByLabel(/^Bran/).fill('40');
   await expect(page.getByTestId('preview-ok')).toContainText('checked by the server when it syncs');
   await page.getByRole('button', { name: 'Review' }).click();
   await page.getByLabel('I have checked these numbers against the lot').check();
@@ -106,11 +106,11 @@ test('A processing save refused at sync stays on the phone with the reason, is f
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Saved on phone' }).click();
   const open1 = page.getByTestId('outbox-open');
   await expect(open1).toContainText('needs attention', { timeout: 30_000 });
-  await expect(open1).toContainText(/input|rice|bran|loss/i);                        // the database's own reason
+  await expect(open1).toContainText(/outputs|paddy/i);                               // the save's own reason (224 kg out of 197)
   await page.getByRole('link', { name: 'Fix and save again' }).click();
   await expect(page.getByTestId('draft-error')).toBeVisible();
-  await expect(page.getByLabel(/Rice out/)).toHaveValue('130');                     // what was typed offline is kept
-  await page.getByLabel(/^Loss/).fill('13');                                           // 197 = 130 + 54 + 13
+  await expect(page.getByLabel(/^Head rice/)).toHaveValue('130');                     // what was typed offline is kept
+  await page.getByLabel(/^Bran/).fill('13');                                           // 197 = 130 + 54 + 13 (no loss)
   await expect(page.getByTestId('preview-ok')).toContainText('130 kg');
   await page.getByRole('button', { name: 'Review' }).click();
   await page.getByLabel('I have checked these numbers against the lot').check();
