@@ -77,7 +77,7 @@ test('A wrong lab record is withdrawn by the manager with a reason and recorded 
   await expect(page.getByLabel(/Sample drawn/)).toHaveValue('10');                       // what was typed, to be put right
   await page.getByLabel(/Sample drawn/).fill('1');
   await expect(page.getByTestId('preview-ok')).toContainText('194 kg');
-  const q2 = await reviewAndSave(page, /PRSDM-KNM-KH26-QC-\d{4}/);
+  const q2 = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?QC-\d{4}/);
   expect(q2).not.toBe(q1);
   const q2Url = await openSaved(page, q2);
   await expect(page.getByTestId('withdrawal-info')).toContainText('Replaces');
@@ -97,7 +97,8 @@ test('A wrong lab record is withdrawn by the manager with a reason and recorded 
   await page.goto('/');
   const code = await sealLot(page, S, q2);
   await page.goto(`/verify/${code}`);
-  await expect(page.getByTestId('public-journey')).toContainText('Grown by Suresh Yadav');
+  // migration 50 (Part D): the public page names the village and the district, never the farmer
+  await expect(page.getByTestId('public-journey')).toContainText('Grown in Shohratgarh, Siddharthnagar');
   await expect(page.getByTestId('practice-strip')).toBeVisible();                         // a practice label cannot pass for a real one
 
   // The journey export names the withdrawn record, its reason and who withdrew it; the dashboard counts the day's work.
@@ -131,8 +132,9 @@ test('A seal refused at the gate (open flag) leaves the lot with the sealer; it 
   await signIn(page, USERS.qr);
   await openSlot(page, 'qr_activation', S);
   await verifyIncoming(page, q);
+  await page.getByTestId('release-read').check();   // migration 50 (G9): the summary is read first
   await page.getByRole('button', { name: 'Activate and seal' }).click();
-  await expect(page.getByRole('alert')).toContainText(/open flag on qc/i);
+  await expect(page.getByRole('alert')).toContainText(/open flag or condition on .*\(Quality Control\)/i);   // migration 48: plain words
   await expect(page.getByTestId('sealed')).toHaveCount(0);
   await page.goto('/');
   await openSlot(page, 'qr_activation', S);
@@ -150,6 +152,7 @@ test('A seal refused at the gate (open flag) leaves the lot with the sealer; it 
   await signIn(page, USERS.qr);
   await openSlot(page, 'qr_activation', S);
   await page.getByTestId('incoming-row').filter({ hasText: q }).click();
+  await page.getByTestId('release-read').check();   // migration 50 (G9): the summary is read first
   await page.getByRole('button', { name: 'Activate and seal' }).click();
   await expect(page.getByTestId('sealed')).toContainText(/Sealed\. QR code GV-[0-9A-F]{12}/);
   await signOut(page);
@@ -162,7 +165,7 @@ test('Evidence: a photo at the farm gate and papers added later are stored, fing
   await openSlot(page, 'procurement', S);
   await fillProcurement(page, 'Ram Achal', '126', '3', '2');
   await page.getByLabel(/Photo evidence/).setInputFiles({ name: 'bags.png', mimeType: 'image/png', buffer: PNG });
-  const p = await reviewAndSave(page, /PRSDM-KNM-KH26-P-\d{4}/);
+  const p = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/);
   const url = await openSaved(page, p);
   await expect(page.getByText('file matches its fingerprint')).toHaveCount(1);              // downloaded again and re-hashed
   await page.getByTestId('evidence-file').setInputFiles({ name: 'gate-pass.pdf', mimeType: 'application/pdf', buffer: pdf(`gate pass ${uniq()}`) });
@@ -205,7 +208,7 @@ test('A pending grading run corrected to "split" gets its grade lots', async ({ 
   await verifyIncoming(page, p);
   await page.getByRole('button', { name: /Record Sorting/ }).click();
   await page.getByLabel(/^Reject \(kg\)/).fill('0'); await page.getByLabel(/^Loss/).fill('0');
-  const s = await reviewAndSave(page, /PRSDM-KNM-KH26-S-\d{4}/);
+  const s = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?S-\d{4}/);
   await signOut(page);
   await signIn(page, USERS.grading);
   await openSlot(page, 'grading', S);
@@ -213,15 +216,15 @@ test('A pending grading run corrected to "split" gets its grade lots', async ({ 
   await page.getByRole('button', { name: /Record Grading/ }).click();
   await page.getByLabel(/^Grade A/).fill('60'); await page.getByLabel(/^Grade B/).fill('30'); await page.getByLabel(/^Grade C/).fill('8');
   await page.getByLabel(/^Reject/).fill('1'); await page.getByLabel(/^Loss/).fill('1');
-  const g = await reviewAndSave(page, /PRSDM-KNM-KH26-G-\d{4}/);                           // saved without the split
+  const g = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?G-\d{4}/);                           // saved without the split
   await expect(page.getByTestId('grade-lots')).toHaveCount(0);
   await openSaved(page, g);
   await page.getByRole('link', { name: 'Correct this record' }).click();
   await page.getByLabel(/Split into grade lots/).check();
-  await reviewAndSave(page, /PRSDM-KNM-KH26-G-\d{4}/);
+  await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?G-\d{4}/);
   const lots = page.getByTestId('grade-lots');
   await expect(lots).toContainText(/-A \(60 kg\)/); await expect(lots).toContainText(/-B \(30 kg\)/); await expect(lots).toContainText(/-C \(8 kg\)/);
-  const lotCodes = (await lots.textContent())!.match(/PRSDM-KNM-KH26-G-\d{4}-[ABC]/g)!;
+  const lotCodes = (await lots.textContent())!.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?G-\d{4}-[ABC]/g)!;
   expect(lotCodes).toHaveLength(3);
   await signOut(page);
   await signIn(page, USERS.qc);

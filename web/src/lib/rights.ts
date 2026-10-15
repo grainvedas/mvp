@@ -47,3 +47,7 @@ export const addsFarmers = (ctx: Ctx, clientId: string | null | undefined) =>
   !!clientId && !oversees(ctx) && (holdsClientAccount(ctx, clientId)
     || (ctx?.slots ?? []).some((sl) => (sl.stage_type === 'procurement' || sl.stage_type === 'village_batch')
          && (ctx?.scopes ?? []).find((s) => s.scope_id === sl.scope_id)?.client_id === clientId));
+
+/** Migration 48 (D3–D5): the clients whose account he holds (a Client Manager): his grouped menu, his client's ledger. */
+export const myClientAccounts = (ctx: Ctx): string[] => oversees(ctx) ? [] :
+  [...new Set((ctx?.assignments ?? []).filter((a) => a.lens === 'client' && a.op_role === 'client_account' && a.client_id).map((a) => a.client_id as string))];

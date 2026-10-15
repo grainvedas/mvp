@@ -1,0 +1,13 @@
+-- GrainVeda MVP · seed 09: migration 50 (packs, proof and blocks). The demo scopes do not ask for a lab report file
+-- (their tests record lab results without one); a scope made in the app asks for it (the default), and e2e/phase22,
+-- e2e/phase7, e2e/phase14 and the first day from nothing test that path. A seed of its own so that it runs after the
+-- migrations on a database in use (the upgrade path of tests/run_local.sh). Demo data: never on production. Idempotent.
+do $$ begin
+  if to_regprocedure('app.environment()') is not null then
+    if app.environment() = 'production' then
+      raise exception 'demo seed refused: this is the PRODUCTION project (use supabase/seeds/production/)';
+    end if;
+  end if;
+end $$;
+
+update public.scopes set qc_report_required = false where id::text like '00000000-0000-4000-8000-0000000004%' and qc_report_required;

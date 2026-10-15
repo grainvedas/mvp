@@ -468,3 +468,8 @@ button.stat:focus-visible { outline: 3px solid var(--g500); outline-offset: 2px;
 .req-lines { list-style: none; padding: 0; margin: 8px 0; }
 .req-lines li { border-bottom: 1px solid var(--line, #ddd); padding: 6px 0; overflow-wrap: anywhere; }
 .same-person { display: inline-block; font-size: .75rem; padding: 0 6px; border-radius: 999px; background: var(--yellow-bg); color: var(--yellow); white-space: nowrap; }
+/* migration 49 (A2/G3): what the system checks, a tick or a cross each */
+.sys-checks { list-style: none; padding: 0; margin: 4px 0 10px; }
+.sys-checks li { padding: 2px 0; }
+.sys-checks li.ok > span { color: var(--green); }
+.sys-checks li.not > span { color: var(--red); font-weight: 600; }

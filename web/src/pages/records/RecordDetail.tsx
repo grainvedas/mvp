@@ -7,10 +7,10 @@ import { supabase } from '../../lib/supabase';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
-import { kg, dateTime, humanise, num, shortHash } from '../../lib/format';
-import { oversees, managesScope } from '../../lib/rights';
+import { kg, date, dateTime, humanise, num, shortHash, todayIST } from '../../lib/format';
+import { oversees, managesScope, isStateManager } from '../../lib/rights';
 import { type Footprint, type FootprintDetail, type QualityParam, type StageForm, type Withdrawal } from '../../lib/types';
-import { Badge, ErrorBox, Loading, Field } from '../../shell/ui';
+import { Badge, ErrorBox, Loading, Field, plainText } from '../../shell/ui';
 import { uploadEvidence } from '../../engine/evidence';
 import { EVIDENCE_ACCEPT } from '../../engine/widgets';
 import { ComputedRows, EnteredRows, capturedAt, paramName } from '../../engine/values';
@@ -49,6 +49,9 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
   // Records whose save derived something elsewhere (a verdict, a batch, grade lots) are not edited in place (migration 22)
   const frozen = f.stage_type === 'qc' || f.stage_type === 'village_batch' || f.is_grade_lot || f.split_into_grades;
   const canCorrect = mine && !frozen;
+  // migration 48 (A1): returned to its sender — he corrects it, or withdraws it to record it again
+  const openReturn = (r.returns ?? []).find((x) => x.status === 'open') ?? null;
+  const senderReturned = !!openReturn && f.created_by === me.id && !watch;
   return (
     <div>
       <p className="muted small"><Link to={`/work/${f.scope_id}/${f.stage_type}`}>{t(`stage.${f.stage_type}`, undefined, r.stage_label)}</Link></p>
@@ -63,12 +66,14 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
           <dt>{t('record.qty_out')}</dt><dd className="big">{kg(f.qty_out)}</dd>
           <dt>{t('record.available')}</dt><dd>{kg(r.available_kg)}</dd>
           <ComputedRows computed={f.computed} t={t} />
+          {f.happened_on && <><dt>{t('on.label')}</dt><dd data-testid="record-on">{date(f.happened_on)}</dd></>}
+          {f.manager_reason && <><dt>{t('mgr.recorded_by_manager')}</dt><dd data-testid="record-manager-reason">“{f.manager_reason}”</dd></>}
           <dt>{t('record.recorded')}</dt><dd>{dateTime(when.at)} · {r.created_by_name ?? '—'}
             {when.sentLater && <span className="muted small" data-testid="sent-later"> · {t('record.sent_later', { at: dateTime(f.created_at) })}</span>}</dd>
           <dt>{t('record.verified')}</dt><dd>{f.verified_at ? `${dateTime(f.verified_at)} · ${r.verified_by_name ?? '—'}` : '—'}</dd>
           {!noLabYet && <><dt>{t('record.market_verdict')}</dt><dd>{t('record.market_domestic')} <Badge value={r.market_verdict.domestic} /> · {t('record.market_export')} <Badge value={r.market_verdict.export} />{r.market_verdict.overridden && <> <Badge value="pending" label={t('record.overridden')} /></>}</dd></>}
         </dl>
-        {f.warnings?.length > 0 && <div className="alert warn">{f.warnings.join(' · ')}</div>}
+        {f.warnings?.length > 0 && <div className="alert warn">{f.warnings.map((w) => plainText(w, t)).join(' · ')}</div>}
         <details><summary>{t('record.entered')}</summary>
           <dl className="kv" data-testid="entered-values">
             <EnteredRows payload={f.payload} fields={form?.stage.form_schema ?? []} stage={f.stage_type} params={form?.quality_params} t={t} />
@@ -80,10 +85,15 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
         </div>
         {mine && frozen && <p className="hint">{t('record.fix_by_withdraw')}</p>}
       </div>
+      <LotFacts r={r} />
       <WithdrawalInfo f={f} canRecord={me.role !== 'client_view' && !watch} />
-      {boss && (f.status === 'pending' || f.status === 'verified') && !r.seal && <WithdrawPanel f={f} onDone={reload} />}
+      <ReturnsPanel r={r} senderReturned={senderReturned} canCorrect={canCorrect} onDone={reload} />
+      {(boss || senderReturned) && (f.status === 'pending' || f.status === 'verified') && !r.seal && <WithdrawPanel f={f} onDone={reload} />}
       {r.qc && <QcPanel detail={r} onChange={reload} canOverride={boss} params={form?.quality_params ?? []} />}
       {r.seal && <SealPanel code={r.seal.qr_code} hash={r.seal.ledger_hash} batch={r.seal.batch_codes} />}
+      {r.seal && r.release && <ReleasePanel r={r} mayChange={!watch && (boss || isStateManager(ctx))} onDone={reload} />}
+      {r.packs && <PacksPanel r={r} mayAct={me.role !== 'client_view' && !watch} onDone={reload} />}
+      {f.stage_type === 'shipment' && <DeliveryPanel r={r} mayAct={me.role !== 'client_view' && !watch} onDone={reload} />}
       {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && !watch && <FinishSeal f={f} onDone={reload} />}
       {r.attachments.length > 0 && <Attachments detail={r} />}
       {me.role !== 'client_view' && !watch && f.status !== 'superseded' && <AddEvidence f={f} onDone={reload} />}
@@ -98,6 +108,69 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
           ))}</tbody>
         </table></div>
       </div>
+    </div>
+  );
+}
+
+/** Migration 49: where the lot comes from (with the kilograms taken), its farmers in documented proportions, its GI
+ *  status, and what the system checks about it. All from the server (app.footprint_detail). */
+function LotFacts({ r }: { r: FootprintDetail }) {
+  const { t } = useI18n();
+  const farmers = r.farmers ?? [], sources = r.sources ?? [], sys = r.system_checks ?? [];
+  if (!r.gi_status && farmers.length === 0 && sources.length === 0 && sys.length === 0) return null;
+  return (
+    <div className="card" data-testid="lot-facts">
+      {r.gi_status && <p data-testid="lot-gi">{t('gi.status')}: <Badge value={r.gi_status === 'gi' ? 'verified' : r.gi_status === 'non_gi' ? 'closed' : 'pending'} label={t(`gi.${r.gi_status}`)} /></p>}
+      {sources.length > 0 && <>
+        <h3>{t('rec.sources')}</h3>
+        <ul className="small" data-testid="lot-sources">{sources.map((x) => (
+          <li key={x.id}><Link className="mono" to={`/records/${x.id}`}>{x.code}</Link> ({t(`stage.${x.stage}`, undefined, humanise(x.stage))}): {t('rec.taken', { kg: kg(x.kg) })}
+            {x.from_older && <span className="muted"> · {t('rec.from_older')}</span>}</li>))}</ul></>}
+      {farmers.length > 0 && <>
+        <h3>{t('rec.farmers', { n: farmers.length })}</h3>
+        <ul className="small" data-testid="lot-farmers">{farmers.map((x) => (
+          <li key={x.farmer_id}>{x.name}{x.village ? `, ${x.village}` : ''}: {num(x.share_pct, 1)} % · {kg(x.kg)}</li>))}</ul>
+        <p className="muted small">{t('rec.proportions')}</p></>}
+      {sys.length > 0 && <>
+        <h3>{t('sys.title')}</h3>
+        <ul className="sys-checks small">{sys.map((c) => <li key={c.key} data-ok={c.ok} className={c.ok ? 'ok' : 'not'}><span aria-hidden="true">{c.ok ? '✓' : '✗'}</span> {t(`chk.${c.key}`, c.vars, c.key)}</li>)}</ul></>}
+    </div>
+  );
+}
+
+/** Migration 48 (A1): the times this record was returned to its sender; its sender's way forward; the next stage's
+ *  "Return to sender" (the server says whether the reader may). */
+function ReturnsPanel({ r, senderReturned, canCorrect, onDone }: { r: FootprintDetail; senderReturned: boolean; canCorrect: boolean; onDone: () => void }) {
+  const { t } = useI18n();
+  const f = r.footprint;
+  const [open, setOpen] = useState(false);
+  const [why, setWhy] = useState('');
+  const act = useAction();
+  const send = () => act.run(async () => { await rpc('return_footprint', { p_fp: f.id, p_reason: why.trim() }); setOpen(false); setWhy(''); onDone(); });
+  const list = r.returns ?? [];
+  if (list.length === 0 && !r.can_return) return null;
+  return (
+    <div className="card" data-testid="returns-panel">
+      <h2>{t('ret.title')}</h2>
+      {list.map((x) => (
+        <div key={x.id} className={`alert ${x.status === 'open' ? 'warn' : 'info'} small`} data-testid="return-item" data-status={x.status}>
+          {t('ret.line', { by: x.returned_by_name ?? '—', at: dateTime(x.returned_at), reason: x.reason })}
+          {x.status !== 'open' && <div>{t(`ret.done_${x.status}`, { by: x.resolved_by_name ?? '—', at: dateTime(x.resolved_at) })}</div>}
+        </div>))}
+      {senderReturned && (
+        <p data-testid="return-next">{canCorrect
+          ? <Link className="btn" to={`/work/${f.scope_id}/${f.stage_type}?edit=${f.id}`} data-testid="return-correct">{t('ret.correct')}</Link>
+          : t('ret.withdraw_hint')}</p>)}
+      {r.can_return && !open && <button className="secondary" onClick={() => setOpen(true)} data-testid="return-open">{t('ret.button')}</button>}
+      {r.can_return && open && (
+        <div className="stack">
+          <Field label={t('ret.why')} htmlFor="rd-why" hint={t('mgr.min10')}><textarea id="rd-why" rows={2} value={why} maxLength={500} onChange={(e) => setWhy(e.target.value)} data-testid="return-why" /></Field>
+          <ErrorBox error={act.error} />
+          <div className="row">
+            <button className="danger" disabled={act.busy || why.trim().length < 10} onClick={send} data-testid="return-send">{t('ret.send')}</button>
+            <button className="secondary" onClick={() => setOpen(false)}>{t('common.cancel')}</button>
+          </div>
+        </div>)}
     </div>
   );
 }
@@ -162,8 +235,12 @@ function QcPanel({ detail, onChange, canOverride, params }: { detail: FootprintD
   const qc = detail.qc!;
   const unit = (p: string) => { const q = params.find((x) => x.param === p); return { label: q?.label, unit: q?.unit }; };
   const [reason, setReason] = useState('');
+  // migration 50: the client's written acceptance is attached before an export release
+  const hasAcceptance = detail.attachments.some((a) => a.label === 'acceptance');
+  const [acceptance, setAcceptance] = useState<File | null>(null);
   const act = useAction();
   const override = () => act.run(async () => {
+    if (!hasAcceptance && acceptance) await uploadEvidence(detail.footprint, acceptance, 'acceptance');
     await q(supabase.from('qc_verdicts').update({ override: { market: 'export', reason, authoriser: ctx!.user!.id } })
       .eq('footprint_id', detail.footprint.id).select());
     onChange();
@@ -182,10 +259,122 @@ function QcPanel({ detail, onChange, canOverride, params }: { detail: FootprintD
         <div className="stack">
           <h3>{t('record.override')}</h3>
           <Field label={t('record.override_reason')} htmlFor="ov-reason"><textarea id="ov-reason" value={reason} onChange={(e) => setReason(e.target.value)} rows={2} /></Field>
+          {hasAcceptance ? <p className="small" data-testid="acceptance-on-file">{t('ov.acceptance_on_file')}</p>
+            : <Field label={`${t('ov.acceptance')} *`} htmlFor="ov-acc" hint={t('ov.acceptance_hint')}>
+                <input id="ov-acc" type="file" accept={EVIDENCE_ACCEPT} onChange={(e) => setAcceptance(e.target.files?.[0] ?? null)} data-testid="acceptance-file" /></Field>}
           <ErrorBox error={act.error} />
-          <button className="danger" disabled={!reason.trim() || act.busy} onClick={override}>{t('record.override')}</button>
+          <button className="danger" disabled={!reason.trim() || act.busy || (!hasAcceptance && !acceptance)} onClick={override}>{t('record.override')}</button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Migration 50 (G10, C9): the release's status. The client's Client Manager or the state's State Manager puts it under
+ *  investigation or recalls it, with a reason; a recall stays, and shows on every pack (the server decides who may). */
+function ReleasePanel({ r, mayChange, onDone }: { r: FootprintDetail; mayChange: boolean; onDone: () => void }) {
+  const { t } = useI18n();
+  const rel = r.release!;
+  const [to, setTo] = useState<'' | 'active' | 'under_investigation' | 'recalled'>('');
+  const [why, setWhy] = useState('');
+  const act = useAction();
+  const go = () => act.run(async () => { await rpc('set_release_status', { p_seal: r.footprint.id, p_status: to, p_reason: why.trim() }); setTo(''); setWhy(''); onDone(); });
+  const next = (['active', 'under_investigation', 'recalled'] as const).filter((s) => s !== rel.status);
+  return (
+    <div className="card" data-testid="release-panel" data-status={rel.status}>
+      <h2>{t('rel.title')}</h2>
+      <p><Badge value={rel.status === 'active' ? 'verified' : rel.status === 'recalled' ? 'fail' : 'pending'} label={t(`rel.st_${rel.status}`)} />
+        {rel.reason && <> “{rel.reason}”</>}{rel.at && <span className="muted small"> · {dateTime(rel.at)}{rel.by ? ` · ${rel.by}` : ''}</span>}</p>
+      {rel.status === 'recalled' && <div className="alert warn">{t('rel.recalled_note')}</div>}
+      {mayChange && rel.status !== 'recalled' && (
+        <div className="stack">
+          <Field label={t('rel.change')} htmlFor="rel-to">
+            <select id="rel-to" value={to} onChange={(e) => setTo(e.target.value as typeof to)} data-testid="release-to">
+              <option value="">—</option>{next.map((s) => <option key={s} value={s}>{t(`rel.st_${s}`)}</option>)}</select></Field>
+          {to && <Field label={`${t('rel.why')} *`} htmlFor="rel-why" hint={t('mgr.min10')}>
+            <textarea id="rel-why" rows={2} maxLength={500} value={why} onChange={(e) => setWhy(e.target.value)} data-testid="release-why" /></Field>}
+          {to === 'recalled' && <p className="hint">{t('rel.recall_warn')}</p>}
+          <ErrorBox error={act.error} />
+          {to && <button className={to === 'recalled' ? 'danger' : ''} disabled={act.busy || why.trim().length < 10} onClick={go} data-testid="release-go">{t('rel.confirm', { status: t(`rel.st_${to}`) })}</button>}
+        </div>)}
+    </div>
+  );
+}
+
+/** Migration 50 (G1, G8): a packing record's batch code (the system's), its packs and labels; a pack voided with a reason. */
+function PacksPanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: boolean; onDone: () => void }) {
+  const { t } = useI18n();
+  const p = r.packs!;
+  const [serial, setSerial] = useState('');
+  const [why, setWhy] = useState('');
+  const [done, setDone] = useState('');
+  const act = useAction();
+  const voidIt = () => act.run(async () => { await rpc('void_pack', { p_serial: serial.trim(), p_reason: why.trim() }); setDone(serial.trim()); setSerial(''); setWhy(''); onDone(); });
+  return (
+    <div className="card" data-testid="packs-panel">
+      <h2>{t('pk.title')}</h2>
+      <dl className="kv">
+        <dt>{t('pk.batch')}</dt><dd className="mono" data-testid="batch-code">{p.batch_code ?? '—'}</dd>
+        <dt>{t('pk.packs')}</dt><dd data-testid="packs-count">{t('pk.counts', { packed: p.packed, void: p.void })}</dd>
+        {p.best_before && <><dt>{t('pk.best_before_label')}</dt><dd>{date(p.best_before)}</dd></>}
+        <dt>{t('pk.prints')}</dt><dd>{p.prints}</dd>
+      </dl>
+      {mayAct && p.packed > 0 && <p><Link className="btn" to={`/records/${r.footprint.id}/labels`} data-testid="print-labels">{t(p.prints > 0 ? 'pk.reprint' : 'pk.print')}</Link></p>}
+      {mayAct && p.packed > 0 && (
+        <details><summary>{t('pk.void_title')}</summary>
+          <div className="stack">
+            <Field label={t('pk.serial')} htmlFor="pk-serial"><input id="pk-serial" className="mono" value={serial} onChange={(e) => setSerial(e.target.value)} placeholder={`${p.batch_code ?? ''}-0001`} data-testid="void-serial" /></Field>
+            <Field label={`${t('pk.void_why')} *`} htmlFor="pk-vwhy" hint={t('mgr.min10')}><input id="pk-vwhy" value={why} maxLength={300} onChange={(e) => setWhy(e.target.value)} data-testid="void-why" /></Field>
+            <ErrorBox error={act.error} />
+            <button className="danger" disabled={act.busy || !serial.trim() || why.trim().length < 10} onClick={voidIt} data-testid="void-go">{t('pk.void')}</button>
+            {done && <div className="alert ok" data-testid="voided">{t('pk.voided', { serial: done })}</div>}
+          </div>
+        </details>)}
+    </div>
+  );
+}
+
+/** Migration 50 (G12): what arrived, recorded at delivery (the transit loss is worked out by the server). For export the
+ *  proof of delivery is attached first. */
+function DeliveryPanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: boolean; onDone: () => void }) {
+  const { t } = useI18n();
+  const f = r.footprint, d = r.delivery;
+  const [got, setGot] = useState(String(f.qty_in ?? ''));
+  const [on, setOn] = useState(todayIST());
+  const [note, setNote] = useState('');
+  const [pod, setPod] = useState<File | null>(null);
+  const hasPod = r.attachments.some((a) => a.label === 'pod');
+  const act = useAction();
+  const confirm = () => act.run(async () => {
+    if (pod && !hasPod) await uploadEvidence(f, pod, 'pod');
+    await rpc('confirm_delivery', { p_shipment: f.id, p_received_kg: Number(got), p_received_on: on, p_note: note.trim() || null });
+    onDone();
+  });
+  if (d) return (
+    <div className="card" data-testid="delivery-panel" data-done="true">
+      <h2>{t('dl.title')}</h2>
+      <dl className="kv">
+        <dt>{t('dl.received')}</dt><dd>{kg(d.received_kg)} · {date(d.received_on)}</dd>
+        <dt>{t('dl.loss')}</dt><dd data-testid="transit-loss">{kg(d.transit_loss_kg)}</dd>
+        {d.note && <><dt>{t('dl.note')}</dt><dd>“{d.note}”</dd></>}
+        <dt>{t('dl.by')}</dt><dd>{d.confirmed_by_name ?? '—'}</dd>
+      </dl>
+    </div>);
+  if (!mayAct || (f.status !== 'pending' && f.status !== 'verified')) return null;
+  const n = Number(got);
+  return (
+    <div className="card stack" data-testid="delivery-panel">
+      <h2>{t('dl.title')}</h2>
+      <p className="muted small">{t('dl.hint', { kg: kg(f.qty_in) })}</p>
+      <div className="form-grid">
+        <Field label={`${t('dl.received_kg')} *`} htmlFor="dl-kg"><input id="dl-kg" inputMode="decimal" value={got} onChange={(e) => setGot(e.target.value.replace(',', '.'))} data-testid="delivery-kg" /></Field>
+        <Field label={`${t('dl.on')} *`} htmlFor="dl-on"><input id="dl-on" type="date" value={on} max={todayIST()} onChange={(e) => setOn(e.target.value)} data-testid="delivery-on" /></Field>
+        <Field label={t('dl.note')} htmlFor="dl-note"><input id="dl-note" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} /></Field>
+        {!hasPod && <Field label={t('dl.pod')} htmlFor="dl-pod" hint={t('dl.pod_hint')}><input id="dl-pod" type="file" accept={EVIDENCE_ACCEPT} onChange={(e) => setPod(e.target.files?.[0] ?? null)} data-testid="delivery-pod" /></Field>}
+      </div>
+      {got !== '' && Number.isFinite(n) && n <= Number(f.qty_in) && <p data-testid="delivery-loss-preview">{t('dl.loss_preview', { kg: kg(Math.max(Number(f.qty_in) - n, 0)) })}</p>}
+      <ErrorBox error={act.error} />
+      <button disabled={act.busy || got === '' || !Number.isFinite(n) || !on} onClick={confirm} data-testid="delivery-confirm">{t('dl.confirm')}</button>
     </div>
   );
 }
@@ -245,7 +434,8 @@ function Attachments({ detail }: { detail: FootprintDetail }) {
     <div className="card">
       <h2>{t('record.evidence')}</h2>
       <ul>{detail.attachments.map((a) => (
-        <li key={a.id}>{urls[a.id] ? <a href={urls[a.id]} target="_blank" rel="noreferrer">{t(`record.kind_${a.kind}`, undefined, humanise(a.kind))}</a> : t(`record.kind_${a.kind}`, undefined, humanise(a.kind))}
+        <li key={a.id} data-label={a.label ?? ''}>{urls[a.id] ? <a href={urls[a.id]} target="_blank" rel="noreferrer">{t(`record.kind_${a.kind}`, undefined, humanise(a.kind))}</a> : t(`record.kind_${a.kind}`, undefined, humanise(a.kind))}
+          {a.label && <> · {t(`att.${a.label}`, undefined, humanise(a.label))}</>}
           {' '}<span className="mono small" title={a.sha256}>sha256 {shortHash(a.sha256)}</span> · {dateTime(a.created_at)}
           {' '}{check[a.id] === 'ok' && <Badge value="verified" label={t('record.hash_ok')} />}
           {check[a.id] === 'bad' && <Badge value="fail" label={t('record.hash_bad')} />}
@@ -299,7 +489,7 @@ function Flags({ detail, onChange, canResolve, canRaise }: { detail: FootprintDe
       <h2>{t('record.flags')}</h2>
       {detail.flags.length === 0 && <p className="muted">{t('record.no_flags')}</p>}
       <ul>{detail.flags.map((f) => (
-        <li key={f.id} className="row"><Badge value={f.status} /> {f.text} <span className="muted small">— {f.raised_by_name ?? '—'}, {dateTime(f.created_at)}</span>
+        <li key={f.id} className="row" data-kind={f.kind ?? 'flag'}><Badge value={f.status} />{f.kind === 'condition' && <Badge value="pending" label={t('cond.badge')} />} {f.text} <span className="muted small">— {f.raised_by_name ?? '—'}, {dateTime(f.created_at)}</span>
           {canResolve && f.status === 'open' && <><button className="secondary" onClick={() => setStatus(f.id, 'resolved')}>{t('record.resolve')}</button>
             <button className="secondary" onClick={() => setStatus(f.id, 'dismissed')}>{t('record.dismiss')}</button></>}</li>
       ))}</ul>

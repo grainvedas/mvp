@@ -98,7 +98,7 @@ test('No network for more than an hour: the app opens from the phone, captures a
 
   await context.setOffline(false);
   await openOutbox(page);
-  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-P-\d{4}/, { timeout: 90_000 });
+  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/, { timeout: 90_000 });
   await expect(page.getByText('needs attention')).toHaveCount(0);        // never sent without the operator's own token
   expect(await recordsWeighing(gross)).toBe(1);
   const now = await keptToken(page);
@@ -135,7 +135,7 @@ test('The link is connected but dead and the hour is over: the save falls back t
 
   await mendTheLink(context);
   const t1 = Date.now();
-  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-P-\d{4}/, { timeout: 150_000 });
+  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/, { timeout: 150_000 });
   console.log(`link back: sent by itself after ${Math.round((Date.now() - t1) / 1000)} s`);
   await expect(page.getByText('needs attention')).toHaveCount(0);
   expect(await recordsWeighing(gross)).toBe(1);
@@ -163,7 +163,7 @@ test('A link that takes requests and never answers: the form opens from the phon
 
   await context.unroute(`${API}/**`);
   await openOutbox(page);
-  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-P-\d{4}/, { timeout: 90_000 });
+  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/, { timeout: 90_000 });
   expect(await recordsWeighing(gross)).toBe(1);
 });
 
@@ -192,7 +192,7 @@ test('The login was ended by the server while the phone had no network: what was
 
   await signIn(page, OP);                                                  // signIn() clears localStorage only; the outbox is in IndexedDB
   await openOutbox(page);
-  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-P-\d{4}/, { timeout: 60_000 });
+  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/, { timeout: 60_000 });
   await expect(page.getByText('needs attention')).toHaveCount(0);
   expect(await recordsWeighing(gross)).toBe(1);
 });
@@ -274,7 +274,7 @@ test('A save whose answer is lost on the way back is not made twice', async ({ p
   expect(lost).toBe(1);
   expect(await recordsWeighing(gross), 'the database did store it').toBe(1);
   await openOutbox(page);
-  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-P-\d{4}/, { timeout: 60_000 });
+  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/, { timeout: 60_000 });
   await expect(page.getByText('needs attention')).toHaveCount(0);
   expect(await recordsWeighing(gross), 'sent again from the phone, found by its save id, not made a second time').toBe(1);
 });
@@ -293,8 +293,8 @@ test('The record went through but its photo did not: the photo waits on the phon
   await expect(page.getByTestId('outbox-open')).toContainText('its photo is still to be sent', { timeout: 30_000 });
 
   await context.unroute(`${API}/storage/v1/**`);
-  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-P-\d{4}/, { timeout: 60_000 });
-  await page.getByTestId('outbox-synced').getByRole('link', { name: /PRSDM-KNM-KH26-P-\d{4}/ }).first().click();
+  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/, { timeout: 60_000 });
+  await page.getByTestId('outbox-synced').getByRole('link', { name: /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/ }).first().click();
   await expect(page.getByText('file matches its fingerprint')).toBeVisible();
   expect(await recordsWeighing(gross)).toBe(1);
 });

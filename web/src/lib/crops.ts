@@ -12,6 +12,10 @@ export interface CropFull {
   yield_per_acre_kg?: number | null; recommended_chain?: StageType[]; gap_items?: GapItem[];
   harvest_from?: number | null; harvest_to?: number | null; export_docs?: string[];
   retired_at?: string | null; retire_reason?: string | null;
+  /** migration 49: the GI area (districts), and the crop's own thresholds (milling outturn ceiling, runs to learn from) */
+  gi_districts?: string[]; thresholds?: { milling_outturn_ceiling_pct?: number; learn_after_runs?: number };
+  /** migration 50: best-before = the day packed + this many days */
+  shelf_life_days?: number | null;
 }
 /** a row of app.crop_registry */
 export interface RegistryRow extends CropFull {

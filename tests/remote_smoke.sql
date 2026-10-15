@@ -1,6 +1,6 @@
 -- READ-ONLY smoke check for a Supabase project after `db push` + seeds. Safe on production: no writes.
 -- Run: psql "$SUPABASE_DB_URL" -f tests/remote_smoke.sql   (or paste into Dashboard → SQL Editor)
--- Every row must start with OK (44 rows; three of them, statement logging, the reminder round and the nightly check, say how the project is set up). The same file serves staging (demo seed expected) and production (demo
+-- Every row must start with OK (46 rows; three of them, statement logging, the reminder round and the nightly check, say how the project is set up). The same file serves staging (demo seed expected) and production (demo
 -- seed forbidden): the 'environment' row says which one it found, from app.environment() (migration 23).
 -- API exposure of the `app` schema is not checked here: hosted Supabase keeps that setting in PostgREST's config, which
 -- SQL cannot read. Prove it with tests/remote_api_check.ps1 (REST call with the public key).
@@ -295,6 +295,30 @@ select 'farmer corrections',       case when to_regclass('public.farmer_proposal
                                         or to_regprocedure('app.decide_farmer_proposal(uuid, boolean, text)') is null
                                       then 'MISSING (push migration 47)'
                                       else 'OK Procurement proposes a correction of a verified farmer; the Client Manager decides' end
+union all
+select 'operator template',        case when to_regclass('public.footprint_returns') is null
+                                        or to_regprocedure('app.return_footprint(uuid, text)') is null
+                                        or to_regprocedure('app.client_ledger_page(uuid, text, uuid, uuid, integer, integer)') is null
+                                        or exists (select 1 from public.scopes where short_code is null)
+                                      then 'MISSING (push migration 48)'
+                                      else 'OK return to sender, the date it happened, a manager''s reason, record numbers that name the scope, the Client Manager''s ledger' end
+union all
+select 'trust numbers',            case when to_regclass('public.footprint_links') is null
+                                        or to_regprocedure('app.system_checks(uuid)') is null
+                                        or to_regprocedure('app.incoming_lots(uuid, public.stage_type)') is null
+                                        or exists (select 1 from public.stage_definitions where stage_type = 'procurement' and jsonb_array_length(physical_checks) = 0)
+                                      then 'MISSING (push migration 49)'
+                                      else 'OK the system checks what it knows, people tick what they see; what is left of a lot; lineage, farmers and GI; thresholds from the crop' end
+union all
+select 'packs and release',        case when to_regclass('public.packs') is null
+                                        or to_regclass('public.release_events') is null
+                                        or to_regclass('public.deliveries') is null
+                                        or to_regprocedure('app.public_pack(text)') is null
+                                        or to_regprocedure('app.release_preview(uuid)') is null
+                                        or exists (select 1 from public.stage_definitions where stage_type = 'packing' and form_schema @> '[{"key": "batch_code"}]')
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'qc' and form_schema @> '[{"key": "report_no"}]')
+                                      then 'MISSING (push migration 50)'
+                                      else 'OK batch codes from the system, one label per pack, the summary before release, recall on every pack, lab proof, delivery' end
 union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole

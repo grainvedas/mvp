@@ -12,13 +12,14 @@ import { useOutbox } from '../offline/useOutbox';
 import { stageIcon } from '../engine/icons';
 import { CrashCard, ErrorBoundary } from './ErrorBoundary';
 import { ScopeProvider, shownScope, useScope, useWide, worksInOneScope } from './scope';
-import { oversees } from '../lib/rights';
+import { myClientAccounts, oversees } from '../lib/rights';
 import { rpc } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 
 type Section = 'overview' | 'registry' | 'people' | 'system';
 /** What the menu needs to know about the person. `can` comes from the server (identity layer); the role is the summary. */
-export interface NavWho { role: Role; can: Can; farmerSlot: boolean; joiner: boolean; employee: boolean; /** not yet marked as joined */ joining?: boolean }
+export interface NavWho { role: Role; can: Can; farmerSlot: boolean; joiner: boolean; employee: boolean; /** not yet marked as joined */ joining?: boolean;
+  /** saves waiting on this phone (the outbox) */ outbox?: boolean }
 export const NAV: { to: string; key: string; icon: string; section: Section; show: (w: NavWho) => boolean }[] = [
   { to: '/', key: 'nav.home', icon: '📊', section: 'overview', show: () => true },
   { to: '/onboarding', key: 'nav.onboarding', icon: '✅', section: 'overview', show: (w) => w.joiner },
@@ -51,8 +52,12 @@ export const NAV: { to: string; key: string; icon: string; section: Section; sho
  */
 export type Heading = 'watch' | 'audit' | 'master' | 'access' | 'me';
 export const HEADINGS: Heading[] = ['watch', 'audit', 'master', 'access', 'me'];
+/** The Client Manager's headings (migration 48, D4): Watch · My scopes · Farmers · People · Audit · Me. */
+export type CmHeading = 'watch' | 'scopes' | 'farmers' | 'people' | 'audit' | 'me';
+export const CM_HEADINGS: CmHeading[] = ['watch', 'scopes', 'farmers', 'people', 'audit', 'me'];
+export type Menu = 'admin' | 'state_manager' | 'client_manager';
 export interface MenuItem { to: string; key: string; icon: string; show?: (w: NavWho) => boolean }
-export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Record<Heading, MenuItem[]> } = {
+export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Record<Heading, MenuItem[]>; client_manager: Record<CmHeading, MenuItem[]> } = {
   admin: {
     watch: [
       { to: '/', key: 'menu.overview', icon: '📊' },
@@ -113,11 +118,42 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Re
       { to: '/help', key: 'menu.help', icon: '💬' },
     ],
   },
+  // The Client Manager (migration 48, D4; Veda 15 Oct 2026): his day first, then his scopes (and the stages of the
+  // scope in hand), his farmers, his people, his client's ledger, himself.
+  client_manager: {
+    watch: [
+      { to: '/', key: 'nav.home', icon: '📊' },
+      { to: '/flags', key: 'nav.flags', icon: '🚩' },
+    ],
+    scopes: [
+      { to: '/scopes', key: 'nav.scopes', icon: '🎯' },
+    ],
+    farmers: [
+      { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾' },
+      { to: '/farmers/new', key: 'home.add_farmer', icon: '➕' },
+    ],
+    people: [
+      { to: '/people', key: 'nav.people', icon: '👥' },
+    ],
+    audit: [
+      { to: '/system/ledger', key: 'nav.ledger', icon: '🔗' },
+    ],
+    me: [
+      { to: '/onboarding', key: 'menu.my_checklist', icon: '✅', show: (w) => w.joiner },
+      { to: '/outbox', key: 'nav.outbox', icon: '📥', show: (w) => !!w.outbox },
+      { to: '/account', key: 'nav.account', icon: '🔑' },
+      { to: '/guide', key: 'menu.guide', icon: '🧭' },
+      { to: '/help', key: 'menu.help', icon: '💬' },
+    ],
+  },
 };
+/** Each grouped menu's headings, in order. */
+export const MENU_HEADINGS: Record<Menu, string[]> = { admin: HEADINGS, state_manager: HEADINGS, client_manager: CM_HEADINGS };
 
-/** Which grouped menu a person gets, if any: the admin's, the State Manager's; everyone else the sectioned one. */
-export const groupedMenu = (ctx: Parameters<typeof oversees>[0]): 'admin' | 'state_manager' | null =>
-  oversees(ctx) ? 'admin' : ctx?.user?.can?.state_manager ? 'state_manager' : null;
+/** Which grouped menu a person gets, if any: the admin's, the State Manager's, the Client Manager's (migration 48);
+ *  everyone else the sectioned one. */
+export const groupedMenu = (ctx: Parameters<typeof oversees>[0]): Menu | null =>
+  oversees(ctx) ? 'admin' : ctx?.user?.can?.state_manager ? 'state_manager' : myClientAccounts(ctx).length > 0 ? 'client_manager' : null;
 
 /** "Prasaadam Client Manager" → "PC": the first letters of the first two words, as in the prototype's top bar. */
 export const initials = (name: string) => name.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -154,7 +190,7 @@ function Frame() {
     state_lens: me?.role === 'admin' || me?.role === 'state_manager' };      // a server from before migration 32 sends no `can`
   const who: NavWho | null = me ? { role: me.role, can, farmerSlot, employee: !me.external,
     joiner: !me.external && ((ctx?.onboarding?.open ?? 0) > 0 || me.status === 'invited' || me.status === 'onboarding'),
-    joining: !me.external && (me.status === 'invited' || me.status === 'onboarding') } : null;
+    joining: !me.external && (me.status === 'invited' || me.status === 'onboarding'), outbox: box.items.length > 0 } : null;
   const visible = NAV.filter((n) => who && n.show(who));
   // HR's badge on Requirements: the new lines of her states (migration 46); read again on each page change
   const reqs = useAsync(() => can.hr ? rpc<{ new: number }>('hr_requirement_counts').catch(() => null) : Promise.resolve(null), [can.hr, pathname]);
@@ -206,14 +242,14 @@ function Frame() {
       <div className="frame">
         {who && menu ? (
         <nav className="nav" aria-label="Main" data-menu={menu}>
-          {HEADINGS.map((h) => {
+          {MENU_HEADINGS[menu].map((h) => {
             // exact match where another item of the menu lives below this one (Farmers and its register)
-            const all = ROLE_MENUS[menu][h];
+            const all = (ROLE_MENUS[menu] as Record<string, MenuItem[]>)[h] ?? [];
             const items = all.filter((m) => !m.show || m.show(who)).map((m) => item(m.to, m.icon, t(m.key), m.to === '/' || all.some((o) => o.to.startsWith(`${m.to}/`))));
             return <Fragment key={h}>
               {items.length > 0 && <div className="sb-section" aria-hidden="true">{t(`menu.${h}`)}{h === 'master' && menu === 'admin' && <span className="sb-hint"> · {t('menu.read_only')}</span>}</div>}
               {items}
-              {h === 'watch' && stages.length > 0 && section('nav.section_operations', stages.map((s) => item(`/work/${shown!.id}/${s}`, stageIcon(s), t(`stage.${s}`, undefined, humanise(s)))))}
+              {h === (menu === 'client_manager' ? 'scopes' : 'watch') && stages.length > 0 && section('nav.section_operations', stages.map((s) => item(`/work/${shown!.id}/${s}`, stageIcon(s), t(`stage.${s}`, undefined, humanise(s)))))}
             </Fragment>;
           })}
         </nav>) : (

@@ -183,7 +183,7 @@ test('The ledger page: every block, filters, manager acts on records, export of 
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('ledger-export').click()]);
   const text = await (await import('node:fs/promises')).readFile((await download.path())!, 'utf8');
   const lines = text.replace(/^﻿/, '').trim().split(/\r?\n/);
-  expect(lines[0]).toBe('seq,event,record,what,about,client,scope,signed_by,role,stage_role,same_person,time,hash,prev_hash');   // migration 46
+  expect(lines[0]).toBe('seq,event,record,what,about,client,scope,signed_by,role,stage_role,same_person,time_ist,hash,prev_hash,note');   // migration 46; 48: times in IST, the block's reason
   expect(lines.length - 1).toBe(seals);
   await expectNoSideScroll(page);
   await signOut(page);
@@ -194,8 +194,13 @@ test('The ledger page: every block, filters, manager acts on records, export of 
   await expect(page.getByRole('heading', { name: 'Ledger of your state' })).toBeVisible();
   await expect(page.getByTestId('ledger-manager-acts')).toHaveCount(0);
   await signOut(page);
-  // nobody else has it
+  // the Client Manager reads his client's (migration 48, D5); an operator has none
   await signIn(page, USERS.cm);
+  await menu(page).getByRole('link', { name: 'Ledger' }).click();
+  await expect(page.getByRole('heading', { name: 'Ledger of my client' })).toBeVisible();
+  await expect(page.getByTestId('ledger-manager-acts')).toHaveCount(0);
+  await signOut(page);
+  await signIn(page, USERS.procurement);
   await expect(menu(page).getByRole('link', { name: 'Ledger' })).toHaveCount(0);
   await signOut(page);
 });

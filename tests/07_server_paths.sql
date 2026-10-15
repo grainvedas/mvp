@@ -71,6 +71,7 @@ select t.as_user(t.u('03'));   -- Client Manager
 select t.fails(format($q$ update public.qc_verdicts set override = jsonb_build_object('market','export','reason','test','authoriser',%L)
                           where footprint_id = %L $q$, t.u('01'), (select v from h where k = 'q')),
                'authoriser must be the signed-in user', 'actor: a client manager cannot name the admin as override authoriser');
+select t.attach((select v from h where k = 'q'));                -- migration 50: the client's written acceptance first
 update public.qc_verdicts
    set override = jsonb_build_object('market', 'export', 'reason', 'Buyer accepts 12.1 percent after re-drying', 'authoriser', t.u('03'))
  where footprint_id = (select v from h where k = 'q');
@@ -125,12 +126,12 @@ select set_config('app.change_reason', '', true);
 -- Identifiers past 9999 (migration 12)
 -- ---------------------------------------------------------------------------
 select t.as_service();
-update public.footprint_counters set last_seq = 9999 where series = 'PRSDM-KNM-KH26' and stage_type = 'procurement';
+update public.footprint_counters set last_seq = 9999 where series = 'PRSDM-KNM-KH26-SDR' and stage_type = 'procurement';   -- migration 48: the scope's series
 do $$
 declare p uuid;
 begin
   p := t.procure(t.scope('01'), t.farmer('01'), 50, 1, 1, 12, 12, 12);
-  perform t.ok((select footprint_code from public.footprints where id = p) = 'PRSDM-KNM-KH26-P-10000',
+  perform t.ok((select footprint_code from public.footprints where id = p) = 'PRSDM-KNM-KH26-SDR-P-10000',
                'codes: the 10,000th lot of a stage is P-10000, not a clash with P-1000');
 end $$;
 update public.farmer_id_counters set last_seq = 9999 where client_id = '00000000-0000-4000-8000-000000000201';

@@ -206,7 +206,7 @@ export async function procure(page: Page, scopeId: string, farmer: string, gross
   await page.getByLabel(/^Bags/).fill(bags);
   await page.getByLabel(/Tare per bag/).fill(tare);
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill(moisture);
-  return reviewAndSave(page, /PRSDM-KNM-KH26-P-\d{4}/);
+  return reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/);
 }
 
 export async function recordQc(page: Page, scopeId: string, from: string, moisture: string, sample = '1') {
@@ -217,12 +217,22 @@ export async function recordQc(page: Page, scopeId: string, from: string, moistu
   await page.getByLabel(/^Moisture \(%\)/).fill(moisture);
   await page.getByLabel(/^Broken grains/).fill('2');
   await page.getByLabel(/^Foreign matter/).fill('0.2');
-  return reviewAndSave(page, /PRSDM-KNM-KH26-QC-\d{4}/);
+  return reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?QC-\d{4}/);
+}
+
+/** Migration 50 (C5): the lab report a new scope asks for: the lab, its number, today's date and the file. */
+export async function fillLabReport(page: Page, tag: string) {
+  await page.getByLabel('Lab *', { exact: true }).fill(`Lab ${tag}`);
+  await page.getByLabel('Report number *', { exact: true }).fill(`R-${tag}-${Date.now() % 100000}`);
+  await page.getByLabel('Report date *', { exact: true }).fill(todayIST());
+  await page.getByLabel('Lab report (PDF or photo) *', { exact: true })
+    .setInputFiles({ name: 'report.pdf', mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4\n% lab report ${tag} ${Date.now()}\n%%EOF\n`) });
 }
 
 export async function sealLot(page: Page, scopeId: string, from: string) {
   await openSlot(page, 'qr_activation', scopeId);
   await verifyIncoming(page, from);
+  await page.getByTestId('release-read').check();   // migration 50 (G9): the summary is read first
   await page.getByRole('button', { name: 'Activate and seal' }).click();
   return (await page.getByTestId('sealed').textContent())!.match(/GV-[0-9A-F]{12}/)![0];
 }
@@ -299,6 +309,11 @@ export function localStack() {
     setCropGap: async (cropId: string, items: unknown[]) => {
       const r = await raw('PATCH', `crops?id=eq.${cropId}`, { gap_items: items });
       if (!r.ok) throw new Error(`the crop's practices could not be set: ${r.status} ${await r.text()}`);
+    },
+    /** Any of a crop's fields, set as its State Manager would (migration 49: its GI area, its thresholds); put back afterwards. */
+    setCrop: async (cropId: string, patch: Record<string, unknown>) => {
+      const r = await raw('PATCH', `crops?id=eq.${cropId}`, patch);
+      if (!r.ok) throw new Error(`the crop could not be set: ${r.status} ${await r.text()}`);
     },
     /** A farmer record as a seed or an import by another client's people would leave it (the farmer register's duplicate). */
     seedFarmer: async (row: Record<string, unknown>) => {

@@ -2060,3 +2060,87 @@ should go to lucky for verification"; then "count at once" and "propose; Lucky a
   `staging-requirements.cmd` and the earlier scripts now refuse. Sealed: 131 files.
 
 NOT run / not known: nothing of it on staging; about 30 new Hindi strings unread by their users.
+- **On staging** 15 Oct (IST): `staging-farmer-corrections.cmd` `RESULT: FARMER CORRECTIONS ON STAGING` (head c2b852e;
+  smoke 43 of 44, `statement logging` standing; S1b `crops_with_required_practice=1 active_farmers=2
+  farmers_with_practice=1 proposals=0`; `ledger_head=79`, the newest block's number at last; ledger audit 79 blocks, 10
+  records, 2 seals, no findings). The run sheet in the app (Claude in the browser pane after each signed in): p's lot
+  for TCUP-F-0001 refused for GAP 1 and gap 2 with the link; practice answered; lot `TCUP-KNM-KH26-P-0004` saved; a
+  correction proposed by p and approved by Lucky (in Lucky's name, "proposed by p: …" in the history); the lot verified
+  at Milling. Seen there and held for the next release: a blank line in the farmer's history (p's lot) and every time
+  in UTC in the browser pane (item 43).
+
+## 15 October 2026: the operator template, release 1 (migration 48, open item 43), local stack
+
+Veda: "yes but with this i have one more prompt / combine both" (the operator-stages brief with D3–D5), "share again
+before building", then "ok complete everything" (decision G19: nine releases, the recommendations for the Owner-decides
+items).
+
+- **Database**: `tests/run_local.sh` **ALL TESTS PASSED, 1,752 ok**. New `tests/42_operator_template.sql`: **47 checks**
+  (short codes from place names, unique, fixed once used, in every new record number; "On" today by default, never
+  ahead, 31 days back at most, before its source refused, corrected by the sender; a manager at a stage he does not hold
+  refused without 10 characters, then "supervisory" with the reason; return to sender: 10 characters, once at a time,
+  never by its own maker or a later stage, nobody verifies it while open, the sender's correction or withdrawal closes
+  it, "return" blocks; a manager's verification with a reason; a condition = verified + an open condition, in the block;
+  the client's ledger for its Client Manager only, the return's reason as its note; the farmer's history: practice
+  answered and lots, no blank line; "Needs my action" for the sender, QC and the Client Manager). **15 controls**, each
+  caught. Tests 02, 05, 07, 14 now expect the scope in record numbers; 08 the six new functions.
+- **API**: `remote_create_user.mjs` 95 passed; `remote_rls.mjs --t1` 192 passed. **Unit**: 374 passed (new
+  `operator_template.test.ts`, 13: plain words in both languages, never the database's inside words; IST on screen
+  and in exports; "Needs my action" lines; the Client Manager's menu; the farmer's history lines; the date bounds).
+- **Screens**: default suite **76 passed** (17.3 min) with the new `phase20` at 527 px (a lot "on" yesterday numbered
+  `…-SDR-P-…`; QC returns it with a reason; the sender sees it first at home, corrects it; QC verifies with a condition;
+  the Client Manager's menu, "Needs my action", his client's ledger with the reason; his own record at Procurement only
+  with his reason; the farmer's history named). Production build 14 passed; the first day from nothing 1 passed.
+  Ten screen tests adapted to the new words (record numbers with the scope, the CSV headers, the gate's message, the
+  Client Manager's menu and ledger).
+- **`scripts/staging_operator_template.ps1`** on stand-ins: the run, a second run, and eleven refusals (wrong words,
+  another migration waiting, rule not in place, push fails, read-back fails, a scope without a short code, production,
+  functions not current, a smoke row not OK, a changed migration, a changed app file); the earlier scripts now refuse.
+  Sealed: 134 files.
+
+NOT run / not known: nothing of it on staging; the staging scopes' short codes are what S1b prints (gkp → GKP and
+Bansi → BNS expected); about 150 new Hindi strings unread by their users; a manager who verifies at a stage he does not
+hold is refused by the old app for the minute between S1 and S3.
+
+## 15 October 2026: numbers you can trust and packs, proof and blocks, releases 2 and 3 (migrations 49 and 50, open items 44 and 45), local stack
+
+Veda: "ok complete everything" (decision G19). Built after release 1 and delivered with it as **one** release script
+(`staging-packs-release.cmd`), which pushes whatever of 48, 49 and 50 is waiting, in order.
+
+- **Database**: `tests/run_local.sh` **ALL TESTS PASSED, 1,794 ok** on the fresh build; production build (no demo data;
+  the demo seed refuses); **upgrade path** (migrations 1–30 with the demo data, then 31–50 one transaction each, then
+  all 44 test files again) passed; concurrency passed. New `tests/43_trust_numbers.sql` (**24 checks, 13 controls**,
+  each caught) and `tests/44_packs_and_release.sql` (**34 checks, 23 controls**, each caught: the batch code the
+  system's and kept, the preview without one, packs and their voids, best-before, reprint and void reasons, "not yet
+  released", scans counted, the summary before release, recall by the CM only, with a reason, final, on every pack, the
+  delivery's bounds and loss, the lab report's fields, date and number, the file before verification (a photo only when
+  named the lab report), GI and non-GI kept apart, the acceptance before an export release, no farmer name in public,
+  the lab-report setting fixed after activation). Tests 01, 02, 05, 07, 08, 12, 15, 19, 35, 36, 42 adapted.
+- **Two faults found and fixed with a test that failed first**: (1) `release_events` ordered by time and a random id:
+  a seal and a recall in one transaction could read back "active" (test 44 failed once, then the `seq` column);
+  (2) the packing preview still asked for the batch code the form no longer has (a test of the preview failed, then
+  passed). **One fault from release 1**: `tests/remote_ledger_audit.sql` had no line for `return` blocks and called a
+  sender's own withdrawal "without its block"; on data committed by tests 42 and 44 the old audit reported 5 + 1 (and a
+  `delivery` block), the new one none.
+- **API**: `remote_create_user.mjs` 95 passed; `remote_rls.mjs --t1` 192 passed (the public journey now checked for the
+  village, not the name). `scripts/restore_drill.mjs`: RESTORE DRILL PASSED.
+- **Unit**: 418 passed (new `trust_numbers.test.ts` 8, `packs_release.test.ts` 36: every release-summary line and
+  refusal in both languages, each refusal of the migration's new functions has its plain words, the lab report fields
+  by the scope's setting, label sheets, no farmer's name on the public page).
+- **Screens**: default suite **79 passed** (18.5 min) with `phase21` and `phase22` at 527 px (`phase22`: the batch code
+  from the system, 158 serials, labels 1–120 then 121–158, a reprint with a reason, a pack voided; a pack scanned
+  before release; the shipment without transit loss and the delivery with its proof (refused without it); the summary
+  before release, the seal waiting for it; the pack page after release, no farmer's name; the Client Manager's recall
+  on every pack, in Hindi too; an export release waiting for the client's acceptance). Production build 14 passed;
+  the first day from nothing 1 passed (its lab now names its report and attaches it). Screens looked at at 527 px:
+  the pack page, the labels sheet, the packs, delivery and release panels.
+- **`scripts/staging_packs_release.ps1`** on stand-ins, 21 scenarios: 48+49+50, 49+50 and 50 alone waiting each run
+  through to `RESULT: PACKS AND RELEASE ON STAGING`; a second run; refused: 48 and 50 without 49, 48 alone, another
+  migration, wrong words, rule not in place, push fails, read-back fails, a scope without a short code, a record without
+  its link, a seal without a release status, production, functions not current, a smoke row not OK, a changed
+  migration (48 or 50), a changed app file; the earlier scripts now refuse. Sealed: 139 files.
+
+NOT run / not known: nothing of 48–50 on staging; about 250 new Hindi strings unread by their users; real label
+printing on a real printer (the sheet is the browser's print of an A4 grid); the staging gkp scope asks for the lab
+report from now on (a scope made before keeps the default, which is to ask).
+

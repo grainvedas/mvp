@@ -63,6 +63,7 @@ begin
   perform t.as_user(t.u('12'));
   perform t.fails(format('select app.lot_markets(%L)', m), 'record not found', 'markets: nor does another client''s user');
   perform t.as_user(t.u('03'));
+  perform t.attach(q);                                            -- migration 50: the client's written acceptance first
   update public.qc_verdicts set override = jsonb_build_object('market', 'export', 'reason', 'Buyer accepts 12.1% with re-drying', 'authoriser', t.u('03')) where footprint_id = q;
   perform t.as_user(t.u('11'));
   j := app.lot_markets(m);

@@ -2,10 +2,13 @@
 export class AppError extends Error {
   code: string;
   kind: 'rule' | 'permission' | 'not_found' | 'duplicate' | 'session' | 'network' | 'setup' | 'other';
-  constructor(message: string, code = '', kind: AppError['kind'] = 'other') {
+  /** The server's own words, before tidying (migration 48, A4: matched to plain words in lib/plainErrors.ts) */
+  raw?: string;
+  constructor(message: string, code = '', kind: AppError['kind'] = 'other', raw?: string) {
     super(message);
     this.code = code;
     this.kind = kind;
+    this.raw = raw;
   }
 }
 
@@ -31,10 +34,10 @@ export function toAppError(e: unknown): AppError {
     return new AppError('No connection to the server. Check the network and try again.', code, 'network');
   if (code === 'PGRST301' || code === 'PGRST303' || /JWT expired|invalid jwt/i.test(message))
     return new AppError('Your session has ended. Please sign in again.', code, 'session');
-  if (code === '23514') return new AppError(tidy(message), code, 'rule');
+  if (code === '23514') return new AppError(tidy(message), code, 'rule', message);
   if (code === '42501' || /row-level security/i.test(message))
-    return new AppError(/row-level security/i.test(message) ? 'Not allowed for your role or stage.' : tidy(message), code, 'permission');
-  if (code === 'P0002' || code === 'PGRST116') return new AppError(tidy(message) || 'Not found.', code, 'not_found');
-  if (code === '23505') return new AppError('This already exists (same phone, email or code).', code, 'duplicate');
-  return new AppError(tidy(message), code, 'other');
+    return new AppError(/row-level security/i.test(message) ? 'Not allowed for your role or stage.' : tidy(message), code, 'permission', message);
+  if (code === 'P0002' || code === 'PGRST116') return new AppError(tidy(message) || 'Not found.', code, 'not_found', message);
+  if (code === '23505') return new AppError('This already exists (same phone, email or code).', code, 'duplicate', message);
+  return new AppError(tidy(message), code, 'other', message);
 }

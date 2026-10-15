@@ -27,7 +27,7 @@ test('Procurement: the farmer\'s practice filled in from the refused lot; a corr
     await signIn(page, USERS.procurement);
     await openSlot(page, 'procurement', SCOPES.siddharthnagar);
     await fillLot(page);
-    await expect(page.getByTestId('preview-error')).toContainText('good farming practice not complete');
+    await expect(page.getByTestId('preview-error')).toContainText('good farming practice for Kalanamak rice is not complete');
     await page.getByTestId('fill-practice').click();
     await expect(page.getByTestId('farmer-practice')).toContainText('Geeta Kumari');
     const gap = page.getByTestId('farmer-gap');
@@ -38,8 +38,8 @@ test('Procurement: the farmer\'s practice filled in from the refused lot; a corr
     // 2 · it counts at once: the lot is saved
     await openSlot(page, 'procurement', SCOPES.siddharthnagar);
     await fillLot(page);
-    const code = await reviewAndSave(page, /PRSDM-KNM-KH26-P-\d{4}/);
-    expect(code).toMatch(/PRSDM-KNM-KH26-P-\d{4}/);
+    const code = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/);
+    expect(code).toMatch(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/);
 
     // 3 · another detail: proposed with a reason, from his Farmers list
     await page.goto('/farmers');

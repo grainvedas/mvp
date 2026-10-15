@@ -13,7 +13,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import type { Farmer } from '../../lib/types';
 import { actsAsStateManager, addsFarmers, holdsClientAccount, isStateManager, oversees, supervisesState, type Ctx } from '../../lib/rights';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
-import { date, dateTime } from '../../lib/format';
+import { date, dateTime, humanise, kg } from '../../lib/format';
 import { gapMissing, type GapItem } from '../../lib/crops';
 import { giLandProblem, needsGiLand } from '../../lib/farmers';
 import { RegisterLink } from './FarmerRegister';
@@ -395,7 +395,9 @@ interface FarmerHistoryData {
   drafted: { by: string | null; at: string; role: string | null };
   client_verified: { by: string | null; at: string } | null; state_verified: { by: string | null; at: string } | null;
   events: { seq: number; at: string; kind: string; by: string | null; role: string | null; before: Record<string, unknown> | null;
-    after: Record<string, unknown> | null; reason: string | null; farmer_code: string | null; state_farmer_code: string | null; linked: boolean | null }[];
+    after: Record<string, unknown> | null; reason: string | null; farmer_code: string | null; state_farmer_code: string | null; linked: boolean | null;
+    /** migration 48: a lot of the farmer (its number, stage, quantity) and good farming practice answered (the crop) */
+    record?: string | null; stage?: string | null; qty?: number | null; crop?: string | null }[];
   open_changes: { id: string; field: string; before: string | null; after: string | null; reason: string | null; by: string | null; at: string }[];
   can_accept: boolean;
 }
@@ -422,7 +424,11 @@ export function historyLine(e: FarmerHistoryData['events'][number], t: (k: strin
     case 'state_farmer_id_given': return t('fh.state_given', { code: e.state_farmer_code ?? '—' });
     case 'farmer_verified': return t('fh.verified_old', { code: e.farmer_code ?? '—' });
     case 'farmer_changed': return t('fh.changed', { what: fields(e.after) });
-    default: return e.kind;
+    // migration 48 (Veda, 15 Oct: the blank line): practice answered, and the farmer's lots
+    case 'practice_saved': return t('fh.practice', { crop: e.crop ?? '—' });
+    case 'lot_create': case 'lot_supervisory': case 'lot_verify': case 'lot_supersede': case 'lot_close':
+      return t(`fh.${e.kind}`, { code: e.record ?? '—', stage: e.stage ? t(`stage.${e.stage}`, undefined, humanise(e.stage)) : '—', kg: kg(e.qty ?? null) });
+    default: return e.kind ? t(`fh.${e.kind}`, { code: e.record ?? '—' }, humanise(e.kind)) : t('fh.other');
   }
 }
 

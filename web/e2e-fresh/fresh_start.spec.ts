@@ -269,7 +269,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.getByLabel(/^Bags/).fill('2');
   await page.getByLabel(/Tare per bag/).fill('1');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.7');
-  const lot = await reviewSave(/PRSDM-KNM-[A-Z0-9]+-P-0001/);
+  const lot = await reviewSave(/PRSDM-KNM-[A-Z0-9]+-(?:[A-Z]{2,4}-)?P-0001/);
   await signOut(page);
 
   await signInWith(page, who.lab.email, made.lab.temp);
@@ -281,21 +281,30 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.getByLabel(/^Moisture \(%\)/).fill('11.7');
   await page.getByLabel(/^Broken grains/).fill('2');
   await page.getByLabel(/^Foreign matter/).fill('0.2');
-  const tested = await reviewSave(/PRSDM-KNM-[A-Z0-9]+-QC-0001/);
+  // migration 50 (C5): a real scope asks for the lab report: the lab, its number and date, and the file (the demo
+  // scopes are set not to ask). Without them there is nothing to review.
+  await expect(page.getByRole('button', { name: 'Review' })).toBeDisabled();
+  await page.getByLabel('Lab *', { exact: true }).fill(`Jaanch Lab ${u}`);
+  await page.getByLabel('Report number *', { exact: true }).fill(`R-${u}`);
+  await page.getByLabel('Report date *', { exact: true }).fill(new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10));
+  await page.getByLabel('Lab report (PDF or photo) *', { exact: true }).setInputFiles({ name: 'report.pdf', mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4\n% lab report ${u}\n%%EOF\n`) });
+  const tested = await reviewSave(/PRSDM-KNM-[A-Z0-9]+-(?:[A-Z]{2,4}-)?QC-0001/);
   await signOut(page);
 
   await signInWith(page, who.seal.email, made.seal.temp);
   await setOwnPassword(page, PW.seal);
   await page.getByTestId('slot-qr_activation').click();
   await verify(tested);
+  await page.getByTestId('release-read').check();   // migration 50 (G9): the summary is read first
   await page.getByRole('button', { name: 'Activate and seal' }).click();
   const qr = (await page.getByTestId('sealed').textContent())!.match(/GV-[0-9A-F]{12}/)![0];
   await signOut(page);
 
   // 9. Anyone with the QR code: the public page of the first lot
   await page.goto(`/verify/${qr}`);
-  await expect(page.locator('main, body').first()).toContainText(`Ramkali ${u}`);
-  await expect(page.locator('main, body').first()).toContainText('Bansi');
+  // migration 50 (Part D): the village and the district, never the farmer's name
+  await expect(page.locator('main, body').first()).not.toContainText(`Ramkali ${u}`);
+  await expect(page.locator('main, body').first()).toContainText('Grown in Bansi, Siddharthnagar');
   await expect(page.locator('body')).not.toContainText(`94${u}41`);
 
   // 10. The admin watches: the overview counts what was made; a client opens read-only; the ledger lists every block

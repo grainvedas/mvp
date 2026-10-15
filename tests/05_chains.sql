@@ -52,7 +52,7 @@ begin
   perform t.ok(j is not null, 'T1 public: journey resolves for the QR code');
   perform t.ok(j->'crop'->>'gi_tag' = 'GI 280', 'T1 public: GI tag shown');
   perform t.ok(jsonb_array_length(j->'journey') = 3, 'T1 public: 3 steps (procurement, qc, qr)');
-  perform t.ok(j->'journey'->0->'farmer'->>'name' = 'Sita Devi' and j->'journey'->0->'farmer'->>'village' = 'Itwa', 'T1 public: farmer name + village');
+  perform t.ok(not (j->'journey'->0->'farmer' ? 'name') and j->'journey'->0->'farmer'->>'village' = 'Itwa', 'T1 public: the farmer''s village, never the name (migration 50, Part D)');
   perform t.ok(j->'journey'->0->'farmer' ? 'phone' = false, 'T1 public: farmer phone never exposed');
   perform t.ok(j->'verdict'->>'export' = 'pass', 'T1 public: export PASS shown');
   perform t.ok(app.public_lot_journey('GV-DOESNOTEXIST') is null, 'T1 public: unknown code → null');
@@ -88,7 +88,7 @@ begin
   perform t.fails(format($q$ insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload, is_grade_lot, grade)
      values (t.scope('02'), '00000000-0000-4000-8000-000000000201', 'grading', %L, t.u('10'), '{"qty_kg":20}', true, 'C') $q$, g),
      'exceeds available', 'T2: grade lots cannot exceed the run''s A+B+C (165)');
-  perform t.ok((select footprint_code from public.footprints where id = ga) like 'PRSDM-KNM-KH26-G-%-A', 'T2: grade lot code carries the grade');
+  perform t.ok((select footprint_code from public.footprints where id = ga) like 'PRSDM-KNM-KH26-%-G-%-A', 'T2: grade lot code carries the grade');
   perform t.ok(app.available_qty(g) = 0, 'T2: split parent fully allocated to grade lots');
 
   -- verify run + grade lots (QC technician is the receiving stage)

@@ -69,7 +69,7 @@ test('A processing save refused at sync stays on the phone with the reason, is f
   await page.getByRole('button', { name: 'Review' }).click();
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();
-  const p = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-P-\d{4}/)![0];
+  const p = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/)![0];
   await signOut(page);
 
   await signIn(page, P.qc);
@@ -85,7 +85,7 @@ test('A processing save refused at sync stays on the phone with the reason, is f
   await page.getByRole('button', { name: 'Review' }).click();
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();
-  const q = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-QC-\d{4}/)![0];
+  const q = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?QC-\d{4}/)![0];
   await signOut(page);
 
   await signIn(page, P.mill);
@@ -115,7 +115,7 @@ test('A processing save refused at sync stays on the phone with the reason, is f
   await page.getByRole('button', { name: 'Review' }).click();
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();
-  await expect(page.getByTestId('saved')).toContainText(/PRSDM-KNM-KH26-M-\d{4}/);
+  await expect(page.getByTestId('saved')).toContainText(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}/);
   await page.goto('/outbox');
   await expect(page.getByTestId('outbox-open')).toHaveCount(0);
   await signOut(page);
@@ -140,10 +140,10 @@ test('Dashboards: pipeline dots, sealed lots, flag log, season CSV, journey CSV;
     const csv = readFileSync((await (await dl).path())!, 'utf8').replace(/^\uFEFF/, '');
     // 4 Oct 2026 (capture time, migration 29): the time column is the time the work was recorded and is named so; the
     // time the server stored it is a new last column. The other columns are where they were.
-    expect(csv.split('\r\n')[0]).toBe('code,stage,status,qty_in_kg,qty_out_kg,grade,lot_closed,farmer_id,farmer,village,batch_code,buyer,market,recorded_at,verified_at,warnings,received_by_server_at');
+    expect(csv.split('\r\n')[0]).toBe('code,stage,status,qty_in_kg,qty_out_kg,grade,lot_closed,farmer_id,farmer,village,batch_code,buyer,market,recorded_at,verified_at,warnings,received_by_server_at,happened_on');   // migration 48: the date it happened, last
     expect(csv).toMatch(/\r\nSUMMARY 1,procurement,/);
-    expect(csv).toMatch(/\r\nPRSDM-KNM-KH26-P-\d{4},procurement,verified,/);
-    expect(csv).toMatch(/\r\nPRSDM-KNM-KH26-M-\d{4},milling,/);
+    expect(csv).toMatch(/\r\nPRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4},procurement,verified,/);
+    expect(csv).toMatch(/\r\nPRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4},milling,/);
     await signOut(page);
   }
   await signIn(page, VIEW);

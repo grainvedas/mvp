@@ -21,7 +21,8 @@ test.describe('on a laptop', () => {
     expect(Math.round(n.width)).toBe(220); expect(n.x).toBe(0);
     expect(m.x).toBeGreaterThanOrEqual(220); expect(n.y).toBeGreaterThanOrEqual(tb.y + tb.height - 1);
     expect(Math.round(tb.height), 'top bar, px').toBeLessThanOrEqual(56);
-    for (const s of ['Overview', 'Registry', 'People', 'System', 'Support']) await expect(nav.getByText(s, { exact: true })).toBeVisible();
+    // migration 48 (D4): the Client Manager's own grouped menu
+    for (const s of ['Watch', 'My scopes', 'Farmers', 'People', 'Audit', 'Me']) await expect(nav.locator('.sb-section').filter({ hasText: new RegExp(`^${s}$`) })).toBeVisible();
     for (const l of ['Dashboard', 'Farmers', 'Season Scopes', 'People & access', 'Flags & Disputes', 'My account']) await expect(nav.getByRole('link', { name: l })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Crop Registry' })).toHaveCount(0);          // an admin's item
     await expect(nav.getByRole('link', { name: 'HR · Joiners' })).toHaveCount(0);           // HR's item: a manager assigns people, HR makes them

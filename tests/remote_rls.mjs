@@ -301,8 +301,9 @@ if (process.argv.includes('--t1')) {
     ok(pLedger.ok && pLedger.data.length === 0, 'T1 the procurement operator cannot read the lab or seal blocks of his own lot', d(pLedger));
     const anonApp = client(cfg, { key: cfg.anon, profile: 'app' });
     const j = await anonApp.rpc('public_lot_journey', { p_qr_code: seal.data?.qr_code });
-    ok(j.ok && j.data?.journey?.length === 3 && j.data.journey[0].farmer?.name === 'Sita Devi',
-      'T1 public journey (no login): 3 steps, farmer Sita Devi', d(j));
+    // migration 50 (Part D): the village and the district, never the farmer's name
+    ok(j.ok && j.data?.journey?.length === 3 && j.data.journey[0].farmer?.village === 'Itwa' && !JSON.stringify(j.data).includes('Sita Devi'),
+      'T1 public journey (no login): 3 steps, the farmer\'s village (Itwa), not her name', d(j));
     ok(j.ok && !JSON.stringify(j.data).includes('919000000002'), 'T1 public journey never shows the farmer phone');
     const chain = await svcApp.rpc('verify_ledger');
     ok(chain.ok && chain.data.length === 0, 'ledger chain intact after T1', d(chain));

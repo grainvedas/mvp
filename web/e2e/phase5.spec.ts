@@ -16,7 +16,6 @@ async function noRawData(scope: ReturnType<Page['locator']>) {
 
 test('Text values are shown as text and lists as words: review, arrival check and record page (items 6, 10, 11)', async ({ page }) => {
   test.setTimeout(240_000);
-  const batch = `KNM-KH26-B${uniq()}`;
   await signIn(page, USERS.procurement);
   await openSlot(page, 'procurement', SCOPES.bastiMill);
   await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Suresh');
@@ -32,7 +31,7 @@ test('Text values are shown as text and lists as words: review, arrival check an
   await expect.soft(review).not.toContainText('Net Kg');
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();
-  const p = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-P-\d{4}/)![0];
+  const p = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/)![0];
   await signOut(page);
 
   await signIn(page, USERS.qc); const q = await recordQc(page, SCOPES.bastiMill, p, '11.8'); await signOut(page);
@@ -42,23 +41,24 @@ test('Text values are shown as text and lists as words: review, arrival check an
   await verifyIncoming(page, q);
   await page.getByRole('button', { name: /Record Milling/ }).click();
   await page.getByLabel(/Rice out/).fill('130'); await page.getByLabel(/^Bran/).fill('54'); await page.getByLabel(/^Loss/).fill('10');
-  const m = await reviewAndSave(page, /PRSDM-KNM-KH26-M-\d{4}/); await signOut(page);
+  const m = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}/); await signOut(page);
 
-  // Packing: the batch code is text. At review it read "Batch Code NaN".
+  // Packing: the batch code is text (at review it once read "Batch Code NaN"). Migration 50 (G1): the system gives it at the save.
   await signIn(page, USERS.sorting);
   await openSlot(page, 'packing', SCOPES.bastiMill);
   await verifyIncoming(page, m);
   await page.getByRole('button', { name: /Record Packing/ }).click();
   await page.getByLabel('Packets 1').fill('129'); await page.getByLabel('Size (kg) 1').fill('1');
-  await page.getByLabel(/^Wastage/).fill('1'); await page.getByLabel(/Batch code/).fill(batch);
+  await page.getByLabel(/^Wastage/).fill('1');
+  await expect(page.getByLabel(/Batch code/)).toHaveCount(0);
   await expect(page.getByTestId('preview-ok')).toContainText('129 kg');
   await page.getByRole('button', { name: 'Review' }).click();
   await expect(review.getByLabel('I have checked these numbers against the lot')).toBeVisible();
   await noRawData(review);                                             // item 6: "NaN" stood here
-  await expect(review.locator('[data-computed="batch_code"]')).toHaveText(batch);
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();
-  const pk = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-PK-\d{4}/)![0];
+  const pk = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?PK-\d{4}/)![0];
+  const batch = (await page.getByTestId('packed').textContent())!.match(/PRSDM-KNM-KH26-B\d{4}/)![0];
   await signOut(page);
 
   // The next stage's arrival check: the person ticking "Batch code assigned" must be able to read it.
@@ -82,7 +82,7 @@ test('Text values are shown as text and lists as words: review, arrival check an
   await noRawData(review);
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();
-  const cm = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-CM-\d{4}/)![0];
+  const cm = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?CM-\d{4}/)![0];
 
   // The record page: worked-out values, and the entered values as a list with the form's own names
   await page.getByRole('link', { name: `Open ${cm}` }).click();
@@ -115,7 +115,7 @@ test('Reject reasons and the grade split are shown in words (item 10)', async ({
   await expect(review.locator('[data-computed="reject_reasons"]')).toHaveText('discoloured grains 4 kg · stones 2 kg');
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();
-  const s = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-S-\d{4}/)![0];
+  const s = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?S-\d{4}/)![0];
   await signOut(page);
 
   await signIn(page, USERS.grading);
@@ -177,7 +177,7 @@ test('The lab sees pass or fail before saving, and it is what the save derives (
   await expect(verdict).toHaveCount(1);                                  // said once at review, in the summary
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();
-  const q = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-QC-\d{4}/)![0];
+  const q = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?QC-\d{4}/)![0];
   await page.getByRole('link', { name: `Open ${q}` }).click();
   const lab = page.locator('.card').filter({ has: page.getByRole('heading', { name: 'Quality control' }) });
   await expect(lab).toContainText('Pass'); await expect(lab).toContainText('Fail');   // the saved verdict: domestic pass, export fail
@@ -219,7 +219,7 @@ test('A record saved without network keeps the time it was captured (item 8)', a
   const synced = page.getByTestId('outbox-synced').locator('tbody tr');
   await expect(synced).toHaveCount(1, { timeout: 60_000 });
   await synced.locator('td.mono a').click();
-  await expect(page.getByRole('heading', { name: /PRSDM-KNM-KH26-P-\d{4}/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/ })).toBeVisible();
   const api = await apiAs(page);
   const id = page.url().split('/').pop()!;
   const rec = (await api.rows('footprints', `id=eq.${id}`))[0] as { created_at: string; captured_at: string };

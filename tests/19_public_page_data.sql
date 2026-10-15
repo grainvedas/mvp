@@ -8,7 +8,7 @@ select t.as_service();
 do $$
 declare s uuid := '00000000-0000-4000-8000-000000000405'; c uuid := '00000000-0000-4000-8000-000000000201';
         p uuid; q uuid; m uuid; pk uuid; ex uuid; sh uuid; qr uuid; seal public.qr_seals; j jsonb; txt text; bad text;
-        top_ok constant text[] := array['qr_code','sealed_at','ledger_hash','batch_codes','crop','client','season','geography','verdict','journey','independent','same_person'];
+        top_ok constant text[] := array['qr_code','sealed_at','ledger_hash','batch_codes','crop','client','season','geography','verdict','journey','independent','same_person','farmer_count','gi_status','packs','release'];   -- migration 49: farmers counted, GI status
         step_ok constant text[] := array['stage','code','qty_in_kg','qty_out_kg','verified_at','created_at','captured_at','grade','farmer','farmers',
                                          'village','source','readings','batch_code','destination','dispatched_on'];
 begin
@@ -56,12 +56,13 @@ begin
   select string_agg(distinct k, ', ') into bad from jsonb_array_elements(j->'journey') e, jsonb_object_keys(e) k where k <> all (step_ok);
   perform t.ok(bad is null, 'public data: every step holds only the listed keys' || coalesce(' (extra: ' || bad || ')', ''));
   -- what the page draws is still there
-  perform t.ok(exists (select 1 from jsonb_array_elements(j->'journey') e where e->'farmer'->>'name' is not null)
+  -- migration 50 (Part D): the farmer's village and district, never the name
+  perform t.ok(exists (select 1 from jsonb_array_elements(j->'journey') e where e->'farmer'->>'village' is not null and not (e->'farmer' ? 'name'))
            and exists (select 1 from jsonb_array_elements(j->'journey') e where (e->'readings'->>'moisture_pct')::numeric = 11.8)
-           and exists (select 1 from jsonb_array_elements(j->'journey') e where e->>'batch_code' = 'KNM-KH26-B777')
+           and exists (select 1 from jsonb_array_elements(j->'journey') e where e->>'batch_code' ~ '^PRSDM-KNM-KH26-B[0-9]{4}$')   -- migration 50: the system's code
            and exists (select 1 from jsonb_array_elements(j->'journey') e where e->>'destination' = 'Rotterdam' and e->>'dispatched_on' = '2026-11-20')
            and exists (select 1 from jsonb_array_elements(j->'journey') e where e->>'stage' = 'commercial' and (e->>'qty_out_kg')::numeric = 129),
-               'public data: farmer, lab readings, batch code, destination, dispatch date and the sold quantity are still sent');
+               'public data: the farmer''s village (no name), lab readings, batch code, destination, dispatch date and the sold quantity are still sent');
   perform t.as_service();
 end $$;
 

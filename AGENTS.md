@@ -21,8 +21,9 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
 4. **Thumb rule.** A stage reads only the stage directly behind it, via `app.incoming_records(scope_id, stage_type)`. Do not
    query `footprints` by hardcoded stage names. The ledger follows the same rule (migration 25): an operator reads the
    blocks of the own stage and the one behind, nothing else.
-5. **Verification is by the receiving stage.** Call `app.verify_footprint(id)` as the operator of the next stage. The creator
-   never verifies their own record.
+5. **Verification is by the receiving stage.** Call `app.verify_record(id, reason, condition)` (migration 48; the older
+   `app.verify_footprint(id)` is the same without them) as the operator of the next stage, or send it back with
+   `app.return_footprint`. A person who holds two stages in a row verifies his own record, marked (migration 46).
 6. **Seal only through `app.seal_source(source_id)`.** It records the QR stage and seals in one transaction, so a refused
    seal leaves nothing behind. `app.seal_lot(qr_footprint_id)` mints the QR code and is called by it; the screens call
    it directly only to finish a QR record left behind by an older build.
@@ -269,6 +270,35 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   detail from them goes through `app.propose_farmer_change` and the CM's `app.decide_farmer_proposal`, which changes the
   farmer only through `app.change_farmer` (so every rule on a farmer's change still applies). A release script's summary
   takes a number's maximum (`max(seq)`), never `seq::text … order by seq` (that sorts the text).
+- **A record goes back to its sender, never sideways** (migration 48, Veda 15 October 2026; the operator-stages brief,
+  release 1). The next stage (or a manager) returns a pending record with `app.return_footprint` (10 characters); while
+  the return is open nobody verifies it; the sender's correction or withdrawal closes it (trigger, `return` blocks).
+  Verify through `app.verify_record(id, reason, condition)`: a manager who does not hold the receiving stage must give a
+  reason; a condition is an open flag of kind `condition` and blocks the seal. A manager who records at a stage he does
+  not hold sends `manager_reason` (10 characters). Every record has `happened_on` ("On", the day it happened) besides
+  its two times. Record numbers carry the scope's `short_code` (never change one that a number carries); never parse
+  a number for its parts. A screen shows a database refusal through `plainText` (`lib/plainErrors.ts`): a new
+  `raise exception` that people can meet needs its rule there and `err.*` in both dictionaries. Every time shown is
+  `dateTime`/`date` (India's time) and every exported time `istStamp`.
+- **People tick only what they see; quantities and lineage are the server's** (migration 49, Veda 15 October 2026). A
+  stage's handoff list for people is `stage_definitions.physical_checks` (also in seed 01); everything the data answers
+  is `app.system_checks`, shown, never ticked. `app.verify_record(…, p_checked)` needs every physical check. A screen
+  shows what is LEFT on a lot (`app.incoming_lots`, `available_qty`), never what it once held. Every record's sources
+  and the kilograms taken are `footprint_links` (written by the save; never by hand): farmers' shares
+  (`app.lot_farmers`, "documented proportions") and GI (`app.lot_gi_status`: GI only when every source's farmer is in
+  the crop's `gi_districts`) come from it. No threshold is a number in code: a crop's are `crops.thresholds`.
+- **Packs, release and proof are the server's** (migration 50, Veda 15 October 2026). A batch code is given by the save
+  (`app.next_batch_code`, trigger `footprints_a1_batch_code`): never ask for one or write one. Packs are made by the save
+  from the packets (`app.make_packs`); a correction voids the earlier packs and makes new ones; never insert or delete a
+  pack. Labels are printed through `app.print_labels` (a reprint needs a reason) and a pack is voided only through
+  `app.void_pack`. A release's status is `release_events`, changed only by `app.set_release_status` (a recall is final);
+  the QR step shows `app.release_preview` and seals only after the person confirms it. The public pages
+  (`public_lot_journey`, `app.public_pack`) never carry a farmer's name or photo. A document that a rule asks for
+  carries `attachments.label` (`register_labelled_attachment`): the lab report before a lab record is verified (where
+  `scopes.qc_report_required`), the client's acceptance before an export override, the proof of delivery before an
+  export delivery (`app.confirm_delivery`). A form field with `required_when` is required where the scope's setting of
+  that name is on (`withScopeRules`). A new ledger event needs its line in `tests/remote_ledger_audit.sql` in the same
+  release (migration 48's `return` blocks went without one for a release).
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,

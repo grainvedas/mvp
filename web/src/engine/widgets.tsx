@@ -265,6 +265,17 @@ export function buildPayload(fields: FieldDef[], values: Record<string, FieldVal
   return { payload, columns, files };
 }
 
+/** Migration 50: a field marked `required_when` is required where the scope's setting of that name is on (the lab
+ *  report where the scope asks for it). The database asks the same (app.reconcile); this keeps the form honest. */
+export function withScopeRules(fields: FieldDef[], scope: object): FieldDef[] {
+  return fields.map((f) => (f.required_when && (scope as Record<string, unknown>)[f.required_when] === true ? { ...f, required: true } : f));
+}
+
+/** Required files not chosen yet (by label): a new record only (a correction keeps the files it has). */
+export function missingFiles(fields: FieldDef[], values: Record<string, FieldValue>): string[] {
+  return fields.filter((f) => f.required && f.type === 'attachment' && !(values[f.key] instanceof File)).map((f) => f.label);
+}
+
 /** Required fields that are still empty (by label). */
 export function missingRequired(fields: FieldDef[], values: Record<string, FieldValue>): string[] {
   return fields.filter((f) => f.required && f.type !== 'attachment').filter((f) => {

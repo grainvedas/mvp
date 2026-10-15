@@ -124,3 +124,48 @@ on conflict (stage_type) do update set
   splits_forward = excluded.splits_forward, aggregates = excluded.aggregates, allows_exceed_input = excluded.allows_exceed_input,
   yield_alarm = excluded.yield_alarm, is_processing = excluded.is_processing, sort_order = excluded.sort_order,
   form_schema = excluded.form_schema, handoff_checks = excluded.handoff_checks;
+
+-- Migration 49 (A2/G3): what the receiving person checks with his own eyes; the rest the system checks (app.system_checks).
+-- The same list as the migration, so a database built from nothing has it too.
+-- A database from before migration 49 (the upgrade path of tests/run_local.sh) has no column yet: migration 49 fills it.
+do $seed49$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stage_definitions' and column_name = 'physical_checks') then
+    execute $q$
+update public.stage_definitions d set physical_checks = v.c::jsonb from (values
+  ('procurement',  '["Bags counted: the number matches the record", "The grain looks and smells sound (no mould, no insects)", "Bags tagged with the lot number"]'),
+  ('lot_inward',   '["Bags counted: the number matches the record", "The grain looks and smells sound (no mould, no insects)"]'),
+  ('village_batch','["Bags of every lot counted at the collection point", "Batch bags tagged with the batch number"]'),
+  ('milling',      '["Rice bags sealed and tagged with the lot number", "The mill line was clear of any other rice"]'),
+  ('sorting',      '["Bags sealed and tagged with the lot number"]'),
+  ('grading',      '["Each grade bagged apart and tagged with its lot number"]'),
+  ('drying',       '["Bags sealed and tagged with the lot number"]'),
+  ('popping',      '["Bags sealed and tagged with the lot number"]'),
+  ('cleaning',     '["Bags sealed and tagged with the lot number"]'),
+  ('blanching',    '["Bags sealed and tagged with the lot number"]'),
+  ('cold_storage', '["Bags counted out of storage"]'),
+  ('packing',      '["Packs sealed; the labels match the batch", "Wastage bagged and weighed"]'),
+  ('qc',           '["Sample bag sealed and labelled", "Counter-sample stored"]'),
+  ('commercial',   '["Packs set aside for this buyer counted"]'),
+  ('shipment',     '["Packs counted at loading", "Vehicle clean and dry"]'),
+  ('qr_activation','[]')) as v(t, c)
+ where d.stage_type::text = v.t;
+    $q$;
+  end if;
+end $seed49$;
+
+-- Migration 50: the batch code is the system's; transit loss is recorded at delivery; the lab report (the same edits as
+-- the migration, so a database built from nothing has them).
+update public.stage_definitions set form_schema = (select coalesce(jsonb_agg(x order by n), '[]'::jsonb)
+                                                     from jsonb_array_elements(form_schema) with ordinality as e(x, n) where x->>'key' <> 'batch_code')
+ where stage_type = 'packing';
+update public.stage_definitions set form_schema = (select coalesce(jsonb_agg(x order by n), '[]'::jsonb)
+                                                     from jsonb_array_elements(form_schema) with ordinality as e(x, n) where x->>'key' <> 'transit_loss_kg')
+ where stage_type = 'shipment';
+update public.stage_definitions set form_schema = form_schema || '[
+  {"key": "lab_name", "type": "text", "label": "Lab", "section": "lab", "required": false, "required_when": "qc_report_required"},
+  {"key": "report_no", "type": "text", "label": "Report number", "section": "lab", "required": false, "required_when": "qc_report_required"},
+  {"key": "report_date", "type": "date", "label": "Report date", "section": "lab", "required": false, "required_when": "qc_report_required"},
+  {"key": "sample_id", "type": "text", "label": "Sample ID", "section": "lab", "required": false},
+  {"key": "report_file", "type": "attachment", "label": "Lab report (PDF or photo)", "accept": "document", "section": "lab", "required": false, "required_when": "qc_report_required", "label_as": "lab_report"}
+]'::jsonb
+ where stage_type = 'qc' and not (form_schema @> '[{"key": "report_no"}]');

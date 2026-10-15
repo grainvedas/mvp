@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useI18n } from '../lib/i18n';
 import { useAuth } from '../auth/AuthProvider';
 import { dateTime } from '../lib/format';
-import { Badge, Empty } from '../shell/ui';
+import { Badge, Empty, plainText } from '../shell/ui';
 import { clearSynced, discard } from './outbox';
 import { useOutbox } from './useOutbox';
 
@@ -39,7 +39,7 @@ export function Outbox() {
             <td className="num">{n + 1}</td>
             <td><strong>{t(`stage.${i.stage_type}`, undefined, i.stage_label)}</strong> · {i.summary}
               <div className="small muted">{i.scope_label} · {dateTime(i.captured_at)}</div>
-              {i.state === 'failed' && i.error && <div className="alert error small">{i.error}</div>}
+              {i.state === 'failed' && i.error && <div className="alert error small">{plainText(i.error, t)}</div>}
               {i.state !== 'failed' && i.note && <div className="alert warn small">{i.note === 'photo' ? t('outbox.photo_waiting', { code: i.footprint_code ?? '' })
                 : i.note === 'session' ? t('outbox.sign_in_again') : t('outbox.retrying')}</div>}
               {/* the two actions sit under the reason: beside it they squeezed the text into a column a word wide on a phone */}

@@ -25,7 +25,7 @@ export interface OutboxItem {
   values: Record<string, unknown>;          // form values, to reopen the form if the database refuses it
   source: { id: string; footprint_code: string; qty_out: number } | null;
   split: boolean;                           // grading run marked "split into grade lots"
-  files: { name: string; type: string; blob: Blob }[];
+  files: { name: string; type: string; blob: Blob; /** migration 50: what the file is (lab_report, …) */ label?: string | null }[];
   state: OutboxState;
   attempts: number;
   error?: string;                           // the database's own words when it refused the save (state "failed")
@@ -138,7 +138,7 @@ async function run(userId: string) {
     }
     let photoError: string | undefined, photoLater = false;
     for (const f of i.files) {
-      try { await within(UPLOAD_WAIT_MS, uploadEvidence(rec, new File([f.blob], f.name, { type: f.type }))); }
+      try { await within(UPLOAD_WAIT_MS, uploadEvidence(rec, new File([f.blob], f.name, { type: f.type }), f.label)); }
       catch (e) {
         const kind = toAppError(e).kind;
         if (kind === 'network' || kind === 'session') { photoLater = true; break; }

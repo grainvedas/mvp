@@ -61,7 +61,7 @@ test('Offline start: after one online sign-in the app opens with no network and 
 
   await context.setOffline(false);
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Saved on phone' }).click();
-  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-P-\d{4}/, { timeout: 60_000 });
+  await expect(page.getByTestId('outbox-synced')).toContainText(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/, { timeout: 60_000 });
   await expect(page.getByTestId('outbox-synced')).toContainText('147.5 kg');
 });
 
@@ -112,7 +112,7 @@ test('Under the enforced security policy the whole journey works: sign in, recor
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.9');
   await page.getByLabel(/Photo evidence/).setInputFiles({ name: 'bags.png', mimeType: 'image/png',
     buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') });
-  const code = await reviewAndSave(page, /PRSDM-KNM-KH26-P-\d{4}/);
+  const code = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/);
   await page.getByRole('link', { name: `Open ${code}` }).click();
   await expect(page.getByText('file matches its fingerprint')).toBeVisible();        // storage download allowed by connect-src
   await signOut(page);

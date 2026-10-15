@@ -42,7 +42,7 @@ begin
   select * into r from public.footprints where id = fp;
   perform t.ok(r.qty_in = 120 and r.qty_out = 120, 'procurement: net 126 - 3x2 = 120 stamped as qty_in/qty_out');
   perform t.ok(r.client_id = '00000000-0000-4000-8000-000000000201', 'procurement: client_id stamped from scope');
-  perform t.ok(r.footprint_code = 'PRSDM-KNM-KH26-P-0001', 'procurement: footprint code format ' || r.footprint_code);
+  perform t.ok(r.footprint_code = 'PRSDM-KNM-KH26-SDR-P-0001', 'procurement: footprint code format (migration 48: with the scope''s short code) ' || r.footprint_code);
   perform t.ok((r.computed->>'moisture_avg')::numeric = 12.10, 'procurement: moisture avg computed');
   perform t.ok(r.status = 'pending', 'procurement: created pending');
 end $$;
@@ -137,7 +137,8 @@ begin
   returning id into mill;
   select * into f from public.footprints where id = mill;
   perform t.ok(f.qty_out = 130, 'milling: qty_out = rice 130');
-  perform t.ok('yield below threshold' = any(f.warnings), 'milling: yield 67% < 70% flagged as warning, not rejected');
+  -- migration 49 (A7/G5): no fixed threshold; 67 % is below the ceiling and the crop has no runs to learn from: no warning
+  perform t.ok(not exists (select 1 from unnest(f.warnings) w where w like 'outturn%' or w = 'yield below threshold'), 'milling: yield 67% is not warned by a fixed threshold any more');
 
   -- Pure reconcile() checks for stages not in any seeded chain: build a synthetic row and call the function directly
   f.stage_type := 'drying'; f.prev_footprint_id := null; f.is_grade_lot := false;

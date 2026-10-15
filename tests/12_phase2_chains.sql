@@ -8,7 +8,7 @@ select t.as_service();
 -- ===========================================================================================================
 do $$
 declare s uuid := '00000000-0000-4000-8000-000000000405'; c uuid := '00000000-0000-4000-8000-000000000201';
-        p uuid; q uuid; m uuid; pk uuid; dom uuid; ex uuid; sh uuid; qr uuid; seal public.qr_seals; j jsonb; r public.footprints;
+        p uuid; q uuid; m uuid; pk uuid; dom uuid; ex uuid; sh uuid; qr uuid; seal public.qr_seals; j jsonb; r public.footprints; bc text;
 begin
   p := t.procure(s, t.farmer('05'), 199, 2, 2, 11.8, 11.7, 11.9);                                   -- 195 kg
   perform t.as_user(t.u('06')); perform app.verify_footprint(p);
@@ -19,14 +19,13 @@ begin
   insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload)
   values (s, c, 'milling', q, t.u('08'), '{"input_kg":194,"rice_kg":130,"bran_kg":54,"loss_kg":10}') returning id into m;
   perform t.as_user(t.u('09')); perform app.verify_footprint(m);
-  perform t.fails(format($q$ insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload)
-     values ('00000000-0000-4000-8000-000000000405', '00000000-0000-4000-8000-000000000201', 'packing', %L, t.u('09'),
-             '{"input_kg":130,"packets":[{"units":129,"size_kg":1}],"wastage_kg":1}') $q$, m), 'batch_code', 'T4 packing without a batch code refused');
+  -- migration 50 (G1): the batch code is the system's; a typed one is replaced
   insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload)
   values (s, c, 'packing', m, t.u('09'),
           '{"input_kg":130,"packets":[{"units":100,"size_kg":1},{"units":58,"size_kg":0.5}],"wastage_kg":1,"batch_code":"KNM-KH26-B001"}')
   returning * into r;
-  pk := r.id;
+  pk := r.id; bc := r.payload->>'batch_code';
+  perform t.ok(r.payload->>'batch_code' ~ '^PRSDM-KNM-KH26-B[0-9]{4}$', 'T4 the batch code is the system''s (G1), not the one typed: ' || (r.payload->>'batch_code'));
   perform t.ok(r.qty_out = 129, 'T4 packing: 100 × 1 kg + 58 × 0.5 kg = 129 kg packed, 1 kg wastage');
   perform t.as_user(t.u('11')); perform app.verify_footprint(pk);
   insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload)
@@ -49,11 +48,11 @@ begin
   values (s, c, 'qr_activation', sh, t.u('07'), '{}') returning id into qr;
   perform t.ok((select qty_out from public.footprints where id = qr) = 78.5, 'T4 the QR lot carries 78.5 kg');
   seal := app.seal_lot(qr);
-  perform t.ok(seal.batch_codes = array['KNM-KH26-B001'], 'T4 seal carries the packing batch code');
+  perform t.ok(seal.batch_codes = array[bc], 'T4 seal carries the packing batch code');
   perform t.as_anon();
   j := app.public_lot_journey(seal.qr_code);
   perform t.ok(jsonb_array_length(j->'journey') = 7, 'T4 public journey has 7 steps (procure, qc, mill, pack, commercial, ship, qr)');
-  perform t.ok(exists (select 1 from jsonb_array_elements(j->'journey') e where e->>'batch_code' = 'KNM-KH26-B001')
+  perform t.ok(exists (select 1 from jsonb_array_elements(j->'journey') e where e->>'batch_code' = bc)
                and exists (select 1 from jsonb_array_elements(j->'journey') e where e->>'destination' = 'Rotterdam'),
                'T4 public journey shows batch code and destination');
   perform t.as_service();

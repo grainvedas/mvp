@@ -30,9 +30,9 @@ test('Lot Inward → QC (export fail) → seal; Client Manager overrides with a 
   await page.getByLabel(/Source name/).fill('Kushinagar FPO');
   await page.getByLabel(/Crop declared/).fill('Kalanamak');
   await page.getByLabel(/Moisture baseline/).fill('12.5');
-  await expect(page.getByTestId('preview-ok')).toContainText('declared vs weighed variance exceeds tolerance');
+  await expect(page.getByTestId('preview-ok')).toContainText('The weighed quantity differs from the declared one by more than allowed')   // migration 49: in plain words;
   const saved = await reviewAndSave(page);
-  const liCode = saved.match(/PRSDM-KNM-KH26-LI-\d{4}/)![0];
+  const liCode = saved.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?LI-\d{4}/)![0];
   await signOut(page);
 
   await signIn(page, USERS.qc);
@@ -44,7 +44,7 @@ test('Lot Inward → QC (export fail) → seal; Client Manager overrides with a 
   await page.getByLabel(/^Broken grains/).fill('2');
   await page.getByLabel(/^Foreign matter/).fill('0.2');
   const qcSaved = await reviewAndSave(page);
-  const qcCode = qcSaved.match(/PRSDM-KNM-KH26-QC-\d{4}/)![0];
+  const qcCode = qcSaved.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?QC-\d{4}/)![0];
   await page.getByRole('link', { name: `Open ${qcCode}` }).click();
   await expect(page.getByText(/Domestic\s*Pass/)).toBeVisible();
   await expect(page.getByText(/Export\s*Fail/)).toBeVisible();
@@ -55,6 +55,8 @@ test('Lot Inward → QC (export fail) → seal; Client Manager overrides with a 
   await signIn(page, USERS.cm);
   await page.goto(qcUrl);
   await page.getByLabel('Reason (kept in the audit trail)').fill('Buyer accepts 12.5% with re-drying at destination');
+  // migration 50: the client's written acceptance is attached first (the button waits for it)
+  await page.getByTestId('acceptance-file').setInputFiles({ name: 'acceptance.pdf', mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4\n% acceptance ${Date.now()}\n%%EOF\n`) });
   await page.getByRole('button', { name: 'Override the export verdict' }).click();
   await expect(page.getByText(/Override: export · “Buyer accepts 12.5%/)).toBeVisible();
   await expect(page.getByText(/Export\s*Fail/)).toBeVisible();                                         // derived verdict kept
@@ -63,11 +65,12 @@ test('Lot Inward → QC (export fail) → seal; Client Manager overrides with a 
   await signIn(page, USERS.qr);
   await openSlot(page, 'qr_activation', SCOPES.gorakhpurMandi);
   await verifyIncoming(page, qcCode);
+  await page.getByTestId('release-read').check();   // migration 50 (G9): the summary is read first
   await page.getByRole('button', { name: 'Activate and seal' }).click();
   const qr = (await page.getByTestId('sealed').textContent())!.match(/GV-[0-9A-F]{12}/)![0];
   await page.goto(`/verify/${qr}`);
   await expect(page.getByTestId('public-journey')).toContainText('Received from Kushinagar FPO');
-  await expect(page.getByTestId('public-journey')).toContainText('export approved with a recorded reason');
+  await expect(page.getByTestId('public-journey')).toContainText('export released on the client\'s written acceptance (not a lab pass)');   // migration 50
 });
 
 test('Scope wizard: build a chain, give a stage to a person from the pool, activate', async ({ page }) => {

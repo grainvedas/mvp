@@ -37,14 +37,14 @@ test('T3: domestic-only lot is not offered for export; export-passed lot is; a m
   await page.getByRole('button', { name: /Record Milling/ }).click();
   await expect(page.getByLabel(/Paddy in/)).toHaveValue('119');                       // 120 − 1 kg sample
   await page.getByLabel(/Rice out/).fill('80'); await page.getByLabel(/^Bran/).fill('30'); await page.getByLabel(/^Loss/).fill('9');
-  const mA = await reviewAndSave(page, /PRSDM-KNM-KH26-M-\d{4}/);
+  const mA = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}/);
   await page.goto('/');
   await openSlot(page, 'milling', S);
   await verifyIncoming(page, qB);
   await page.getByRole('button', { name: /Record Milling/ }).click();
   await expect(page.getByLabel(/Paddy in/)).toHaveValue('146.5');
   await page.getByLabel(/Rice out/).fill('100'); await page.getByLabel(/^Bran/).fill('36.5'); await page.getByLabel(/^Loss/).fill('10');
-  const mB = await reviewAndSave(page, /PRSDM-KNM-KH26-M-\d{4}/);
+  const mB = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}/);
   await signOut(page);
 
   // Commercial: the domestic-only lot is not offered for export, on the screen and in the database.
@@ -67,7 +67,7 @@ test('T3: domestic-only lot is not offered for export; export-passed lot is; a m
   // …a domestic sale of the same lot is fine
   await page.getByLabel(/^Buyer/).fill('Delhi Wholesaler'); await market.selectOption('domestic');
   await page.getByLabel(/Quantity to this buyer/).fill('30');
-  await reviewAndSave(page, /PRSDM-KNM-KH26-CM-\d{4}/);
+  await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?CM-\d{4}/);
   await expect(page.getByText('50 kg still available on the source lot')).toBeVisible();
 
   // The export-passed lot is offered for export.
@@ -80,13 +80,15 @@ test('T3: domestic-only lot is not offered for export; export-passed lot is; a m
   await expect(page.getByTestId('market-gate')).toHaveCount(0);
   await page.getByLabel(/^Buyer/).fill('EU Importer'); await page.getByLabel(/^Market/).selectOption('export');
   await page.getByLabel(/Quantity to this buyer/).fill('100');
-  const exB = await reviewAndSave(page, /PRSDM-KNM-KH26-CM-\d{4}/);
+  const exB = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?CM-\d{4}/);
   await signOut(page);
 
   // The Client Manager overrides the failed export verdict with a reason: kept, named, and in the ledger.
   await signIn(page, USERS.cm);
   await page.goto(qcUrlA);
   await page.getByLabel('Reason (kept in the audit trail)').fill('Buyer accepts 12.1% with re-drying at destination');
+  // migration 50: the client's written acceptance is attached first (the button waits for it)
+  await page.getByTestId('acceptance-file').setInputFiles({ name: 'acceptance.pdf', mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4\n% acceptance ${Date.now()}\n%%EOF\n`) });
   await page.getByRole('button', { name: 'Override the export verdict' }).click();
   await expect(page.getByText(/Override: export · “Buyer accepts 12.1%/)).toBeVisible();
   await expect(page.getByText(/Export\s*Fail/)).toBeVisible();                           // the derived verdict is not rewritten
@@ -97,12 +99,12 @@ test('T3: domestic-only lot is not offered for export; export-passed lot is; a m
   await signIn(page, USERS.commercial);
   await openSlot(page, 'commercial', S);
   await page.getByTestId('incoming-row').filter({ hasText: mA }).click();
-  await expect(page.getByTestId('market-verdict')).toContainText('export approved with a recorded reason');
+  await expect(page.getByTestId('market-verdict')).toContainText('released on acceptance');   // migration 50: never "passed"
   await page.getByRole('button', { name: /Record Commercial Clearance/ }).click();
   await expect(page.getByLabel(/^Market/).locator('option[value="export"]')).toHaveCount(1);
   await page.getByLabel(/^Buyer/).fill('EU Importer'); await page.getByLabel(/^Market/).selectOption('export');
   await page.getByLabel(/Quantity to this buyer/).fill('50');
-  const exA = await reviewAndSave(page, /PRSDM-KNM-KH26-CM-\d{4}/);
+  const exA = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?CM-\d{4}/);
   await signOut(page);
 
   // Seal both export sales; the public page discloses the override on one and not on the other.
@@ -112,14 +114,17 @@ test('T3: domestic-only lot is not offered for export; export-passed lot is; a m
   const codeB = await sealLot(page, S, exB);
   await page.goto(`/verify/${codeA}`);
   const pub = page.getByTestId('public-journey');
-  await expect(pub).toContainText('Grown by Ram Achal');
+  // migration 50 (Part D): the public page names the village and the district, never the farmer
+  await expect(pub).toContainText('Grown in Bansi, Siddharthnagar');
+  await expect(pub).not.toContainText('Ram Achal');
   await expect(pub).toContainText('Milled');
   await expect(pub).toContainText(/export\s*not met/);
-  await expect(pub).toContainText('export approved with a recorded reason');
+  await expect(pub).toContainText('export released on the client\'s written acceptance (not a lab pass)');
   await page.goto(`/verify/${codeB}`);
-  await expect(pub).toContainText('Grown by Sita Devi');
+  await expect(pub).toContainText('Grown in Itwa, Siddharthnagar');
+  await expect(pub).not.toContainText('Sita Devi');
   await expect(pub).toContainText(/export\s*passed/);
-  await expect(pub).not.toContainText('export approved with a recorded reason');
+  await expect(pub).not.toContainText('written acceptance');
 });
 
 test('T5: an operator works only at the assigned stage of the assigned scope; farmers and the QR seal are closed to everyone else', async ({ page }) => {

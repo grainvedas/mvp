@@ -7,7 +7,7 @@ import { rpc } from '../../lib/api';
 import { useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { downloadCsv } from '../../lib/csv';
-import { dateTime, humanise, kg, shortHash } from '../../lib/format';
+import { dateTime, humanise, istStamp, kg, shortHash } from '../../lib/format';
 import { Badge, ErrorBox, Loading } from '../../shell/ui';
 
 export interface TraceStep {
@@ -34,14 +34,14 @@ export const TRACE_HEADER = ['step', 'code', 'stage', 'status', 'farmer_id', 'fa
 export function traceRows(tr: Trace) {
   return tr.steps.map((s, i) => [
     i + 1, s.code, s.stage_label ?? humanise(s.stage), s.status, s.farmer?.code, s.farmer?.name, s.farmer?.village,
-    s.qty_in_kg, s.qty_out_kg, s.grade, s.created_by, s.captured_at ?? s.created_at, s.verified_by, s.verified_at,
+    s.qty_in_kg, s.qty_out_kg, s.grade, s.created_by, istStamp(s.captured_at ?? s.created_at), s.verified_by, istStamp(s.verified_at),
     s.qc?.domestic, s.qc?.export, s.qc ? JSON.stringify(s.qc.readings) : '', s.qc?.override ? JSON.stringify(s.qc.override) : '',
     s.seal?.qr_code, s.seal?.batch_codes.join(' '), s.flags.map((f) => `${f.status}: ${f.text}`).join(' | '),
     s.evidence.map((e) => `${e.kind}:${e.sha256}`).join(' '), s.ledger.map((l) => `${l.seq}:${l.event}`).join(' '),
     s.ledger.at(-1)?.hash, s.warnings.join(' | '), JSON.stringify(s.payload),
-    s.withdrawn ? `${s.withdrawn.at} · ${s.withdrawn.by ?? ''}: ${s.withdrawn.reason}` : '',
+    s.withdrawn ? `${istStamp(s.withdrawn.at)} · ${s.withdrawn.by ?? ''}: ${s.withdrawn.reason}` : '',
     s.replaces ? `${s.replaces.code} (${s.replaces.qty_out_kg} kg) withdrawn by ${s.replaces.by ?? ''}: ${s.replaces.reason ?? ''}` : '',
-    s.created_at,                    // recorded_at is the time on the phone; this is when the server received it
+    istStamp(s.created_at),          // recorded_at is the time on the phone; this is when the server received it (times in IST: Veda, 15 Oct)
   ]);
 }
 

@@ -132,7 +132,9 @@ begin
     if j is null then raise exception 'ASSERTION FAILED: public: journey resolves for %', v_code; end if;
     if jsonb_array_length(j->'journey') <> 3 then
       raise exception 'ASSERTION FAILED: public: 3 steps (procurement, qc, qr), got %', jsonb_array_length(j->'journey'); end if;
-    if j->'journey'->0->'farmer'->>'name' is distinct from 'Sita Devi' then raise exception 'ASSERTION FAILED: public: farmer name shown'; end if;
+    -- migration 50 (Part D): the village and the district, never the farmer's name
+    if j->'journey'->0->'farmer'->>'village' is distinct from 'Itwa' then raise exception 'ASSERTION FAILED: public: farmer village shown'; end if;
+    if j->'journey'->0->'farmer' ? 'name' then raise exception 'ASSERTION FAILED: public: no farmer name (Part D)'; end if;
     if j->'journey'->0->'farmer' ? 'phone' then raise exception 'ASSERTION FAILED: public: farmer phone is exposed'; end if;
     if j->'verdict'->>'export' is distinct from 'pass' then raise exception 'ASSERTION FAILED: public: export PASS shown'; end if;
     if app.public_lot_journey('GV-DOESNOTEXIST') is not null then raise exception 'ASSERTION FAILED: public: unknown code returns null'; end if;

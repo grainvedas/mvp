@@ -96,3 +96,15 @@ begin
   perform set_config('app.assigning', '', true);
 end $$;
 grant execute on function t.staff(uuid, uuid) to anon, authenticated;
+
+-- Migration 50: a file on a record, as the person who uploads it would leave it (the client's acceptance before an export
+-- release, the lab report, the proof of delivery). Test-only.
+create or replace function t.attach(p_fp uuid, p_label text default 'acceptance') returns void language plpgsql security definer as $$
+declare f public.footprints;
+begin
+  select * into f from public.footprints where id = p_fp;
+  insert into public.attachments (footprint_id, kind, storage_path, sha256, uploaded_by, label)
+  values (f.id, 'document', format('%s/%s/%s/%s.pdf', f.client_id, f.scope_id, f.id, md5(random()::text)), md5(random()::text) || md5(random()::text),
+          f.created_by, p_label);
+end $$;
+grant execute on function t.attach(uuid, text) to anon, authenticated;

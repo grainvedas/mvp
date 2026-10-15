@@ -50,7 +50,7 @@ describe('the State Manager (migration 41)', () => {
   it('his menu: Watch, Audit, Master data, Access, Me; no States, no Health, no State overview', () => {
     expect(groupedMenu(RAM)).toBe('state_manager');
     expect(groupedMenu(ADMIN)).toBe('admin');
-    expect(groupedMenu(CM)).toBeNull();
+    expect(groupedMenu(CM)).toBe('client_manager');                                     // migration 48 (D4): his own grouped menu
     const all = HEADINGS.flatMap((h) => ROLE_MENUS.state_manager[h]).map((m) => m.to);
     expect(all).toEqual(['/', '/pipeline', '/flags', '/system/ledger', '/clients', '/crops', '/scopes', '/farmers', '/farmers/register', '/people', '/onboarding', '/account', '/guide', '/help']);
     for (const gone of ['/states', '/health', '/state', '/system/seats', '/system/audit', '/hr']) expect(all).not.toContain(gone);

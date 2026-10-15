@@ -19,8 +19,8 @@ test('T1: procurement → QC → QR seal from the UI', async ({ page }) => {
   await expect(page.getByTestId('review-qty-out')).toHaveText('147.5 kg');
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();
-  await expect(page.getByTestId('saved')).toContainText(/Saved as PRSDM-KNM-KH26-P-\d{4} · 147.5 kg/);
-  const code = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-P-\d{4}/)![0];
+  await expect(page.getByTestId('saved')).toContainText(/Saved as PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4} · 147.5 kg/);
+  const code = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/)![0];
   await signOut(page);
 
   // 2. QC technician verifies what arrived, then records QC
@@ -42,7 +42,7 @@ test('T1: procurement → QC → QR seal from the UI', async ({ page }) => {
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();
   await expect(page.getByTestId('saved')).toContainText('147 kg');
-  const qcCode = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-QC-\d{4}/)![0];
+  const qcCode = (await page.getByTestId('saved').textContent())!.match(/PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?QC-\d{4}/)![0];
   await signOut(page);
 
   // 3. QR operator verifies QC and seals
@@ -51,6 +51,7 @@ test('T1: procurement → QC → QR seal from the UI', async ({ page }) => {
   await page.getByTestId('incoming-row').filter({ hasText: qcCode }).click();
   for (const box of await page.getByRole('checkbox').all()) await box.check();
   await page.getByRole('button', { name: 'Verify this lot' }).click();
+  await page.getByTestId('release-read').check();   // migration 50 (G9): the summary is read first
   await page.getByRole('button', { name: 'Activate and seal' }).click();
   await expect(page.getByTestId('sealed')).toContainText(/Sealed\. QR code GV-[0-9A-F]{12}/);
   const qr = (await page.getByTestId('sealed').textContent())!.match(/GV-[0-9A-F]{12}/)![0];
@@ -60,7 +61,9 @@ test('T1: procurement → QC → QR seal from the UI', async ({ page }) => {
   await page.goto(`/verify/${qr}`);
   const pub = page.getByTestId('public-journey');
   await expect(pub).toContainText('Kalanamak rice');
-  await expect(pub).toContainText('Grown by Sita Devi, Itwa');
+  // migration 50 (Part D): the public page names the village and the district, never the farmer
+  await expect(pub).toContainText('Grown in Itwa, Siddharthnagar');
+  await expect(pub).not.toContainText('Sita Devi');
   await expect(pub).toContainText(/Moisture\s*11\.9 %/);
   await expect(pub).toContainText(/domestic\s*passed/);
   await expect(pub).toContainText(/export\s*passed/);

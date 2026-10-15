@@ -19,7 +19,7 @@ begin
   returning * into r;
   p := r.id; fp := quote_literal(p);
   perform t.ok(r.created_at = now(), 'F3 a new record cannot be back-dated: created_at is the server''s clock');
-  perform t.ok(r.footprint_code <> 'PRSDM-KNM-KH26-P-9999' and r.footprint_code ~ '^PRSDM-KNM-KH26-P-[0-9]{4}$', 'F3 a new record cannot choose its code: ' || r.footprint_code);
+  perform t.ok(r.footprint_code <> 'PRSDM-KNM-KH26-P-9999' and r.footprint_code ~ '^PRSDM-KNM-KH26-SDR-P-[0-9]{4}$', 'F3 a new record cannot choose its code: ' || r.footprint_code);
   perform t.ok(not r.lot_closed and r.qty_out = 147.5 and (r.computed->>'net_kg')::numeric = 147.5, 'F3 lot status and quantities sent with a new record are ignored');
 
   -- F1: the creator rewrites derived columns of his own pending record

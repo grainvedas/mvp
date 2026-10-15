@@ -64,6 +64,11 @@
             "Net quantity reviewed"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Bags counted: the number matches the record",
+            "The grain looks and smells sound (no mould, no insects)",
+            "Bags tagged with the lot number"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -144,6 +149,10 @@
             "Date recorded"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Bags counted: the number matches the record",
+            "The grain looks and smells sound (no mould, no insects)"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -179,6 +188,10 @@
             "Village named"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Bags of every lot counted at the collection point",
+            "Batch bags tagged with the batch number"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -231,6 +244,10 @@
             "Rice quantity forwarded"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Rice bags sealed and tagged with the lot number",
+            "The mill line was clear of any other rice"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -282,6 +299,9 @@
             "Clean quantity forwarded"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Bags sealed and tagged with the lot number"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -358,6 +378,9 @@
             "Grade quantities forwarded"
         ],
         "splits_forward": true,
+        "physical_checks": [
+            "Each grade bagged apart and tagged with its lot number"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -410,6 +433,9 @@
             "Output forwarded"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Bags sealed and tagged with the lot number"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -453,6 +479,9 @@
             "Output forwarded"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Bags sealed and tagged with the lot number"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -496,6 +525,9 @@
             "Output forwarded"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Bags sealed and tagged with the lot number"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -531,6 +563,9 @@
             "Output forwarded"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Bags sealed and tagged with the lot number"
+        ],
         "allows_exceed_input": true
     },
     {
@@ -581,6 +616,9 @@
             "Retrieved quantity forwarded"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Bags counted out of storage"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -614,13 +652,6 @@
                 "label": "Wastage",
                 "section": "packing",
                 "required": true
-            },
-            {
-                "key": "batch_code",
-                "type": "text",
-                "label": "Batch code (QR link)",
-                "section": "packing",
-                "required": true
             }
         ],
         "yield_alarm": false,
@@ -631,6 +662,10 @@
             "Packed quantity forwarded"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Packs sealed; the labels match the batch",
+            "Wastage bagged and weighed"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -671,6 +706,47 @@
                 "label": "Lab reference",
                 "section": "lab",
                 "required": false
+            },
+            {
+                "key": "lab_name",
+                "type": "text",
+                "label": "Lab",
+                "section": "lab",
+                "required": false,
+                "required_when": "qc_report_required"
+            },
+            {
+                "key": "report_no",
+                "type": "text",
+                "label": "Report number",
+                "section": "lab",
+                "required": false,
+                "required_when": "qc_report_required"
+            },
+            {
+                "key": "report_date",
+                "type": "date",
+                "label": "Report date",
+                "section": "lab",
+                "required": false,
+                "required_when": "qc_report_required"
+            },
+            {
+                "key": "sample_id",
+                "type": "text",
+                "label": "Sample ID",
+                "section": "lab",
+                "required": false
+            },
+            {
+                "key": "report_file",
+                "type": "attachment",
+                "label": "Lab report (PDF or photo)",
+                "accept": "document",
+                "section": "lab",
+                "label_as": "lab_report",
+                "required": false,
+                "required_when": "qc_report_required"
             }
         ],
         "yield_alarm": false,
@@ -681,6 +757,10 @@
             "Sample deducted; forwarding quantity reviewed"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Sample bag sealed and labelled",
+            "Counter-sample stored"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -736,6 +816,9 @@
             "Allocation within available"
         ],
         "splits_forward": true,
+        "physical_checks": [
+            "Packs set aside for this buyer counted"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -754,14 +837,6 @@
                 "label": "Shipped",
                 "section": "quantity",
                 "required": true
-            },
-            {
-                "key": "transit_loss_kg",
-                "type": "number",
-                "unit": "kg",
-                "label": "Transit loss",
-                "section": "quantity",
-                "required": false
             },
             {
                 "key": "vehicle_or_container",
@@ -801,6 +876,10 @@
             "Documents attached"
         ],
         "splits_forward": false,
+        "physical_checks": [
+            "Packs counted at loading",
+            "Vehicle clean and dry"
+        ],
         "allows_exceed_input": false
     },
     {
@@ -822,6 +901,8 @@
             "Final quantity recorded"
         ],
         "splits_forward": false,
+        "physical_checks": [
+        ],
         "allows_exceed_input": false
     }
 ]

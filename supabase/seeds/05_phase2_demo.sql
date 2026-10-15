@@ -42,3 +42,4 @@ select u, s, st from (values
   ('00000000-0000-4000-8000-000000000307', '00000000-0000-4000-8000-000000000406', 'qr_activation')
 ) as v(u, s, st)
 on conflict do nothing;
+

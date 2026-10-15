@@ -6,7 +6,7 @@
 //   a manager gives that person an assignment: a scope and stages, a client's account, or a state.
 // The old "Users" page (one form: role + client + state + login) is gone; `/users` now lands on People & access.
 import { test, expect } from '@playwright/test';
-import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, USERS } from './helpers';
+import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, fillLabReport, USERS } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
@@ -257,7 +257,7 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   await page.getByLabel(/^Bags/).fill('2');
   await page.getByLabel(/Tare per bag/).fill('1');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.7');
-  const lot = await reviewSave(new RegExp(`${code}-KNM-[A-Z0-9]+-P-0001`));
+  const lot = await reviewSave(new RegExp(`${code}-KNM-[A-Z0-9]+-(?:[A-Z]{2,4}-)?P-0001`));
   await signOut(page);
 
   await signInWith(page, who.qc.email, made.qc.temp);
@@ -269,20 +269,23 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   await page.getByLabel(/^Moisture \(%\)/).fill('11.7');
   await page.getByLabel(/^Broken grains/).fill('2');
   await page.getByLabel(/^Foreign matter/).fill('0.2');
-  const tested = await reviewSave(new RegExp(`${code}-KNM-[A-Z0-9]+-QC-0001`));
+  await fillLabReport(page, u);                                      // migration 50 (C5): a new scope asks for the lab report
+  const tested = await reviewSave(new RegExp(`${code}-KNM-[A-Z0-9]+-(?:[A-Z]{2,4}-)?QC-0001`));
   await signOut(page);
 
   await signInWith(page, who.qr.email, made.qr.temp);
   await setOwnPassword(page, `Mohar-${u}`);
   await page.getByTestId('slot-qr_activation').click();
   await verify(tested);
+  await page.getByTestId('release-read').check();   // migration 50 (G9): the summary is read first
   await page.getByRole('button', { name: 'Activate and seal' }).click();
   const qr = (await page.getByTestId('sealed').textContent())!.match(/GV-[0-9A-F]{12}/)![0];
   await signOut(page);
 
   // 8. anyone with the QR: the public page of the new client's first lot
   await page.goto(`/verify/${qr}`);
-  await expect(page.locator('main, body').first()).toContainText(`Ramkali ${u}`);
+  // migration 50 (Part D): the village and the district, never the farmer's name
+  await expect(page.locator('main, body').first()).not.toContainText(`Ramkali ${u}`);
   await expect(page.locator('main, body').first()).toContainText('Nichlaul');
   await expect(page.locator('body')).not.toContainText(`94${u}41`);              // never the farmer's phone
 });

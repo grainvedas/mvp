@@ -142,6 +142,11 @@ test('The crop registry: a ready crop, the wizard, the farmer\'s practice, Procu
   await page.getByLabel(/^Moisture \(%\)/).fill('12.5');
   await page.getByLabel(/^Aroma/).selectOption('B');
   await page.getByLabel(/^Live insects/).selectOption('no');
+  // migration 50 (C5): a new scope asks for the lab report: the lab, its number and date, and the file
+  await page.getByLabel('Lab *', { exact: true }).fill('Basti Grain Lab');
+  await page.getByLabel('Report number *', { exact: true }).fill(`BGL-${Date.now() % 100000}`);
+  await page.getByLabel('Report date *', { exact: true }).fill(new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10));
+  await page.getByLabel('Lab report (PDF or photo) *', { exact: true }).setInputFiles({ name: 'report.pdf', mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4\n% report ${Date.now()}\n%%EOF\n`) });
   await expect(page.getByTestId('verdict-preview')).toContainText('domestic passed · export not met');
   await expect(page.getByTestId('verdict-preview')).toContainText('Aroma (export)');
   await expectNoSideScroll(page);

@@ -229,6 +229,7 @@ do $$ declare n int; begin
 end $$;
 select t.as_user(t.u('03'));
 do $$ declare n int; begin
+  perform t.attach(pg_temp.f('Q1'));                              -- migration 50: the client's written acceptance first
   update public.qc_verdicts set override = jsonb_build_object('market', 'export', 'reason', 'CM', 'authoriser', t.u('03')) where footprint_id = pg_temp.f('Q1');
   get diagnostics n = row_count;
   perform t.ok(n = 1, 'override: control: the Client Manager still can');

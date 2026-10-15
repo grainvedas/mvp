@@ -5,17 +5,18 @@
 //   4 Form      stage.form_schema         8 Handoff  the tick-list the next stage will check
 // The gate stage saves nothing by insert: app.seal_source creates the QR record and seals it in one transaction.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { rpc, q, within } from '../lib/api';
 import { toAppError } from '../lib/errors';
 import { supabase } from '../lib/supabase';
 import { useAsync, useAction } from '../lib/useAsync';
 import { useI18n } from '../lib/i18n';
-import { kg, dateTime, humanise } from '../lib/format';
-import type { Footprint, LotMarkets, Preview, QualityParam, StageForm, StageType, VerdictPreview, Withdrawal } from '../lib/types';
-import { ErrorBox, Loading, Badge, Empty, errorText } from '../shell/ui';
-import { Widget, buildPayload, missingRequired, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, type FieldValue } from './widgets';
+import { kg, dateTime, date, humanise, todayIST } from '../lib/format';
+import type { Footprint, FootprintReturn, IncomingLot, LotMarkets, Preview, QualityParam, ReleasePreview, StageForm, StageType, SystemCheck, VerdictPreview, Withdrawal } from '../lib/types';
+import { giLabel } from '../lib/gi';
+import { ErrorBox, Loading, Badge, Empty, Field, errorText, plainText } from '../shell/ui';
+import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, type FieldValue } from './widgets';
 import { SECTION_ICON, stageIcon } from './icons';
 import { uploadEvidence, UPLOAD_WAIT_MS } from './evidence';
 import { offlinePreview, type OfflinePreview } from './offlinePreview';
@@ -72,6 +73,7 @@ export function StagePage() {
     })().catch(() => { setReplaces(null); setReplacesFailed(true); });
   }, [replacesId]);
   const [tab, setTab] = useState<'incoming' | 'new' | 'records'>('incoming');
+  const [newKey, setNewKey] = useState(0);                  // migration 49 (A5/G11): a new record without reloading the page
   const [source, setSource] = useState<Footprint | null>(null);
   const [editing, setEditing] = useState<Footprint | null>(null);
   const [editFailed, setEditFailed] = useState(false);
@@ -110,7 +112,7 @@ export function StagePage() {
       <p className="muted small"><Link to="/">{t('nav.back_home')}</Link></p>
       <div className="band">
         <div><div className="band-title">{f.scope.crop.name} · {f.scope.season_code} · {f.scope.geography}</div>
-          <div className="sub">{f.scope.client.name}{f.scope.crop.gi_tag ? ` · ${f.scope.crop.gi_tag}` : ''}</div></div>
+          <div className="sub">{f.scope.client.name}{f.scope.crop.gi_tag ? ` · ${giLabel(f.scope.crop.gi_tag, t)}` : ''}</div></div>
       </div>
       <div className="page-hd"><h1><span aria-hidden="true">{stageIcon(f.stage.stage_type)} </span>{f.stage.label}</h1></div>
       <div className="tabs" role="tablist">
@@ -120,15 +122,15 @@ export function StagePage() {
           onClick={() => pick('new')}>{t('engine.new_record', { stage: f.stage.label })}</button>}
         <button role="tab" aria-selected={!opened && tab === 'records'} className={!opened && tab === 'records' ? 'active' : ''} onClick={() => pick('records')}>{t('engine.my_records')}</button>
       </div>
-      {draft && <RecordForm key={draft.id} form={f} source={draft.source as Footprint | null} editing={null} draft={draft} />}
-      {!draft && replaces && <RecordForm key={`r-${replaces.old.id}`} form={f} source={replaces.source} editing={null} replaces={replaces.old} />}
-      {!draft && !replaces && editing && <RecordForm key={`e-${editing.id}`} form={f} source={null} editing={editing} />}
+      {draft && <RecordForm key={draft.id} form={f} source={draft.source as Footprint | null} editing={null} draft={draft} onNew={() => pick(f.stage.is_first ? 'new' : 'incoming')} />}
+      {!draft && replaces && <RecordForm key={`r-${replaces.old.id}`} form={f} source={replaces.source} editing={null} replaces={replaces.old} onNew={() => pick(f.stage.is_first ? 'new' : 'incoming')} />}
+      {!draft && !replaces && editing && <RecordForm key={`e-${editing.id}`} form={f} source={null} editing={editing} onNew={() => pick(f.stage.is_first ? 'new' : 'incoming')} />}
       {opening && <Loading />}
       {!opened && !opening && tab === 'incoming' && !source && <Incoming form={f} onPick={(fp) => setSource(fp)} />}
       {!opened && !opening && tab === 'incoming' && source && (
         <VerifyAndContinue form={f} source={source} onBack={() => setSource(null)} onReload={(fp) => setSource(fp)} />
       )}
-      {!opened && !opening && tab === 'new' && f.can_create && <RecordForm key="new" form={f} source={null} editing={null} />}
+      {!opened && !opening && tab === 'new' && f.can_create && <RecordForm key={`new-${newKey}`} form={f} source={null} editing={null} onNew={() => setNewKey((n) => n + 1)} />}
       {!opened && !opening && tab === 'records' && <Records form={f} />}
     </div>
   );
@@ -139,8 +141,13 @@ export function StagePage() {
 // ---------------------------------------------------------------------------------------------------------------
 function Incoming({ form, onPick }: { form: StageForm; onPick: (f: Footprint) => void }) {
   const { t } = useI18n();
-  const inc = useAsync(() => cached(`incoming:${form.scope.id}:${form.stage.stage_type}`,
-    () => rpc<Footprint[]>('incoming_records', { p_scope: form.scope.id, p_stage: form.stage.stage_type })), [form.scope.id, form.stage.stage_type]);
+  // migration 49 (A3/G2): each waiting lot with what is left on it; a server before migration 49: the older list
+  const inc = useAsync(() => cached(`incoming_lots:${form.scope.id}:${form.stage.stage_type}`,
+    () => rpc<IncomingLot[]>('incoming_lots', { p_scope: form.scope.id, p_stage: form.stage.stage_type }).catch(async (e) => {
+      if (isNetworkError(e)) throw e;
+      return (await rpc<Footprint[]>('incoming_records', { p_scope: form.scope.id, p_stage: form.stage.stage_type }))
+        .map((r) => ({ ...r, available_kg: r.qty_out, returned: false, maker_name: null, made_by_me: false, gi_status: 'unknown', farmer_count: 0 }) as IncomingLot);
+    })), [form.scope.id, form.stage.stage_type]);
   return (
     <div className="card">
       <Stepper current={2} form={form} />
@@ -149,13 +156,14 @@ function Incoming({ form, onPick }: { form: StageForm; onPick: (f: Footprint) =>
       {inc.data && inc.data.length > 0 && (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>{t('engine.col_code')}</th><th>{t('engine.col_qty')}</th><th>{t('common.status')}</th><th className="hide-mobile">{t('engine.col_recorded')}</th></tr></thead>
+            <thead><tr><th>{t('engine.col_code')}</th><th>{t('inc.col_left')}</th><th>{t('common.status')}</th><th className="hide-mobile">{t('engine.col_recorded')}</th></tr></thead>
             <tbody>
               {inc.data.map((r) => (
                 <tr key={r.id} className="clickable" onClick={() => onPick(r)} data-testid="incoming-row">
-                  <td className="mono">{r.footprint_code}{r.grade ? ` · Grade ${r.grade}` : ''}</td>
-                  <td className="num">{kg(r.qty_out)}</td>
-                  <td><Badge value={r.status} /></td>
+                  <td className="mono">{r.footprint_code}{r.grade ? ` · Grade ${r.grade}` : ''}
+                    {r.made_by_me && <div className="small"><span className="same-person" data-testid="incoming-mine">{t('inc.mine')}</span></div>}</td>
+                  <td className="num" data-testid="incoming-left">{Number(r.available_kg) < Number(r.qty_out) ? t('inc.left', { left: kg(r.available_kg), all: kg(r.qty_out) }) : kg(r.qty_out)}</td>
+                  <td>{r.returned ? <Badge value="pending" label={t('ret.badge')} /> : <Badge value={r.status} />}</td>
                   <td className="hide-mobile">{dateTime(capturedAt(r).at)}</td>
                 </tr>
               ))}
@@ -167,6 +175,22 @@ function Incoming({ form, onPick }: { form: StageForm; onPick: (f: Footprint) =>
   );
 }
 
+/** Migration 48 (A1): which of these records are returned to their sender and wait for the correction. */
+function useOpenReturns(ids: string[]) {
+  const key = ids.join(',');
+  const r = useAsync(() => ids.length === 0 ? Promise.resolve([] as { footprint_id: string }[])
+    : (q(supabase.from('footprint_returns').select('footprint_id').eq('status', 'open').in('footprint_id', ids)) as Promise<{ footprint_id: string }[]>).catch(() => []),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [key]);
+  return new Set((r.data ?? []).map((x) => x.footprint_id));
+}
+/** The open return of one record, with its reason and who returned it (null: none). */
+function useOpenReturn(id: string, tick: number) {
+  const r = useAsync(() => rpc<{ returns?: FootprintReturn[] }>('footprint_detail', { p_fp: id })
+    .then((d) => (d.returns ?? []).find((x) => x.status === 'open') ?? null).catch(() => null), [id, tick]);
+  return r.data ?? null;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Step 3: the receiving operator ticks the previous stage's handoff list and verifies; then records (or seals)
 // ---------------------------------------------------------------------------------------------------------------
@@ -174,23 +198,50 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
   form: StageForm; source: Footprint; onBack: () => void; onReload: (f: Footprint) => void;
 }) {
   const { t } = useI18n();
-  const checks = form.prev_stage?.handoff_checks ?? [];
+  const { ctx } = useAuth();
+  const myId = ctx?.user?.id;
+  // migration 49 (A2/G3): the person ticks only what he sees (the stage's physical checks, kept in English for the
+  // server, shown in his language); the system checks the rest. A server before migration 49: the older list.
+  const physical = form.prev_stage?.physical_checks;
+  const checks = physical ?? form.prev_stage?.handoff_checks ?? [];
+  const sys = useAsync(() => rpc<SystemCheck[]>('system_checks', { p_fp: source.id }).catch(() => null), [source.id, source.status]);
+  const lot = source as IncomingLot;
   const [ticked, setTicked] = useState<boolean[]>(checks.map(() => false));
   const [continueTo, setContinueTo] = useState(false);
   const [round, setRound] = useState(0);
   const act = useAction();
   const [sealed, setSealed] = useState<{ qr_code: string; img: string } | null>(null);
   const markets = useLotMarkets(source.id);
+  // migration 48: a manager's reason (A10), a condition, a return to its sender (A1)
+  const [why, setWhy] = useState('');
+  const [withCondition, setWithCondition] = useState(false);
+  const [condition, setCondition] = useState('');
+  const [returning, setReturning] = useState(false);
+  const [returnWhy, setReturnWhy] = useState('');
+  const [tick, setTick] = useState(0);
+  const openReturn = useOpenReturn(source.id, tick);
+  const asManager = !!form.verifies_as_manager;
+  const sealAsManager = !!form.records_as_manager;
+  // migration 50 (G9): the summary before release, read and confirmed
+  const [readSummary, setReadSummary] = useState(false);
+  const summary = useAsync(() => (form.stage.is_gate && source.status === 'verified'
+    ? rpc<ReleasePreview>('release_preview', { p_source: source.id }).catch(() => null) : Promise.resolve(null)), [source.id, source.status]);
 
   const verify = () => act.run(async () => {
-    const r = await rpc<Footprint>('verify_footprint', { p_fp: source.id });
+    const r = await rpc<Footprint>('verify_record', { p_fp: source.id, p_reason: asManager ? why.trim() : null,
+      p_condition: withCondition ? condition.trim() : null, ...(physical ? { p_checked: physical.filter((_, i) => ticked[i]) } : {}) });
     onReload(r);
+  });
+  const sendBack = () => act.run(async () => {
+    await rpc('return_footprint', { p_fp: source.id, p_reason: returnWhy.trim() });
+    setReturning(false); setReturnWhy(''); setTick((n) => n + 1);
   });
 
   const seal = () => act.run(async () => {
     // One request, one transaction (migration 24): if the gate refuses (an open flag, …) nothing is saved and the lot
     // stays in this list, to be sealed once the reason is fixed.
-    const s = await rpc<{ qr_code: string }>('seal_source', { p_source: source.id });
+    const s = sealAsManager ? await rpc<{ qr_code: string }>('seal_source_as_manager', { p_source: source.id, p_reason: why.trim() })
+      : await rpc<{ qr_code: string }>('seal_source', { p_source: source.id });
     setSealed({ qr_code: s.qr_code, img: await QRCode.toDataURL(`${window.location.origin}/verify/${s.qr_code}`, { margin: 1, width: 360 }) });
   });
 
@@ -208,7 +259,7 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
       </div>
     );
   }
-  if (continueTo) return <RecordForm key={round} form={form} source={source} editing={null} onAnother={() => setRound((r) => r + 1)} />;
+  if (continueTo) return <RecordForm key={round} form={form} source={source} editing={null} onAnother={() => setRound((r) => r + 1)} onNew={onBack} />;
 
   const verified = source.status === 'verified';
   return (
@@ -219,33 +270,67 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
       <dl className="kv">
         <dt>{t('engine.col_code')}</dt><dd className="mono">{source.footprint_code}{source.grade ? ` · Grade ${source.grade}` : ''}</dd>
         <dt>{t('engine.qty_forwarded')}</dt><dd className="big">{kg(source.qty_out)}</dd>
+        {lot.available_kg !== undefined && Number(lot.available_kg) < Number(source.qty_out) && <><dt>{t('inc.col_left')}</dt><dd data-testid="verify-left">{kg(lot.available_kg)}</dd></>}
         <ComputedRows computed={source.computed} t={t} />
         <dt>{t('common.status')}</dt><dd><Badge value={source.status} /></dd>
       </dl>
       <MarketVerdict m={markets} />
       <ReplacesNote withdrawnId={source.supersedes_id} />
-      {source.warnings?.length > 0 && <div className="alert warn">{source.warnings.join(' · ')}</div>}
+      {source.warnings?.length > 0 && <div className="alert warn">{source.warnings.map((w) => plainText(w, t)).join(' · ')}</div>}
+      {source.created_by === myId && !verified && <div className="alert info" data-testid="same-person-note">{t('sp.you_made', { stage: form.prev_stage?.label ?? '' })}</div>}
+      {sys.data && sys.data.length > 0 && (
+        <div className="stack" data-testid="system-checks">
+          <h3>{t('sys.title')}</h3>
+          <ul className="sys-checks">{sys.data.map((c) => (
+            <li key={c.key} data-ok={c.ok} className={c.ok ? 'ok' : 'not'}><span aria-hidden="true">{c.ok ? '✓' : '✗'}</span> {t(`chk.${c.key}`, c.vars, c.key)}</li>))}</ul>
+        </div>)}
       <p><Link to={`/records/${source.id}`}>{t('engine.open_full')}</Link></p>
-      {!verified && form.can_verify_incoming && (
+      {!verified && openReturn && (
+        <div className="alert warn" data-testid="returned-note">{t('ret.waiting', { by: openReturn.returned_by_name ?? '', reason: openReturn.reason, at: dateTime(openReturn.returned_at) })}</div>)}
+      {!verified && form.can_verify_incoming && !openReturn && !returning && (
         <>
-          <p className="muted">{t('engine.verify_hint')}</p>
+          <p className="muted">{t(physical ? 'phys.title' : 'engine.verify_hint')}</p>
           {checks.map((c, i) => (
             <label key={c} className="check">
               <input type="checkbox" checked={ticked[i]} onChange={(e) => setTicked(ticked.map((x, j) => (j === i ? e.target.checked : x)))} />
-              {c}
+              {physical ? t(`check.${c}`, undefined, c) : c}
             </label>
           ))}
+          {asManager && <Field label={t('mgr.verify_why')} htmlFor="v-why" hint={t('mgr.min10')}>
+            <input id="v-why" value={why} maxLength={500} onChange={(e) => setWhy(e.target.value)} data-testid="verify-why" /></Field>}
+          {/* a button, not a box: the handoff list is the only list of boxes to tick */}
+          <p><button type="button" className="secondary small-btn" aria-pressed={withCondition} onClick={() => setWithCondition(!withCondition)} data-testid="with-condition">
+            {t(withCondition ? 'cond.without' : 'cond.with')}</button></p>
+          {withCondition && <Field label={t('cond.what')} htmlFor="v-cond" hint={t('cond.hint')}>
+            <input id="v-cond" value={condition} maxLength={500} onChange={(e) => setCondition(e.target.value)} data-testid="condition-text" /></Field>}
           <ErrorBox error={act.error} />
-          <button onClick={verify} disabled={act.busy || ticked.some((x) => !x)}>{t('engine.verify_button')}</button>
+          <div className="row">
+            <button onClick={verify} disabled={act.busy || ticked.some((x) => !x) || (asManager && why.trim().length < 10) || (withCondition && condition.trim().length < 10)}
+              data-testid="verify-button">{t(withCondition ? 'cond.verify' : 'engine.verify_button')}</button>
+            {source.created_by !== myId && <button className="secondary" onClick={() => setReturning(true)} disabled={act.busy} data-testid="return-open">{t('ret.button')}</button>}
+          </div>
         </>
       )}
+      {!verified && returning && (
+        <div className="stack" data-testid="return-form">
+          <Field label={t('ret.why')} htmlFor="r-why" hint={t('mgr.min10')}>
+            <textarea id="r-why" rows={2} value={returnWhy} maxLength={500} onChange={(e) => setReturnWhy(e.target.value)} data-testid="return-why" /></Field>
+          <ErrorBox error={act.error} />
+          <div className="row">
+            <button className="danger" onClick={sendBack} disabled={act.busy || returnWhy.trim().length < 10} data-testid="return-send">{t('ret.send')}</button>
+            <button className="secondary" onClick={() => setReturning(false)}>{t('common.cancel')}</button>
+          </div>
+        </div>)}
       {!verified && !form.can_verify_incoming && <div className="alert info">{t('engine.waiting_verify', { stage: form.stage.label })}</div>}
       {verified && (
         <>
           <div className="alert ok">{t('engine.verified')}</div>
           <ErrorBox error={act.error} />
+          {form.stage.is_gate && form.can_create && sealAsManager && <Field label={t('mgr.record_why')} htmlFor="s-why" hint={t('mgr.min10')}>
+            <input id="s-why" value={why} maxLength={500} onChange={(e) => setWhy(e.target.value)} data-testid="seal-why" /></Field>}
+          {form.stage.is_gate && form.can_create && <ReleaseSummary p={summary.data ?? null} loading={summary.loading} read={readSummary} onRead={setReadSummary} />}
           {form.stage.is_gate
-            ? form.can_create && <button className="gold" onClick={seal} disabled={act.busy}>{t('engine.seal_button')}</button>
+            ? form.can_create && <button className="gold" onClick={seal} disabled={act.busy || summary.loading || (!!summary.data && !readSummary) || (sealAsManager && why.trim().length < 10)} data-testid="seal-button">{t('engine.seal_button')}</button>
             : form.can_create
               ? <button onClick={() => setContinueTo(true)}>{t('engine.use_lot', { stage: form.stage.label })}</button>
               : <div className="alert info">{t('engine.cannot_create')}</div>}
@@ -254,6 +339,34 @@ function VerifyAndContinue({ form, source, onBack, onReload }: {
     </div>
   );
 }
+
+/** Migration 50 (G9): what the release will carry, read before the QR is made: everything verified, no open flag, the
+ *  lab's verdict, GI, the farmers, the packs (and, for export, the documents). The person confirms he has read it. */
+function ReleaseSummary({ p, loading, read, onRead }: { p: ReleasePreview | null; loading: boolean; read: boolean; onRead: (v: boolean) => void }) {
+  const { t } = useI18n();
+  if (loading) return <Loading />;
+  if (!p) return null;                                   // a server before migration 50: as before
+  return (
+    <div className="stack" data-testid="release-summary">
+      <h3>{t('rel.summary', { code: p.source.code })}</h3>
+      <ul className="sys-checks">{p.checks.map((c) => (
+        <li key={c.key} data-ok={c.ok} className={c.ok ? 'ok' : 'not'}><span aria-hidden="true">{c.ok ? '✓' : '✗'}</span> {t(c.key === 'lab_verdict' && (c.vars as Record<string, unknown>).released ? 'rel.lab_verdict_released' : `rel.${c.key}`, relVars(c.vars, t), c.key)}</li>))}</ul>
+      {!p.ready && <div className="alert warn" data-testid="release-not-ready">{t('rel.not_ready')}</div>}
+      <label className="check"><input type="checkbox" checked={read} onChange={(e) => onRead(e.target.checked)} data-testid="release-read" />{t('rel.read')}</label>
+    </div>
+  );
+}
+/** The words inside a summary line: a verdict, a GI status (their own dictionary words), a list or a number as it is. */
+export const relVars = (v: Record<string, string | number | boolean>, t: (k: string, vars?: Record<string, string | number>, fb?: string) => string) => {
+  const o: Record<string, string | number> = {};
+  for (const [k, x] of Object.entries(v ?? {})) {
+    if (k === 'domestic' || k === 'export') o[k] = t(`pv.v_${x}`, undefined, String(x));
+    else if (k === 'status') o[k] = t(`gi.${x}`, undefined, String(x));
+    else if (typeof x === 'boolean') o[k] = x ? t('common.yes') : t('common.no');
+    else o[k] = x === '' ? '—' : x;
+  }
+  return o;
+};
 
 /** What the lab said about a lot, for any stage after QC (the verdict travels with the lot). */
 function useLotMarkets(lotId: string | undefined) {
@@ -272,7 +385,7 @@ function MarketVerdict({ m }: { m: LotMarkets | null }) {
   if (!m?.has_qc) return null;
   return (
     <p data-testid="market-verdict">{t('engine.lab_verdict')}: {t('pv.domestic')} <Badge value={m.domestic} label={t(`pv.v_${m.domestic}`)} /> · {t('pv.export')} <Badge value={m.export} label={t(`pv.v_${m.export}`)} />
-      {m.overridden && <> <Badge value="pending" label={t('pv.override')} /></>}</p>
+      {m.overridden && <> <Badge value="pending" label={t('mv.released')} /></>}</p>
   );
 }
 
@@ -298,13 +411,15 @@ function ReplacesNote({ withdrawnId }: { withdrawnId: string | null | undefined 
 // ---------------------------------------------------------------------------------------------------------------
 // Steps 4–8: form, live maths, review, save, handoff
 // ---------------------------------------------------------------------------------------------------------------
-function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
+function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }: {
   form: StageForm; source: Footprint | null; editing: Footprint | null; onAnother?: () => void; draft?: OutboxItem; replaces?: Footprint;
+  /** migration 49 (A5/G11): "New record" opens an empty form without reloading the page */ onNew?: () => void;
 }) {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const online = useOnline();
-  const fields = form.stage.form_schema;
+  // migration 50 (C5): the lab report's fields are required where the scope asks for the report
+  const fields = useMemo(() => withScopeRules(form.stage.form_schema, form.scope), [form]);
   const [values, setValues] = useState<Record<string, FieldValue>>(() =>
     draft ? (draft.values as Record<string, FieldValue>) : initialValues(form, source, editing ?? replaces ?? null));
   // Fields gated on the lab verdict (Commercial "market"): only what the source lot may be sold to is offered.
@@ -330,12 +445,32 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [gradeLots, setGradeLots] = useState<Footprint[]>([]);
   const [leftOnSource, setLeftOnSource] = useState<number | null>(null);
+  // migration 49 (A3/G2): the quantity fields start from what is LEFT on the source, not what it once held
+  useEffect(() => {
+    if (!source || editing || draft) return;
+    let live = true;
+    void rpc<number>('available_qty', { p_fp: source.id }).then((left) => {
+      if (!live || left === null || left === undefined) return;
+      setValues((v) => {
+        const n = { ...v };
+        for (const fd of form.stage.form_schema) if (PREFILL_FROM_SOURCE.includes(fd.key) && (n[fd.key] === String(source.qty_out) || n[fd.key] === '')) n[fd.key] = String(left);
+        return n;
+      });
+    }).catch(() => undefined);
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source?.id]);
+  // migration 48: the date it happened (A9; today by default) and, for a manager at a stage he does not hold, why (A10)
+  const [on, setOn] = useState<string>(() => (editing?.happened_on ?? (draft?.row.happened_on as string | undefined)) || todayIST());
+  const [why, setWhy] = useState<string>(() => String(draft?.row.manager_reason ?? ''));
+  const asManager = !!form.records_as_manager && !editing;
+  const extra = { happened_on: on, ...(asManager ? { manager_reason: why.trim() } : {}) };
   const act = useAction();
   // One id for this save, whichever way it reaches the server: sent now, or kept on the phone and sent later. The
   // database refuses the same id twice, so a save whose answer was lost on a weak signal is never made twice.
   const saveRef = useRef<string>('');
   const unsupported = fields.filter((f) => !SUPPORTED.has(f.type) && f.required);
-  const missing = missingRequired(fields, values);
+  const missing = [...missingRequired(fields, values), ...(editing ? [] : missingFiles(fields, values))];
   const built = useMemo(() => buildPayload(fields, values), [fields, values]);
   const timer = useRef<number | undefined>(undefined);
   // Only the answer to the latest values is shown: on a slow line an earlier preview could arrive last and show figures
@@ -373,7 +508,7 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
   /** Keep the save on this phone; the outbox sends it when the connection returns (oldest first). */
   const queue = async (me: string) => {
     const row = { scope_id: form.scope.id, client_id: form.scope.client.id, stage_type: form.stage.stage_type,
-      prev_footprint_id: source?.id ?? null, created_by: me, payload: built.payload, ...built.columns,
+      prev_footprint_id: source?.id ?? null, created_by: me, payload: built.payload, ...built.columns, ...extra,
       ...(replaces ? { supersedes_id: replaces.id } : {}) };
     const farmerName = document.querySelector('[data-testid="farmer-picked"] strong')?.textContent;
     const qty = (preview as OfflinePreview | null)?.qty_out;
@@ -385,7 +520,7 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
       row, values: Object.fromEntries(Object.entries(values).filter(([, v]) => !(v instanceof File))),
       source: source ? { id: source.id, footprint_code: source.footprint_code, qty_out: source.qty_out } : null,
       split: built.columns.split_into_grades === true,
-      files: built.files.map(({ file }) => ({ name: file.name, type: file.type, blob: file })),
+      files: built.files.map(({ file, field }) => ({ name: file.name, type: file.type, blob: file, label: field.label_as ?? null })),
     });
     saveRef.current = '';                                  // the id now belongs to the save waiting in the outbox; the next lot gets its own
     if (draft && draft.id !== item.id) await discard(draft.id);
@@ -396,14 +531,14 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
     const me = ctx!.user!.id;
     let rec: Footprint;
     if (editing) {
-      rec = await q(supabase.from('footprints').update({ payload: built.payload, ...built.columns }).eq('id', editing.id).select().single()) as Footprint;
+      rec = await q(supabase.from('footprints').update({ payload: built.payload, ...built.columns, happened_on: on }).eq('id', editing.id).select().single()) as Footprint;
     } else {
       saveRef.current ||= crypto.randomUUID();
       if (!online) { await queue(me); return; }
       try {
         rec = await insertOnce({
           scope_id: form.scope.id, client_id: form.scope.client.id, stage_type: form.stage.stage_type,
-          prev_footprint_id: source?.id ?? null, created_by: me, payload: built.payload, ...built.columns,
+          prev_footprint_id: source?.id ?? null, created_by: me, payload: built.payload, ...built.columns, ...extra,
           ...(replaces ? { supersedes_id: replaces.id } : {}),
         }, saveRef.current);
       } catch (e) {
@@ -415,8 +550,8 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
       if (draft) await discard(draft.id);
     }
     // The record is stored. From here on a lost connection must not make the save look failed.
-    for (const { file } of built.files) {
-      try { await within(UPLOAD_WAIT_MS, uploadEvidence(rec, file)); }
+    for (const { file, field } of built.files) {
+      try { await within(UPLOAD_WAIT_MS, uploadEvidence(rec, file, field.label_as)); }
       catch (e) {
         // No connection for the photo: it waits on the phone under the same save id. The outbox finds the record that
         // was just made (it is not made twice) and attaches the photo when the network is back.
@@ -455,6 +590,9 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
         <Stepper current={8} form={form} />
         <div className="alert ok" data-testid="saved">{t('engine.saved', { code: saved.footprint_code })} · {kg(saved.qty_out)}</div>
         {photoError && <div className="alert warn">{t('engine.photo_failed', { reason: photoError })}</div>}
+        {form.stage.stage_type === 'packing' && saved.payload?.batch_code !== undefined && (
+          <div className="alert info" data-testid="packed">{t('pk.saved', { batch: String(saved.payload.batch_code) })}
+            <div><Link className="btn" to={`/records/${saved.id}/labels`} data-testid="print-labels">{t('pk.print')}</Link></div></div>)}
         {gradeLots.length > 0 && (
           <div className="alert info" data-testid="grade-lots">{t('engine.grade_lots', { lots: gradeLots.map((g) => `${g.footprint_code} (${kg(g.qty_out)})`).join(' · '), stage: form.next_stage?.label ?? '' })}</div>
         )}
@@ -470,7 +608,7 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
         ) : <p>{t('engine.handoff_last')}</p>}
         <div className="row">
           <Link className="btn" to={`/records/${saved.id}`}>{t('common.open')} {saved.footprint_code}</Link>
-          <button className="secondary" onClick={() => window.location.reload()}>{t('engine.new_record', { stage: form.stage.label })}</button>
+          <button className="secondary" onClick={() => onNew?.()} data-testid="new-record">{t('engine.new_record', { stage: form.stage.label })}</button>
         </div>
       </div>
     );
@@ -482,7 +620,7 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
       <Stepper current={step} form={form} />
       {editing && <div className="alert info">{t('record.edit_pending')}: <span className="mono">{editing.footprint_code}</span></div>}
       {editing && !online && <div className="alert warn">{t('engine.correct_needs_network')}</div>}
-      {draft?.error && <div className="alert error" data-testid="draft-error">{t('engine.draft_refused')} {draft.error}</div>}
+      {draft?.error && <div className="alert error" data-testid="draft-error">{t('engine.draft_refused')} {plainText(draft.error, t)}</div>}
       <ReplacesNote withdrawnId={replaces?.id} />
       {!editing && <div className="sign-banner">{form.next_stage
         ? t('engine.sign_banner', { name: ctx?.user?.display_name ?? '', stage: form.next_stage.label })
@@ -492,6 +630,17 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
       {unsupported.length > 0 && <div className="alert warn">{t('engine.widget_missing')} ({unsupported.map((f) => f.label).join(', ')})</div>}
       <form onSubmit={(e) => { e.preventDefault(); if (preview?.ok) setReviewing(true); }} aria-label={form.stage.label}>
         <fieldset disabled={reviewing} style={{ border: 'none', padding: 0, margin: 0 }}>
+          <div className="form-section" data-section="when">
+            <div className="form-grid">
+              <Field label={`${t('on.label')} *`} htmlFor="f-happened-on" hint={t('on.hint')}>
+                <input id="f-happened-on" type="date" value={on} max={todayIST()} min={shiftDay(todayIST(), -31)} onChange={(e) => setOn(e.target.value)} data-testid="happened-on" />
+              </Field>
+              {asManager && (
+                <Field label={`${t('mgr.record_why')} *`} htmlFor="f-manager-why" hint={t('mgr.min10')}>
+                  <input id="f-manager-why" value={why} maxLength={500} onChange={(e) => setWhy(e.target.value)} data-testid="manager-why" />
+                </Field>)}
+            </div>
+          </div>
           {groupSections(fields).map((g) => (
             <div className="form-section" key={g.fields[0].key} data-section={g.section ?? ''}>
               {g.section && <h3><span aria-hidden="true">{SECTION_ICON[g.section] ?? ''}</span>{t(`section.${g.section}`, undefined, humanise(g.section))}</h3>}
@@ -514,18 +663,20 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces }: {
         </fieldset>
         <MathsPanel preview={preview} missing={missing} aggregates={form.stage.aggregates} farmerId={typeof built.columns.farmer_id === 'string' ? built.columns.farmer_id : null} />
         {readingsKey && preview?.ok && !reviewing && <VerdictLine v={verdict} params={form.quality_params} />}   {/* at review it is in the summary below */}
-        {!reviewing && <button type="submit" disabled={!preview?.ok || unsupported.length > 0}>{t('engine.review')}</button>}
+        {!reviewing && <button type="submit" disabled={!preview?.ok || unsupported.length > 0 || !on || (asManager && why.trim().length < 10)}>{t('engine.review')}</button>}
       </form>
       {reviewing && preview?.ok && (
         <div className="stack" data-testid="review">
           <h3>{t('engine.will_save')}</h3>
           <dl className="kv">
+            <dt>{t('on.label')}</dt><dd data-testid="review-on">{date(on)}</dd>
+            {asManager && <><dt>{t('mgr.record_why')}</dt><dd data-testid="review-why">{why.trim()}</dd></>}
             <dt>{t('engine.qty_in')}</dt><dd className="num">{kg(preview.qty_in)}</dd>
             <dt>{t('engine.qty_out')}</dt><dd className="big" data-testid="review-qty-out">{kg(preview.qty_out)}</dd>
             <ComputedRows computed={preview.computed} t={t} />
           </dl>
           {readingsKey && <VerdictLine v={verdict} params={form.quality_params} />}
-          {preview.warnings && preview.warnings.length > 0 && <div className="alert warn">{t('engine.warnings')}: {preview.warnings.join(' · ')}</div>}
+          {preview.warnings && preview.warnings.length > 0 && <div className="alert warn">{t('engine.warnings')}: {preview.warnings.map((w) => plainText(w, t)).join(' · ')}</div>}
           <label className="check"><input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />{t('engine.review_confirm')}</label>
           <ErrorBox error={act.error} />
           <div className="row">
@@ -560,7 +711,7 @@ function MathsPanel({ preview, missing, aggregates, farmerId }: { preview: Previ
   if (missing.length) return <div className="alert info" aria-live="polite">{t('engine.preview_wait')} <span className="small">({missing.join(', ')})</span></div>;
   if (!preview) return <div className="alert info" aria-live="polite">{t('common.loading')}</div>;
   // migration 47: the farmer's good farming practice is missing: the way to fill it in, from the form itself
-  if (!preview.ok) return <div className="alert error" aria-live="polite" data-testid="preview-error">{t('engine.refused')} {preview.error}
+  if (!preview.ok) return <div className="alert error" aria-live="polite" data-testid="preview-error">{t('engine.refused')} {plainText(preview.error ?? '', t)}
     {farmerId && /good farming practice/i.test(preview.error ?? '') && <div><Link to={`/farmers/${farmerId}/practice`} data-testid="fill-practice">{t('fp.fill_practice')}</Link></div>}</div>;
   const off = (preview as OfflinePreview).offline;
   if (off && (preview as OfflinePreview).provisional)
@@ -571,10 +722,13 @@ function MathsPanel({ preview, missing, aggregates, farmerId }: { preview: Previ
       {off && <div className="small" data-testid="offline-maths">{t('engine.offline_maths')}</div>}
       <strong>{kg(preview.qty_out)}</strong> {t('engine.forwarded')}
       {left !== null && <> · {t('engine.left_after', { kg: kg(left) })}</>}
-      {preview.warnings && preview.warnings.length > 0 && <div className="small">{preview.warnings.join(' · ')}</div>}
+      {preview.warnings && preview.warnings.length > 0 && <div className="small">{preview.warnings.map((w) => plainText(w, t)).join(' · ')}</div>}
     </div>
   );
 }
+
+/** "YYYY-MM-DD" moved by whole days (the date input's lower bound: 31 days back, as the server allows). */
+export const shiftDay = (ymd: string, days: number) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); };
 
 function initialValues(form: StageForm, source: Footprint | null, editing: Footprint | null): Record<string, FieldValue> {
   const v: Record<string, FieldValue> = {};
@@ -601,9 +755,11 @@ function initialValues(form: StageForm, source: Footprint | null, editing: Footp
 // ---------------------------------------------------------------------------------------------------------------
 function Records({ form }: { form: StageForm }) {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const list = useAsync(() => q(supabase.from('footprints').select('*').eq('scope_id', form.scope.id)
     .eq('stage_type', form.stage.stage_type as StageType).order('created_at', { ascending: false }).limit(200)) as Promise<Footprint[]>,
   [form.scope.id, form.stage.stage_type]);
+  const returned = useOpenReturns((list.data ?? []).filter((r) => r.status === 'pending').map((r) => r.id));
   if (list.loading) return <Loading />;
   if (list.error) return <ErrorBox error={list.error} onRetry={list.reload} />;
   if (!list.data?.length) return <Empty />;
@@ -613,10 +769,10 @@ function Records({ form }: { form: StageForm }) {
         <thead><tr><th>{t('engine.col_code')}</th><th>{t('engine.col_in')}</th><th>{t('engine.col_out')}</th><th>{t('common.status')}</th><th className="hide-mobile">{t('engine.col_recorded')}</th></tr></thead>
         <tbody>
           {list.data.map((r) => (
-            <tr key={r.id} className="clickable" onClick={() => { window.location.href = `/records/${r.id}`; }}>
+            <tr key={r.id} className="clickable" onClick={(e) => { if (!(e.target as HTMLElement).closest('a')) navigate(`/records/${r.id}`); }}>
               <td className="mono"><Link to={`/records/${r.id}`}>{r.footprint_code}</Link></td>
               <td className="num">{kg(r.qty_in)}</td><td className="num">{kg(r.qty_out)}</td>
-              <td><Badge value={r.status} />{r.lot_closed ? <> <Badge value="closed" /></> : null}</td>
+              <td>{returned.has(r.id) ? <Badge value="pending" label={t('ret.badge')} /> : <Badge value={r.status} />}{r.lot_closed ? <> <Badge value="closed" /></> : null}</td>
               <td className="hide-mobile">{dateTime(capturedAt(r).at)}</td>
             </tr>
           ))}

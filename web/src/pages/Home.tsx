@@ -22,6 +22,8 @@ import { actsAsStateManager, oversees } from '../lib/rights';
 import { StateHome } from './state/StateHome';
 import { stageIcon } from '../engine/icons';
 import { kg, humanise, num } from '../lib/format';
+import { NeedsMyAction } from './NeedsMyAction';
+import { myClientAccounts } from '../lib/rights';
 
 export interface PipeRow { stage: string; chain_pos: number; records: number; pending: number; verified: number; kg_out: number; kg_available: number }
 
@@ -114,6 +116,7 @@ function WorkPicker() {
   return (
     <>
       <div className="band"><div><h1>{t('home.hello', { name: me.display_name })}</h1><div className="sub">{t('pick.sub', { n: scopes.length })}</div></div></div>
+      <NeedsMyAction />
       <h2 className="section-title">{t('pick.title')}</h2>
       {clients.map((c) => (
         <div key={c}>
@@ -145,6 +148,7 @@ function OperatorHome() {
           <div className="sub">{t(`role.${me.role}`)}{current ? ` · ${current.label}` : ''}</div></div>
       </div>
       {scopes.length > 1 && worksInOneScope(scopes) && <p><button className="secondary" onClick={() => choose(null)} data-testid="change-scope">{t('pick.change')}</button></p>}
+      <NeedsMyAction />
       {slots.length > 0 && <h2 className="section-title">{t('home.your_stages')}</h2>}
       <div className="stage-cards">{slots.map((s) => <StageCard key={`${s.scope_id}-${s.stage_type}`} slot={s} userId={me.id} compact={compact} />)}</div>
       {ctx!.slots.length === 0 && <Empty>{t('home.no_slots')}</Empty>}
@@ -206,6 +210,11 @@ function OverallHome() {
   const live = scopes.filter((s) => s.status !== 'draft' && s.status !== 'closed');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const pipes = useAsync(() => Promise.all(live.map((s) => rpc<PipeRow[]>('pipeline_summary', { p_scope: s.scope_id }).then((rows) => [s.scope_id, rows] as const))), [live.map((s) => s.scope_id).join(',')]);
+  // migration 48 (D3): the same person on two stages in a row, counted on each scope's card
+  const same = useAsync(() => Promise.all(live.map((s) => rpc<{ verified_own: number; made_on_own: number }>('same_person_counts', { p_scope: s.scope_id })
+    .then((c) => [s.scope_id, c] as const).catch(() => [s.scope_id, null] as const))), [live.map((s) => s.scope_id).join(',')]);
+  const sameBy = new Map(same.data ?? []);
+  const cm = myClientAccounts(ctx).length > 0;
   const flags = useAsync(() => q(supabase.from('flags').select('id').eq('status', 'open')) as Promise<{ id: string }[]>, []);
   const byScope = new Map(pipes.data ?? []);
   const figures = [...byScope.values()].map(scopeFigures);
@@ -219,6 +228,7 @@ function OverallHome() {
           <div className="sub">{t('home.scopes_crops', { n: scopes.length, m: crops })}</div></div>
         <div className="side">{me.display_name}<br />{t(`role.${me.role}`)}</div>
       </div>
+      <NeedsMyAction always={cm} />
       {(me.can?.assign ?? isManager(me.role)) && <LedgerHealth />}
       <div className="stats" data-testid="stats">
         <Stat value={String(live.length)} label={t('home.kpi_active')} sub={t('home.kpi_setup', { n: scopes.filter((s) => s.status === 'draft').length })} />
@@ -237,6 +247,8 @@ function OverallHome() {
               <p className="small" style={{ margin: '8px 0' }}>{f === null ? (s.status === 'draft' ? t('home.in_setup') : '…')
                 : f.records === 0 ? t('home.no_activity')
                   : t('home.scope_line', { kg: kg(f.procured), pending: f.pending, qr: f.completed })}</p>
+              {(() => { const c = sameBy.get(s.scope_id); const n = c ? Number(c.verified_own) + Number(c.made_on_own) : 0;
+                return c && n > 0 ? <p className="small" data-testid="scope-same-person"><span className="same-person">{t('sp.title')}</span> {t('sp.count', { v: c.verified_own, m: c.made_on_own })}</p> : null; })()}
               <div className="row">
                 {s.status === 'draft' ? <Link className="btn secondary" to={`/scopes/${s.scope_id}`}>{t('home.set_up')}</Link>
                   : <button className="secondary" onClick={() => choose(s.scope_id)}>{t('home.work_in_scope')}</button>}
@@ -289,6 +301,7 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
       </div>
       {watch ? <ReadOnlyBanner text={t('ov.viewing', { name: `${scope.client_name} · ${scope.label}` })} onExit={() => choose(null)} />
         : scopes.length > 1 && <p><button className="secondary" onClick={() => choose(null)}>{t('home.back_overall')}</button></p>}
+      {!watch && <NeedsMyAction />}
       {manager && <LedgerHealth />}
       {draft ? (
         <div className="card"><p>{t('home.in_setup')}</p><Link className="btn" to={`/scopes/${scope.id}`}>{t(watch || actsAsStateManager(ctx) ? 'ov.scope_details' : 'home.set_up')}</Link></div>

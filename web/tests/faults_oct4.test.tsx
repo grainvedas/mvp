@@ -191,7 +191,7 @@ describe('the time a record was captured (item 8)', () => {
     expect(seasonRow(old)[SEASON_HEADER.indexOf('recorded_at')]).toBe('sent');
     // the columns that existed before keep their places: only the name of the time column changed, the new one is last
     expect(SEASON_HEADER.slice(0, 13).join(',')).toBe('code,stage,status,qty_in_kg,qty_out_kg,grade,lot_closed,farmer_id,farmer,village,batch_code,buyer,market');
-    expect(SEASON_HEADER.slice(13)).toEqual(['recorded_at', 'verified_at', 'warnings', 'received_by_server_at']);
+    expect(SEASON_HEADER.slice(13)).toEqual(['recorded_at', 'verified_at', 'warnings', 'received_by_server_at', 'happened_on']);   // migration 48: the date it happened, last
   });
 });
 

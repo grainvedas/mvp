@@ -17,6 +17,8 @@ import { assembleChain, offeredForScope, splitChain, type CropFull } from '../..
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 
 interface ScopeRow { id: string; client_id: string; crop_id: string; season_code: string; geography: string; chain: StageType[]; status: string; activated_at: string | null;
+  /** migration 48 (E4): in the scope's record numbers */ short_code?: string | null;
+  /** migration 50 (C5): the lab record names the lab, the report and attaches it (set before activation) */ qc_report_required?: boolean;
   state_id?: string; season_end?: string | null }
 type Crop = CropFull;   // migration 42: with its readiness and recommended chain
 interface Client { id: string; name: string; code: string; state_id?: string }
@@ -67,6 +69,8 @@ export function ScopeWizard() {
   const [clientId, setClientId] = useState(me.client_id ?? '');
   const [season, setSeason] = useState('KH26');
   const [geo, setGeo] = useState('');
+  const [labReport, setLabReport] = useState(true);          // migration 50 (C5): ask the lab for its report (the default)
+  const [short, setShort] = useState('');                   // migration 48 (E4): the short code in record numbers
   const [stateId, setStateId] = useState('');              // '' = the client's home state (the database fills it in)
   const [seasonEnd, setSeasonEnd] = useState('');
   const [cropId, setCropId] = useState('');
@@ -84,7 +88,7 @@ export function ScopeWizard() {
   useEffect(() => {
     const s = existing.data;
     if (!s) return;
-    setClientId(s.client_id); setSeason(s.season_code); setGeo(s.geography); setCropId(s.crop_id);
+    setClientId(s.client_id); setSeason(s.season_code); setGeo(s.geography); setCropId(s.crop_id); setShort(s.short_code ?? ''); setLabReport(s.qc_report_required !== false);
     setStateId(s.state_id ?? ''); setSeasonEnd(s.season_end ?? '');
     const c = s.chain, qi = c.indexOf('qc');
     setEntry(c[0]); setVillageBatch(c.includes('village_batch'));
@@ -142,6 +146,8 @@ export function ScopeWizard() {
 
   const saveDraft = () => act.run(async () => {
     const row = { client_id: clientId, crop_id: cropId, season_code: season.trim().toUpperCase(), geography: geo.trim(), chain,
+      ...(short.trim() ? { short_code: short.trim().toUpperCase() } : {}),          // migration 48: none typed, the server gives one
+      qc_report_required: labReport,
       ...(stateId || homeState ? { state_id: stateId || homeState } : {}), season_end: seasonEnd || null };
     const saved = s ? await q(supabase.from('scopes').update(row).eq('id', s.id).select().single()) as ScopeRow
                     : await q(supabase.from('scopes').insert({ ...row, status: 'draft' }).select().single()) as ScopeRow;
@@ -160,6 +166,7 @@ export function ScopeWizard() {
     <div>
       <p className="small"><Link to="/scopes">{t('scopes.title')}</Link></p>
       <h1>{s ? `${crop?.name ?? ''} · ${s.season_code} · ${s.geography}` : t('scopes.new')} {s && <Badge value={s.status} />}</h1>
+      {s?.short_code && <p className="small" data-testid="scope-short-code">{t('scope.short_code')}: <strong className="mono">{s.short_code}</strong></p>}
       <ol className="stepper">{[1, 2, 3, 4].map((n) => {
         const open = !frozen && n !== step && (n < step || (!!s && s.status === 'draft'));   // a saved draft: every step; a new one: the steps done
         return <li key={n} className={n < step ? 'done' : n === step ? 'current' : ''} aria-current={n === step ? 'step' : undefined}>
@@ -175,11 +182,15 @@ export function ScopeWizard() {
           <Field label="Season code" hint="two letters + year, e.g. KH26 for Kharif 2026" htmlFor="wz-season">
             <input id="wz-season" value={season} onChange={(e) => setSeason(e.target.value.toUpperCase())} maxLength={4} /></Field>
           <Field label="Geography" hint="district, block or mandi" htmlFor="wz-geo"><input id="wz-geo" value={geo} onChange={(e) => setGeo(e.target.value)} /></Field>
+          <Field label={t('scope.short_code')} hint={t('scope.short_code_hint')} htmlFor="wz-short">
+            <input id="wz-short" value={short} maxLength={4} onChange={(e) => setShort(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))} data-testid="wz-short" /></Field>
+          <label className="check"><input type="checkbox" checked={labReport} onChange={(e) => setLabReport(e.target.checked)} data-testid="wz-lab-report" />{t('scope.qc_report')}</label>
+          <p className="hint">{t('scope.qc_report_hint')}</p>
           {/* migration 41 (Veda, 13 Oct): a new scope is in its client's own state; a scope made earlier elsewhere keeps its state */}
           <p className="small" data-testid="wz-state">{t('lens.state')}: <strong>{states.data?.find((x) => x.id === (stateId || homeState))?.name ?? '—'}</strong>
             <span className="muted"> · {t('wizard.state_home_only')}</span></p>
           <Field label={t('wizard.season_end')} hint={t('wizard.season_end_hint')} htmlFor="wz-end"><input id="wz-end" type="date" value={seasonEnd} onChange={(e) => setSeasonEnd(e.target.value)} /></Field>
-          <button disabled={!clientId || !/^[A-Z]{2}[0-9]{2}$/.test(season) || !geo.trim()} onClick={() => setStep(2)}>{t('common.next')}</button>
+          <button disabled={!clientId || !/^[A-Z]{2}[0-9]{2}$/.test(season) || !geo.trim() || (short !== '' && short.length < 2)} onClick={() => setStep(2)}>{t('common.next')}</button>
         </div>
       )}
       {step === 2 && !frozen && (

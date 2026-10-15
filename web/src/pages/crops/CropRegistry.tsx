@@ -12,6 +12,7 @@ import { useI18n } from '../../lib/i18n';
 import { date } from '../../lib/format';
 import type { QualityParam, StageDefinition, StageType } from '../../lib/types';
 import { Badge, ErrorBox, Field, Loading } from '../../shell/ui';
+import { giLabel } from '../../lib/gi';
 import { useAuth } from '../../auth/AuthProvider';
 import { isStateManager, myStateIds, oversees } from '../../lib/rights';
 import {
@@ -47,6 +48,10 @@ export function Crops() {
       quality_params: e.quality_params.map((p) => ({ ...p, param: p.param || slug(p.label) })), allowed_stages: e.allowed_stages, yield_per_acre_kg: e.yield_per_acre_kg ?? null,
       recommended_chain: e.recommended_chain ?? [], gap_items: (e.gap_items ?? []).map((g) => ({ ...g, key: g.key || slug(g.label) })),
       harvest_from: e.harvest_from || null, harvest_to: e.harvest_to || null, export_docs: (e.export_docs ?? []).map((x) => x.trim()).filter(Boolean),
+      // migration 49: the GI area and the crop's own thresholds (none typed: the defaults, 70 % and 10 runs)
+      gi_districts: (e.gi_districts ?? []).map((x) => x.trim()).filter(Boolean),
+      thresholds: Object.fromEntries(Object.entries(e.thresholds ?? {}).filter(([, v]) => v !== null && v !== undefined && !Number.isNaN(v))),
+      shelf_life_days: e.shelf_life_days ?? null,                                    // migration 50: the packs' best-before
       // a crop is of his state: a new one, and one with no state yet (which this save sets, once)
       ...(!e.state_id && mine && mine.length > 0 ? { state_id: mine[0] } : {}) };
     if (e.id) await q(supabase.from('crops').update(row).eq('id', e.id).select()); else await q(supabase.from('crops').insert(row).select());
@@ -100,7 +105,8 @@ function CropCard({ c, stateName, lang, yes, no, defs, onEdit, admin, states, on
   return (
     <div className="card crop-card" data-testid="crop-row" data-code={c.code}>
       <div className="row wrap">
-        <strong>{c.name}</strong> <span className="mono">{c.code}</span> {c.gi_tag && <Badge value="verified" label={c.gi_tag} />}
+        <strong>{c.name}</strong> <span className="mono">{c.code}</span> {c.gi_tag && <Badge value="verified" label={giLabel(c.gi_tag, t)} />}
+        {c.gi_tag && (c.gi_districts ?? []).length > 0 && <span className="small muted" data-testid="crop-gi-area"> · {t('crops.gi_area', { n: (c.gi_districts ?? []).length })}</span>}
         {c.state_id ? <span className="small muted" data-testid="crop-state">{stateName}</span> : <Badge value="pending" label={t('crops.state_not_set')} />}
         {c.retired_at ? <Badge value="closed" label={t('crops.retired')} />
           : c.ready ? <span data-testid="crop-ready"><Badge value="pass" label={t('crops.ready')} /></span>
@@ -194,6 +200,17 @@ function CropForm({ edit, setEdit, keys, typed, setTyped, defs, stateLabel, sett
         <Field label={t('crops.f_code')} hint={t('crops.code_hint')} htmlFor="cr-code"><input id="cr-code" value={edit.code} maxLength={5} onChange={(e) => set({ code: e.target.value.toUpperCase() })} /></Field>
         <Field label={t('crops.f_gi')} htmlFor="cr-gi"><input id="cr-gi" value={edit.gi_tag ?? ''} onChange={(e) => set({ gi_tag: e.target.value })} /></Field>
         <Field label={t('crops.f_origin')} htmlFor="cr-origin"><input id="cr-origin" value={edit.origin ?? ''} onChange={(e) => set({ origin: e.target.value })} /></Field>
+        <Field label={t('crops.f_gi_districts')} hint={t('crops.gi_districts_hint')} htmlFor="cr-gid">
+          <input id="cr-gid" value={(edit.gi_districts ?? []).join(', ')} onChange={(e) => set({ gi_districts: e.target.value.split(',').map((x) => x.replace(/^\s+/, '')) })} data-testid="crop-gi-districts" /></Field>
+        <Field label={t('crops.f_ceiling')} hint={t('crops.ceiling_hint')} htmlFor="cr-ceil">
+          <input id="cr-ceil" inputMode="decimal" value={edit.thresholds?.milling_outturn_ceiling_pct ?? ''} data-testid="crop-ceiling"
+            onChange={(e) => set({ thresholds: { ...(edit.thresholds ?? {}), milling_outturn_ceiling_pct: e.target.value === '' ? undefined : Number(e.target.value) } })} /></Field>
+        <Field label={t('crops.f_learn')} hint={t('crops.learn_hint')} htmlFor="cr-learn">
+          <input id="cr-learn" inputMode="numeric" value={edit.thresholds?.learn_after_runs ?? ''}
+            onChange={(e) => set({ thresholds: { ...(edit.thresholds ?? {}), learn_after_runs: e.target.value === '' ? undefined : Number(e.target.value) } })} /></Field>
+        <Field label={t('crops.f_shelf_life')} hint={t('crops.shelf_life_hint')} htmlFor="cr-shelf">
+          <input id="cr-shelf" inputMode="numeric" value={edit.shelf_life_days ?? ''} data-testid="crop-shelf-life"
+            onChange={(e) => { const n = e.target.value.replace(/[^0-9]/g, ''); set({ shelf_life_days: n === '' ? null : Number(n) }); }} /></Field>
         <Field label={t('crops.f_unit')} hint={t('crops.unit_hint')} htmlFor="cr-unit"><input id="cr-unit" value={edit.primary_unit} readOnly /></Field>
         <Field label={`${t('crops.f_yield')} *`} hint={t('crops.yield_hint')} htmlFor="cr-yield">
           <input id="cr-yield" inputMode="decimal" value={edit.yield_per_acre_kg ?? ''} onChange={(e) => { const n = limitInput(e.target.value); set({ yield_per_acre_kg: n }); }} /></Field>

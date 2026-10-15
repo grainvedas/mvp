@@ -17,6 +17,10 @@ export interface FieldDef {
   gate?: 'market_verdict'; // select: only the markets the source lot may be sold to are offered (app.lot_markets)
   accept?: 'document';     // attachment: any photo or PDF from the phone (default: take a photo with the camera)
   section?: string;        // heading the field stands under on the form (section.<key> in the dictionaries); display only
+  /** migration 50: required when the scope's setting of this name is on (the lab report: qc_report_required) */
+  required_when?: string;
+  /** migration 50: an attachment is registered under this label (lab_report, acceptance, pod, loading_photo, document) */
+  label_as?: string;
 }
 
 export interface StageDefinition {
@@ -55,16 +59,24 @@ export interface StageForm {
   scope: {
     id: string; season_code: string; geography: string; status: string; chain: StageType[];
     tolerances: Record<string, number>;
+    /** migration 48 (E4): the scope's short code, in its record numbers */
+    short_code?: string | null;
+    /** migration 50 (C5): the lab record names the lab, the report number and date, and attaches the report */
+    qc_report_required?: boolean;
     client: { id: string; name: string; code: string };
     crop: { id: string; name: string; code: string; gi_tag: string | null; primary_unit: string };
   };
   stage: StageDefinition;
   position: number;
-  prev_stage: { stage_type: StageType; label: string; handoff_checks: string[] } | null;
+  prev_stage: { stage_type: StageType; label: string; handoff_checks: string[]; /** migration 49: what the receiver ticks */ physical_checks?: string[] } | null;
   next_stage: { stage_type: StageType; label: string } | null;
   quality_params: QualityParam[];
   can_create: boolean;
   can_verify_incoming: boolean;
+  /** migration 48 (A10): the reader records here as a manager (holds no slot): a reason is asked */
+  records_as_manager?: boolean;
+  /** migration 48 (A10): the reader verifies here as a manager: a reason is asked */
+  verifies_as_manager?: boolean;
 }
 
 export interface Footprint {
@@ -92,6 +104,10 @@ export interface Footprint {
   created_at: string;
   /** When the operator saved it on the phone (migration 29). Absent on older servers and older records: use created_at. */
   captured_at?: string | null;
+  /** migration 48 (A9): the date it happened (the person says; today by default). Absent on older records. */
+  happened_on?: string | null;
+  /** migration 48 (A10): why a manager recorded at a stage he does not hold */
+  manager_reason?: string | null;
 }
 
 /** app.preview_verdict: what the save of a lab record would derive from these readings. */
@@ -188,9 +204,38 @@ export interface FootprintDetail {
     judged: { param: string; value: number | string | boolean | null; domestic: string; export: string }[]; override: Record<string, unknown> | null };
   market_verdict: { domestic: string; export: string; overridden: boolean };
   seal: null | { qr_code: string; batch_codes: string[]; sealed_at: string; ledger_hash: string };
-  flags: { id: string; text: string; status: string; created_at: string; raised_by_name: string | null }[];
-  attachments: { id: string; kind: string; storage_path: string; sha256: string; created_at: string }[];
+  flags: { id: string; text: string; status: string; created_at: string; raised_by_name: string | null; kind?: 'flag' | 'condition' }[];
+  /** migration 48 (A1): the times it was returned to its sender */
+  returns?: FootprintReturn[];
+  /** migration 49: its farmers (documented proportions), GI status, sources with the kg taken, what the system checks */
+  farmers?: LotFarmer[]; gi_status?: GiStatus; sources?: { id: string; code: string; stage: StageType; kg: number; how: string; from_older: boolean }[];
+  system_checks?: SystemCheck[];
+  can_return?: boolean;
+  /** migration 50: a packing record's batch and packs; a shipment's delivery; a sealed lot's release status */
+  packs?: { batch_code: string | null; packed: number; void: number; prints: number; best_before: string | null } | null;
+  delivery?: Delivery | null;
+  release?: ReleaseStatus | null;
+  attachments: { id: string; kind: string; storage_path: string; sha256: string; created_at: string; label?: string | null }[];
   ledger: { seq: number; event: string; hash: string; prev_hash: string; created_at: string; actor_name: string | null }[];
+}
+
+export type GiStatus = 'gi' | 'non_gi' | 'unknown';
+export interface LotFarmer { farmer_id: string; name: string; village: string | null; district: string | null; share_pct: number; kg: number }
+/** app.system_checks: one thing the data answers about a record (its words: chk.<key>) */
+export interface SystemCheck { key: string; ok: boolean; vars: Record<string, string | number> }
+/** app.incoming_lots: a waiting lot with what is left on it (migration 49, A3/G2) */
+export type IncomingLot = Footprint & { available_kg: number; returned: boolean; maker_name: string | null; made_by_me: boolean; gi_status: GiStatus; farmer_count: number };
+
+export interface FootprintReturn {
+  id: string; reason: string; status: 'open' | 'corrected' | 'withdrawn'; returned_at: string; returned_by_name: string | null;
+  resolved_at: string | null; resolved_by_name: string | null;
+}
+
+/** migration 48 (D3): what waits for the signed-in person (app.my_actions) */
+export interface MyActions {
+  returned: { id: string; code: string; stage: StageType; scope_id: string; scope: string; reason: string; by: string | null; at: string; in_place: boolean }[];
+  to_verify: { scope_id: string; scope: string; stage: StageType; from_stage: StageType; n: number }[];
+  proposals: number; farmers_to_verify: number; requirement_lines: number; flags: number; conditions: number;
 }
 
 export const MANAGER_ROLES: Role[] = ['admin', 'state_manager', 'client_manager'];
@@ -203,3 +248,13 @@ export interface LotMarkets {
 }
 export interface Withdrawal { footprint_id: string; reason: string; withdrawn_by: string; withdrawn_at: string }
 
+
+/** migration 50 (G9/G10, C9): a release's status; a recall shows on every pack */
+export interface ReleaseStatus { status: 'active' | 'under_investigation' | 'recalled'; reason?: string | null; at?: string; by?: string | null }
+/** migration 50 (G12): what arrived, recorded at delivery */
+export interface Delivery { shipment_id: string; received_kg: number; transit_loss_kg: number; received_on: string; note: string | null; confirmed_by_name: string | null; confirmed_at?: string }
+/** migration 50 (G9): what the QR person reads before release */
+export interface ReleasePreview { ready: boolean; market: string | null; source: { code: string; stage: string; kg: number }; checks: SystemCheck[] }
+/** migration 50 (G8): the labels of a packing record */
+export interface LabelSheet { batch_code: string; crop: string; gi_tag: string | null; gi_status: GiStatus; season: string; geography: string; client: string; reprint: boolean;
+  packs: { serial: string; size_kg: number; packed_on: string; best_before: string | null }[] }

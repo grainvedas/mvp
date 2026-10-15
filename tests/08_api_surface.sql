@@ -82,6 +82,15 @@ insert into allowed values
   -- migration 47: Procurement proposes a correction of a verified farmer; the Client Manager decides; he withdraws his own
   ('authenticated', 'propose_farmer_change'), ('authenticated', 'farmer_proposals'), ('authenticated', 'decide_farmer_proposal'),
   ('authenticated', 'withdraw_farmer_proposal'),
+  -- migration 48: return to sender, verify with a reason or a condition, a manager's seal, what waits for me, the client's ledger
+  ('authenticated', 'return_footprint'), ('authenticated', 'verify_record'), ('authenticated', 'seal_source_as_manager'),
+  ('authenticated', 'my_actions'), ('authenticated', 'client_ledger_page'), ('authenticated', 'suggest_short_code'),
+  -- migration 49: what the system checks, the lots waiting with what is left on each
+  ('authenticated', 'system_checks'), ('authenticated', 'incoming_lots'),
+  -- migration 50: labels = packs, a pack voided, the release's summary and status, a scan, a pack's public page, delivery, labelled files
+  ('authenticated', 'print_labels'), ('authenticated', 'void_pack'), ('authenticated', 'release_preview'), ('authenticated', 'set_release_status'),
+  ('anon', 'record_scan'), ('authenticated', 'record_scan'), ('anon', 'public_pack'), ('authenticated', 'public_pack'),
+  ('authenticated', 'confirm_delivery'), ('authenticated', 'register_labelled_attachment'), ('authenticated', 'set_attachment_label'),
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

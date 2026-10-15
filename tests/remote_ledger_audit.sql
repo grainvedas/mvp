@@ -25,7 +25,24 @@ with blocks as (
       when 'evidence'       then exists (select 1 from public.attachments a
                                           where a.id::text = l.payload->>'attachment_id' and a.footprint_id = l.footprint_id
                                             and a.sha256 = l.payload->>'sha256' and a.storage_path = l.payload->>'storage_path')
+      -- migration 48: a record returned to its sender, the return closed by its correction or withdrawal, the sender's
+      -- own withdrawal of a returned record
+      when 'return'         then case
+          when l.payload->>'act' = 'returned'
+            then exists (select 1 from public.footprint_returns r where r.footprint_id = l.footprint_id and r.returned_by = l.actor)
+          when l.payload->>'act' = 'withdraw'
+            then exists (select 1 from public.withdrawals w where w.footprint_id = l.footprint_id and w.withdrawn_by = l.actor)
+          else exists (select 1 from public.footprint_returns r where r.id::text = l.payload->>'return_id' and r.footprint_id = l.footprint_id
+                         and r.status = l.payload->>'act')
+        end
+      -- migration 50: what arrived, recorded at delivery
+      when 'delivery'       then exists (select 1 from public.deliveries d where d.shipment_id = l.footprint_id and d.confirmed_by = l.actor
+                                          and d.received_kg::text = l.payload->>'received_kg')
       when 'supervisory'    then case
+          -- migration 50: a release's status changed (under investigation, recalled, active again)
+          when l.payload->>'act' like 'release\_%'
+            then exists (select 1 from public.release_events e where e.seal_id = l.footprint_id and e.by_user = l.actor
+                           and e.status = l.payload->>'to')
           when l.payload->>'act' = 'withdraw'
             then exists (select 1 from public.withdrawals w where w.footprint_id = l.footprint_id and w.withdrawn_by = l.actor)
           when l.payload->>'act' like 'flag\_%'
@@ -81,7 +98,7 @@ findings as (
   union all
   select null, 'withdraw', w.footprint_id::text, w.withdrawn_at, 'WITHDRAWAL WITHOUT ITS BLOCK'
     from public.withdrawals w
-   where not exists (select 1 from public.ledger l where l.footprint_id = w.footprint_id and l.event::text = 'supervisory' and l.payload->>'act' = 'withdraw')
+   where not exists (select 1 from public.ledger l where l.footprint_id = w.footprint_id and l.event::text in ('supervisory', 'return') and l.payload->>'act' = 'withdraw')
   union all
   -- evidence: one block per file, carrying the fingerprint the file has in the table today (checked only once migration 27 is in)
   select null, 'evidence', a.id::text, a.created_at,

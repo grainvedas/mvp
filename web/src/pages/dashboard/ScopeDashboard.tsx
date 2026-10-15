@@ -9,7 +9,7 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { downloadCsv } from '../../lib/csv';
-import { date, dateTime, humanise, kg } from '../../lib/format';
+import { date, dateTime, humanise, istStamp, kg } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Loading } from '../../shell/ui';
 
 export interface PipeRow { stage: string; chain_pos: number; records: number; pending: number; verified: number; kg_out: number; kg_available: number }
@@ -19,7 +19,7 @@ interface FlagRow { id: string; text: string; status: string; created_at: string
   footprints: { footprint_code: string; stage_type: string; scope_id: string } }
 interface ActivityRow { day: string; saved: number; verified: number; sealed: number; supervisory: number }
 export interface SeasonRow { footprint_code: string; stage_type: string; status: string; qty_in: number; qty_out: number; grade: string | null;
-  lot_closed: boolean; warnings: string[]; created_at: string; captured_at?: string | null; verified_at: string | null; farmer_id: string | null; payload: Record<string, unknown> }
+  lot_closed: boolean; warnings: string[]; created_at: string; captured_at?: string | null; verified_at: string | null; farmer_id: string | null; payload: Record<string, unknown>; happened_on?: string | null }
 
 /**
  * Columns of the season export. `recorded_at` is when the work was done: for a save that waited on the phone, the time
@@ -27,12 +27,12 @@ export interface SeasonRow { footprint_code: string; stage_type: string; status:
  * earlier column keeps its place. Until migration 29 the one time column was the server's and was named `created_at`.
  */
 export const SEASON_HEADER = ['code', 'stage', 'status', 'qty_in_kg', 'qty_out_kg', 'grade', 'lot_closed', 'farmer_id', 'farmer', 'village',
-  'batch_code', 'buyer', 'market', 'recorded_at', 'verified_at', 'warnings', 'received_by_server_at'];
+  'batch_code', 'buyer', 'market', 'recorded_at', 'verified_at', 'warnings', 'received_by_server_at', 'happened_on'];
 
 export function seasonRow(r: SeasonRow, f?: { farmer_code: string | null; name: string; village: string }) {
   return [r.footprint_code, r.stage_type, r.status, r.qty_in, r.qty_out, r.grade, r.lot_closed, f?.farmer_code, f?.name, f?.village,
     r.payload.batch_code as string, r.payload.buyer as string, r.payload.market as string,
-    r.captured_at ?? r.created_at, r.verified_at, r.warnings.join(' | '), r.created_at];
+    istStamp(r.captured_at ?? r.created_at), istStamp(r.verified_at), r.warnings.join(' | '), istStamp(r.created_at), r.happened_on ?? '']; // times in IST (Veda, 15 Oct); migration 48: the date it happened
 }
 
 export function StageDots({ rows, stageLabel }: { rows: PipeRow[]; stageLabel: (s: string) => string }) {

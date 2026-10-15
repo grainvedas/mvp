@@ -1,17 +1,18 @@
 // The whole ledger, for the admin (read-only); a State Manager reads his state's blocks (migration 41: app.state_ledger_page,
+// and the Client Manager his client's (migration 48, D5: app.client_ledger_page), both
 // filtered by the server; the last check of the chain is shown, without a button to run one). Every block with its number, event, what it is about, who signed it,
 // their role, the time, its hash and the hash before it. Filters: event, client, scope, person, and "manager acts on
 // records" (supervisory blocks of a record). The export writes the filtered list, asked page by page from the server.
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
-import { myStateIds, oversees } from '../../lib/rights';
+import { myClientAccounts, myStateIds, oversees } from '../../lib/rights';
 import { q, rpc } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import { downloadCsv } from '../../lib/csv';
 import { useAction, useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
-import { dateTime, humanise, shortHash, todayIST } from '../../lib/format';
+import { dateTime, humanise, istStamp, shortHash, todayIST } from '../../lib/format';
 import { Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 
 export interface LedgerRow {
@@ -24,6 +25,8 @@ export interface LedgerRow {
   /** migration 46: the stage the signer acted as (a verification: the receiving stage), and whether the same person
    *  recorded the record before (two stages in a row) */
   stage_role?: string | null; same_person?: boolean;
+  /** migration 48: the reason the block carries (a manager's, a return's, a condition) */
+  note?: string | null;
 }
 export interface LedgerPage { total: number; rows: LedgerRow[]; limit: number; offset: number;
   /** the state ledger (migration 41): the filters' choices, and the last check of the whole chain */
@@ -32,7 +35,7 @@ export interface LedgerPage { total: number; rows: LedgerRow[]; limit: number; o
     actors?: { id: string; name: string }[] };
   check?: { checked_at: string; ok: boolean; blocks: number; first_bad_seq: number | null; source: string } | null }
 
-export const LEDGER_EVENTS = ['create', 'verify', 'seal', 'override', 'supervisory', 'close', 'supersede', 'scope_activate', 'evidence'];
+export const LEDGER_EVENTS = ['create', 'verify', 'return', 'seal', 'override', 'supervisory', 'close', 'supersede', 'scope_activate', 'evidence'];
 const PAGE = 100;
 
 interface Filters { event: string; client: string; scope: string; actor: string; managerActs: boolean }
@@ -54,19 +57,27 @@ const stateArgs = (state: string, f: Filters, limit: number, offset: number) => 
   p_state: state, p_event: f.event || null, p_client: f.client || null, p_scope: f.scope || null, p_actor: f.actor || null, p_limit: limit, p_offset: offset,
 });
 
+/** The arguments of the client ledger (migration 48): his client, the state's filters minus the client. */
+const clientArgs = (client: string, f: Filters, limit: number, offset: number) => ({
+  p_client: client, p_event: f.event || null, p_scope: f.scope || null, p_actor: f.actor || null, p_limit: limit, p_offset: offset,
+});
+
 export function Ledger() {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const admin = oversees(ctx);
   const smState = !admin && ctx?.user?.can?.state_manager ? myStateIds(ctx)[0] ?? null : null;
+  const cmClient = !admin && !smState ? myClientAccounts(ctx)[0] ?? null : null;     // migration 48 (D5)
+  const scoped = !!(smState || cmClient);                                             // the server sends the filters' choices
   const [f, setF] = useState<Filters>(none);
   const [offset, setOffset] = useState(0);
   const set = (p: Partial<Filters>) => { setF((x) => ({ ...x, ...p })); setOffset(0); };
-  const ask = (limit: number, off: number) => smState ? rpc<LedgerPage>('state_ledger_page', stateArgs(smState, f, limit, off)) : rpc<LedgerPage>('ledger_page', args(f, limit, off));
+  const ask = (limit: number, off: number) => smState ? rpc<LedgerPage>('state_ledger_page', stateArgs(smState, f, limit, off))
+    : cmClient ? rpc<LedgerPage>('client_ledger_page', clientArgs(cmClient, f, limit, off)) : rpc<LedgerPage>('ledger_page', args(f, limit, off));
   const clients = useAsync(() => (admin ? q(supabase.from('clients').select('id,name').order('name')) as Promise<{ id: string; name: string }[]> : Promise.resolve(null)), [admin]);
   const scopes = useAsync(() => (admin ? q(supabase.from('scopes').select('id,client_id,season_code,geography,crops(name)').order('created_at')) as unknown as Promise<{ id: string; client_id: string; season_code: string; geography: string; crops: { name: string } | null }[]> : Promise.resolve(null)), [admin]);
   const people = useAsync(() => q(supabase.from('app_users').select('id,display_name').order('display_name')) as Promise<{ id: string; display_name: string }[]>, []);
-  const page = useAsync(() => ask(PAGE, offset), [f, offset, smState]);
+  const page = useAsync(() => ask(PAGE, offset), [f, offset, smState, cmClient]);
   const exp = useAction();
 
   const exportCsv = () => void exp.run(async () => {
@@ -77,20 +88,21 @@ export function Ledger() {
       if (p.rows.length < 500 || all.length >= p.total) break;
     }
     downloadCsv(`ledger-${todayIST()}.csv`,
-      ['seq', 'event', 'record', 'what', 'about', 'client', 'scope', 'signed_by', 'role', 'stage_role', 'same_person', 'time', 'hash', 'prev_hash'],
+      ['seq', 'event', 'record', 'what', 'about', 'client', 'scope', 'signed_by', 'role', 'stage_role', 'same_person', 'time_ist', 'hash', 'prev_hash', 'note'],
       all.map((r) => [r.seq, r.event, r.record, r.what, r.about, r.client, r.scope, r.actor_name, r.actor_working_role ?? r.actor_role, r.stage_role ?? '',
-        r.same_person ? 'yes' : '', r.created_at, r.hash, r.prev_hash]));
+        r.same_person ? 'yes' : '', istStamp(r.created_at), r.hash, r.prev_hash, r.note ?? '']));
   });
 
-  if (!admin && !smState) return <Navigate to="/" replace />;
+  if (!admin && !scoped) return <Navigate to="/" replace />;
   const d = page.data;
   const clientList = admin ? clients.data ?? [] : d?.filters?.clients ?? [];
   const scopeList = (admin ? (scopes.data ?? []).map((s) => ({ id: s.id, client_id: s.client_id, label: `${s.crops?.name ?? ''} · ${s.season_code} · ${s.geography}` }))
     : d?.filters?.scopes ?? []).filter((s) => !f.client || s.client_id === f.client);
   return (
     <div style={{ maxWidth: 1100 }}>
-      <div className="page-hd"><h1><span aria-hidden="true">🔗 </span>{smState ? t('ledger.state_title') : t('ledger.title')}</h1><div className="sub">{smState ? t('ledger.state_sub') : t('ledger.sub')}</div></div>
-      {smState && d && <p className="small" data-testid="ledger-check">{!d.check ? t('ledger.check_none')
+      <div className="page-hd"><h1><span aria-hidden="true">🔗 </span>{smState ? t('ledger.state_title') : cmClient ? t('ledger.client_title') : t('ledger.title')}</h1>
+        <div className="sub">{smState ? t('ledger.state_sub') : cmClient ? t('ledger.client_sub') : t('ledger.sub')}</div></div>
+      {scoped && d && <p className="small" data-testid="ledger-check">{!d.check ? t('ledger.check_none')
         : d.check.ok ? <>✓ {t('ledger.check_ok', { n: d.check.blocks, at: dateTime(d.check.checked_at) })}</>
         : <strong>{t('ledger.check_bad', { seq: d.check.first_bad_seq ?? '?', at: dateTime(d.check.checked_at) })}</strong>}</p>}
       <div className="filters" data-testid="ledger-filters">
@@ -100,12 +112,13 @@ export function Ledger() {
               {LEDGER_EVENTS.map((e) => <option key={e} value={e}>{t(`event.${e}`, undefined, humanise(e))}</option>)}
             </select>
           </Field>
+{!cmClient && (
           <Field label={t('ledger.f_client')} htmlFor="lf-client">
             <select id="lf-client" value={f.client} onChange={(e) => set({ client: e.target.value, scope: '' })} data-testid="ledger-client">
               <option value="">{t('ledger.any')}</option>
               {clientList.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-          </Field>
+          </Field>)}
           <Field label={t('ledger.f_scope')} htmlFor="lf-scope">
             <select id="lf-scope" value={f.scope} onChange={(e) => set({ scope: e.target.value })} data-testid="ledger-scope">
               <option value="">{t('ledger.any')}</option>
@@ -115,7 +128,7 @@ export function Ledger() {
           <Field label={t('ledger.f_person')} htmlFor="lf-person">
             <select id="lf-person" value={f.actor} onChange={(e) => set({ actor: e.target.value })} data-testid="ledger-person">
               <option value="">{t('ledger.any')}</option>
-              {(smState && d?.filters?.actors ? d.filters.actors.map((p) => ({ id: p.id, display_name: p.name })) : people.data ?? [])
+              {(scoped && d?.filters?.actors ? d.filters.actors.map((p) => ({ id: p.id, display_name: p.name })) : people.data ?? [])
                 .map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}
             </select>
           </Field>
@@ -147,6 +160,7 @@ export function Ledger() {
                     <td>
                       {r.footprint_id ? <Link to={`/records/${r.footprint_id}`}>{blockSubject(r, t)}</Link> : blockSubject(r, t)}
                       {(r.client || r.scope) && <div className="small muted">{[r.client, r.scope].filter(Boolean).join(' · ')}</div>}
+                      {r.note && <div className="small" data-testid="ledger-note">“{r.note}”</div>}
                     </td>
                     <td>{r.actor_name ?? t('ledger.system')}</td>
                     <td>{r.actor_working_role ? t(`wrole.${r.actor_working_role}`, undefined, humanise(r.actor_working_role))
