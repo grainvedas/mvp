@@ -190,6 +190,10 @@ export interface Farmer {
   gi_land_acres?: number | null;
   /** Migration 44: the state farmer ID (F-UP-00001) once the State Manager has verified, and the public-page consent. */
   state_farmer_id?: string | null; public_id_consent?: boolean;
+  /** Migration 51 (Part B): the block, the farm's GPS, the land record and GI authorised-user numbers; whether the GPS is
+   *  required before the Client Manager's verification (false for the farmers registered before). Absent before it. */
+  block?: string | null; farm_lat?: number | null; farm_lng?: number | null; land_record_no?: string | null; gi_user_no?: string | null;
+  location_required?: boolean;
 }
 
 export interface FootprintDetail {
@@ -236,6 +240,8 @@ export interface MyActions {
   returned: { id: string; code: string; stage: StageType; scope_id: string; scope: string; reason: string; by: string | null; at: string; in_place: boolean }[];
   to_verify: { scope_id: string; scope: string; stage: StageType; from_stage: StageType; n: number }[];
   proposals: number; farmers_to_verify: number; requirement_lines: number; flags: number; conditions: number;
+  /** migration 51: verified farmers of my clients without their farm's GPS (asked to add it) */
+  farmers_without_gps?: number;
 }
 
 export const MANAGER_ROLES: Role[] = ['admin', 'state_manager', 'client_manager'];

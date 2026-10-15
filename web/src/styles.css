@@ -310,7 +310,7 @@ button.small-btn { min-height: 36px; padding: 2px 10px; font-size: .85rem; font-
   align-items: start; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .slot-controls { flex-wrap: wrap; }
 .slot-controls select { flex: 1 1 160px; width: auto; min-width: 0; }
-@media (max-width: 600px) { .slot { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .slot { grid-template-columns: minmax(0, 1fr); } }   /* minmax(0,…): a long pool line (migration 51) never widens the page */
 
 /* ── identity layer: people, HR, onboarding (6 Oct 2026) ── */
 /* Org facts are grey (they describe a person and open nothing); what grants access is coloured, one colour per lens. */

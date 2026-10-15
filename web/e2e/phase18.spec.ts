@@ -2,7 +2,7 @@
 // screen. Part F first: a reopened draft reaches step 4 and is activated by clicks only (no typed link); "Save draft →
 // People" moves to step 4 or shows the server's words; the step names open the steps; the Roster offers Activate.
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signOut, apiAs, expectNoSideScroll, USERS } from './helpers';
+import { signIn, signOut, apiAs, expectNoSideScroll, USERS, pickFromPool } from './helpers';
 
 test.use({ viewport: { width: 527, height: 900 } });
 const menu = (page: Page) => page.getByRole('navigation', { name: 'Main' });
@@ -72,14 +72,13 @@ test('A–E: requirements raised by the People step, published by HR in one act;
   await expectNoSideScroll(page);
 
   // 2 · one person on Procurement and Packing, then on QC next to Procurement: allowed, the warning in the brief's words
-  const pick = (st: string) => page.getByRole('combobox', { name: `Assign ${st}` });
-  await pick('Procurement (farm-gate)').selectOption({ label: 'Procurement Op (field)' });
+  await pickFromPool(page, 'Assign Procurement (farm-gate)', 'Procurement Op (field)');
   await expect(page.getByTestId('slot-holder-procurement')).toContainText('Procurement Op (field)');
   await expect(page.locator('[data-testid="req-stage"][data-stage="procurement"]')).toHaveCount(0);   // staffed: its line closed
-  await pick('Packing').selectOption({ label: 'Procurement Op (field)' });
+  await pickFromPool(page, 'Assign Packing', 'Procurement Op (field)');
   await expect(page.getByTestId('slot-holder-packing')).toContainText('Procurement Op (field)');
   await expect(page.getByTestId('assign-warnings')).toContainText('Procurement Op (field) holds several stages here: Procurement (farm-gate), Packing.');
-  await pick('Quality Control').selectOption({ label: 'Procurement Op (field)' });
+  await pickFromPool(page, 'Assign Quality Control', 'Procurement Op (field)');
   await expect(page.getByTestId('assign-warnings')).toContainText('Procurement Op (field) also holds Procurement (farm-gate). At Quality Control he will verify his own procurement records.');
   // take QC away again: QC is HR's to fill
   page.once('dialog', (d) => d.accept());

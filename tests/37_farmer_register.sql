@@ -33,8 +33,8 @@ end $$;
 -- 1 · GI land: a draft may go without it; the Farmer ID may not ---------------------------------------------------------------
 select t.as_user(t.u('03'));
 do $$ declare f uuid; begin
-  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres)
-  values ('00000000-0000-4000-8000-000000000201', 'Register One', 'Father', 'Bansi', 'Siddharthnagar', '+919870000001', 2) returning id into f;
+  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000201', 'Register One', 'Father', 'Bansi', 'Siddharthnagar', '+919870000001', 2, 27.200000, 83.000000) returning id into f;
   insert into fx values ('R1', f);
   perform t.ok(f is not null, 'D GI land: the Client Manager saves a draft without it');
 end $$;
@@ -56,15 +56,15 @@ end $$;
 -- verified gets a new state farmer ID; a later one with that phone is LINKED to it, or (with a reason) given its own.
 select t.as_user(t.u('03'));
 do $$ declare f uuid; begin
-  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres)
-  values ('00000000-0000-4000-8000-000000000201', 'Shared Phone', 'Father', 'Itwa', 'Siddharthnagar', '+919870000002', 1, 1) returning id into f;
+  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000201', 'Shared Phone', 'Father', 'Itwa', 'Siddharthnagar', '+919870000002', 1, 1, 27.200000, 83.000000) returning id into f;
   insert into fx values ('D1', f);
   perform app.submit_farmer(f);
 end $$;
 select t.as_user(pg_temp.f('DCM'));
 do $$ declare f uuid; begin
-  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres)
-  values ('00000000-0000-4000-8000-000000000202', 'Shared Phone Too', 'Father', 'Itwa', 'Siddharthnagar', '98700 00002', 1, 1) returning id into f;
+  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000202', 'Shared Phone Too', 'Father', 'Itwa', 'Siddharthnagar', '98700 00002', 1, 1, 27.200000, 83.000000) returning id into f;
   insert into fx values ('D2', f);
   perform t.ok(f is not null, 'D duplicate: the same phone on another client''s record is saved (flagged, not refused)');
 end $$;
@@ -96,20 +96,20 @@ end $$;
 -- a deactivated record is no candidate
 select t.as_service();
 do $$ declare a uuid; b uuid; begin
-  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres)
-  values ('00000000-0000-4000-8000-000000000201', 'draft', 'Old Record', 'F', 'V', 'Siddharthnagar', '+919870000003', 1) returning id into a;
-  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres)
-  values ('00000000-0000-4000-8000-000000000202', 'draft', 'New Record', 'F', 'V', 'Siddharthnagar', '+919870000003', 1) returning id into b;
+  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000201', 'draft', 'Old Record', 'F', 'V', 'Siddharthnagar', '+919870000003', 1, 27.200000, 83.000000) returning id into a;
+  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000202', 'draft', 'New Record', 'F', 'V', 'Siddharthnagar', '+919870000003', 1, 27.200000, 83.000000) returning id into b;
   perform t.ok(pg_temp.pend(pg_temp.farmer(b)), 'D duplicate: found across clients');
   update public.farmers set status = 'inactive', farmer_code = 'TEST-OLD-1' where id = a;
   perform t.ok(not pg_temp.pend(pg_temp.farmer(b)), 'D duplicate: a deactivated record is not one');
 end $$;
 -- Ram's other answer: he deactivates the record waiting for him
 do $$ declare a uuid; b uuid; begin
-  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres)
-  values ('00000000-0000-4000-8000-000000000201', 'draft', 'Kept Record', 'F', 'V', 'Siddharthnagar', '+919870000004', 1) returning id into a;
-  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, reviewed_by, reviewed_at)
-  values ('00000000-0000-4000-8000-000000000202', 'under_review', 'Second Record', 'F', 'V', 'Siddharthnagar', '+919870000004', 1, pg_temp.f('DCM'), now()) returning id into b;
+  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000201', 'draft', 'Kept Record', 'F', 'V', 'Siddharthnagar', '+919870000004', 1, 27.200000, 83.000000) returning id into a;
+  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, reviewed_by, reviewed_at, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000202', 'under_review', 'Second Record', 'F', 'V', 'Siddharthnagar', '+919870000004', 1, pg_temp.f('DCM'), now(), 27.200000, 83.000000) returning id into b;
   insert into fx values ('K1', a), ('K2', b);
 end $$;
 select t.as_user(t.u('02'));

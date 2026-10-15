@@ -118,8 +118,8 @@ select t.fails(format($q$ select t.procure_as(%L, %L, %L) $q$, t.scope('01'), t.
 -- E · two farmer IDs, the order, the history, changes with a reason ----------------------------------------------------------
 select t.as_user(t.u('03'));
 do $$ declare f uuid; begin
-  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres)
-  values ('00000000-0000-4000-8000-000000000201', 'Ids Farmer', 'Father', 'Bansi', 'Siddharthnagar', '+919870004401', 2, 1) returning id into f;
+  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000201', 'Ids Farmer', 'Father', 'Bansi', 'Siddharthnagar', '+919870004401', 2, 1, 27.200000, 83.000000) returning id into f;
   insert into fx values ('F1', f);
 end $$;
 select t.as_user(t.u('02'));
@@ -149,10 +149,10 @@ end $$;
 -- the same phone in the state: linked to the same state farmer, or (with a reason) another
 select t.as_service();
 do $$ declare a uuid; b uuid; begin
-  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, reviewed_by, reviewed_at)
-  values ('00000000-0000-4000-8000-000000000202', 'under_review', 'Ids Farmer', 'Father', 'Bansi', 'Siddharthnagar', '9870004401', 2, 1, t.u('03'), now()) returning id into a;
-  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, reviewed_by, reviewed_at, farmer_code)
-  values ('00000000-0000-4000-8000-000000000202', 'under_review', 'His Brother', 'Father', 'Bansi', 'Siddharthnagar', '+91 98700 04402', 2, 1, t.u('03'), now(), 'DEMOX-F-9001') returning id into b;
+  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, reviewed_by, reviewed_at, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000202', 'under_review', 'Ids Farmer', 'Father', 'Bansi', 'Siddharthnagar', '9870004401', 2, 1, t.u('03'), now(), 27.200000, 83.000000) returning id into a;
+  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, reviewed_by, reviewed_at, farmer_code, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000202', 'under_review', 'His Brother', 'Father', 'Bansi', 'Siddharthnagar', '+91 98700 04402', 2, 1, t.u('03'), now(), 'DEMOX-F-9001', 27.200000, 83.000000) returning id into b;
   insert into fx values ('F2', a), ('F3', b);
   update public.farmers set phone = '+919870004402' where id = b;
 end $$;

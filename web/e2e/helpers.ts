@@ -346,3 +346,23 @@ export async function markJoined(page: Page, reason = 'Joined on the day, papers
   await button.click();
   await expect(button).toHaveCount(0);
 }
+
+/** Migration 51 (Part B): the farmer's district from the state's list (a select where the state has one, typed where it
+ *  has none), then the village, then the farm's GPS (typed; `null` leaves it empty). */
+export async function fillFarmerPlace(page: Page, district: string, village: string, gps: [string, string] | null = ['27.21', '82.95']) {
+  await page.getByTestId('farmer-district').waitFor({ timeout: 5_000 }).catch(() => undefined);
+  const d = page.locator('#farmer-district');
+  if (await d.evaluate((el) => el.tagName) === 'SELECT') await d.selectOption(district); else await d.fill(district);
+  await page.getByLabel('Village *', { exact: true }).fill(village);
+  if (gps) { await page.getByTestId('farmer-lat').fill(gps[0]); await page.getByTestId('farmer-lng').fill(gps[1]); }
+}
+
+/** Migration 51 (A15): a pool option reads "<name>" for a free person and "<name> · <work on other scopes>" for one
+ *  already busy; pick the person by the name the option starts with. */
+export async function pickFromPool(page: Page, select: string, name: string) {
+  const sel = page.getByLabel(select);
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const opt = sel.locator('option').filter({ hasText: new RegExp(`^${esc}( · |$)`) }).first();
+  await expect(opt).toBeAttached();
+  await sel.selectOption((await opt.getAttribute('value'))!);
+}

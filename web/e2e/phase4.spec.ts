@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signInWith, signOut, USERS, SCOPES, openSlot, verifyIncoming, reviewAndSave, procure, recordQc, sealLot, apiAs, freshEmail, freshPhone } from './helpers';
+import { signIn, signInWith, signOut, USERS, SCOPES, openSlot, verifyIncoming, reviewAndSave, procure, recordQc, sealLot, apiAs, freshEmail, freshPhone, fillFarmerPlace, pickFromPool } from './helpers';
 
 // Phase 4 "live season" through the real screens: what goes wrong in a real week and how it is put right.
 const uniq = () => String(Date.now()).slice(-6);
@@ -344,7 +344,7 @@ test('A manager gives a stage to a person and takes it away again', async ({ pag
   await expect(holders).toHaveCount(1);
   await page.getByTestId('roster-find').fill('Shipment');            // the pool lists the first 100 by name; a search finds anyone
   await expect(page.getByLabel('Assign Sorting').locator('option', { hasText: 'Shipment Operator' })).toHaveCount(1);
-  await page.getByLabel('Assign Sorting').selectOption({ label: 'Shipment Operator' });
+  await pickFromPool(page, 'Assign Sorting', 'Shipment Operator');
   await expect(holders).toHaveCount(2);
   await expect(holders.filter({ hasText: 'Shipment Operator' })).toHaveCount(1);
   await signOut(page);
@@ -377,8 +377,7 @@ test('A verified farmer is changed with a reason; deactivated farmers cannot be 
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(name);
   await page.getByLabel('Father / husband name *').fill('Shri Ramdin');
-  await page.getByLabel('Village *').fill('Bansi');
-  await page.getByLabel('District *').fill('Siddharthnagar');
+  await fillFarmerPlace(page, 'Siddharthnagar', 'Bansi');
   await page.getByLabel('Mobile number *').fill(`94${u}31`);
   await page.getByLabel('Land (acres) *').fill('1.5');
   await page.getByTestId('farmer-gi-land').fill('1');                       // migration 43: needed before the Farmer ID

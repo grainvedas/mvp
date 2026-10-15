@@ -84,8 +84,8 @@ begin
 
   -- F6: farmer swap on a pending procurement lot
   perform t.as_service();
-  insert into public.farmers (id, client_id, status, name, guardian_name, village, district, phone, land_area_acres)
-  values ('00000000-0000-4000-8000-000000000598', c, 'draft', 'Not Verified', 'G', 'V', 'D', '+919000004321', 1);
+  insert into public.farmers (id, client_id, status, name, guardian_name, village, district, phone, land_area_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000598', c, 'draft', 'Not Verified', 'G', 'V', 'D', '+919000004321', 1, 27.200000, 83.000000);
   p := t.procure_as(t.scope('01'), t.farmer('01'), t.u('05'));
   perform t.as_user(t.u('05'));
   perform t.fails(format($q$update public.footprints set farmer_id = '00000000-0000-4000-8000-000000000598' where id = %L$q$, p),
@@ -286,8 +286,8 @@ begin
   perform t.fails('update public.farmers set photo_consent = true where id = ' || f1, 'only its Client Manager or the State Manager', 'R1 nor switch photo consent on');
   perform t.fails('update public.farmers set status = ''inactive'' where id = ' || f1, 'only its Client Manager or the State Manager', 'R1 nor deactivate him');
   perform t.fails('update public.farmers set status = ''draft'' where id = ' || f1, 'only its Client Manager or the State Manager', 'R1 nor send him back to draft');
-  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, created_at)
-  values ('00000000-0000-4000-8000-000000000201', 'draft', 'Naya Kisan', 'Shri Ram', 'Itwa', 'Siddharthnagar', '+919000001234', 1.2, now() - interval '99 days') returning * into r;
+  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, created_at, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000201', 'draft', 'Naya Kisan', 'Shri Ram', 'Itwa', 'Siddharthnagar', '+919000001234', 1.2, now() - interval '99 days', 27.200000, 83.000000) returning * into r;
   d := r.id;
   perform t.ok(r.created_at = now(), 'R1 a new farmer cannot be back-dated');
   update public.farmers set village = 'Bansi', photo_consent = true, gi_land_acres = 1 where id = d returning * into r;

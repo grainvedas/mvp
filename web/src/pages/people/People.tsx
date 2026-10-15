@@ -21,6 +21,7 @@ import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { buildsScope, givesAssignments, myStateIds, oversees, seatsStateManagers } from '../../lib/rights';
 import { AccessBadges, Confirm, OrgLine, StatusBadge, TempPassword, WarningList, useStageName } from './shared';
 import { ReadyToAssign } from '../hr/Scale';
+import { elsewhereLine, poolGroups, type Elsewhere } from '../../lib/setup';
 import { ScopeRequirementCard } from '../scopes/ScopeRequirement';
 import { BaseLocation, HrScopeNote, stateChoices, useHrScope } from '../hr/Geo';
 
@@ -392,7 +393,17 @@ export function AssignPage() {
 }
 
 // ── a scope's roster ──────────────────────────────────────────────────────────────────────────────────────────────
-interface Pool { id: string; name: string }
+interface Pool { id: string; name: string; plain: string; elsewhere: Elsewhere[] }   // migration 51 (A15): work on other scopes
+/** The pool in a stage's list: free people, then "Already on other scopes" with what each holds there (A15). */
+function PoolOptions({ pool }: { pool: Pool[] }) {
+  const { t } = useI18n();
+  const g = poolGroups(pool);
+  if (g.busy.length === 0) return <>{g.free.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</>;
+  return (<>
+    {g.free.length > 0 && <optgroup label={t('pool.free')}>{g.free.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>}
+    <optgroup label={t('pool.busy')} data-testid="pool-busy">{g.busy.map((p) => <option key={p.id} value={p.id}>{`${p.name} · ${p.elsewhere.slice(0, 2).map((e) => elsewhereLine(e, t)).join('; ')}${p.elsewhere.length > 2 ? ` ${t('pool.more', { n: p.elsewhere.length - 2 })}` : ''}`}</option>)}</optgroup>
+  </>);
+}
 /**
  * Stage by stage: who holds it; the stages nobody holds are flagged. A manager of the scope gives a stage to someone
  * from the pool (their assignment is made, or grows by that stage) and takes one away (the assignment shrinks, or ends
@@ -410,8 +421,10 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
   // Client Manager himself; never the admin, HR or a State Manager. Searched by name; 200 at most.
   // migration 46: who HR got ready for this scope comes first, marked with the stage they are for
   const [rev, setRev] = useState(0);
-  const pool = useAsync(async () => canManage ? (await rpc<{ id: string; name: string; me: boolean; ready_for?: StageType | null }[]>('roster_pool', { p_scope: scopeId, p_q: findQ || null }))
-    .map((p) => ({ id: p.id, name: (p.me ? t('roster.me', { name: p.name }) : p.name) + (p.ready_for ? ` · ${t('req.ready_for', { stage: stage(p.ready_for) })}` : '') }) as Pool) : [], [canManage, findQ, scopeId, rev]);
+  // migration 51 (A15, Veda 15 Oct): free people first, then those already on other scopes, each with the work held there
+  const pool = useAsync(async () => canManage ? (await rpc<{ id: string; name: string; me: boolean; ready_for?: StageType | null; elsewhere?: Elsewhere[] }[]>('roster_pool', { p_scope: scopeId, p_q: findQ || null }))
+    .map((p) => ({ id: p.id, plain: p.name, elsewhere: p.elsewhere ?? [], name: (p.me ? t('roster.me', { name: p.name }) : p.name) + (p.ready_for ? ` · ${t('req.ready_for', { stage: stage(p.ready_for) })}` : '') }) as Pool) : [], [canManage, findQ, scopeId, rev]);
+  const [busyNote, setBusyNote] = useState<string | null>(null);
   const act = useAction();
   const [note, setNote] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<Warning[] | null>(null);
@@ -425,6 +438,9 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
     await r.reload(); setRev((n) => n + 1); onChanged?.();
   };
   const give = (s: StageType, person: string) => act.run(async () => {
+    const p = pool.data?.find((x) => x.id === person);
+    // the soft note (A15): he keeps his other work and gets a second queue; nothing is refused for it
+    setBusyNote(p && p.elsewhere.length ? t('pool.soft_note', { name: p.plain, work: p.elsewhere.map((e) => elsewhereLine(e, t)).join('; ') }) : null);
     const mine = held(person);
     // migration 46 (Veda, 14 Oct): one person may hold several stages, also two in a row; what that means is said, not refused
     const res = mine.length > 0 ? await rpc<{ warnings?: Warning[] }>('set_stages', { p_assignment: mine[0].holders.find((h) => h.employee_id === person)!.assignment_id, p_stages: [...mine.map((m) => m.stage), s] })
@@ -445,6 +461,7 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
       {x.gaps.length > 0 && x.scope.status !== 'closed' && <div className="alert warn" data-testid="roster-gaps">{t('roster.gaps', { n: x.gaps.length, stages: x.gaps.map(stage).join(', ') })}</div>}
       {x.gaps.length === 0 && <div className="alert ok" data-testid="roster-covered">{t('roster.covered')}</div>}
       {note && <div className="alert warn" data-testid="coverage-warning">{note}</div>}
+      {busyNote && <div className="alert info small" data-testid="pool-soft-note">{busyNote}</div>}
       <WarningList warnings={warnings} />
       {(x.same_person?.verified_own ?? 0) + (x.same_person?.made_on_own ?? 0) > 0 && (
         <p className="small" data-testid="same-person-count"><span className="same-person">{t('ledger.same_person')}</span> {t('sp.count', { v: x.same_person!.verified_own, m: x.same_person!.made_on_own })}</p>)}
@@ -459,9 +476,9 @@ export function RosterEditor({ scopeId, onChanged }: { scopeId: string; onChange
                 {canManage && <button type="button" className="secondary small-btn" aria-label={`${t('wizard.remove')}: ${h.name} · ${stage(s.stage)}`} disabled={act.busy} onClick={() => void take(s.stage, h)}>{t('wizard.remove')}</button>}
               </div>))}</div>
           {canManage && <div className="row slot-controls" role="cell">
-            <select aria-label={`Assign ${stage(s.stage)}`} defaultValue="" disabled={act.busy} onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) void give(s.stage, v); }}>
+            <select aria-label={`Assign ${stage(s.stage)}`} style={{ maxWidth: '100%', minWidth: 0 }} defaultValue="" disabled={act.busy} onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) void give(s.stage, v); }}>
               <option value="">{t('roster.assign_from_pool')}</option>
-              {(pool.data ?? []).filter((p) => !s.holders.some((h) => h.employee_id === p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <PoolOptions pool={(pool.data ?? []).filter((p) => !s.holders.some((h) => h.employee_id === p.id))} />
             </select></div>}
         </div>))}</div>
       {canManage && <Field label={t('roster.find')} hint={t('roster.find_hint')} htmlFor={`find-${scopeId}`}><input id={`find-${scopeId}`} type="search" value={find} onChange={(e) => setFind(e.target.value)} data-testid="roster-find" /></Field>}

@@ -7,6 +7,7 @@
 | Records, farmers, ledger, rules (schemas `public`, `app`) | Supabase daily backup, 7 days kept. **Pro plan only: the Free plan has no backups** | `backups/<time>/db.dump` from `scripts/backup.mjs` | the season's records are gone |
 | Logins (phone / e-mail, password hashes) | inside the same Supabase backup | `backups/<time>/auth.dump` | everyone needs a new temporary password |
 | Evidence files (photos, documents) | Supabase Storage. **Not part of any database backup** | `backups/<time>/evidence/…`, each file re-hashed as it is copied | records keep their fingerprints, the files are gone |
+| Reference files (market profiles' source documents, crops' photos; migration 51) | Supabase Storage, bucket `reference`. **Not part of any database backup** | `backups/<time>/reference/…`, each re-hashed; `scripts/restore_evidence.mjs` puts them back | a profile keeps its source's fingerprint, the document is gone |
 | The rules themselves (migrations), the app, the functions | this repository | GitHub | — |
 | Keys and passwords | Supabase dashboard | the password manager | — |
 

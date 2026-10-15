@@ -155,6 +155,10 @@ async function restoreBackup() {
     check(manifest.hr_documents.stored === manifest.hr_documents.expected && manifest.hr_documents.problems.length === 0,
       `HR documents in the backup: ${manifest.hr_documents.stored}/${manifest.hr_documents.expected} file(s), each re-hashed against the record`);
   }
+  if (manifest.reference_files && manifest.reference_files !== 'skipped') {
+    check(manifest.reference_files.stored === manifest.reference_files.expected && manifest.reference_files.problems.length === 0,
+      `reference files in the backup: ${manifest.reference_files.stored}/${manifest.reference_files.expected} file(s), each re-hashed against the record`);
+  }
   if (manifest.logins !== null && manifest.logins !== undefined) log(`note  logins in the backup: ${manifest.logins} (auth.dump; restored into a NEW project only, see docs/RESTORE.md)`);
   if (!has('--keep')) run('dropdb', ['--if-exists', SCRATCH], base); else log(`note  scratch database kept: ${SCRATCH}`);
   return dir;

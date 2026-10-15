@@ -138,9 +138,9 @@ select t.fails($q$ insert into public.farmers (client_id, status, name, guardian
                'farmers_client_phone_key', 'farmers: one phone per client, compared by digits');
 
 select t.as_user(t.u('05'));
-insert into public.farmers (id, client_id, status, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres)
+insert into public.farmers (id, client_id, status, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, farm_lat, farm_lng)
 values ('00000000-0000-4000-8000-000000000581', '00000000-0000-4000-8000-000000000201', 'draft', 'Rampati', 'Shri Lallan',
-        'Bansi', 'Siddharthnagar', '+919000000081', 2, 1.5);   -- migration 43: GI land before the Farmer ID
+        'Bansi', 'Siddharthnagar', '+919000000081', 2, 1.5, 27.200000, 83.000000);   -- migration 43: GI land before the Farmer ID
 -- Migration 34: the first verification is the Client Manager's (an operator adds the draft, and only that)
 select t.fails($q$ select app.submit_farmer('00000000-0000-4000-8000-000000000581') $q$, 'Client Manager of this client verifies',
                'farmers: an operator cannot verify a draft (step 1 is the Client Manager''s)');

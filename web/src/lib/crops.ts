@@ -16,6 +16,9 @@ export interface CropFull {
   gi_districts?: string[]; thresholds?: { milling_outturn_ceiling_pct?: number; learn_after_runs?: number };
   /** migration 50: best-before = the day packed + this many days */
   shelf_life_days?: number | null;
+  /** migration 51 (Part B): GI crop = has a GI number (the server works it out); GI blocks; shelf life per packing
+   *  material; the reference photo for the quick look at Procurement */
+  gi_crop?: boolean; gi_blocks?: string[]; shelf_life_by_material?: Record<string, number>; reference_photo_id?: string | null;
 }
 /** a row of app.crop_registry */
 export interface RegistryRow extends CropFull {

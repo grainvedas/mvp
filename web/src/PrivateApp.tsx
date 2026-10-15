@@ -17,6 +17,7 @@ import { FarmerImport } from './pages/farmers/FarmerImport';
 import { FarmerRegister } from './pages/farmers/FarmerRegister';
 import { ScopeList, ScopeWizard } from './pages/scopes/Scopes';
 import { Clients, Crops, OpenFlags, States } from './pages/admin/Admin';
+import { SetupLists } from './pages/setup/SetupLists';
 import { AddJoiner, JoinerPage, Templates } from './pages/hr/Hr';
 import { ImportJoiners, JoinersList, Openings } from './pages/hr/Scale';
 import { Requirements } from './pages/hr/Requirements';
@@ -112,6 +113,7 @@ function Private() {
         <Route path="clients" element={<Clients />} />
         <Route path="states" element={<AdminOnly><States /></AdminOnly>} />
         <Route path="crops" element={<Crops />} />
+        <Route path="setup" element={<SetupLists />} />   {/* migration 51: the set-up lists (Part B) */}
         <Route path="flags" element={<OpenFlags />} />
         <Route path="labels/:code" element={<Labels />} />
         <Route path="dashboard/:scopeId" element={<ScopeDashboard />} />

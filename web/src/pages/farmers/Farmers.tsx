@@ -4,7 +4,7 @@
 // save drafts only. The admin reads farmers and changes none. The database refuses all of this on its own; the buttons
 // below only follow it.
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { rpc, q } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import { useAsync, useAction } from '../../lib/useAsync';
@@ -18,6 +18,8 @@ import { gapMissing, type GapItem } from '../../lib/crops';
 import { giLandProblem, needsGiLand } from '../../lib/farmers';
 import { RegisterLink } from './FarmerRegister';
 import { ProposalsCard } from './FarmerPractice';
+import { usePlaces } from '../setup/data';
+import { blocksOf, districtListed, districtsOf, gpsNumber, gpsProblem, normPlace, parseGps, placeIsNew, villagesOf } from '../../lib/setup';
 
 /** The client whose farmers this user works with; State Managers and admins pick one. */
 export function useClientChoice() {
@@ -49,8 +51,11 @@ export function FarmerList() {
   const { clientId, picker } = useClientChoice();
   const watch = oversees(ctx);
   const cm = holdsClientAccount(ctx, clientId);
-  const [tab, setTab] = useState<'draft' | 'under_review' | 'active' | 'inactive'>(isStateManager(ctx) ? 'under_review' : cm ? 'draft' : 'active');
+  const [params] = useSearchParams();
+  // migration 51: "Needs my action" opens the verified farmers without their farm's GPS
+  const [tab, setTab] = useState<'draft' | 'under_review' | 'active' | 'inactive'>(params.get('gps') === 'missing' ? 'active' : isStateManager(ctx) ? 'under_review' : cm ? 'draft' : 'active');
   const [search, setSearch] = useState('');
+  const [noGpsOnly, setNoGpsOnly] = useState(params.get('gps') === 'missing');   // migration 51: Needs my action opens this
   const list = useAsync(async () => {
     if (!clientId) return [] as FarmerRow[];
     // migration 44: with the state farmer ID; a server before it has none to join (the list asks again without it)
@@ -59,10 +64,11 @@ export function FarmerList() {
         .eq('client_id', clientId).eq('status', tab).order('created_at', { ascending: false }).limit(500);
       const s = search.trim();
       if (s) r = r.or(`name.ilike.%${s}%,village.ilike.%${s}%,farmer_code.ilike.%${s}%,phone.ilike.%${s}%`);
+      if (noGpsOnly) r = r.is('farm_lat', null);
       return q(r) as unknown as Promise<FarmerRow[]>;
     };
     try { return await ask(true); } catch { return await ask(false); }
-  }, [clientId, tab, search]);
+  }, [clientId, tab, search, noGpsOnly]);
   // Who adds farmers (migration 41): the client's Client Manager, or Procurement / Village Batch in its scopes. A State
   // Manager verifies after the Client Manager and adds none; a server from before 41 sends no `state_manager`: as before.
   const canEdit = me.role !== 'client_view' && !watch && (ctx?.user?.can?.state_manager === undefined || addsFarmers(ctx, clientId));
@@ -80,6 +86,7 @@ export function FarmerList() {
         {(actsAsStateManager(ctx) || watch) && <RegisterLink />}
         <input aria-label={t('common.search')} placeholder={t('common.search')} value={search} onChange={(e) => setSearch(e.target.value)} style={{ flex: '1 1 200px', width: 'auto' }} />
       </div>
+      {cm && <label className="check small"><input type="checkbox" checked={noGpsOnly} onChange={(e) => setNoGpsOnly(e.target.checked)} data-testid="farmers-no-gps" />{t('fl.only_no_gps')}</label>}
       {cm && clientId && <ProposalsCard clientId={clientId} onDecided={() => void list.reload()} />}
       <div className="tabs" role="tablist">
         {(isSM ? ['draft', 'under_review', 'active', 'inactive'] as const : ['draft', 'under_review', 'active'] as const).map((s) => (
@@ -99,7 +106,7 @@ export function FarmerList() {
             <tr key={f.id} data-testid="farmer-row">
               <td>{f.name}<div className="muted small">{f.guardian_name}</div>
                 {typeof f.extra?.sent_back_reason === 'string' && <div className="small" style={{ color: 'var(--warn)' }}>{t('farmers.sent_back')}: {f.extra.sent_back_reason as string}</div>}</td>
-              <td className="mono">{f.farmer_code ?? '—'}{f.state_farmer?.code && <div className="small muted" data-testid="farmer-state-id">{f.state_farmer.code}</div>}</td><td>{f.village}</td><td className="hide-mobile">{f.phone}</td><td className="hide-mobile num">{f.land_area_acres} · {f.gi_land_acres ?? '—'}</td>
+              <td className="mono">{f.farmer_code ?? '—'}{'farm_lat' in f && f.farm_lat == null && f.status !== 'draft' && <div><span className="badge pending" data-testid="farmer-no-gps">{t('fl.no_gps')}</span></div>}{f.state_farmer?.code && <div className="small muted" data-testid="farmer-state-id">{f.state_farmer.code}</div>}</td><td>{f.village}</td><td className="hide-mobile">{f.phone}</td><td className="hide-mobile num">{f.land_area_acres} · {f.gi_land_acres ?? '—'}</td>
               <td><FarmerActions farmer={f} canEdit={canEdit} onDone={list.reload} /></td>
             </tr>
           ))}</tbody>
@@ -159,6 +166,7 @@ function FarmerActions({ farmer, canEdit, onDone }: { farmer: FarmerRow; canEdit
     <div className="stack" data-testid="farmer-step2-box">
       <div className="small">
         <div>{t('farmers.location', { village: farmer.village, district: farmer.district, state: farmer.state?.name ?? '—' })}</div>
+        {'farm_lat' in farmer && <GpsCheckLine farmerId={farmer.id} />}
         <div className="muted">{farmer.reviewed_at ? t('farmers.step1_by', { name: farmer.reviewer?.display_name ?? t('farmers.the_cm'), at: date(farmer.reviewed_at) }) : t('farmers.step1_legacy')}</div>
       </div>
       {r.sameHands ? <div className="small" style={{ color: 'var(--warn)' }}>{t('farmers.same_hands')}</div> : (
@@ -221,7 +229,9 @@ export function FarmerForm() {
   const nav = useNavigate();
   const { ctx } = useAuth();
   const { clientId: chosenClient, picker } = useClientChoice();
-  const [f, setF] = useState({ name: '', guardian_name: '', village: '', district: '', phone: '', land_area_acres: '', gi_land_acres: '', photo_consent: false, public_id_consent: false, notes: '' });
+  const [f, setF] = useState({ name: '', guardian_name: '', village: '', district: '', phone: '', land_area_acres: '', gi_land_acres: '', photo_consent: false, public_id_consent: false, notes: '',
+    block: '', farm_lat: '', farm_lng: '', land_record_no: '', gi_user_no: '' });               // migration 51: Part B, farmer additions
+  const [needsGps, setNeedsGps] = useState(true);                   // a farmer registered before migration 51 is asked, never refused
   const [code, setCode] = useState<string | null>(null);          // the client farmer ID: from then on, a change says why (migration 44)
   const [hasIds, setHasIds] = useState(false);                     // false: a server from before migration 44
   const [why, setWhy] = useState('');
@@ -244,6 +254,12 @@ export function FarmerForm() {
   const [extra, setExtra] = useState<Record<string, unknown>>({});
   const [hasGi, setHasGi] = useState(true);                          // false: a server from before migration 43
   const giProblem = giLandProblem(f.gi_land_acres, f.land_area_acres);     // everything else kept in farmers.extra (import columns, photo)
+  const pl = usePlaces(stateId, f.district);                              // migration 51: the state's list of places
+  const located = pl.has;                                                 // false: a server from before migration 51
+  const districts = districtsOf(pl.places, stateId);
+  const gpsBad = located ? gpsProblem(f.farm_lat, f.farm_lng) : null;
+  const noGps = located && needsGps && !f.farm_lat.trim();
+  const districtOff = located && districts.length > 0 && !!f.district.trim() && !districtListed(pl.places, stateId, f.district);
   const act = useAction();
   useEffect(() => {
     if (!id) return;
@@ -259,7 +275,10 @@ export function FarmerForm() {
       setExtra(x.extra ?? {});
       setF({ name: x.name, guardian_name: x.guardian_name, village: x.village, district: x.district, phone: x.phone,
         land_area_acres: String(x.land_area_acres), gi_land_acres: x.gi_land_acres == null ? '' : String(x.gi_land_acres),
-        photo_consent: x.photo_consent, public_id_consent: !!x.public_id_consent, notes: String(x.extra?.notes ?? '') });
+        photo_consent: x.photo_consent, public_id_consent: !!x.public_id_consent, notes: String(x.extra?.notes ?? ''),
+        block: x.block ?? '', farm_lat: x.farm_lat == null ? '' : String(x.farm_lat), farm_lng: x.farm_lng == null ? '' : String(x.farm_lng),
+        land_record_no: x.land_record_no ?? '', gi_user_no: x.gi_user_no ?? '' });
+      setNeedsGps(x.location_required !== false);
       setHasGi('gi_land_acres' in x);
     });
     return () => { gone = true; };
@@ -269,7 +288,12 @@ export function FarmerForm() {
   const submit = (e: FormEvent, andSubmit: boolean) => { e.preventDefault(); void act.run(async () => {
     const digits = f.phone.replace(/[^0-9]/g, '');
     const phone = digits.length === 10 ? `+91${digits}` : f.phone;
-    const row = { name: f.name.trim(), guardian_name: f.guardian_name.trim(), village: f.village.trim(), district: f.district.trim(), phone,
+    // a block or village new to the list is added first (by the people who register farmers there: app.add_place)
+    if (located && districts.length > 0 && !districtOff && placeIsNew(pl.places, stateId, f.district, f.block, f.village))
+      await rpc('add_place', { p_state: stateId, p_district: f.district.trim(), p_block: f.block.trim(), p_village: f.village.trim() || null });
+    const placed = located ? { block: f.block.trim() || null, farm_lat: gpsNumber(f.farm_lat), farm_lng: gpsNumber(f.farm_lng),
+      land_record_no: f.land_record_no.trim() || null, gi_user_no: f.gi_user_no.trim() || null } : {};
+    const row = { ...placed, name: f.name.trim(), guardian_name: f.guardian_name.trim(), village: f.village.trim(), district: f.district.trim(), phone,
       land_area_acres: Number(f.land_area_acres), photo_consent: f.photo_consent,
       ...(hasGi ? { gi_land_acres: f.gi_land_acres.trim() ? Number(f.gi_land_acres.trim().replace(',', '.')) : null } : {}),
       ...(status === 'draft' && stateId ? { state_id: stateId } : {}), extra: (() => { const e = { ...extra }; if (f.notes) e.notes = f.notes; else delete e.notes; return e; })() };
@@ -278,7 +302,9 @@ export function FarmerForm() {
     const saved = withReason
       ? await rpc<Farmer>('change_farmer', { p_farmer: id, p_reason: why.trim(), p: { name: row.name, guardian_name: row.guardian_name, village: row.village,
           district: row.district, phone: row.phone, land_area_acres: String(row.land_area_acres), gi_land_acres: f.gi_land_acres.trim().replace(',', '.'),
-          photo_consent: row.photo_consent, public_id_consent: f.public_id_consent, notes: f.notes } })
+          photo_consent: row.photo_consent, public_id_consent: f.public_id_consent, notes: f.notes,
+          ...(located ? { block: f.block.trim(), farm_lat: f.farm_lat.trim().replace(',', '.'), farm_lng: f.farm_lng.trim().replace(',', '.'),
+            land_record_no: f.land_record_no.trim(), gi_user_no: f.gi_user_no.trim() } : {}) } })
       : id
       ? await q(supabase.from('farmers').update({ ...row, ...(hasIds ? { public_id_consent: f.public_id_consent } : {}) }).eq('id', id).select().single()) as Farmer
       : await q(supabase.from('farmers').insert({ ...row, ...(hasIds ? { public_id_consent: f.public_id_consent } : {}), client_id: clientId, status: 'draft' }).select().single()) as Farmer;
@@ -300,14 +326,32 @@ export function FarmerForm() {
       <form onSubmit={(e) => submit(e, false)}>
         {input('name', t('farmer.name'))}
         {input('guardian_name', t('farmer.guardian'))}
-        {input('village', t('farmer.village'))}
-        {input('district', t('farmer.district'))}
         {(states.data?.length ?? 0) > 0 && (
           <Field label={`${t('farmer.state')} *`} hint={t('farmer.state_hint')} htmlFor="farmer-state">
             <select id="farmer-state" value={stateId} onChange={(e) => setStateId(e.target.value)} disabled={status !== 'draft'} data-testid="farmer-state">
               {states.data!.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
             </select>
           </Field>)}
+        {/* migration 51 (Part B): district, block and village from the state's list; a new block or village is added to it */}
+        {located && districts.length > 0 ? (
+          <Field label={`${t('farmer.district')} *`} hint={t('fl.district_hint')} htmlFor="farmer-district">
+            <select id="farmer-district" value={districts.find((d) => normPlace(d) === normPlace(f.district)) ?? (f.district ? '__typed' : '')} required data-testid="farmer-district"
+              onChange={(e) => setF((s) => ({ ...s, district: e.target.value === '__typed' ? s.district : e.target.value, block: '', village: e.target.value === s.district ? s.village : '' }))}>
+              <option value="">—</option>
+              {districtOff && <option value="__typed">{t('fl.not_listed', { name: f.district })}</option>}
+              {districts.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+            {districtOff && <div className="small" style={{ color: 'var(--warn)' }} data-testid="farmer-district-off">{t('fl.district_off')}</div>}
+          </Field>) : input('district', t('farmer.district'))}
+        {located && <Field label={t('fl.block')} hint={districts.length > 0 ? t('fl.block_hint') : undefined} htmlFor="farmer-block">
+          <input id="farmer-block" list="farmer-blocks" value={f.block} maxLength={80} onChange={set('block')} data-testid="farmer-block" />
+          <datalist id="farmer-blocks">{blocksOf(pl.places, stateId, f.district).map((b) => <option key={b} value={b} />)}</datalist></Field>}
+        <Field label={`${t('farmer.village')} *`} htmlFor="farmer-village">
+          <input id="farmer-village" list="farmer-villages" value={f.village} onChange={set('village')} required data-testid="farmer-village" />
+          {located && <datalist id="farmer-villages">{villagesOf(pl.places, stateId, f.district, f.block).map((v) => <option key={v} value={v} />)}</datalist>}</Field>
+        {located && <GpsBoxes lat={f.farm_lat} lng={f.farm_lng} required={needsGps} problem={gpsBad}
+          onChange={(lat, lng) => setF((s) => ({ ...s, farm_lat: lat, farm_lng: lng }))} />}
+        {located && id && <GiAreaNote farmerId={id} tick={tick} />}
         {input('phone', t('farmer.mobile'), { type: 'tel', inputMode: 'tel' })}
         {input('land_area_acres', t('farmer.land'), { inputMode: 'decimal' })}
         {hasGi && (
@@ -316,17 +360,22 @@ export function FarmerForm() {
             {giProblem && <div className="small" style={{ color: 'var(--red)' }} data-testid="farmer-gi-problem">{t(`farmer.${giProblem}`)}</div>}
           </Field>)}
         <details><summary>{t('farmer.optional')}</summary>
+          {located && <Field label={t('fl.land_record')} hint={t('fl.land_record_hint')} htmlFor="farmer-land-record">
+            <input id="farmer-land-record" value={f.land_record_no} maxLength={40} onChange={set('land_record_no')} data-testid="farmer-land-record" /></Field>}
+          {located && <Field label={t('fl.gi_user')} hint={t('fl.gi_user_hint')} htmlFor="farmer-gi-user">
+            <input id="farmer-gi-user" value={f.gi_user_no} maxLength={40} onChange={set('gi_user_no')} data-testid="farmer-gi-user" /></Field>}
           <Field label={t('farmer.notes')} htmlFor="farmer-notes"><textarea id="farmer-notes" value={f.notes} onChange={set('notes')} rows={2} /></Field>
         </details>
         <label className="check"><input type="checkbox" checked={f.photo_consent} onChange={set('photo_consent')} />{t('farmers.consent')}</label>
         {hasIds && <label className="check"><input type="checkbox" checked={f.public_id_consent} onChange={set('public_id_consent')} data-testid="farmer-id-consent" />{t('farmers.id_consent')}</label>}
         {needReason && <Field label={`${t('farmers.why_change')} *`} hint={t('farmers.why_hint')} htmlFor="farmer-why">
           <input id="farmer-why" value={why} maxLength={200} onChange={(e) => setWhy(e.target.value)} data-testid="farmer-why" /></Field>}
+        {status === 'draft' && cm && noGps && <p className="small muted" data-testid="farmer-needs-gps">{t('fl.gps_before_verify')}</p>}
         <ErrorBox error={act.error} />
         {!watch && (
           <div className="row">
-            <button type="submit" className="secondary" disabled={act.busy || !!giProblem || (needReason && !why.trim())}>{t(status === 'draft' ? 'farmers.save_draft' : 'common.save')}</button>
-            {status === 'draft' && cm && <button type="button" disabled={act.busy || !!giProblem || (needReason && !why.trim())} onClick={(e) => submit(e as unknown as FormEvent, true)} data-testid="farmer-save-verify">{t('farmers.save_verify')}</button>}
+            <button type="submit" className="secondary" disabled={act.busy || !!giProblem || !!gpsBad || (needReason && !why.trim())}>{t(status === 'draft' ? 'farmers.save_draft' : 'common.save')}</button>
+            {status === 'draft' && cm && <button type="button" disabled={act.busy || !!giProblem || !!gpsBad || noGps || districtOff || (needReason && !why.trim())} onClick={(e) => submit(e as unknown as FormEvent, true)} data-testid="farmer-save-verify">{t('farmers.save_verify')}</button>}
           </div>)}
       </form>
       {id && clientId && <FarmerGap farmerId={id} clientId={clientId} stateId={stateId} />}
@@ -460,4 +509,52 @@ function FarmerHistory({ farmerId, tick, onAccepted }: { farmerId: string; tick:
           <ErrorBox error={act.error} />
         </div>)}
     </div>);
+}
+
+/** The farm's GPS (migration 51): taken on the spot with the phone, or typed (two numbers, or "27.21, 82.95" pasted into
+ *  the first box). Required for a farmer registered from now on; one registered before is asked to add it. */
+export function GpsBoxes({ lat, lng, required, problem, onChange }: { lat: string; lng: string; required: boolean; problem: string | null; onChange: (lat: string, lng: string) => void }) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const here = () => {
+    if (!navigator.geolocation) { setErr(t('fl.gps_none')); return; }
+    setBusy(true); setErr(null);
+    navigator.geolocation.getCurrentPosition(
+      (p) => { setBusy(false); onChange(p.coords.latitude.toFixed(6), p.coords.longitude.toFixed(6)); },
+      () => { setBusy(false); setErr(t('fl.gps_denied')); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 });
+  };
+  return (
+    <fieldset className="stack" data-testid="farmer-gps">
+      <legend className="small"><strong>{t('fl.gps')}{required ? ' *' : ''}</strong> <span className="hint">{t('fl.gps_hint')}</span></legend>
+      <div className="row wrap">
+        <button type="button" className="secondary" onClick={here} disabled={busy} data-testid="farmer-gps-here">{busy ? t('fl.gps_taking') : t('fl.gps_here')}</button>
+        <input aria-label={t('fl.lat')} placeholder={t('fl.lat')} inputMode="decimal" value={lat} style={{ flex: '1 1 110px', width: 'auto' }} data-testid="farmer-lat"
+          onChange={(e) => { const both = parseGps(e.target.value); if (both) onChange(String(both.lat), String(both.lng)); else onChange(e.target.value, lng); }} />
+        <input aria-label={t('fl.lng')} placeholder={t('fl.lng')} inputMode="decimal" value={lng} style={{ flex: '1 1 110px', width: 'auto' }} data-testid="farmer-lng"
+          onChange={(e) => onChange(lat, e.target.value)} />
+      </div>
+      {problem && <div className="small" style={{ color: 'var(--red)' }} data-testid="farmer-gps-problem">{t(problem)}</div>}
+      {err && <div className="small" style={{ color: 'var(--warn)' }}>{err}</div>}
+    </fieldset>);
+}
+
+/** The State Manager's check at step 2 (migration 51): the farm against the district's other farms. The district's own
+ *  boundary is not in the system: this is the check there is. */
+function GpsCheckLine({ farmerId }: { farmerId: string }) {
+  const { t } = useI18n();
+  const g = useAsync(() => rpc<{ status: 'missing' | 'not_enough' | 'near' | 'far'; km?: number; n?: number }>('farmer_gps_check', { p_farmer: farmerId }).catch(() => null), [farmerId]);
+  if (!g.data) return null;
+  const x = g.data;
+  return <div className={x.status === 'far' ? 'alert warn small' : 'small muted'} data-testid="farmer-gps-check" data-status={x.status}>
+    {t(`fl.gps_${x.status}`, { km: x.km ?? '—', n: x.n ?? 0 })}</div>;
+}
+
+/** The farmer's GI area per GI crop of his client (migration 51): outside is accepted, with a warning, and marked. */
+function GiAreaNote({ farmerId, tick }: { farmerId: string; tick: number }) {
+  const { t } = useI18n();
+  const g = useAsync(() => rpc<{ crop_id: string; crop: string; status: 'inside' | 'outside' | 'unknown' }[]>('farmer_gi_area', { p_farmer: farmerId }).catch(() => null), [farmerId, tick]);
+  const out = (g.data ?? []).filter((x) => x.status === 'outside');
+  if (out.length === 0) return null;
+  return <div className="alert warn small" data-testid="farmer-gi-outside">{t('fl.gi_outside', { crops: out.map((x) => x.crop).join(', ') })}</div>;
 }

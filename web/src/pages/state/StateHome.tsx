@@ -128,6 +128,7 @@ export function StateHome() {
               <li key={`${g.scope_id}-${g.stage_type}`}>{g.client} · {g.scope}: <strong>{t(`stage.${g.stage_type}`, undefined, g.stage)}</strong> · <Link to={`/scopes/${g.scope_id}/roster`}>{t('home.view')}</Link></li>))}</ul>)}
 
           <StateRequirements stateId={stateId} clients={d.clients.list.map((c) => ({ id: c.id, name: c.name }))} />
+          <MultiScope stateId={stateId} />
           <SamePerson d={d} />
 
           <h2 className="section-title">{t('sh.client_cards')}</h2>
@@ -136,6 +137,20 @@ export function StateHome() {
         </>)}
     </>
   );
+}
+
+/** A15 (migration 51): the people holding stages on more than one scope of the state, with how many each (a server
+ *  before 51 has no such count: nothing is shown). */
+function MultiScope({ stateId }: { stateId: string }) {
+  const { t } = useI18n();
+  const m = useAsync(() => rpc<{ id: string; name: string; scopes: number }[]>('multi_scope_people', { p_state: stateId }).catch(() => null), [stateId]);
+  if (!m.data) return null;
+  return (
+    <div className="card" data-testid="sh-multi-scope" data-n={m.data.length}>
+      <strong>{t('sh.multi_scope', { n: m.data.length })}</strong>
+      {m.data.length > 0 ? <ul className="ov-list small">{m.data.map((p) => <li key={p.id}><Link to={`/people/${p.id}`}>{p.name}</Link> · {t('sh.multi_scope_n', { n: p.scopes })}</li>)}</ul>
+        : <p className="small muted">{t('sh.multi_scope_none')}</p>}
+    </div>);
 }
 
 function SetupChecklist({ d }: { d: StateHomeData }) {

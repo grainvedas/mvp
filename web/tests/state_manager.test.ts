@@ -52,7 +52,7 @@ describe('the State Manager (migration 41)', () => {
     expect(groupedMenu(ADMIN)).toBe('admin');
     expect(groupedMenu(CM)).toBe('client_manager');                                     // migration 48 (D4): his own grouped menu
     const all = HEADINGS.flatMap((h) => ROLE_MENUS.state_manager[h]).map((m) => m.to);
-    expect(all).toEqual(['/', '/pipeline', '/flags', '/system/ledger', '/clients', '/crops', '/scopes', '/farmers', '/farmers/register', '/people', '/onboarding', '/account', '/guide', '/help']);
+    expect(all).toEqual(['/', '/pipeline', '/flags', '/system/ledger', '/clients', '/crops', '/setup', '/scopes', '/farmers', '/farmers/register', '/people', '/onboarding', '/account', '/guide', '/help']);
     for (const gone of ['/states', '/health', '/state', '/system/seats', '/system/audit', '/hr']) expect(all).not.toContain(gone);
     const checklist = ROLE_MENUS.state_manager.me.find((m) => m.to === '/onboarding')!;
     expect(checklist.show!({ joiner: true } as never)).toBe(true);

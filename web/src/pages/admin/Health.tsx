@@ -10,6 +10,7 @@ import { useEnvironment } from '../../lib/environment';
 import { BUILD_ID } from '../../lib/errorLog';
 import { dateTime, humanise } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Loading } from '../../shell/ui';
+import { LedgerAddedSince } from '../dashboard/parts';
 
 interface LedgerCheck { id: number; checked_at: string; ok: boolean; blocks: number; first_bad_seq: number | null; problem: string | null; source: string }
 interface Waiting { id: string; footprint_code: string; stage_type: string; scope_id: string; created_at: string }
@@ -51,6 +52,7 @@ export function Health() {
         {last && (last.ok
           ? <div className="alert ok" data-testid="health-ledger">{t('home.ledger_ok', { n: last.blocks, at: dateTime(last.checked_at) })}</div>
           : <div className="alert error" role="alert" data-testid="health-ledger">{t('home.ledger_bad', { seq: last.first_bad_seq ?? '?', problem: last.problem ?? '', at: dateTime(last.checked_at) })}</div>)}
+        <LedgerAddedSince key={last?.checked_at ?? 'none'} />
         {checks.data?.length === 0 && <Empty>{t('health.never_checked')}</Empty>}
         <ErrorBox error={act.error} />
         <button className="secondary" onClick={checkNow} disabled={act.busy} data-testid="check-now">{t('health.check_now')}</button>

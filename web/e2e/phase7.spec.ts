@@ -6,7 +6,7 @@
 //   a manager gives that person an assignment: a scope and stages, a client's account, or a state.
 // The old "Users" page (one form: role + client + state + login) is gone; `/users` now lands on People & access.
 import { test, expect } from '@playwright/test';
-import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, fillLabReport, USERS } from './helpers';
+import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, fillLabReport, USERS, fillFarmerPlace } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
@@ -230,8 +230,7 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(`Ramkali ${u}`);
   await page.getByLabel('Father / husband name *').fill('Shri Bhola');
-  await page.getByLabel('Village *').fill('Nichlaul');
-  await page.getByLabel('District *').fill('Maharajganj');
+  await fillFarmerPlace(page, 'Maharajganj', 'Nichlaul');
   await page.getByLabel('Mobile number *').fill(`94${u}41`);
   await page.getByLabel('Land (acres) *').fill('2');
   await page.getByTestId('farmer-gi-land').fill('1');                       // migration 43: needed before the Farmer ID

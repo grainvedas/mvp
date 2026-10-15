@@ -5,7 +5,7 @@
 // at step 2, the farmer's history, a change with a reason accepted on the register; the ledger's working role; one
 // position on a State Manager opening. Every rule is also the database's (tests/38_rules_and_farmer_ids.sql).
 import { test, expect } from '@playwright/test';
-import { signIn, signOut, apiAs, expectNoSideScroll, localStack, USERS } from './helpers';
+import { signIn, signOut, apiAs, expectNoSideScroll, localStack, USERS, fillFarmerPlace, pickFromPool } from './helpers';
 
 test.use({ viewport: { width: 527, height: 900 } });
 const PRSDM = '00000000-0000-4000-8000-000000000201';
@@ -36,7 +36,7 @@ test('Release 4: rosters, activation, people, the guide, two farmer IDs, history
   expect(String((refused.data as { message: string }).message)).toContain('a State Manager holds no stage');
   const early = await cm.update('scopes', `id=eq.${scope}`, { status: 'active' });
   expect(String((early.data as { message: string }).message)).toContain('every stage needs a person');
-  await page.getByLabel('Assign Quality Control').selectOption({ label: 'Prasaadam Client Manager (you)' });
+  await pickFromPool(page, 'Assign Quality Control', 'Prasaadam Client Manager (you)');
   await expect(page.getByRole('row', { name: /Quality Control/ })).toContainText('Prasaadam Client Manager');
   await expectNoSideScroll(page);
   // People & access: his client's people and his state's pool; no admin, no HR, no State Manager; one state to filter by
@@ -52,8 +52,7 @@ test('Release 4: rosters, activation, people, the guide, two farmer IDs, history
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(NAME);
   await page.getByLabel('Father / husband name *').fill('Shri Raghu');
-  await page.getByLabel('Village *').fill('Itwa');
-  await page.getByLabel('District *').fill('Siddharthnagar');
+  await fillFarmerPlace(page, 'Siddharthnagar', 'Itwa');
   await page.getByLabel('Mobile number *').fill(PHONE);
   await page.getByLabel('Land (acres) *').fill('2');
   await page.getByTestId('farmer-gi-land').fill('1');

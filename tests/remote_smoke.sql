@@ -320,6 +320,20 @@ select 'packs and release',        case when to_regclass('public.packs') is null
                                       then 'MISSING (push migration 50)'
                                       else 'OK batch codes from the system, one label per pack, the summary before release, recall on every pack, lab proof, delivery' end
 union all
+select 'setup lists',              case when to_regclass('public.places') is null
+                                        or to_regclass('public.collection_points') is null or to_regclass('public.buyers') is null
+                                        or to_regclass('public.labs') is null or to_regclass('public.market_profiles') is null
+                                        or to_regprocedure('app.add_place(uuid, text, text, text)') is null
+                                        or to_regprocedure('app.ledger_status()') is null
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'farmers' and column_name = 'farm_lat')
+                                      then 'MISSING (push migration 51)'
+                                      when (select count(*) from pg_trigger where tgname = 'zz_change_log') < 41
+                                        -- (read through query_to_xml: the tables are named only once the row above has found them)
+                                        or (xpath('/row/n/text()', query_to_xml('select count(*) as n from public.quality_param_library', false, true, '')))[1]::text::int < 11
+                                        or (xpath('/row/n/text()', query_to_xml('select count(*) as n from public.crops c where not exists (select 1 from public.market_profiles m where m.crop_id = c.id and m.code = ''domestic'' and m.status = ''active'')', false, true, '')))[1]::text::int > 0
+                                      then 'NOT OK (the lists are there; the change log, the library or a crop''s carried profile is missing)'
+                                      else 'OK places, the Client Manager''s lists, labs, market profiles with their sources, farm GPS, the ledger banner' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

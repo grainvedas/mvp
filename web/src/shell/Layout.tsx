@@ -75,6 +75,7 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Re
       { to: '/states', key: 'nav.states', icon: '📍' },
       { to: '/clients', key: 'nav.clients', icon: '🏢' },
       { to: '/crops', key: 'menu.crops', icon: '🌿' },
+      { to: '/setup', key: 'menu.setup', icon: '🗂' },                      // migration 51: read-only
       { to: '/scopes', key: 'nav.scopes', icon: '🎯' },
       { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾' },
     ],
@@ -104,6 +105,7 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Re
     master: [
       { to: '/clients', key: 'nav.clients', icon: '🏢' },
       { to: '/crops', key: 'menu.crops', icon: '🌿' },
+      { to: '/setup', key: 'menu.setup', icon: '🗂' },                      // migration 51: labs, market profiles, places
       { to: '/scopes', key: 'nav.scopes', icon: '🎯' },
       { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾' },
       { to: '/farmers/register', key: 'menu.farmer_register', icon: '📒' },   // migration 43
@@ -127,6 +129,7 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Re
     ],
     scopes: [
       { to: '/scopes', key: 'nav.scopes', icon: '🎯' },
+      { to: '/setup', key: 'menu.setup', icon: '🗂' },                      // migration 51: his client's lists
     ],
     farmers: [
       { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾' },

@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import writeXlsxFile from 'write-excel-file/node';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { signIn, signOut, openSlot, SCOPES, USERS } from './helpers';
+import { signIn, signOut, openSlot, SCOPES, USERS, fillFarmerPlace, pickFromPool } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
@@ -91,7 +91,7 @@ test('Scope wizard: build a chain, give a stage to a person from the pool, activ
   await expect(page.getByTestId('roster-gaps')).toContainText('4 stage(s) with nobody');
   await page.getByTestId('roster-find').fill('Sorting Operator');     // the pool lists the first 100 by name; a search finds anyone
   await expect(page.getByLabel('Assign Sorting').locator('option', { hasText: 'Sorting Operator' })).toHaveCount(1);
-  await page.getByLabel('Assign Sorting').selectOption({ label: 'Sorting Operator' });
+  await pickFromPool(page, 'Assign Sorting', 'Sorting Operator');
   await expect(page.getByRole('row', { name: /Sorting/ })).toContainText('Sorting Operator');
   await expect(page.getByTestId('roster-gaps')).toContainText('3 stage(s) with nobody');
   await expect(page.getByTestId('gap-qc')).toBeVisible();                                   // a stage nobody holds is flagged
@@ -120,8 +120,7 @@ test('Farmer: operator saves a draft; the Client Manager verifies it; the State 
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(`Kalawati ${u}`);
   await page.getByLabel('Father / husband name *').fill('Shri Ramdin');
-  await page.getByLabel('Village *').fill('Bansi');
-  await page.getByLabel('District *').fill('Siddharthnagar');
+  await fillFarmerPlace(page, 'Siddharthnagar', 'Bansi');
   await page.getByLabel('Mobile number *').fill(`96${u}21`);
   await page.getByLabel('Land (acres) *').fill('1.75');
   await expect(page.getByTestId('farmer-save-verify')).toHaveCount(0);      // migration 34: a stage person saves drafts only

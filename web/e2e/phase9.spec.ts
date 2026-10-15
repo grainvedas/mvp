@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { apiAs, expectNoSideScroll, signIn, signOut, USERS } from './helpers';
+import { apiAs, expectNoSideScroll, signIn, signOut, USERS, fillFarmerPlace } from './helpers';
 import { hi } from '../src/lib/i18n.hi';
 
 // Migration 34 (Veda, 10 Oct 2026): the admin oversees. On the demo data (seeds 02 to 06): one admin, an HR Admin in
@@ -219,8 +219,7 @@ test('A farmer, verified twice: the Client Manager first, then the State Manager
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(`Sunita ${u}`);
   await page.getByLabel('Father / husband name *').fill('Shri Ram');
-  await page.getByLabel('Village *').fill('Domariaganj');
-  await page.getByLabel('District *').fill('Siddharthnagar');
+  await fillFarmerPlace(page, 'Siddharthnagar', 'Domariaganj');
   await expect(page.getByTestId('farmer-state')).toBeVisible();
   await page.getByLabel('Mobile number *').fill(`93${u}52`);
   await page.getByLabel('Land (acres) *').fill('1.5');

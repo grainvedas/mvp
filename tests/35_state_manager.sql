@@ -135,8 +135,8 @@ select t.fails(format($q$ insert into public.farmers (client_id, name, guardian_
 select t.fails(format($q$ select app.import_farmers(%L, '[{"name":"x"}]', true) $q$, :PRSDM), 'farmers are added by', 'A6 farmers: nor imports any');
 select t.as_user(t.u('03'));
 do $$ declare f uuid; begin
-  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres)
-  values ('00000000-0000-4000-8000-000000000201', 'Order Farmer', 'Father', 'Bansi', 'Siddharthnagar', '+919812399002', 1.5, 1.5) returning id into f;
+  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000201', 'Order Farmer', 'Father', 'Bansi', 'Siddharthnagar', '+919812399002', 1.5, 1.5, 27.200000, 83.000000) returning id into f;
   insert into fx values ('F1', f);
   perform t.ok((pg_temp.farmer(f)).state_id = '00000000-0000-4000-8000-000000000001', 'A6 farmers: the Client Manager adds one; it is of the client''s state');
 end $$;

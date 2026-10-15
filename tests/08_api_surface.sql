@@ -91,6 +91,11 @@ insert into allowed values
   ('authenticated', 'print_labels'), ('authenticated', 'void_pack'), ('authenticated', 'release_preview'), ('authenticated', 'set_release_status'),
   ('anon', 'record_scan'), ('authenticated', 'record_scan'), ('anon', 'public_pack'), ('authenticated', 'public_pack'),
   ('authenticated', 'confirm_delivery'), ('authenticated', 'register_labelled_attachment'), ('authenticated', 'set_attachment_label'),
+  -- migration 51: places, reference files, market profiles, a farmer's GI area and GPS check, the ledger banner, people on several scopes
+  ('authenticated', 'add_place'), ('authenticated', 'register_reference_file'), ('authenticated', 'save_market_profile'),
+  ('authenticated', 'activate_market_profile'), ('authenticated', 'farmer_gi_area'), ('authenticated', 'farmer_gps_check'),
+  ('authenticated', 'ledger_status'), ('authenticated', 'multi_scope_people'),
+  ('authenticated', 'valid_gps'), ('authenticated', 'shelf_life_ok'), ('authenticated', 'manages_crop'),
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

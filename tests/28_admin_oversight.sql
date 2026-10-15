@@ -84,8 +84,8 @@ begin
                       '[{"row":2,"name":"A","guardian_name":"G","village":"V","district":"D","phone":"9876507001","land_area_acres":"1"}]', false, null) $q$,
                   'farmers are added by the Client Manager', 'farmers: nor imports any');
   perform t.as_user(t.u('05'));
-  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres)
-  values ('00000000-0000-4000-8000-000000000201', 'draft', 'Oversight Kisan', 'Shri G', 'Bansi', 'Siddharthnagar', '+919000007002', 1, 1) returning id into d;
+  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000201', 'draft', 'Oversight Kisan', 'Shri G', 'Bansi', 'Siddharthnagar', '+919000007002', 1, 1, 27.200000, 83.000000) returning id into d;
   perform t.ok((select state_id from public.farmers where id = d) = (select state_id from public.clients where id = '00000000-0000-4000-8000-000000000201'),
                'farmers: a new farmer is in the client''s home state unless another is chosen');
   perform t.as_user(t.u('01'));
@@ -120,8 +120,8 @@ begin
   insert into public.assignments (employee_id, lens, op_role, client_id) values (t.u('02'), 'client', 'client_account', '00000000-0000-4000-8000-000000000201')
   returning id into a;
   perform t.as_user(t.u('05'));
-  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres)
-  values ('00000000-0000-4000-8000-000000000201', 'draft', 'Two Hats', 'Shri G', 'Itwa', 'Siddharthnagar', '+919000007003', 1, 1) returning id into d;
+  insert into public.farmers (client_id, status, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, farm_lat, farm_lng)
+  values ('00000000-0000-4000-8000-000000000201', 'draft', 'Two Hats', 'Shri G', 'Itwa', 'Siddharthnagar', '+919000007003', 1, 1, 27.200000, 83.000000) returning id into d;
   perform t.as_user(t.u('02'));
   perform app.submit_farmer(d);
   perform t.fails(format('select app.verify_farmer(%L)', d), 'another person', 'farmers: step 2 is never by the person of step 1');

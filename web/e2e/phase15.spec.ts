@@ -6,7 +6,7 @@
 // also the database's (tests/37_farmer_register.sql, tests/38_rules_and_farmer_ids.sql). The other client's records are
 // seeded on the local stack only (no Client Manager of a second client on the demo).
 import { test, expect } from '@playwright/test';
-import { signIn, signOut, apiAs, expectNoSideScroll, localStack, refusal, USERS, SCOPES } from './helpers';
+import { signIn, signOut, apiAs, expectNoSideScroll, localStack, refusal, USERS, SCOPES, fillFarmerPlace } from './helpers';
 
 test.use({ viewport: { width: 527, height: 900 } });
 const PRSDM = '00000000-0000-4000-8000-000000000201';
@@ -26,8 +26,7 @@ test('The farmer register: GI land, a possible duplicate, the yield check, the m
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(NAME);
   await page.getByLabel('Father / husband name *').fill('Shri Raghu');
-  await page.getByLabel('Village *').fill('Itwa');
-  await page.getByLabel('District *').fill('Siddharthnagar');
+  await fillFarmerPlace(page, 'Siddharthnagar', 'Itwa');
   await page.getByLabel('Mobile number *').fill(PHONE);
   await page.getByLabel('Land (acres) *').fill('2');
   await page.getByTestId('farmer-gi-land').fill('3');

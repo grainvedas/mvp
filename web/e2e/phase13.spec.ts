@@ -106,7 +106,7 @@ test('A farmer: the Client Manager adds and verifies first; the State Manager ve
   await signIn(page, USERS.cm);
   const api = await apiAs(page);
   const made = await api.insert('farmers', { client_id: PRSDM, name: `SM Order ${u}`, guardian_name: 'Father', village: 'Bansi', district: 'Siddharthnagar',
-    phone: `+9198${u}11`.slice(0, 13), land_area_acres: 1.5, gi_land_acres: 1 });
+    phone: `+9198${u}11`.slice(0, 13), land_area_acres: 1.5, gi_land_acres: 1, farm_lat: 27.21, farm_lng: 82.95 });   // migration 51: GPS before step 1
   expect(made.ok, JSON.stringify(made.data)).toBe(true);
   const id = (made.data as { id: string }[])[0].id;
   expect((await api.rpc('submit_farmer', { p_farmer: id })).ok).toBe(true);

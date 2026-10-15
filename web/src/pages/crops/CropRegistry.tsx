@@ -13,6 +13,8 @@ import { date } from '../../lib/format';
 import type { QualityParam, StageDefinition, StageType } from '../../lib/types';
 import { Badge, ErrorBox, Field, Loading } from '../../shell/ui';
 import { giLabel } from '../../lib/gi';
+import { MATERIALS, shelfLifeMap, type Material } from '../../lib/setup';
+import { referenceUrl, uploadReference, useSetupServer } from '../setup/data';
 import { useAuth } from '../../auth/AuthProvider';
 import { isStateManager, myStateIds, oversees } from '../../lib/rights';
 import {
@@ -40,7 +42,10 @@ export function Crops() {
   const yes = t('common.yes'), no = t('common.no');
   const rows = cropsFor(list.data ?? [], mine);
 
-  const open = (c: CropFull) => { setEdit(structuredClone(c)); setKeys(new Set((c.gap_items ?? []).map((g) => g.key))); setTyped({}); };
+  const setupServer = useSetupServer() === true;                    // migration 51 on the server
+  const [shelfTyped, setShelfTyped] = useState<Partial<Record<Material, string>>>({});
+  const open = (c: CropFull) => { setEdit(structuredClone(c)); setKeys(new Set((c.gap_items ?? []).map((g) => g.key))); setTyped({});
+    setShelfTyped(Object.fromEntries(Object.entries(c.shelf_life_by_material ?? {}).map(([k, v]) => [k, String(v)]))); };
   const save = () => act.run(async () => {
     const e = edit!;
     const row = { name: e.name.trim(), code: e.code.trim(), gi_tag: e.gi_tag || null, origin: e.origin || null, primary_unit: e.primary_unit || 'kg',
@@ -49,7 +54,10 @@ export function Crops() {
       recommended_chain: e.recommended_chain ?? [], gap_items: (e.gap_items ?? []).map((g) => ({ ...g, key: g.key || slug(g.label) })),
       harvest_from: e.harvest_from || null, harvest_to: e.harvest_to || null, export_docs: (e.export_docs ?? []).map((x) => x.trim()).filter(Boolean),
       // migration 49: the GI area and the crop's own thresholds (none typed: the defaults, 70 % and 10 runs)
-      gi_districts: (e.gi_districts ?? []).map((x) => x.trim()).filter(Boolean),
+      // migration 51: a crop without a GI number is not a GI crop and has no GI area at all
+      gi_districts: e.gi_tag?.trim() ? (e.gi_districts ?? []).map((x) => x.trim()).filter(Boolean) : [],
+      ...(setupServer ? { gi_blocks: e.gi_tag?.trim() ? (e.gi_blocks ?? []).map((x) => x.trim()).filter(Boolean) : [],
+        shelf_life_by_material: shelfLifeMap(shelfTyped).map } : {}),
       thresholds: Object.fromEntries(Object.entries(e.thresholds ?? {}).filter(([, v]) => v !== null && v !== undefined && !Number.isNaN(v))),
       shelf_life_days: e.shelf_life_days ?? null,                                    // migration 50: the packs' best-before
       // a crop is of his state: a new one, and one with no state yet (which this save sets, once)
@@ -79,7 +87,8 @@ export function Crops() {
       {sm && !edit && <button onClick={() => open(blank)} data-testid="crop-create">{t('crops.create')}</button>}
       {sm && edit && <CropForm edit={edit} setEdit={setEdit} keys={keys} typed={typed} setTyped={setTyped} defs={defs.data ?? []}
         stateLabel={stateName(edit.state_id ?? mine?.[0])} settingState={!edit.state_id && !!edit.id} mineName={stateName(mine?.[0])}
-        onSave={save} onCancel={() => { setTyped({}); setEdit(null); }} busy={act.busy} error={act.error} limitsBad={limitsBad} limitsOpen={limitsOpen} />}
+        onSave={save} onCancel={() => { setTyped({}); setEdit(null); }} busy={act.busy} error={act.error} limitsBad={limitsBad} limitsOpen={limitsOpen || shelfLifeMap(shelfTyped).bad.length > 0}
+        setupServer={setupServer} shelfTyped={shelfTyped} setShelfTyped={setShelfTyped} />}
     </div>
   );
 }
@@ -121,6 +130,11 @@ function CropCard({ c, stateName, lang, yes, no, defs, onEdit, admin, states, on
         <dt>{t('crops.c_gap')}</dt><dd>{c.gap_items?.length ? c.gap_items.map((g) => `${g.label}${g.required ? ' *' : ''}`).join(' · ') : '—'}</dd>
         <dt>{t('crops.c_chain')}</dt><dd data-testid="crop-chain">{c.recommended_chain?.length ? c.recommended_chain.map(label).join(' → ') : '—'}</dd>
         <dt>{t('crops.f_docs')}</dt><dd>{c.export_docs?.length ? c.export_docs.join(' · ') : '—'}</dd>
+        {'gi_crop' in c && <><dt>{t('crops.c_gi')}</dt><dd data-testid="crop-gi-crop">{c.gi_crop
+          ? `${t('common.yes')}${(c.gi_districts ?? []).length ? ` · ${(c.gi_districts ?? []).join(', ')}` : ''}${(c.gi_blocks ?? []).length ? ` (${(c.gi_blocks ?? []).join(', ')})` : ''}`
+          : t('crops.not_gi')}</dd></>}
+        {Object.keys(c.shelf_life_by_material ?? {}).length > 0 && <><dt>{t('crops.f_shelf_material')}</dt>
+          <dd data-testid="crop-shelf-material">{Object.entries(c.shelf_life_by_material ?? {}).map(([m, d]) => `${t(`mat.${m}`, undefined, m)} ${t('crops.days', { n: d })}`).join(' · ')}</dd></>}
         <dt>{t('crops.f_use')}</dt><dd data-testid="crop-use">{used
           ? t('crops.use_line', { a: c.use.scopes_active, s: c.use.scopes_setup, c: c.use.scopes_closed, f: c.use.farmers_gap })
           : t('crops.unused')}</dd>
@@ -147,10 +161,11 @@ function CropCard({ c, stateName, lang, yes, no, defs, onEdit, admin, states, on
   );
 }
 
-function CropForm({ edit, setEdit, keys, typed, setTyped, defs, stateLabel, settingState, mineName, onSave, onCancel, busy, error, limitsBad, limitsOpen }: {
+function CropForm({ edit, setEdit, keys, typed, setTyped, defs, stateLabel, settingState, mineName, onSave, onCancel, busy, error, limitsBad, limitsOpen, setupServer, shelfTyped, setShelfTyped }: {
   edit: CropFull; setEdit: (c: CropFull) => void; keys: Set<string>; typed: Record<string, string>; setTyped: (x: Record<string, string>) => void;
   defs: StageDefinition[]; stateLabel: string; settingState: boolean; mineName: string; onSave: () => void; onCancel: () => void;
   busy: boolean; error: AppError | null; limitsBad: boolean; limitsOpen: boolean;
+  setupServer: boolean; shelfTyped: Partial<Record<Material, string>>; setShelfTyped: (x: Partial<Record<Material, string>>) => void;
 }) {
   const { t, lang } = useI18n();
   const set = (patch: Partial<CropFull>) => setEdit({ ...edit, ...patch });
@@ -200,8 +215,10 @@ function CropForm({ edit, setEdit, keys, typed, setTyped, defs, stateLabel, sett
         <Field label={t('crops.f_code')} hint={t('crops.code_hint')} htmlFor="cr-code"><input id="cr-code" value={edit.code} maxLength={5} onChange={(e) => set({ code: e.target.value.toUpperCase() })} /></Field>
         <Field label={t('crops.f_gi')} htmlFor="cr-gi"><input id="cr-gi" value={edit.gi_tag ?? ''} onChange={(e) => set({ gi_tag: e.target.value })} /></Field>
         <Field label={t('crops.f_origin')} htmlFor="cr-origin"><input id="cr-origin" value={edit.origin ?? ''} onChange={(e) => set({ origin: e.target.value })} /></Field>
-        <Field label={t('crops.f_gi_districts')} hint={t('crops.gi_districts_hint')} htmlFor="cr-gid">
-          <input id="cr-gid" value={(edit.gi_districts ?? []).join(', ')} onChange={(e) => set({ gi_districts: e.target.value.split(',').map((x) => x.replace(/^\s+/, '')) })} data-testid="crop-gi-districts" /></Field>
+        <Field label={t('crops.f_gi_districts')} hint={edit.gi_tag?.trim() ? t('crops.gi_districts_hint') : t('crops.not_gi_hint')} htmlFor="cr-gid">
+          <input id="cr-gid" value={(edit.gi_districts ?? []).join(', ')} disabled={setupServer && !edit.gi_tag?.trim()} onChange={(e) => set({ gi_districts: e.target.value.split(',').map((x) => x.replace(/^\s+/, '')) })} data-testid="crop-gi-districts" /></Field>
+        {setupServer && <Field label={t('crops.f_gi_blocks')} hint={t('crops.gi_blocks_hint')} htmlFor="cr-gib">
+          <input id="cr-gib" value={(edit.gi_blocks ?? []).join(', ')} disabled={!edit.gi_tag?.trim()} onChange={(e) => set({ gi_blocks: e.target.value.split(',').map((x) => x.replace(/^\s+/, '')) })} data-testid="crop-gi-blocks" /></Field>}
         <Field label={t('crops.f_ceiling')} hint={t('crops.ceiling_hint')} htmlFor="cr-ceil">
           <input id="cr-ceil" inputMode="decimal" value={edit.thresholds?.milling_outturn_ceiling_pct ?? ''} data-testid="crop-ceiling"
             onChange={(e) => set({ thresholds: { ...(edit.thresholds ?? {}), milling_outturn_ceiling_pct: e.target.value === '' ? undefined : Number(e.target.value) } })} /></Field>
@@ -219,6 +236,8 @@ function CropForm({ edit, setEdit, keys, typed, setTyped, defs, stateLabel, sett
         <Field label={t('crops.harvest_to')} htmlFor="cr-ht"><select id="cr-ht" value={edit.harvest_to ?? ''} onChange={(e) => set({ harvest_to: e.target.value ? Number(e.target.value) : null })} disabled={!edit.harvest_from}>
           <option value="">—</option>{MONTHS.map((m) => <option key={m} value={m}>{monthName(m, lang)}</option>)}</select></Field>
       </div>
+      {setupServer && <ShelfLifeBoxes typed={shelfTyped} setTyped={setShelfTyped} />}
+      {setupServer && edit.id && <ReferencePhoto crop={edit} onChange={(id) => set({ reference_photo_id: id })} />}
       <p className="small" data-testid="crop-state-field">{t('lens.state')}: <strong>{stateLabel}</strong>
         {settingState && <span className="muted"> · {t('crops.state_set_once', { state: mineName })}</span>}</p>
 
@@ -316,4 +335,45 @@ function CropForm({ edit, setEdit, keys, typed, setTyped, defs, stateLabel, sett
       <div className="row"><button className="secondary" onClick={onCancel}>{t('common.cancel')}</button><button onClick={onSave} disabled={busy || limitsOpen}>{t('common.save')}</button></div>
     </div>
   );
+}
+
+/** Shelf life per packing material (migration 51): whole days; an empty box means the crop's own shelf life. */
+function ShelfLifeBoxes({ typed, setTyped }: { typed: Partial<Record<Material, string>>; setTyped: (x: Partial<Record<Material, string>>) => void }) {
+  const { t } = useI18n();
+  const bad = shelfLifeMap(typed).bad;
+  return (
+    <div className="stack" data-testid="crop-shelf-materials">
+      <h3>{t('crops.f_shelf_material')}</h3>
+      <p className="muted small">{t('crops.shelf_material_hint')}</p>
+      <div className="row wrap">{MATERIALS.map((m) => (
+        <Field key={m} label={t(`mat.${m}`)} htmlFor={`cr-sl-${m}`}>
+          <input id={`cr-sl-${m}`} inputMode="numeric" value={typed[m] ?? ''} style={{ width: 90 }} aria-invalid={bad.includes(m) || undefined}
+            onChange={(e) => setTyped({ ...typed, [m]: e.target.value.replace(/[^0-9]/g, '') })} data-testid={`crop-shelf-${m}`} /></Field>))}</div>
+      {bad.length > 0 && <div className="small" style={{ color: 'var(--red)' }}>{t('crops.shelf_material_bad')}</div>}
+    </div>);
+}
+
+/** The crop's reference photo (migration 51), for the optional quick look at Procurement: uploaded, fingerprinted, set. */
+function ReferencePhoto({ crop, onChange }: { crop: CropFull; onChange: (id: string) => void }) {
+  const { t } = useI18n();
+  const act = useAction();
+  const photo = useAsync(async () => {
+    if (!crop.reference_photo_id) return null;
+    const r = await q(supabase.from('reference_files').select('storage_path,file_name').eq('id', crop.reference_photo_id).maybeSingle()) as unknown as { storage_path: string; file_name: string | null } | null;
+    return r ? { url: await referenceUrl(r.storage_path), name: r.file_name } : null;
+  }, [crop.reference_photo_id]);
+  const pick = (file: File | undefined) => file && act.run(async () => {
+    const f = await uploadReference(crop.id, 'crop_photo', file);
+    await q(supabase.from('crops').update({ reference_photo_id: f.id }).eq('id', crop.id).select());
+    onChange(f.id);
+  });
+  return (
+    <div className="stack" data-testid="crop-reference-photo">
+      <h3>{t('crops.f_photo')}</h3>
+      <p className="muted small">{t('crops.photo_hint')}</p>
+      {photo.data?.url && <img src={photo.data.url} alt={t('crops.f_photo')} style={{ maxWidth: 220, maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} data-testid="crop-photo-img" />}
+      <label className="btn secondary" style={{ alignSelf: 'flex-start' }}>{t(crop.reference_photo_id ? 'crops.photo_replace' : 'crops.photo_add')}
+        <input type="file" accept="image/*" style={{ display: 'none' }} disabled={act.busy} onChange={(e) => void pick(e.target.files?.[0])} data-testid="crop-photo-file" /></label>
+      <ErrorBox error={act.error} />
+    </div>);
 }

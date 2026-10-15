@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { addJoiner, apiAs, markJoined, freshEmail, setOwnPassword, signInWith, signOut } from '../e2e/helpers';
+import { addJoiner, apiAs, markJoined, freshEmail, setOwnPassword, signInWith, signOut, fillFarmerPlace } from '../e2e/helpers';
 
 // THE FIRST DAY OF A PILOT, from a system with nothing in it: no state, no crop, no client, no person but one admin.
 // Every other suite starts from demo rows a seed put in place; this one starts where scripts/staging_fresh_start.ps1
@@ -235,8 +235,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(`Ramkali ${u}`);
   await page.getByLabel('Father / husband name *').fill('Shri Bhola');
-  await page.getByLabel('Village *').fill('Bansi');
-  await page.getByLabel('District *').fill('Siddharthnagar');
+  await fillFarmerPlace(page, 'Siddharthnagar', 'Bansi');
   await expect(page.getByTestId('farmer-state').locator('option:checked')).toHaveText('Uttar Pradesh');
   await page.getByLabel('Mobile number *').fill(`94${u}41`);
   await page.getByLabel('Land (acres) *').fill('2');

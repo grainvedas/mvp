@@ -22,6 +22,7 @@ export function actionLines(a: MyActions, t: (k: string, v?: Record<string, stri
     text: t('act.to_verify', { n: v.n, from: stage(v.from_stage), stage: stage(v.stage) }), detail: v.scope, action: t('act.open') });
   if (a.farmers_to_verify > 0) out.push({ key: 'farmers', n: a.farmers_to_verify, to: '/farmers', text: t('act.farmers', { n: a.farmers_to_verify }), action: t('act.open') });
   if (a.proposals > 0) out.push({ key: 'proposals', n: a.proposals, to: '/farmers', text: t('act.proposals', { n: a.proposals }), action: t('act.open') });
+  if ((a.farmers_without_gps ?? 0) > 0) out.push({ key: 'nogps', n: a.farmers_without_gps!, to: '/farmers?gps=missing', text: t('act.farmers_gps', { n: a.farmers_without_gps! }), action: t('act.open') });
   if (a.requirement_lines > 0) out.push({ key: 'lines', n: a.requirement_lines, to: '/scopes', text: t('act.lines', { n: a.requirement_lines }), action: t('act.open') });
   if (a.conditions > 0) out.push({ key: 'conditions', n: a.conditions, to: '/flags', text: t('act.conditions', { n: a.conditions }), action: t('act.open') });
   if (a.flags > 0) out.push({ key: 'flags', n: a.flags, to: '/flags', text: t('act.flags', { n: a.flags }), action: t('act.open') });

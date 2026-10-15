@@ -12,6 +12,7 @@
 //
 // Writes backups/<UTC time>/  db.dump (schemas public + app, custom format)   auth.dump (logins)   evidence/<path>…
 //                             hr-docs/<person>/<file>…  (HR documents: identity papers, contracts; since migration 31)
+//                             reference/crop/<crop>/<file>…  (market profiles' sources, crops' photos; since migration 51)
 //                             MANIFEST.json (what was taken, sizes, SHA-256, and the database's fingerprint)
 // THE FOLDER HOLDS FARMERS' PHONE NUMBERS, PASSWORD HASHES AND EMPLOYEES' IDENTITY PAPERS. Keep it encrypted, off shared drives, out of git
 // (backups/ is git-ignored). scripts/restore_drill.mjs proves a backup can be restored.
@@ -105,6 +106,28 @@ export async function takeBackup({ outRoot = join(ROOT, 'backups'), evidence = t
       (hr.problems.length ? `\n  PROBLEMS:\n  ${hr.problems.join('\n  ')}` : ''));
   }
 
+  // 3c. Reference files (migration 51): the private store `reference` (market profiles' source documents, crops'
+  //     photos), the same check.
+  const ref = { expected: 0, stored: 0, bytes: 0, problems: [] };
+  if (evidence && sql(env, "select to_regclass('public.reference_files') is not null") === 't') {
+    const cfg = supabaseConfig({ needService: true });
+    const rows = JSON.parse(sql(env, "select coalesce(jsonb_agg(jsonb_build_object('path', storage_path, 'sha256', sha256) order by uploaded_at, id), '[]')::text from public.reference_files"));
+    ref.expected = rows.length;
+    for (const a of rows) {
+      const res = await fetch(`${cfg.url}/storage/v1/object/reference/${a.path.split('/').map(encodeURIComponent).join('/')}`,
+        { headers: { apikey: cfg.service, authorization: `Bearer ${cfg.service}` } });
+      if (!res.ok) { ref.problems.push(`${a.path}: not downloadable (${res.status})`); continue; }
+      const bytes = Buffer.from(await res.arrayBuffer());
+      if (createHash('sha256').update(bytes).digest('hex') !== a.sha256) { ref.problems.push(`${a.path}: SHA-256 differs from the record`); continue; }
+      const p = join(dir, 'reference', ...a.path.split('/'));
+      if (!resolve(p).startsWith(resolve(dir, 'reference'))) { ref.problems.push(`${a.path}: unsafe path`); continue; }
+      mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, bytes);
+      ref.stored++; ref.bytes += bytes.length;
+    }
+    log(`reference files: ${ref.stored}/${ref.expected} file(s) stored and matching their fingerprint (${(ref.bytes / 1024).toFixed(0)} KB)` +
+      (ref.problems.length ? `\n  PROBLEMS:\n  ${ref.problems.join('\n  ')}` : ''));
+  }
+
   // The schema a restore rebuilds first: the migration files of this repository at the time of the backup (and, on a
   // Supabase project, the versions its own migration table says were applied).
   const repoMigrations = readdirSync(join(ROOT, 'supabase', 'migrations')).filter((f) => f.endsWith('.sql')).sort();
@@ -115,10 +138,10 @@ export async function takeBackup({ outRoot = join(ROOT, 'backups'), evidence = t
     }
   } catch { /* not readable with this login: the repository list stands */ }
   const manifest = { taken_at: started.toISOString(), source: label, server_version_num: server, pg_dump_major: dumpTool,
-    files, logins: loginCount, evidence: evidence ? ev : 'skipped', hr_documents: evidence ? hr : 'skipped', migrations: repoMigrations, migrations_applied_on_source: applied, fingerprint: before };
+    files, logins: loginCount, evidence: evidence ? ev : 'skipped', hr_documents: evidence ? hr : 'skipped', reference_files: evidence ? ref : 'skipped', migrations: repoMigrations, migrations_applied_on_source: applied, fingerprint: before };
   writeFileSync(join(dir, 'MANIFEST.json'), JSON.stringify(manifest, null, 2));
   log(`manifest: ${join(dir, 'MANIFEST.json').replace(ROOT, '.')}`);
-  return { dir, manifest, ok: ev.problems.length === 0 && hr.problems.length === 0 };
+  return { dir, manifest, ok: ev.problems.length === 0 && hr.problems.length === 0 && ref.problems.length === 0 };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

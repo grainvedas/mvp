@@ -89,7 +89,7 @@ describe('the Client Manager\'s menu (D4)', () => {
     expect(groupedMenu(cm)).toBe('client_manager');
     expect(CM_HEADINGS).toEqual(['watch', 'scopes', 'farmers', 'people', 'audit', 'me']);
     const all = CM_HEADINGS.flatMap((h) => ROLE_MENUS.client_manager[h]);
-    expect(all.map((m) => m.to)).toEqual(['/', '/flags', '/scopes', '/farmers', '/farmers/new', '/people', '/system/ledger', '/onboarding', '/outbox', '/account', '/guide', '/help']);
+    expect(all.map((m) => m.to)).toEqual(['/', '/flags', '/scopes', '/setup', '/farmers', '/farmers/new', '/people', '/system/ledger', '/onboarding', '/outbox', '/account', '/guide', '/help']);
     for (const m of all) { expect(en[m.key], m.key).toBeTruthy(); expect(hi[m.key], m.key).toBeTruthy(); }
     for (const h of CM_HEADINGS) { expect(en[`menu.${h}`], h).toBeTruthy(); expect(hi[`menu.${h}`], h).toBeTruthy(); }
   });

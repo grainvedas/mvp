@@ -299,6 +299,21 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   export delivery (`app.confirm_delivery`). A form field with `required_when` is required where the scope's setting of
   that name is on (`withScopeRules`). A new ledger event needs its line in `tests/remote_ledger_audit.sql` in the same
   release (migration 48's `return` blocks went without one for a release).
+- **What a stage picks from is a list; a farm has its GPS** (migration 51, Veda 15 October 2026). Places (`places`:
+  a district row, its blocks, their villages; compared by `app.norm_place`, letters only) are added only through
+  `app.add_place` (a district by the State Manager); a state with no list accepts what is typed (`app.district_listed`).
+  The Client Manager's lists (`collection_points`, `mills`, `packing_units`, `buyers`, `pack_skus`) are written by
+  `app.runs_client`, the labs by the state's State Manager; a row is retired (`active = false`), never deleted, never
+  moved to another client (`client_list_guard`). A market profile is saved through `app.save_market_profile` (an active
+  one gets a new draft version) and activated only through `app.activate_market_profile`, with params from
+  `quality_param_library` and a source file (`reference_files`, bucket `reference`, `app.register_reference_file`); a
+  new crop gets its Domestic and Export profiles from its limits (trigger), and a crop with documents or profiles of
+  its own is in use. A GI crop is `crops.gi_crop` (generated from the GI number): no GI area without it. A farmer
+  registered by a person needs `farm_lat`/`farm_lng` and a listed district before step 1 (`farmers_z4_location`;
+  `location_required` is false for those of before: asked, never refused). The screens mirror these in `lib/setup.ts`
+  (`tests/setup_lists.test.ts` holds them to the migration's text); `tests/45_setup_lists.sql` needs a case for any new
+  rule here. The ledger banner reads `app.ledger_status` (blocks added since the last full check); the roster pool's
+  `elsewhere` is a person's work on other scopes, shown, never refused.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,

@@ -224,9 +224,9 @@ begin
   perform t.fails($q$ insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, status)
      values ('00000000-0000-4000-8000-000000000201', 'X', 'Y', 'Z', 'W', '+919812300009', 2, 'under_review') $q$,
      'added as a draft', 'farmers: nobody adds a farmer already "verified once": a farmer starts as a draft');
-  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, status, state_id)
+  insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres, gi_land_acres, status, state_id, farm_lat, farm_lng)
   values ('00000000-0000-4000-8000-000000000201', 'Union Farmer', 'Father', 'Kokrajhar', 'Kokrajhar', '+919812300001', 2, 2, 'draft',
-          assam) returning id into f;
+          assam, 27.200000, 83.000000) returning id into f;
   perform t.ok((select state_id from public.farmers where id = f) = assam, 'farmers: the farmer is put in Assam, a state the client works in');
   perform t.fails(format('select app.submit_farmer(%L)', f), 'Client Manager of this client verifies', 'farmers: step 1 is not the operator''s');
   perform t.as_user(pg_temp.f('AS'));

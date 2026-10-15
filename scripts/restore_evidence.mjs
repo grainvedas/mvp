@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Puts the files of a backup (scripts/backup.mjs) back into a project's private stores: the evidence files into
-// `evidence`, and the HR documents (identity layer, migration 31) into `hr-docs`. Then checks every file the database
+// `evidence`, the HR documents (identity layer, migration 31) into `hr-docs`, the reference files (migration 51) into `reference`. Then checks every file the database
 // knows against its recorded SHA-256. Used after restoring the database into a NEW project (Supabase's own backups do
 // not contain Storage files), and safe to run again: a file already there is left alone, never overwritten.
 //
@@ -22,7 +22,7 @@ const walk = (d) => readdirSync(d).flatMap((n) => { const p = join(d, n); return
 const problems = [];
 
 // one store: the folder of the backup, the bucket, the table that lists what must be there, the words for the report
-async function restore({ folder, bucket, table, what }) {
+async function restore({ folder, bucket, table, what, order = 'created_at' }) {
   const dir = join(root, folder);
   const url = (path) => `${cfg.url}/storage/v1/object/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`;
   let uploaded = 0, present = 0;
@@ -37,9 +37,10 @@ async function restore({ folder, bucket, table, what }) {
   }
   console.log(`${what}: ${uploaded} uploaded, ${present} already in the bucket`);
   // every file the database knows must now be in the bucket, with the fingerprint recorded when it was first stored
-  const rows = await client(cfg, { key: cfg.service }).get(table, 'select=storage_path,sha256&order=created_at');
+  const rows = await client(cfg, { key: cfg.service }).get(table, `select=storage_path,sha256&order=${order}`);
   if (!rows.ok) {
     if (table === 'employee_files' && rows.status === 404) { console.log('HR documents: this project has no such table (before migration 31): nothing to check'); return; }
+    if (table === 'reference_files' && rows.status === 404) { console.log('reference files: this project has no such table (before migration 51): nothing to check'); return; }
     console.error(`cannot read public.${table}: ${rows.status}`); process.exit(1);
   }
   let good = 0;
@@ -54,5 +55,6 @@ async function restore({ folder, bucket, table, what }) {
 
 await restore({ folder: 'evidence', bucket: 'evidence', table: 'attachments', what: 'evidence files' });
 await restore({ folder: 'hr-docs', bucket: 'hr-docs', table: 'employee_files', what: 'HR documents' });
+await restore({ folder: 'reference', bucket: 'reference', table: 'reference_files', what: 'reference files', order: 'uploaded_at' });   // migration 51
 if (problems.length) { console.log(`PROBLEMS:\n  ${problems.join('\n  ')}\nEVIDENCE RESTORE INCOMPLETE`); process.exit(1); }
 console.log('EVIDENCE RESTORED');

@@ -2144,3 +2144,53 @@ NOT run / not known: nothing of 48–50 on staging; about 250 new Hindi strings 
 printing on a real printer (the sheet is the browser's print of an A4 grid); the staging gkp scope asks for the lab
 report from now on (a scope made before keeps the default, which is to ask).
 
+
+## 15 October 2026, evening: set-up lists, release 4 (migration 51, open item 46), local stack
+
+Veda: "ok complete everything" (G19), the brief pasted again ("kindly check for 1 … 2- yes, 3- ok ill do, 4- ok ill
+see"). Releases 1–3 are on staging (15 Oct 17:01, b3ce4d8); `staging-setup-lists.cmd` expects only migration 51.
+
+- **Database**: `tests/run_local.sh` **ALL TESTS PASSED, 1,875 ok** on the fresh build; production build (no demo data;
+  the demo seed refuses); **upgrade path** (migrations 1–30 with the demo data, then 31–51 one transaction each, then
+  all 45 test files again) passed; concurrency passed. New `tests/45_setup_lists.sql` (**65 checks, 26 controls**, each
+  caught: the state list for a state made later, districts from the list only, who adds a place, who added a list row,
+  never moved, the library's params and limits, who keeps a profile, activation only with its source, one draft, the
+  old version retired, the audit line, no GI area without a GI number, a crop of before not refused, the reference
+  photo, the farm GPS and the listed district at step 1, the farmers of before not refused, GI area, the GPS check, the
+  ledger banner, work elsewhere in the pool, the state's count, the carried profiles of a removed crop, a crop with
+  documents in use, the GPS through the one door). Tests 08, 09, 14, 24, 28, 35, 37, 38 adapted (the new API
+  functions; GPS on the farmers they verify).
+- **Faults found and fixed with a test that failed first**: (1) a crop added by mistake could not be removed once it
+  had its carried market profiles (`tests/36` failed on the foreign key); the carried profiles now go with it, and a
+  crop with documents or profiles of its own is in use. (2) Found in review, before release: a crop of before with GI
+  districts and no GI number would have been refused for any change; the rule now asks only when the GI number or area
+  changes (test and control added).
+- **API**: `remote_create_user.mjs` 95 passed; `remote_rls.mjs --t1` 192 passed. `scripts/restore_drill.mjs`:
+  RESTORE DRILL PASSED, now with the reference files (1/1 re-hashed; a damaged copy makes it fail: control run).
+  `scripts/backup.mjs` and `restore_evidence.mjs` copy and put back the `reference` store.
+- **Smoke check**: the new row `setup lists` (48 rows): MISSING on a database at migration 50, OK at 51, NOT OK with the
+  library emptied or a crop's Domestic profile removed (controls run).
+- **Unit**: 463 passed (new `setup_lists.test.ts` 45: the GPS box, places, list shapes and every word of them, market
+  profile rules, shelf life, the banner, the pool, 30 refusals in plain English and Hindi; four controls each caught).
+- **Screens**: default suite 82 tests: **78 passed** in the full run; the 4 that failed picked a person in the roster
+  pool by the option's whole text, which now carries the person's work on other scopes: they pick by the name the
+  option starts with (`pickFromPool`), and the 4 files (phase1, phase4, phase18, phase23: 20 tests) **passed** on a
+  rebuilt stack. Production build 14 passed; the first day from nothing 1 passed (its farmer picked from the state's
+  district list, with GPS). New `phase23` at 527 px: the Client Manager's lists (GPS pasted, a buyer in India refused
+  without GSTIN, a pack retired), the State Manager reads them and changes none; a lab, the library, a market profile
+  activated only with its PDF, then version 2 while 1 stays in use; shelf life per material; Needs my action → the
+  farmers without GPS; a farmer from the district list with a new block (added to the list) and the GPS pasted, Save
+  and verify waiting for it; the banner's count growing; the GPS check at step 2; the State Manager's count; the
+  roster pool's groups and the soft note. Seven farmer forms in the older tests now pick the district and give the GPS.
+  Screens looked at at 390 and 1366 px: the lists, the list form, the farmer form, the roster, the profiles, places,
+  the crop form, both home screens. One layout fault found that way and fixed: a long pool line widened the roster
+  page on a phone (the slot grid now shrinks).
+- **`scripts/staging_setup_lists.ps1`** on stand-ins, 17 scenarios: 51 waiting runs through to `RESULT: SET-UP LISTS ON
+  STAGING`; a second run; refused: 50 and 51 waiting, 50 alone, another migration, wrong words, rule not in place, push
+  fails, read-back fails, a crop without its profiles, the library empty, production, functions not current, a smoke
+  row not OK, a changed migration, a changed smoke check, a changed app file; the earlier scripts now refuse. Sealed:
+  143 files.
+
+NOT run / not known: nothing of 51 on staging; about 245 new Hindi strings unread by their users (K95); only Uttar
+Pradesh's districts are loaded and the GPS check is against the district's other farms, not its boundary (K96); the
+phone's "Use where I am now" was not tried on a real phone outdoors (the e2e types the numbers).
