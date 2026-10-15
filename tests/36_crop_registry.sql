@@ -175,7 +175,7 @@ do $$ declare p uuid; w text[]; begin
   perform t.ok(p is not null, 'C GAP: with the required practice answered the lot is saved');
   perform t.ok('good farming practice not filled: Sowing date' = any (w), 'C GAP: an optional practice not answered is a warning on the lot');
   perform t.ok(exists (select 1 from unnest(w) x where x like 'outside the harvest window (%'), 'C harvest: a lot outside the harvest window is saved with a warning');
-  perform t.ok(app.preview_reconcile(pg_temp.f('SC'), 'procurement', null, '{"gross_kg":100,"bags":2,"tare_kg_per_bag":1,"moisture_pct":[12,12,12]}', t.farmer('04'))->>'error'
+  perform t.ok(app.preview_reconcile(pg_temp.f('SC'), 'procurement', null, '{"gross_kg":100,"bags":2,"tare_kg_per_bag":1,"moisture_pct":[12,12,12],"collection_point_id":"farm","gps_lat":27.2,"gps_lng":83.0,"delivered_by":"farmer"}', t.farmer('04'))->>'error'
                like 'good farming practice not complete%', 'C GAP: the form''s preview says the same before saving');
 end $$;
 

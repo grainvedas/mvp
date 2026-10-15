@@ -334,6 +334,19 @@ select 'setup lists',              case when to_regclass('public.places') is nul
                                       then 'NOT OK (the lists are there; the change log, the library or a crop''s carried profile is missing)'
                                       else 'OK places, the Client Manager''s lists, labs, market profiles with their sources, farm GPS, the ledger banner' end
 union all
+select 'procurement batch',        case when to_regclass('public.lot_payments') is null
+                                        or to_regprocedure('app.save_lot_payment(uuid, jsonb)') is null
+                                        or to_regprocedure('app.farmer_card(uuid, uuid)') is null
+                                        or to_regprocedure('app.lot_forward(uuid)') is null
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'scopes' and column_name = 'record_price')
+                                      then 'MISSING (push migration 52)'
+                                      when (select count(*) from pg_trigger where tgname = 'zz_change_log') < 42
+                                        or not exists (select 1 from pg_trigger where tgname = 'footprints_a00_payment')
+                                        or not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'lot_payments')
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'village_batch' and label like 'Collection Batch%')
+                                      then 'NOT OK (the payments table is there; its change log, its trigger, its read rule or the Collection Batch form is missing)'
+                                      else 'OK where/GPS/who delivered, price and payment kept apart, the farmer card, the Collection Batch of one place, the journey forward' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

@@ -19,7 +19,9 @@ import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 interface ScopeRow { id: string; client_id: string; crop_id: string; season_code: string; geography: string; chain: StageType[]; status: string; activated_at: string | null;
   /** migration 48 (E4): in the scope's record numbers */ short_code?: string | null;
   /** migration 50 (C5): the lab record names the lab, the report and attaches it (set before activation) */ qc_report_required?: boolean;
-  state_id?: string; season_end?: string | null }
+  state_id?: string; season_end?: string | null;
+  /** migration 52 (C1): Procurement records price and payment; asks where, the GPS and who delivered. Changed at any time. */
+  record_price?: boolean; procurement_details_required?: boolean }
 type Crop = CropFull;   // migration 42: with its readiness and recommended chain
 interface Client { id: string; name: string; code: string; state_id?: string }
 interface StateRow { id: string; name: string }
@@ -174,6 +176,7 @@ export function ScopeWizard() {
                 : <>{n} {t(`wizard.step${n}`)}</>}</li>;
       })}</ol>
       {frozen && <div className="alert info">{t('wizard.activate_warning')}</div>}
+      {s && s.chain.includes('procurement') && <ProcurementSettings s={s} onSaved={(x) => existing.setData(x)} />}
 
       {step === 1 && !frozen && (
         <div className="card">
@@ -268,4 +271,32 @@ export function activationLacks(m: ActivationMissing | null, label: (x: StageTyp
     ...m.crop.map((k) => t('wizard.lack_crop', { what: t(`crops.missing_${k}`, undefined, k) })),
     ...m.stages.map((x) => t('wizard.lack_stage', { stage: label(x) })),
   ];
+}
+
+/** Migration 52 (C1): how this scope's farm-gate form works. The Client Manager changes these at any time, also once the
+ *  scope is active: they decide what the next lots ask, not what was recorded. */
+function ProcurementSettings({ s, onSaved }: { s: ScopeRow; onSaved: (x: ScopeRow) => void }) {
+  const { t } = useI18n();
+  const act = useAction();
+  // shown at once; put back if the save is refused
+  const [on, setOn] = useState({ details: s.procurement_details_required !== false, price: s.record_price === true });
+  const set = (k: 'record_price' | 'procurement_details_required', v: boolean) => {
+    const was = on;
+    setOn({ ...on, [k === 'record_price' ? 'price' : 'details']: v });
+    void act.run(async () => {
+      try { onSaved(await q(supabase.from('scopes').update({ [k]: v }).eq('id', s.id).select().single()) as ScopeRow); }
+      catch (e) { setOn(was); throw e; }
+    });
+  };
+  return (
+    <div className="card" data-testid="proc-settings">
+      <h3>{t('ps.title')}</h3>
+      <label className="check"><input type="checkbox" checked={on.details} disabled={act.busy}
+        onChange={(e) => set('procurement_details_required', e.target.checked)} data-testid="ps-details" />{t('ps.details')}</label>
+      <p className="hint">{t('ps.details_hint')}</p>
+      <label className="check"><input type="checkbox" checked={on.price} disabled={act.busy}
+        onChange={(e) => set('record_price', e.target.checked)} data-testid="ps-price" />{t('ps.price')}</label>
+      <p className="hint">{t('ps.price_hint')}</p>
+      <ErrorBox error={act.error} />
+    </div>);
 }

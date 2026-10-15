@@ -87,6 +87,28 @@ function Labs() {
     </div>);
 }
 
+/** The state a person works in, for the first view of Places: the State Manager's own state; else the state of the
+ *  person's client (found on staging, 15 Oct: the Client Manager of an Uttar Pradesh client opened on Bihar, the first
+ *  state in the alphabet). */
+export function homeState(ctx: Parameters<typeof myStateIds>[0], clientStates: Record<string, string>): string {
+  const mine = myStateIds(ctx);
+  if (mine[0]) return mine[0];
+  const fromScope = (ctx?.scopes ?? []).find((x) => x.state_id)?.state_id;
+  if (fromScope) return fromScope;
+  const client = (ctx?.assignments ?? []).find((a) => a.client_id && clientStates[a.client_id])?.client_id ?? ctx?.user?.client_id ?? '';
+  return (client && clientStates[client]) || ctx?.user?.state_ids?.[0] || '';
+}
+function useHomeState(): string {
+  const { ctx } = useAuth();
+  const clientIds = [...new Set([...(ctx?.assignments ?? []).map((a) => a.client_id), ctx?.user?.client_id].filter(Boolean) as string[])];
+  const cs = useAsync(async () => {
+    if (!clientIds.length || myStateIds(ctx).length) return {} as Record<string, string>;
+    const rows = await q(supabase.from('clients').select('id,state_id').in('id', clientIds)) as { id: string; state_id: string | null }[];
+    return Object.fromEntries(rows.filter((r) => r.state_id).map((r) => [r.id, r.state_id as string]));
+  }, [clientIds.join(',')]);
+  return homeState(ctx, cs.data ?? {});
+}
+
 function StatePicker({ states, value, onChange }: { states: { id: string; name: string }[]; value: string; onChange: (id: string) => void }) {
   const { t } = useI18n();
   if (states.length < 2) return null;
@@ -152,7 +174,10 @@ function ListEditor({ kind, owner, canEdit }: { kind: ListKind; owner: { client_
             if (f.type === 'gps') return (
               <Field key="gps" label={t('set.f_gps')} hint={t('set.gps_hint')} htmlFor={`${id}-lat`}>
                 <div className="row"><input id={`${id}-lat`} aria-label={t('fl.lat')} placeholder={t('fl.lat')} inputMode="decimal" value={edit.row.lat ?? ''} style={{ width: 'auto', flex: 1 }}
-                  onChange={(e) => { const b = parseGps(e.target.value); setEdit({ ...edit, row: { ...edit.row, ...(b ? { lat: String(b.lat), lng: String(b.lng) } : { lat: e.target.value }) } }); }} />
+                  onChange={(e) => setEdit({ ...edit, row: { ...edit.row, lat: e.target.value } })}
+                  // a pair is split when pasted or when the box is left, never while it is typed (staging, 15 Oct)
+                  onPaste={(e) => { const b = parseGps(e.clipboardData.getData('text')); if (b) { e.preventDefault(); setEdit({ ...edit, row: { ...edit.row, lat: String(b.lat), lng: String(b.lng) } }); } }}
+                  onBlur={() => { const b = parseGps(edit.row.lat ?? ''); if (b) setEdit({ ...edit, row: { ...edit.row, lat: String(b.lat), lng: String(b.lng) } }); }} />
                   <input aria-label={t('fl.lng')} placeholder={t('fl.lng')} inputMode="decimal" value={edit.row.lng ?? ''} style={{ width: 'auto', flex: 1 }}
                     onChange={(e) => setEdit({ ...edit, row: { ...edit.row, lng: e.target.value } })} /></div>
                 {gpsProblem(edit.row.lat ?? '', edit.row.lng ?? '') && <div className="small" style={{ color: 'var(--red)' }}>{t(gpsProblem(edit.row.lat ?? '', edit.row.lng ?? '')!)}</div>}
@@ -187,8 +212,9 @@ function Places() {
   const { ctx } = useAuth();
   const mine = myStateIds(ctx);
   const states = useAsync(() => q(supabase.from('states').select('id,name').order('name')) as Promise<{ id: string; name: string }[]>, []);
+  const home = useHomeState();
   const [stateId, setStateId] = useState(mine[0] ?? '');
-  const sid = stateId || states.data?.[0]?.id || '';
+  const sid = stateId || home || states.data?.[0]?.id || '';
   const [district, setDistrict] = useState('');
   const [block, setBlock] = useState('');
   const pl = usePlaces(sid, district);
@@ -337,7 +363,7 @@ function DraftEditor({ p, lib, onChanged }: { p: MarketProfile; lib: LibraryPara
             <select aria-label={t('set.p_param')} value={x.param} onChange={(e) => { const nl = lib.find((y) => y.param === e.target.value);
               setP(i, nl?.type === 'number' ? { param: e.target.value, operator: '<=', limit: undefined, pass: undefined } : nl?.type === 'grade' ? { param: e.target.value, pass: [], operator: undefined, limit: undefined } : { param: e.target.value, pass: false, operator: undefined, limit: undefined });
               setTyped({ ...typed, [i]: '' }); }} style={{ width: 'auto' }}>
-              <option value="">—</option>{lib.filter((y) => y.param === x.param || !params.some((z) => z.param === y.param)).map((y) => <option key={y.param} value={y.param}>{y.name}{y.unit ? ` (${y.unit})` : ''}</option>)}</select>
+              <option value="">—</option>{lib.filter((y) => y.param === x.param || (!y.alias_of && !params.some((z) => z.param === y.param))).map((y) => <option key={y.param} value={y.param}>{y.name}{y.unit ? ` (${y.unit})` : ''}</option>)}</select>
             {l?.type === 'number' && <>
               <select aria-label={t('crops.p_rule')} value={x.operator ?? '<='} onChange={(e) => setP(i, { operator: e.target.value })} style={{ width: 'auto' }}>
                 <option value="<=">{t('crops.r_at_most')}</option><option value=">=">{t('crops.r_at_least')}</option></select>
@@ -376,7 +402,7 @@ function Library() {
       <ErrorBox error={lib.error} onRetry={lib.reload} />
       <div className="card table-wrap"><table>
         <thead><tr><th>{t('set.l_name')}</th><th>{t('set.l_unit')}</th><th className="hide-mobile">{t('set.l_method')}</th><th>{t('set.l_by')}</th></tr></thead>
-        <tbody>{(lib.data ?? []).map((l) => (
+        <tbody>{(lib.data ?? []).filter((l) => !l.alias_of).map((l) => (   // a second name of a test is not listed twice (migration 52)
           <tr key={l.param} data-testid="library-row"><td>{l.name}<div className="small muted">{t(`set.grp_${l.grp}`)}</div></td><td>{l.unit ?? (l.type === 'grade' ? t('crops.t_grade') : l.type === 'yesno' ? t('crops.t_yesno') : '—')}</td>
             <td className="hide-mobile small">{l.method ?? '—'}</td><td>{t(`set.by_${l.done_by}`)}</td></tr>))}</tbody>
       </table></div>

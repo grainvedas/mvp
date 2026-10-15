@@ -10,6 +10,7 @@ export type T = (key: string, vars?: Record<string, string | number>, fallback?:
 
 /** The order worked-out values are listed in, whatever order the server (or the phone, offline) sends them. */
 const ORDER = ['net_kg', 'moisture_avg', 'moisture_min', 'moisture_max', 'variance_kg', 'variance_pct', 'source_count',
+  'total_kg', 'farmers', 'villages', 'collection_point',                                     // migration 52: the Collection Batch
   'clean_kg', 'reject_kg', 'reject_reasons', 'grade_split', 'yield_pct', 'bran_kg', 'loss_kg', 'expected_out_kg',
   'water_removed_kg', 'grain_loss_kg', 'pop_rate_pct', 'weight_yield_pct', 'foreign_matter_kg', 'water_uptake_kg',
   'spoilage_kg', 'packed_kg', 'wastage_kg', 'batch_code', 'sample_qty_kg', 'forwarding_kg', 'market', 'buyer',
@@ -37,6 +38,7 @@ function row(x: unknown, t: T): string {
   const r = x as Record<string, unknown>;
   if ('reason' in r) return `${String(r.reason)} ${kg(Number(r.kg ?? 0))}`;
   if ('units' in r) return `${num(Number(r.units), 0)} × ${kg(Number(r.size_kg ?? 0))}`;
+  if ('village' in r) return `${String(r.village)} ${kg(Number(r.kg ?? 0))}${r.share_pct !== undefined ? ` (${num(Number(r.share_pct), 1)} %)` : ''}`;
   return Object.entries(r).map(([k, v]) => `${t(`field.${k}`, undefined, humanise(k))} ${String(v)}`).join(', ');
 }
 
@@ -67,6 +69,8 @@ export function showEntered(fd: FieldDef | undefined, key: string, v: unknown, t
   if (type === 'footprint[]' && Array.isArray(v)) return t('record.n_lots', { n: v.length });
   if (type === 'number[3]' && Array.isArray(v)) return `${v.map((x) => num(Number(x), 2)).join(' · ')}${fd?.unit ? ` ${fd.unit}` : ''}`;
   if (type === 'date' && typeof v === 'string') return fmtDate(v);
+  if (type === 'collection_point') return v === 'farm' ? t('cp.at_farm') : t('cp.a_point');   // its name is with the worked-out values
+  if (type === 'gps' && typeof v === 'object' && !Array.isArray(v)) { const g = v as { lat?: unknown; lng?: unknown }; return `${String(g.lat ?? '')}, ${String(g.lng ?? '')}`; }
   if (typeof v === 'number') return number(key, v, fd?.unit);
   if (typeof v === 'boolean') return t(v ? 'common.yes' : 'common.no');
   if (Array.isArray(v)) return v.length ? v.map((x) => row(x, t)).join(' · ') : '—';
@@ -82,14 +86,20 @@ export function ComputedRows({ computed, t }: { computed: Record<string, unknown
 }
 
 /** Entered values as rows of a definition list, in the order of the stage's form; anything not in the form comes last. */
-export function EnteredRows({ payload, fields, stage, params, t }: {
-  payload: Record<string, unknown>; fields: FieldDef[]; stage: string; params?: QualityParam[]; t: T;
+export function EnteredRows({ payload: raw, fields, stage, params, computed, t }: {
+  payload: Record<string, unknown>; fields: FieldDef[]; stage: string; params?: QualityParam[]; computed?: Record<string, unknown> | null; t: T;
 }) {
+  // migration 52: a GPS field is kept as two numbers (gps_lat, gps_lng) and shown as one; a collection point by its name
+  const payload: Record<string, unknown> = { ...raw };
+  for (const f of fields.filter((x) => x.type === 'gps')) {
+    if ('gps_lat' in payload || 'gps_lng' in payload) { payload[f.key] = { lat: payload.gps_lat, lng: payload.gps_lng }; delete payload.gps_lat; delete payload.gps_lng; }
+  }
+  const named = (f: FieldDef) => f.type === 'collection_point' && payload[f.key] !== 'farm' && typeof computed?.collection_point === 'string' ? String(computed.collection_point) : null;
   const known = fields.filter((f) => f.key in payload);
   const extra = Object.keys(payload).filter((k) => !fields.some((f) => f.key === k));
   const label = (f: FieldDef) => t(`field.${stage}.${f.key}`, undefined, t(`field.${f.key}`, undefined, f.label));
   return <>
-    {known.map((f) => <Fragment key={f.key}><dt>{label(f)}</dt><dd data-entered={f.key}>{showEntered(f, f.key, payload[f.key], t, params)}</dd></Fragment>)}
+    {known.map((f) => <Fragment key={f.key}><dt>{label(f)}</dt><dd data-entered={f.key}>{named(f) ?? showEntered(f, f.key, payload[f.key], t, params)}</dd></Fragment>)}
     {extra.map((k) => <Fragment key={k}><dt>{t(`field.${k}`, undefined, humanise(k))}</dt><dd data-entered={k}>{showEntered(undefined, k, payload[k], t, params)}</dd></Fragment>)}
   </>;
 }

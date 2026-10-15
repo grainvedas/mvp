@@ -1,11 +1,14 @@
 // Field widgets for the generic engine. A widget knows a field TYPE, never a stage: stage behaviour comes only from
 // stage_definitions.form_schema (execution plan §6, "no stage-specific screen code").
 import { useEffect, useState } from 'react';
-import type { FieldDef, QualityParam, Farmer } from '../lib/types';
+import type { FieldDef, QualityParam, Farmer, Footprint, IncomingLot } from '../lib/types';
+import type { BatchLot } from './offlinePreview';
 import { readingValue } from '../lib/crops';
 import { supabase } from '../lib/supabase';
 import { useI18n } from '../lib/i18n';
-import { cached } from '../offline/cache';
+import { cached, isNetworkError } from '../offline/cache';
+import { gpsProblem, parseGps } from '../lib/setup';
+import { rpc } from '../lib/api';
 
 export type FieldValue = string | boolean | string[] | Record<string, string> | File | null;
 export interface WidgetProps {
@@ -22,10 +25,10 @@ export interface WidgetProps {
 
 /** Types this build can render. Anything else shows a notice and blocks save if required. */
 export const SUPPORTED = new Set(['number', 'integer', 'number[3]', 'text', 'select', 'date', 'boolean', 'attachment', 'readings', 'farmer',
-  'breakdown', 'packets[]', 'footprint[]']);
+  'breakdown', 'packets[]', 'footprint[]', 'collection_point', 'gps']);   // migration 52: where the lot was weighed, and its GPS
 
 /** Field types that take the whole width of a two-column form (lists, pickers, files, groups of inputs). */
-export const FULL_WIDTH = new Set(['number[3]', 'attachment', 'readings', 'farmer', 'breakdown', 'packets[]', 'footprint[]', 'boolean']);
+export const FULL_WIDTH = new Set(['number[3]', 'attachment', 'readings', 'farmer', 'breakdown', 'packets[]', 'footprint[]', 'boolean', 'gps']);
 
 /** Consecutive fields with the same `section` form one block of the form; a registry without sections gives one block. */
 export function groupSections(fields: FieldDef[]): { section: string | null; fields: FieldDef[] }[] {
@@ -115,7 +118,13 @@ export function Widget(p: WidgetProps) {
       );
     }
     case 'farmer':
-      return <FarmerPicker id={id} clientId={p.clientId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
+      return <FarmerPicker id={id} clientId={p.clientId} scopeId={p.scopeId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
+    case 'collection_point':
+      return <CollectionPointPicker id={id} clientId={p.clientId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
+    case 'gps': {
+      const g = (value && typeof value === 'object' && !(value instanceof File) && !Array.isArray(value)) ? value as Record<string, string> : {};
+      return <GpsField id={id} lat={g.lat ?? ''} lng={g.lng ?? ''} onChange={(lat, lng) => onChange({ lat, lng })} />;
+    }
     case 'breakdown':
       return <RowsEditor id={id} value={value} onChange={onChange} cols={[{ key: 'reason', label: t('widget.reason'), numeric: false }, { key: 'kg', label: t('widget.kg'), numeric: true }]} addLabel={t('widget.add_reason')} />;
     case 'packets[]':
@@ -127,7 +136,7 @@ export function Widget(p: WidgetProps) {
   }
 }
 
-function FarmerPicker({ id, clientId, value, onChange }: { id: string; clientId: string; value: string; onChange: (v: string) => void }) {
+function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; clientId: string; scopeId?: string; value: string; onChange: (v: string) => void }) {
   const { t } = useI18n();
   const [q, setQ] = useState('');
   const [all, setAll] = useState<Farmer[]>([]);
@@ -150,9 +159,12 @@ function FarmerPicker({ id, clientId, value, onChange }: { id: string; clientId:
     || f.village.toLowerCase().includes(s) || (digits.length >= 3 && (f.phone ?? '').includes(digits))) : all).slice(0, 20);
   if (picked && value) {
     return (
-      <div className="row" data-testid="farmer-picked">
-        <strong>{picked.name}</strong> <span className="mono">{picked.farmer_code}</span> <span className="muted">{picked.village}</span>
-        <button type="button" className="secondary" onClick={() => { setPicked(null); onChange(''); }}>{t('widget.change')}</button>
+      <div className="stack">
+        <div className="row" data-testid="farmer-picked">
+          <strong>{picked.name}</strong> <span className="mono">{picked.farmer_code}</span> <span className="muted">{picked.village}</span>
+          <button type="button" className="secondary" onClick={() => { setPicked(null); onChange(''); }}>{t('widget.change')}</button>
+        </div>
+        {scopeId && <FarmerCard farmerId={picked.id} scopeId={scopeId} />}
       </div>
     );
   }
@@ -200,34 +212,87 @@ function RowsEditor({ id, value, onChange, cols, addLabel }: {
   );
 }
 
-interface LotRow { id: string; footprint_code: string; qty_out: number; status: string; farmer_id: string | null }
+/** The lots waiting at a stage (app.incoming_lots, migration 49), kept on the phone; a server before migration 49: the
+ *  older list. One loader for the stage's list of waiting lots and the Collection Batch's picker (one copy offline). */
+export function loadIncomingLots(scopeId: string, stageType: string): Promise<IncomingLot[]> {
+  return cached(`incoming_lots:${scopeId}:${stageType}`,
+    () => rpc<IncomingLot[]>('incoming_lots', { p_scope: scopeId, p_stage: stageType }).catch(async (e) => {
+      if (isNetworkError(e)) throw e;
+      return (await rpc<Footprint[]>('incoming_records', { p_scope: scopeId, p_stage: stageType }))
+        .map((r) => ({ ...r, available_kg: r.qty_out, returned: false, maker_name: null, made_by_me: false, gi_status: 'unknown', farmer_count: 0 }) as IncomingLot);
+    }));
+}
+
+/** The lots the Collection Batch picker last showed, for the offline mirror of the batch (offlinePreview). */
+export const KNOWN_LOTS = new Map<string, BatchLot>();
+const pointOf = (l: IncomingLot) => String((l.payload as Record<string, unknown>)?.collection_point_id ?? '');
+
+/** The Collection Batch (migration 52, C2): the verified lots, by the place they were weighed. A batch is the lots of one
+ *  place; choosing lots of two places is said at once (the save refuses it too). */
 function LotPicker({ id, scopeId, stageType, value, onChange }: { id: string; scopeId: string; stageType: string; value: string[]; onChange: (v: FieldValue) => void }) {
   const { t } = useI18n();
-  const [lots, setLots] = useState<LotRow[]>([]);
-  const [names, setNames] = useState<Record<string, string>>({});
+  const [lots, setLots] = useState<IncomingLot[] | null>(null);
+  const [names, setNames] = useState<Record<string, { name: string; village: string }>>({});
   useEffect(() => {
     if (!scopeId || !stageType) return;
-    import('../lib/api').then(({ rpc }) => cached(`incoming:${scopeId}:${stageType}`, () => rpc<LotRow[]>('incoming_records', { p_scope: scopeId, p_stage: stageType })))
-      .then((r) => {
-        const verified = r.filter((x) => x.status === 'verified');
-        setLots(verified);
-        const ids = verified.map((x) => x.farmer_id).filter(Boolean) as string[];
-        if (ids.length) supabase.from('farmers').select('id,name,village').in('id', ids)
-          .then(({ data }) => setNames(Object.fromEntries((data ?? []).map((f: { id: string; name: string; village: string }) => [f.id, `${f.name}, ${f.village}`]))));
-      }).catch(() => setLots([]));
+    let live = true;
+    loadIncomingLots(scopeId, stageType).then(async (r) => {
+      const verified = r.filter((x) => x.status === 'verified');
+      if (!live) return;
+      setLots(verified);
+      const ids = [...new Set(verified.map((x) => x.farmer_id).filter(Boolean) as string[])];
+      const nm = ids.length ? await cached(`lot_farmers:${scopeId}:${stageType}`, async () => {
+        const { data, error } = await supabase.from('farmers').select('id,name,village').in('id', ids);
+        if (error) throw error;
+        return Object.fromEntries(((data ?? []) as { id: string; name: string; village: string }[]).map((f) => [f.id, { name: f.name, village: f.village }]));
+      }).catch(() => ({} as Record<string, { name: string; village: string }>)) : {};
+      if (!live) return;
+      setNames(nm);
+      for (const l of verified) {
+        const c = (l.computed ?? {}) as Record<string, unknown>;
+        KNOWN_LOTS.set(l.id, { id: l.id, code: l.footprint_code, qty: Number(l.qty_out), point: pointOf(l),
+          point_name: typeof c.collection_point === 'string' && c.collection_point !== 'farm' ? c.collection_point : null,
+          village: l.farmer_id ? nm[l.farmer_id]?.village ?? null : null, farmer_id: l.farmer_id,
+          moisture_avg: typeof c.moisture_avg === 'number' ? c.moisture_avg : c.moisture_avg ? Number(c.moisture_avg) : null, gi_status: l.gi_status ?? 'unknown' });
+      }
+    }).catch(() => { if (live) setLots([]); });
+    return () => { live = false; };
   }, [scopeId, stageType]);
+  if (lots === null) return <p className="small muted" id={id}>{t('common.loading', undefined, '…')}</p>;
   if (!lots.length) return <p className="alert info" id={id}>{t('widget.no_lots')}</p>;
+  const groups = new Map<string, IncomingLot[]>();
+  for (const l of lots) groups.set(pointOf(l), [...(groups.get(pointOf(l)) ?? []), l]);
+  const title = (key: string, l: IncomingLot) => {
+    const c = (l.computed ?? {}) as Record<string, unknown>;
+    return key === 'farm' ? t('cp.at_farm') : key === '' ? t('cb.no_place') : typeof c.collection_point === 'string' ? c.collection_point : t('cp.a_point');
+  };
+  const chosenPlaces = new Set(lots.filter((l) => value.includes(l.id)).map(pointOf));
   return (
-    <div id={id} className="stack">
-      {lots.map((l) => (
-        <label key={l.id} className="check">
-          <input type="checkbox" checked={value.includes(l.id)} onChange={(e) => onChange(e.target.checked ? [...value, l.id] : value.filter((x) => x !== l.id))} />
-          <span><span className="mono">{l.footprint_code}</span> · {Number(l.qty_out).toLocaleString('en-IN')} kg{l.farmer_id && names[l.farmer_id] ? ` · ${names[l.farmer_id]}` : ''}</span>
-        </label>
-      ))}
+    <div id={id} className="stack" data-testid="batch-lots">
+      {chosenPlaces.size > 1 && <div className="alert warn" role="alert" data-testid="batch-two-places">{t('cb.one_place')}</div>}
+      {[...groups.entries()].map(([key, ls], gi) => {
+        const all = ls.every((l) => value.includes(l.id));
+        return (
+          <fieldset key={key || 'none'} className="stack" data-testid={`batch-place-${gi}`} data-place={key}>
+            <legend className="small"><strong>{title(key, ls[0])}</strong> · {t('cb.n_lots', { n: ls.length })} · {kgText(ls.reduce((a, l) => a + Number(l.qty_out), 0))}</legend>
+            <button type="button" className="secondary small" data-testid={`batch-place-all-${gi}`}
+              onClick={() => onChange(all ? value.filter((x) => !ls.some((l) => l.id === x)) : ls.map((l) => l.id))}>
+              {all ? t('cb.none_here') : t('cb.all_here')}</button>
+            {ls.map((l) => {
+              const f = l.farmer_id ? names[l.farmer_id] : undefined;
+              return (
+                <label key={l.id} className="check">
+                  <input type="checkbox" checked={value.includes(l.id)} onChange={(e) => onChange(e.target.checked ? [...value, l.id] : value.filter((x) => x !== l.id))} />
+                  <span><span className="mono">{l.footprint_code}</span> · {kgText(Number(l.qty_out))}{f ? ` · ${f.name}, ${f.village}` : ''}
+                    {l.gi_status && l.gi_status !== 'unknown' && <> · <span className={`badge ${l.gi_status === 'gi' ? 'gi' : 'draft'}`} data-gi={l.gi_status}>{t(`gi.${l.gi_status}`)}</span></>}</span>
+                </label>);
+            })}
+          </fieldset>);
+      })}
     </div>
   );
 }
+const kgText = (n: number) => `${n.toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg`;
 
 /** Field values → payload (numbers parsed) and column values. Attachments are returned separately. */
 export function buildPayload(fields: FieldDef[], values: Record<string, FieldValue>) {
@@ -249,6 +314,12 @@ export function buildPayload(fields: FieldDef[], values: Record<string, FieldVal
       const rows = (v as unknown as Record<string, string>[]).filter((r) => Object.values(r).some((x) => x !== ''));
       if (!rows.length) continue;
       out = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, x]) => [k, k === 'reason' ? x : toNum(x)])));
+    } else if (f.type === 'gps') {
+      // migration 52: the point goes into the payload as two numbers
+      const g = v as Record<string, string>;
+      const lat = toNum(g?.lat), lng = toNum(g?.lng);
+      if (lat !== undefined && lng !== undefined && Number.isFinite(lat) && Number.isFinite(lng)) { payload.gps_lat = lat; payload.gps_lng = lng; }
+      continue;
     } else if (f.type === 'footprint[]') {
       const ids = v as string[];
       if (!ids.length) continue;
@@ -268,7 +339,10 @@ export function buildPayload(fields: FieldDef[], values: Record<string, FieldVal
 /** Migration 50: a field marked `required_when` is required where the scope's setting of that name is on (the lab
  *  report where the scope asks for it). The database asks the same (app.reconcile); this keeps the form honest. */
 export function withScopeRules(fields: FieldDef[], scope: object): FieldDef[] {
-  return fields.map((f) => (f.required_when && (scope as Record<string, unknown>)[f.required_when] === true ? { ...f, required: true } : f));
+  const on = (k: string) => (scope as Record<string, unknown>)[k] === true;
+  // migration 52: a field marked `shown_when` is on the form only where the scope's setting is on (price and payment)
+  return fields.filter((f) => !f.shown_when || on(f.shown_when))
+    .map((f) => (f.required_when && on(f.required_when) ? { ...f, required: true } : f));
 }
 
 /** Required files not chosen yet (by label): a new record only (a correction keeps the files it has). */
@@ -284,8 +358,94 @@ export function missingRequired(fields: FieldDef[], values: Record<string, Field
     if (f.type === 'readings') return !v || Object.values(v as Record<string, string>).every((x) => x === '');
     if (f.type === 'packets[]') return !Array.isArray(v) || !(v as unknown as Record<string, string>[]).some((r) => r.units && r.size_kg);
     if (f.type === 'footprint[]') return !Array.isArray(v) || (v as string[]).length === 0;
+    if (f.type === 'gps') { const g = v as Record<string, string> | null; return !g || !String(g.lat ?? '').trim() || !String(g.lng ?? '').trim(); }
     return v === undefined || v === null || v === '';
   }).map((f) => f.label);
 }
 
 export const PREFILL_FROM_SOURCE = ['input_kg', 'qty_kg', 'stored_kg', 'shipped_kg'];
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Migration 52 (C1): where the lot was weighed, its GPS, the farmer card
+// ---------------------------------------------------------------------------------------------------------------------
+interface PointRow { id: string; name: string; kind: string; village: string | null; district: string }
+/** A collection point of the client (kept on the phone, so the farm-gate form works without a network), or "At the farm". */
+function CollectionPointPicker({ id, clientId, value, onChange }: { id: string; clientId: string; value: string; onChange: (v: string) => void }) {
+  const { t } = useI18n();
+  const [points, setPoints] = useState<PointRow[]>([]);
+  useEffect(() => {
+    let live = true;
+    void cached(`collection_points:${clientId}`, async () => {
+      const { data, error } = await supabase.from('collection_points').select('id,name,kind,village,district').eq('client_id', clientId).eq('active', true).order('name');
+      if (error) throw error;
+      return (data ?? []) as PointRow[];
+    }).then((l) => { if (live) setPoints(l); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [clientId]);
+  return (
+    <select id={id} name="collection_point_id" value={value} onChange={(e) => onChange(e.target.value)} data-testid="where">
+      <option value="">—</option>
+      <option value="farm">{t('cp.at_farm')}</option>
+      {points.map((p) => <option key={p.id} value={p.id}>{p.name}{p.village ? ` · ${p.village}` : ''}</option>)}
+    </select>);
+}
+
+/** The GPS of where the lot was weighed: taken from the phone when the form opens (it works without signal), else typed.
+ *  A pair pasted into the first box ("27.21, 82.95") fills both; typing goes into one box at a time (found on staging,
+ *  15 Oct: a pair typed key by key was split too early). */
+export function GpsField({ id, lat, lng, onChange, auto = true }: { id: string; lat: string; lng: string; onChange: (lat: string, lng: string) => void; auto?: boolean }) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  // `quiet`: the point taken by itself when the form opens says nothing when the phone gives none (asked or not, the
+  // operator can press the button or type the numbers)
+  const take = (quiet = false) => {
+    if (!navigator.geolocation) { if (!quiet) setErr(t('fl.gps_none')); return; }
+    setBusy(true); setErr(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setBusy(false); onChange(pos.coords.latitude.toFixed(6), pos.coords.longitude.toFixed(6)); },
+      () => { setBusy(false); if (!quiet) setErr(t('fl.gps_denied')); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 });
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (auto && !lat && !lng && navigator.geolocation) take(true); }, []);
+  const problem = gpsProblem(lat, lng);
+  return (
+    <div className="stack" data-testid="gps-field">
+      <div className="row wrap">
+        <button type="button" className="secondary" onClick={() => take()} disabled={busy} data-testid="gps-here">{busy ? t('fl.gps_taking') : t('fl.gps_here')}</button>
+        <input id={id} aria-label={t('fl.lat')} placeholder={t('fl.lat')} inputMode="decimal" value={lat} style={{ flex: '1 1 110px', width: 'auto' }} data-testid="gps-lat"
+          onChange={(e) => onChange(e.target.value, lng)}
+          onPaste={(e) => { const both = parseGps(e.clipboardData.getData('text')); if (both) { e.preventDefault(); onChange(String(both.lat), String(both.lng)); } }}
+          onBlur={() => { const both = parseGps(lat); if (both) onChange(String(both.lat), String(both.lng)); }} />
+        <input aria-label={t('fl.lng')} placeholder={t('fl.lng')} inputMode="decimal" value={lng} style={{ flex: '1 1 110px', width: 'auto' }} data-testid="gps-lng"
+          onChange={(e) => onChange(lat, e.target.value)} />
+      </div>
+      {problem && <div className="small" style={{ color: 'var(--red)' }}>{t(problem)}</div>}
+      {err && <div className="small" style={{ color: 'var(--warn)' }}>{err}</div>}
+    </div>);
+}
+
+interface FarmerCardData { gi_land_acres: number | null; sold_kg: number; expected_kg: number | null; gap: { required: string[]; optional: string[] };
+  gi_area: 'inside' | 'outside' | 'unknown' | 'non_gi_crop'; has_gps: boolean }
+/** The farmer card (C1): GI land, sold this season against what his GI land should give, practice, GI area. */
+function FarmerCard({ farmerId, scopeId }: { farmerId: string; scopeId: string }) {
+  const { t } = useI18n();
+  const [c, setC] = useState<FarmerCardData | null>(null);
+  useEffect(() => {
+    let live = true;
+    void cached(`farmer_card:${farmerId}:${scopeId}`, () => rpc<FarmerCardData>('farmer_card', { p_farmer: farmerId, p_scope: scopeId }))
+      .then((r) => { if (live) setC(r); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [farmerId, scopeId]);
+  if (!c) return null;
+  const n = (x: number | null) => (x === null || x === undefined ? '—' : Number(x).toLocaleString('en-IN', { maximumFractionDigits: 1 }));
+  const over = c.expected_kg !== null && c.sold_kg > c.expected_kg;
+  return (
+    <div className="card sub-card small" data-testid="farmer-card" data-gi={c.gi_area}>
+      <div>{c.gi_land_acres === null || c.gi_land_acres === undefined ? t('fc.gi_land_none') : t('fc.gi_land', { n: n(c.gi_land_acres) })} · {c.expected_kg === null || c.expected_kg === undefined
+        ? t('fc.sold_only', { sold: n(c.sold_kg) }) : t('fc.sold', { sold: n(c.sold_kg), expected: n(c.expected_kg) })}</div>
+      <div>{c.gap.required.length ? <span style={{ color: 'var(--red)' }}>{t('fc.gap_open', { what: c.gap.required.join(', ') })}</span>
+        : c.gap.optional.length ? t('fc.gap_optional', { what: c.gap.optional.join(', ') }) : t('fc.gap_done')}</div>
+      <div data-testid="farmer-card-gi">{t(`fc.gi_${c.gi_area}`)}{over ? ` · ${t('fc.above_yield')}` : ''}</div>
+    </div>);
+}

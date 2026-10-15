@@ -96,6 +96,8 @@ insert into allowed values
   ('authenticated', 'activate_market_profile'), ('authenticated', 'farmer_gi_area'), ('authenticated', 'farmer_gps_check'),
   ('authenticated', 'ledger_status'), ('authenticated', 'multi_scope_people'),
   ('authenticated', 'valid_gps'), ('authenticated', 'shelf_life_ok'), ('authenticated', 'manages_crop'),
+  -- migration 52: price and payment, the farmer card, where a lot went
+  ('authenticated', 'save_lot_payment'), ('authenticated', 'farmer_card'), ('authenticated', 'lot_forward'), ('authenticated', 'reads_lot_payment'),
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

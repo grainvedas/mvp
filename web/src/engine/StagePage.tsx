@@ -16,10 +16,10 @@ import { kg, dateTime, date, humanise, todayIST } from '../lib/format';
 import type { Footprint, FootprintReturn, IncomingLot, LotMarkets, Preview, QualityParam, ReleasePreview, StageForm, StageType, SystemCheck, VerdictPreview, Withdrawal } from '../lib/types';
 import { giLabel } from '../lib/gi';
 import { ErrorBox, Loading, Badge, Empty, Field, errorText, plainText } from '../shell/ui';
-import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, type FieldValue } from './widgets';
+import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, KNOWN_LOTS, loadIncomingLots, type FieldValue } from './widgets';
 import { SECTION_ICON, stageIcon } from './icons';
 import { uploadEvidence, UPLOAD_WAIT_MS } from './evidence';
-import { offlinePreview, type OfflinePreview } from './offlinePreview';
+import { offlinePreview, paymentProblem, type OfflinePreview, type OfflineRules } from './offlinePreview';
 import { localiseForm } from './localise';
 import { ComputedRows, capturedAt, leftAfter } from './values';
 import { cached, isNetworkError } from '../offline/cache';
@@ -142,12 +142,7 @@ export function StagePage() {
 function Incoming({ form, onPick }: { form: StageForm; onPick: (f: Footprint) => void }) {
   const { t } = useI18n();
   // migration 49 (A3/G2): each waiting lot with what is left on it; a server before migration 49: the older list
-  const inc = useAsync(() => cached(`incoming_lots:${form.scope.id}:${form.stage.stage_type}`,
-    () => rpc<IncomingLot[]>('incoming_lots', { p_scope: form.scope.id, p_stage: form.stage.stage_type }).catch(async (e) => {
-      if (isNetworkError(e)) throw e;
-      return (await rpc<Footprint[]>('incoming_records', { p_scope: form.scope.id, p_stage: form.stage.stage_type }))
-        .map((r) => ({ ...r, available_kg: r.qty_out, returned: false, maker_name: null, made_by_me: false, gi_status: 'unknown', farmer_count: 0 }) as IncomingLot);
-    })), [form.scope.id, form.stage.stage_type]);
+  const inc = useAsync(() => loadIncomingLots(form.scope.id, form.stage.stage_type), [form.scope.id, form.stage.stage_type]);
   return (
     <div className="card">
       <Stepper current={2} form={form} />
@@ -422,6 +417,21 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
   const fields = useMemo(() => withScopeRules(form.stage.form_schema, form.scope), [form]);
   const [values, setValues] = useState<Record<string, FieldValue>>(() =>
     draft ? (draft.values as Record<string, FieldValue>) : initialValues(form, source, editing ?? replaces ?? null));
+  // migration 52: a correction of a lot whose price was recorded opens with that price and payment (kept apart from the record)
+  useEffect(() => {
+    const id = editing?.id;
+    if (!id || draft || !form.scope.record_price || form.stage.stage_type !== 'procurement') return;
+    let live = true;
+    void (async () => {
+      const { data } = await supabase.from('lot_payments').select('price_per_quintal,status,mode,txn_ref').eq('footprint_id', id).maybeSingle();
+      if (!live || !data) return;
+      const d = data as { price_per_quintal: number | null; status: string; mode: string | null; txn_ref: string | null };
+      setValues((s) => ({ ...s, price_per_quintal: s.price_per_quintal || (d.price_per_quintal === null ? '' : String(d.price_per_quintal)),
+        payment_status: s.payment_status || d.status, payment_mode: s.payment_mode || (d.mode ?? ''), txn_ref: s.txn_ref || (d.txn_ref ?? '') }));
+    })();
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing?.id]);
   // Fields gated on the lab verdict (Commercial "market"): only what the source lot may be sold to is offered.
   const gated = fields.some((fd) => fd.gate === 'market_verdict');
   const markets = useLotMarkets(gated ? source?.id : undefined);
@@ -482,7 +492,7 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
     setReviewing(false); setConfirmed(false);
     if (missing.length) { setPreview(null); setVerdict(null); return; }
     window.clearTimeout(timer.current);
-    const local = () => offlinePreview(form.stage.stage_type, built.payload, built.columns, form.scope.tolerances);
+    const local = () => offlinePreview(form.stage.stage_type, built.payload, built.columns, form.scope.tolerances, offlineRules(form));
     if (!online && !editing) { setPreview(local()); setVerdict(null); return; }
     timer.current = window.setTimeout(async () => {
       try {
@@ -492,7 +502,9 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
               p_prev: source?.id ?? built.columns.prev_footprint_id ?? null, p_payload: built.payload, p_farmer: built.columns.farmer_id ?? null,
               p_split: built.columns.split_into_grades === true }));
         if (n !== asked.current) return;
-        setPreview(p);
+        // migration 52: the price and payment are checked by the save (kept apart from the record): said here first
+        const pp = p.ok && form.stage.stage_type === 'procurement' ? paymentProblem(built.payload) : null;
+        setPreview(pp ? { ok: false, error: `payment: ${pp}` } : p);
         if (readingsKey && p.ok) {
           // The same judging the save runs (migration 29). No answer (no network, or a server without it): the screen
           // says the result comes with the save, as before.
@@ -593,6 +605,9 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
         {form.stage.stage_type === 'packing' && saved.payload?.batch_code !== undefined && (
           <div className="alert info" data-testid="packed">{t('pk.saved', { batch: String(saved.payload.batch_code) })}
             <div><Link className="btn" to={`/records/${saved.id}/labels`} data-testid="print-labels">{t('pk.print')}</Link></div></div>)}
+        {form.stage.stage_type === 'procurement' && (
+          <div className="alert info" data-testid="receipt-offer">{t('rc.offer')}
+            <div><Link className="btn" to={`/records/${saved.id}/receipt`} data-testid="open-receipt">{t('rc.open')}</Link></div></div>)}
         {gradeLots.length > 0 && (
           <div className="alert info" data-testid="grade-lots">{t('engine.grade_lots', { lots: gradeLots.map((g) => `${g.footprint_code} (${kg(g.qty_out)})`).join(' · '), stage: form.next_stage?.label ?? '' })}</div>
         )}
@@ -730,18 +745,28 @@ function MathsPanel({ preview, missing, aggregates, farmerId }: { preview: Previ
 /** "YYYY-MM-DD" moved by whole days (the date input's lower bound: 31 days back, as the server allows). */
 export const shiftDay = (ymd: string, days: number) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); };
 
+/** What the offline mirror needs to know of the scope, the crop and the lots (migration 52). */
+export function offlineRules(form: StageForm): OfflineRules {
+  const m = form.quality_params.find((q) => ['moisture_pct', 'moisture'].includes(q.param) && ['<=', '<'].includes(q.operator ?? '<='));
+  return { procurement_details_required: form.scope.procurement_details_required === true, record_price: form.scope.record_price === true,
+    moisture_limit: m && typeof m.domestic_limit === 'number' ? m.domestic_limit : null, thresholds: form.scope.crop.thresholds ?? null, lots: KNOWN_LOTS };
+}
+
 function initialValues(form: StageForm, source: Footprint | null, editing: Footprint | null): Record<string, FieldValue> {
   const v: Record<string, FieldValue> = {};
   const toStr = (x: unknown) => (x === undefined || x === null ? '' : String(x));
   for (const fd of form.stage.form_schema) {
     const from = editing ? (fd.column ? (editing as unknown as Record<string, unknown>)[fd.key] : editing.payload[fd.key]) : undefined;
-    if (from !== undefined) {
+    if (editing && fd.type === 'gps' && ('gps_lat' in editing.payload || 'gps_lng' in editing.payload)) {   // kept as two numbers
+      v[fd.key] = { lat: toStr(editing.payload.gps_lat), lng: toStr(editing.payload.gps_lng) };
+    } else if (from !== undefined) {
       if (fd.type === 'number[3]') v[fd.key] = (from as unknown[]).map(toStr);
       else if (fd.type === 'breakdown' || fd.type === 'packets[]')
         v[fd.key] = (from as Record<string, unknown>[]).map((r) => Object.fromEntries(Object.entries(r).map(([k, x]) => [k, toStr(x)]))) as unknown as FieldValue;
       else if (fd.type === 'footprint[]') v[fd.key] = from as string[];
       else if (fd.type === 'readings') v[fd.key] = Object.fromEntries(Object.entries(from as Record<string, unknown>).map(([k, x]) => [k, toStr(x)]));
       else if (fd.type === 'boolean') v[fd.key] = from === true;
+      else if (fd.type === 'gps') v[fd.key] = { lat: toStr(from), lng: '' };
       else v[fd.key] = toStr(from);
     } else if (source && PREFILL_FROM_SOURCE.includes(fd.key)) {
       v[fd.key] = toStr(source.qty_out);

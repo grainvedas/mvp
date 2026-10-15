@@ -11,3 +11,13 @@ do $$ begin
 end $$;
 
 update public.scopes set qc_report_required = false where id::text like '00000000-0000-4000-8000-0000000004%' and qc_report_required;
+
+-- Migration 52 (C1): the demo scopes do not ask where, GPS and who delivered at Procurement (their tests record lots
+-- without them); a scope made in the app asks them (the default), and tests/46 and e2e/phase24 turn it on to test that
+-- path. A database from before migration 52 has no such column: nothing to do.
+do $seed52$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'scopes' and column_name = 'procurement_details_required') then
+    execute $q$ update public.scopes set procurement_details_required = false
+                 where id::text like '00000000-0000-4000-8000-0000000004%' $q$;
+  end if;
+end $seed52$;

@@ -33,6 +33,7 @@ import { Health } from './pages/admin/Health';
 import { Account } from './pages/Account';
 import { Labels } from './pages/public/Labels';
 import { PackLabels } from './pages/records/PackLabels';
+import { Receipt } from './pages/records/Receipt';
 import { ScopeDashboard } from './pages/dashboard/ScopeDashboard';
 import { LotTrace } from './pages/trace/LotTrace';
 import { Outbox } from './offline/OutboxPage';
@@ -78,6 +79,7 @@ function Private() {
         <Route path="work/:scopeId/:stage" element={<StagePage />} />
         <Route path="records/:id" element={<RecordDetail />} />
         <Route path="records/:id/labels" element={<PackLabels />} />   {/* migration 50: one label per pack */}
+        <Route path="records/:id/receipt" element={<Receipt />} />   {/* migration 52: the farmer's receipt */}
         <Route path="farmers" element={<FarmerList />} />
         <Route path="farmers/new" element={<FarmerForm />} />
         <Route path="farmers/import" element={<FarmerImport />} />

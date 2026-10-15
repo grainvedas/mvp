@@ -206,7 +206,18 @@ export async function procure(page: Page, scopeId: string, farmer: string, gross
   await page.getByLabel(/^Bags/).fill(bags);
   await page.getByLabel(/Tare per bag/).fill(tare);
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill(moisture);
+  await fillWhere(page);
   return reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}/);
+}
+
+/** Migration 52 (C1): where the lot was weighed, its GPS and who delivered it, as an operator at the farm gate fills them
+ *  (a scope made from now on asks them; the demo scopes do not, and take them all the same). */
+export async function fillWhere(page: Page, where = 'farm', gps: [string, string] = ['27.21', '82.95'], by = 'farmer') {
+  if (!(await page.getByTestId('where').count())) return;
+  await page.getByTestId('where').selectOption(where);
+  await page.getByTestId('gps-lat').fill(gps[0]);
+  await page.getByTestId('gps-lng').fill(gps[1]);
+  await page.getByLabel(/^Delivered by/).selectOption(by);
 }
 
 export async function recordQc(page: Page, scopeId: string, from: string, moisture: string, sample = '1') {

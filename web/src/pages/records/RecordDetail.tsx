@@ -16,6 +16,9 @@ import { EVIDENCE_ACCEPT } from '../../engine/widgets';
 import { ComputedRows, EnteredRows, capturedAt, paramName } from '../../engine/values';
 import { localiseForm } from '../../engine/localise';
 import { cached } from '../../offline/cache';
+import { lotPayment } from './Receipt';
+import { ForwardPanel } from '../trace/Forward';
+import { paymentProblem } from '../../engine/offlinePreview';
 
 export function RecordDetail() {
   const { id = '' } = useParams();
@@ -76,16 +79,19 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
         {f.warnings?.length > 0 && <div className="alert warn">{f.warnings.map((w) => plainText(w, t)).join(' · ')}</div>}
         <details><summary>{t('record.entered')}</summary>
           <dl className="kv" data-testid="entered-values">
-            <EnteredRows payload={f.payload} fields={form?.stage.form_schema ?? []} stage={f.stage_type} params={form?.quality_params} t={t} />
+            <EnteredRows payload={f.payload} fields={form?.stage.form_schema ?? []} stage={f.stage_type} params={form?.quality_params} computed={f.computed} t={t} />
           </dl>
         </details>
         <div className="row">
           {canCorrect && <Link className="btn secondary" to={`/work/${f.scope_id}/${f.stage_type}?edit=${f.id}`}>{t('record.edit_pending')}</Link>}
           {me.role !== 'operator' && <Link className="btn secondary" to={`/trace/${f.id}`} data-testid="trace-link">{t('record.trace')}</Link>}
+          {f.stage_type === 'procurement' && <Link className="btn secondary" to={`/records/${f.id}/receipt`} data-testid="receipt-link">{t('rc.open')}</Link>}
         </div>
         {mine && frozen && <p className="hint">{t('record.fix_by_withdraw')}</p>}
       </div>
       <LotFacts r={r} />
+      {f.stage_type === 'procurement' && <PaymentPanel f={f} mayAct={!watch && me.role !== 'client_view'} />}
+      {f.status === 'verified' && (oversees(ctx) || (ctx?.scopes ?? []).some((x) => x.scope_id === f.scope_id && x.whole)) && <ForwardPanel fp={f.id} />}
       <WithdrawalInfo f={f} canRecord={me.role !== 'client_view' && !watch} />
       <ReturnsPanel r={r} senderReturned={senderReturned} canCorrect={canCorrect} onDone={reload} />
       {(boss || senderReturned) && (f.status === 'pending' || f.status === 'verified') && !r.seal && <WithdrawPanel f={f} onDone={reload} />}
@@ -110,6 +116,46 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
       </div>
     </div>
   );
+}
+
+/** Migration 52 (C1): the lot's price and payment, kept apart from the record (only the person who recorded it and the
+ *  client's Client Manager read it). Paid later: the transaction ID, never an account number. */
+function PaymentPanel({ f, mayAct }: { f: Footprint; mayAct: boolean }) {
+  const { t } = useI18n();
+  const p = useAsync(() => lotPayment(f.id), [f.id]);
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState(''); const [ref, setRef] = useState(''); const [price, setPrice] = useState('');
+  const act = useAction();
+  const pm = p.data;
+  if (!pm) return null;
+  const problem = paymentProblem({ price_per_quintal: price || pm.price_per_quintal || undefined, payment_status: 'paid', payment_mode: mode || undefined, txn_ref: ref || undefined });
+  const save = () => act.run(async () => {
+    await rpc('save_lot_payment', { p_fp: f.id, p: { price_per_quintal: price ? Number(price) : pm.price_per_quintal, payment_status: 'paid', payment_mode: mode, txn_ref: ref.trim() || null } });
+    setOpen(false); p.reload();
+  });
+  return (
+    <div className="card" data-testid="payment-panel" data-status={pm.status}>
+      <h2>{t('pay.title')}</h2>
+      <dl className="kv">
+        {pm.price_per_quintal !== null && <><dt>{t('field.price_per_quintal')}</dt><dd>₹ {num(pm.price_per_quintal, 2)} / {t('rc.quintal')}</dd></>}
+        {pm.amount !== null && <><dt>{t('rc.amount')}</dt><dd>₹ {num(pm.amount, 2)}</dd></>}
+        <dt>{t('field.payment_status')}</dt><dd>{t(`opt.${pm.status}`)}{pm.mode ? ` · ${t(`opt.${pm.mode}`)}` : ''}{pm.txn_ref ? <> · <span className="mono">{pm.txn_ref}</span></> : null}</dd>
+      </dl>
+      {mayAct && pm.status === 'pending' && !open && <button className="secondary" onClick={() => setOpen(true)} data-testid="pay-mark">{t('pay.mark_paid')}</button>}
+      {open && (
+        <div className="stack">
+          {pm.price_per_quintal === null && <Field label={`${t('field.price_per_quintal')} *`} htmlFor="pay-price">
+            <input id="pay-price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} data-testid="pay-price" /></Field>}
+          <Field label={`${t('field.payment_mode')} *`} htmlFor="pay-mode"><select id="pay-mode" value={mode} onChange={(e) => setMode(e.target.value)} data-testid="pay-mode">
+            <option value="">—</option>{['bank', 'upi', 'cash'].map((m) => <option key={m} value={m}>{t(`opt.${m}`)}</option>)}</select></Field>
+          {mode && mode !== 'cash' && <Field label={`${t('field.txn_ref')} *`} htmlFor="pay-ref" hint={t('pay.ref_hint')}>
+            <input id="pay-ref" value={ref} maxLength={40} autoComplete="off" onChange={(e) => setRef(e.target.value)} data-testid="pay-ref" /></Field>}
+          {problem && (mode || ref) && <div className="small" style={{ color: 'var(--red)' }}>{plainText(`payment: ${problem}`, t)}</div>}
+          <ErrorBox error={act.error} />
+          <div className="row"><button onClick={save} disabled={act.busy || !!problem} data-testid="pay-save">{t('pay.save')}</button>
+            <button className="secondary" onClick={() => setOpen(false)}>{t('common.cancel')}</button></div>
+        </div>)}
+    </div>);
 }
 
 /** Migration 49: where the lot comes from (with the kilograms taken), its farmers in documented proportions, its GI

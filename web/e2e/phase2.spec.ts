@@ -197,10 +197,10 @@ test('Village Batch: two farmer lots verified, batched, tested, sealed; public p
   await verifyIncoming(page, a);
   await page.getByRole('button', { name: 'Back' }).click();
   await verifyIncoming(page, b);
-  await page.getByRole('tab', { name: /New Village Batch/ }).click();
+  await page.getByRole('tab', { name: /New Collection Batch/ }).click();
+  // migration 52 (C2): no village is typed; the lots of one place, their villages worked out from the lots
   await page.getByRole('checkbox', { name: new RegExp(a) }).check();
   await page.getByRole('checkbox', { name: new RegExp(b) }).check();
-  await page.getByRole('textbox', { name: 'Village *', exact: true }).fill('Bansi');
   await expect(page.getByTestId('preview-ok')).toContainText('282 kg');
   const vb = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?VB-\d{4}/);
   await signOut(page);
@@ -209,7 +209,7 @@ test('Village Batch: two farmer lots verified, batched, tested, sealed; public p
   await signIn(page, P.qr); const code = await seal(page, 'Bansi batch', q);
   await page.goto(`/verify/${code}`);
   const pub = page.getByTestId('public-journey');
-  await expect(pub).toContainText('2 farmers of Bansi');
+  await expect(pub).toContainText(/2 farmers of (Naugarh, Bansi|Bansi, Naugarh)/);   // migration 52: the villages from the lots
   // migration 50 (Part D): each farmer's village and share, never the name
   await expect(pub).toContainText('Bansi, Siddharthnagar');
   await expect(pub).toContainText('Naugarh');

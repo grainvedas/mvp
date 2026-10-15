@@ -123,7 +123,8 @@ test('The crop registry: a ready crop, the wizard, the farmer\'s practice, Procu
   await signIn(page, USERS.procurement);
   const op = await apiAs(page);
   const lot = (farmer: string) => op.insert('footprints', { scope_id: scope, client_id: PRSDM, stage_type: 'procurement', farmer_id: farmer,
-    created_by: '00000000-0000-4000-8000-000000000305', payload: { gross_kg: 100, bags: 2, tare_kg_per_bag: 1, moisture_pct: [12, 12, 12] } });
+    created_by: '00000000-0000-4000-8000-000000000305', payload: { gross_kg: 100, bags: 2, tare_kg_per_bag: 1, moisture_pct: [12, 12, 12],
+      collection_point_id: 'farm', gps_lat: 26.76, gps_lng: 83.37, delivered_by: 'farmer' } });   // migration 52: a new scope asks where, GPS, who
   const refused = await lot(open.id);
   expect(refusal(refused)).toContain('good farming practice not complete for this farmer');
   const ok = await lot(answered.id);

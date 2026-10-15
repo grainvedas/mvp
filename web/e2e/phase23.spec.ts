@@ -28,9 +28,11 @@ test('the Client Manager\'s lists: a collection point, a buyer, a pack, one reti
   await page.getByTestId('set-collection_points-kind').selectOption('centre');
   await page.getByTestId('set-collection_points-district').fill('Siddharthnagar');
   await page.getByLabel('Latitude').fill('51.5, -0.12');                     // London: refused before the save
+  await page.getByLabel('Latitude').blur();                                   // a pair is split when the box is left (staging, 15 Oct)
   await page.getByTestId('set-save').click();
   await expect(page.getByTestId('set-problems')).toContainText('not in India');
   await page.getByLabel('Latitude').fill('27.1823, 82.9312');
+  await page.getByLabel('Latitude').blur();
   await expect(page.getByLabel('Longitude')).toHaveValue('82.9312');
   await page.getByTestId('set-save').click();
   const point = page.getByTestId('set-row').filter({ hasText: `Bansi centre ${u}` });
@@ -159,7 +161,11 @@ test('a farmer from the lists, with the farm\'s GPS; the GPS check at step 2; th
   await page.getByTestId('farmer-gi-land').fill('1');
   await expect(page.getByTestId('farmer-needs-gps')).toBeVisible();
   await expect(page.getByTestId('farmer-save-verify')).toBeDisabled();
-  await page.getByTestId('farmer-lat').fill('27.3, 82.9');                    // pasted: both boxes
+  await page.getByTestId('farmer-lat').pressSequentially('27.3, 82.9');      // typed key by key: not split while typing
+  await expect(page.getByTestId('farmer-lat')).toHaveValue('27.3, 82.9');
+  await expect(page.getByTestId('farmer-lng')).toHaveValue('');
+  await page.getByTestId('farmer-lat').blur();                                // left: both boxes
+  await expect(page.getByTestId('farmer-lat')).toHaveValue('27.3');
   await expect(page.getByTestId('farmer-lng')).toHaveValue('82.9');
   await expectNoSideScroll(page);
   await page.getByTestId('farmer-save-verify').click();

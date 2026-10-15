@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { addJoiner, apiAs, markJoined, freshEmail, setOwnPassword, signInWith, signOut, fillFarmerPlace } from '../e2e/helpers';
+import { addJoiner, apiAs, markJoined, freshEmail, setOwnPassword, signInWith, signOut, fillFarmerPlace, fillWhere } from '../e2e/helpers';
 
 // THE FIRST DAY OF A PILOT, from a system with nothing in it: no state, no crop, no client, no person but one admin.
 // Every other suite starts from demo rows a seed put in place; this one starts where scripts/staging_fresh_start.ps1
@@ -268,6 +268,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.getByLabel(/^Bags/).fill('2');
   await page.getByLabel(/Tare per bag/).fill('1');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.7');
+  await fillWhere(page);                                                       // migration 52: a new scope asks where, GPS, who
   const lot = await reviewSave(/PRSDM-KNM-[A-Z0-9]+-(?:[A-Z]{2,4}-)?P-0001/);
   await signOut(page);
 

@@ -73,7 +73,8 @@ declare v uuid;
 begin
   insert into public.footprints (scope_id, client_id, stage_type, farmer_id, created_by, payload)
   values (p_scope, '00000000-0000-4000-8000-000000000201', 'procurement', p_farmer, p_by,
-          '{"gross_kg":100,"bags":2,"tare_kg_per_bag":1,"moisture_pct":[12,12,12]}') returning id into v;
+          -- migration 52: where, GPS and who delivered it (a scope made from now on asks them)
+          '{"gross_kg":100,"bags":2,"tare_kg_per_bag":1,"moisture_pct":[12,12,12],"collection_point_id":"farm","gps_lat":27.2,"gps_lng":83.0,"delivered_by":"farmer"}') returning id into v;
   return v;
 end $$;
 grant execute on all functions in schema t to anon, authenticated;

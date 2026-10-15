@@ -19,6 +19,13 @@ done
 # Self-test of the live-project T1 check on this fresh build, so it is proven here before it runs remotely.
 echo "test     tests/remote_t1_rollback.sql (local self-test)"
 if ! $PSQL -d "$DB" -f tests/remote_t1_rollback.sql; then fail=1; echo "FAILED   tests/remote_t1_rollback.sql"; fi
+# The smoke check on this fresh build: every row OK but the standing ones (set up per project) and the local login
+# shim's. Added 15 Oct 2026, after migration 52 passed every test here and the smoke check stopped its release on
+# staging ("public page data"): the smoke check was only ever run against the hosted project.
+echo "test     tests/remote_smoke.sql (local: every row OK but the standing ones)"
+smoke_bad=$(psql -At -d "$DB" -f tests/remote_smoke.sql 2>&1 | grep -v '|OK' \
+  | grep -v -E '^(statement logging|reminder round|nightly ledger check|auth\.uid mapping)\|' || true)
+if [ -n "$smoke_bad" ]; then fail=1; echo "FAILED   smoke rows not OK:"; echo "$smoke_bad"; else echo "ok   smoke: every row OK but the standing ones"; fi
 # Production build: every migration + stage definitions + the production seed on a second scratch database. No demo
 # data may be in it, and the demo seed must refuse to run on it.
 echo "test     production build (no demo data; the demo seed must refuse)"

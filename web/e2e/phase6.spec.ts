@@ -121,7 +121,7 @@ test.describe('on a laptop', () => {
     await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');
     await page.getByRole('button', { name: /Sita Devi/ }).click();
     const form = page.locator('form');
-    await expect(form.locator('.form-section h3')).toHaveText([/Farmer/, /Weighing/, /Moisture readings/, /Evidence/]);
+    await expect(form.locator('.form-section h3')).toHaveText([/Farmer/, /Weighing/, /Moisture readings/, /Evidence/, /Where it was weighed/, /If known/]);   // migration 52
     const gross = await box(page, page.getByLabel(/Gross weight/)); const bags = await box(page, page.getByLabel(/^Bags/)); const tare = await box(page, page.getByLabel(/Tare per bag/));
     expect(Math.abs(gross.y - bags.y), 'gross weight and bags on one line').toBeLessThan(2);
     expect(bags.x).toBeGreaterThan(gross.x + gross.width);

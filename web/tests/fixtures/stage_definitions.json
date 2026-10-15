@@ -53,6 +53,114 @@
                 "label": "Photo evidence",
                 "section": "evidence",
                 "required": false
+            },
+            {
+                "key": "collection_point_id",
+                "type": "collection_point",
+                "label": "Where (collection point, or at the farm)",
+                "section": "where",
+                "required": false,
+                "required_when": "procurement_details_required"
+            },
+            {
+                "key": "gps",
+                "type": "gps",
+                "label": "GPS where the lot was weighed",
+                "section": "where",
+                "required": false,
+                "required_when": "procurement_details_required"
+            },
+            {
+                "key": "delivered_by",
+                "type": "select",
+                "label": "Delivered by",
+                "options": [
+                    "farmer",
+                    "family",
+                    "agent"
+                ],
+                "section": "where",
+                "required": false,
+                "required_when": "procurement_details_required"
+            },
+            {
+                "key": "agent_name",
+                "type": "text",
+                "label": "Agent's name (when an agent delivered)",
+                "section": "where",
+                "required": false
+            },
+            {
+                "key": "harvest_date",
+                "type": "date",
+                "label": "Harvest date",
+                "section": "optional",
+                "required": false
+            },
+            {
+                "key": "condition",
+                "type": "select",
+                "label": "Condition",
+                "options": [
+                    "good",
+                    "damp",
+                    "pest",
+                    "mixed"
+                ],
+                "section": "optional",
+                "required": false
+            },
+            {
+                "key": "slip",
+                "type": "attachment",
+                "label": "Weighbridge or scale slip (photo)",
+                "section": "optional",
+                "label_as": "document",
+                "required": false
+            },
+            {
+                "key": "price_per_quintal",
+                "type": "number",
+                "unit": "₹/quintal",
+                "label": "Price per quintal",
+                "section": "payment",
+                "required": false,
+                "shown_when": "record_price",
+                "required_when": "record_price"
+            },
+            {
+                "key": "payment_status",
+                "type": "select",
+                "label": "Payment",
+                "options": [
+                    "pending",
+                    "paid"
+                ],
+                "section": "payment",
+                "required": false,
+                "shown_when": "record_price",
+                "required_when": "record_price"
+            },
+            {
+                "key": "payment_mode",
+                "type": "select",
+                "label": "Paid by",
+                "options": [
+                    "bank",
+                    "upi",
+                    "cash"
+                ],
+                "section": "payment",
+                "required": false,
+                "shown_when": "record_price"
+            },
+            {
+                "key": "txn_ref",
+                "type": "text",
+                "label": "Transaction ID (never an account number)",
+                "section": "payment",
+                "required": false,
+                "shown_when": "record_price"
             }
         ],
         "yield_alarm": false,
@@ -157,7 +265,7 @@
     },
     {
         "code": "VB",
-        "label": "Village Batch (aggregate farmer lots)",
+        "label": "Collection Batch (one collection point)",
         "is_gate": false,
         "is_first": false,
         "aggregates": true,
@@ -173,11 +281,34 @@
                 "sets_prev": true
             },
             {
-                "key": "village",
-                "type": "text",
-                "label": "Village",
+                "key": "single_origin",
+                "type": "boolean",
+                "label": "Single-origin batch (lots from one village only)",
                 "section": "batch",
-                "required": true
+                "required": false
+            },
+            {
+                "key": "bags",
+                "type": "integer",
+                "label": "Bags in the batch",
+                "section": "batch",
+                "required": false
+            },
+            {
+                "key": "reweighed_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Re-weighed total (optional)",
+                "section": "weighing",
+                "required": false
+            },
+            {
+                "key": "moisture_fresh_pct",
+                "type": "number",
+                "unit": "%",
+                "label": "Fresh moisture reading (optional)",
+                "section": "weighing",
+                "required": false
             }
         ],
         "yield_alarm": false,
@@ -185,7 +316,7 @@
         "handoff_checks": [
             "All source lots verified",
             "Batch total equals sum of sources",
-            "Village named"
+            "One collection point; villages from the lots"
         ],
         "splits_forward": false,
         "physical_checks": [
@@ -890,8 +1021,7 @@
         "aggregates": false,
         "sort_order": 160,
         "stage_type": "qr_activation",
-        "form_schema": [
-        ],
+        "form_schema": [],
         "yield_alarm": false,
         "is_processing": false,
         "handoff_checks": [
@@ -901,8 +1031,7 @@
             "Final quantity recorded"
         ],
         "splits_forward": false,
-        "physical_checks": [
-        ],
+        "physical_checks": [],
         "allows_exceed_input": false
     }
 ]

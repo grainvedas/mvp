@@ -21,6 +21,8 @@ export interface FieldDef {
   required_when?: string;
   /** migration 50: an attachment is registered under this label (lab_report, acceptance, pod, loading_photo, document) */
   label_as?: string;
+  /** migration 52: on the form only where the scope's setting of this name is on (price and payment: record_price) */
+  shown_when?: string;
 }
 
 export interface StageDefinition {
@@ -63,8 +65,11 @@ export interface StageForm {
     short_code?: string | null;
     /** migration 50 (C5): the lab record names the lab, the report number and date, and attaches the report */
     qc_report_required?: boolean;
+    /** migration 52 (C1): Procurement records the price and the payment; asks where, the GPS and who delivered */
+    record_price?: boolean; procurement_details_required?: boolean;
     client: { id: string; name: string; code: string };
-    crop: { id: string; name: string; code: string; gi_tag: string | null; primary_unit: string };
+    crop: { id: string; name: string; code: string; gi_tag: string | null; primary_unit: string;
+      /** migration 52: the crop's thresholds (moisture_spread_pct, batch_loss_pct …) */ thresholds?: Record<string, number> | null };
   };
   stage: StageDefinition;
   position: number;

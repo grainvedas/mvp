@@ -314,6 +314,18 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   (`tests/setup_lists.test.ts` holds them to the migration's text); `tests/45_setup_lists.sql` needs a case for any new
   rule here. The ledger banner reads `app.ledger_status` (blocks added since the last full check); the roster pool's
   `elsewhere` is a person's work on other scopes, shown, never refused.
+- **A farm-gate lot says where, how and for how much; a batch is one place** (migration 52, Veda 15 October 2026). Price
+  and payment never enter `footprints.payload` or the ledger: `footprints_a00_payment` takes them out before the save
+  and `footprints_z6_payment` keeps them in `lot_payments` (read through `app.reads_lot_payment`: the recorder, the
+  client's Client Manager, the admin; paid later only through `app.save_lot_payment`). A payment reference is a
+  transaction ID (`^[A-Za-z0-9/-]{4,40}$`), never an account number. Where / GPS / who delivered are required where
+  `scopes.procurement_details_required` (the default), price and payment only where `scopes.record_price`; the form
+  marks such fields `required_when` / `shown_when` (`withScopeRules`). A Collection Batch (`village_batch`) is the lots of
+  one collection point; its villages, farmers, moisture and loss are worked out from the lots (`computed`), never typed.
+  Any rule added to Procurement or the Collection Batch in `app.reconcile` goes into `engine/offlinePreview.ts` (same
+  words, `tests/procurement_batch.test.ts`) and into `plainErrors.ts`; `tests/46_procurement_batch.sql` needs a case.
+  The journey forward is `app.lot_forward` (whole-scope readers only). A GPS pair typed in one box is split on paste or
+  when the box is left, never while typing.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,

@@ -530,7 +530,10 @@ export function GpsBoxes({ lat, lng, required, problem, onChange }: { lat: strin
       <div className="row wrap">
         <button type="button" className="secondary" onClick={here} disabled={busy} data-testid="farmer-gps-here">{busy ? t('fl.gps_taking') : t('fl.gps_here')}</button>
         <input aria-label={t('fl.lat')} placeholder={t('fl.lat')} inputMode="decimal" value={lat} style={{ flex: '1 1 110px', width: 'auto' }} data-testid="farmer-lat"
-          onChange={(e) => { const both = parseGps(e.target.value); if (both) onChange(String(both.lat), String(both.lng)); else onChange(e.target.value, lng); }} />
+          onChange={(e) => onChange(e.target.value, lng)}
+          // a pair ("27.21, 82.95") is split when pasted or when the box is left, never while it is typed (staging, 15 Oct)
+          onPaste={(e) => { const both = parseGps(e.clipboardData.getData('text')); if (both) { e.preventDefault(); onChange(String(both.lat), String(both.lng)); } }}
+          onBlur={() => { const both = parseGps(lat); if (both) onChange(String(both.lat), String(both.lng)); }} />
         <input aria-label={t('fl.lng')} placeholder={t('fl.lng')} inputMode="decimal" value={lng} style={{ flex: '1 1 110px', width: 'auto' }} data-testid="farmer-lng"
           onChange={(e) => onChange(lat, e.target.value)} />
       </div>

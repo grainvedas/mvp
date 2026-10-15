@@ -2,6 +2,7 @@
 // who recorded and who verified each step, QC, flags, evidence fingerprints and ledger blocks.
 // CSV for spreadsheets; "Print / save as PDF" uses the browser's own PDF printer (no extra library, works offline).
 import { capturedAt } from '../../engine/values';
+import { ForwardPanel } from './Forward';
 import { Link, useParams } from 'react-router-dom';
 import { rpc } from '../../lib/api';
 import { useAsync } from '../../lib/useAsync';
@@ -89,6 +90,7 @@ export function LotTrace() {
           </li>
         ))}
       </ol>
+      <ForwardPanel fp={tr.footprint_id} />
       <p className="small muted">{t('trace.footer')}</p>
     </div>
   );

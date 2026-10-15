@@ -13,4 +13,5 @@ export const SECTION_ICON: Record<string, string> = {
   farmer: '👨‍🌾', weighing: '⚖️', moisture: '💧', evidence: '📷', source: '📥', quality: '🔬', batch: '🏘️', input: '⬇️', output: '⬆️',
   grades: '📊', storage: '❄️', retrieval: '📤', packing: '📦', sample: '🧪', readings: '🔬', lab: '🏷️', buyer: '🤝', quantity: '⚖️',
   transport: '🚚', documents: '📄',
+  where: '📍', optional: '➕', payment: '💰',                 // migration 52: the farm-gate form
 };

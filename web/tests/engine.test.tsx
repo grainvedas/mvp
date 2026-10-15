@@ -89,8 +89,9 @@ describe('Phase 2 widgets', () => {
   });
   it('a lot picker that sets prev puts the first lot in prev_footprint_id', () => {
     const vb = stages.find((s) => s.stage_type === 'village_batch')!;
-    const { payload, columns } = buildPayload(vb.form_schema, { source_footprint_ids: ['a', 'b', 'c'], village: 'Bansi' });
-    expect(payload).toEqual({ source_footprint_ids: ['a', 'b', 'c'], village: 'Bansi' });
+    // migration 52: the Collection Batch takes its villages from the lots (no village is typed)
+    const { payload, columns } = buildPayload(vb.form_schema, { source_footprint_ids: ['a', 'b', 'c'], village: 'Bansi', single_origin: true, bags: '12' });
+    expect(payload).toEqual({ source_footprint_ids: ['a', 'b', 'c'], single_origin: true, bags: 12 });
     expect(columns).toEqual({ prev_footprint_id: 'a' });
   });
   it('grading split is a column, not payload', () => {

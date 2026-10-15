@@ -2194,3 +2194,71 @@ see"). Releases 1–3 are on staging (15 Oct 17:01, b3ce4d8); `staging-setup-lis
 NOT run / not known: nothing of 51 on staging; about 245 new Hindi strings unread by their users (K95); only Uttar
 Pradesh's districts are loaded and the GPS check is against the district's other farms, not its boundary (K96); the
 phone's "Use where I am now" was not tried on a real phone outdoors (the e2e types the numbers).
+
+## 15 October 2026, night: Procurement and Collection Batch, release 5 (migration 52, open item 47), local stack
+
+Veda: "ok great proceed" (G19), after the release-4 checks on staging. Release 4 is on staging (15 Oct 19:54,
+544b45d); `staging-procurement-batch.cmd` expects only migration 52.
+
+- **Database**: `tests/run_local.sh` **ALL TESTS PASSED, 1,881 ok** on the fresh build; production build; **upgrade
+  path** (1–30 with demo data, then 31–52 one transaction each, then all test files again); concurrency. New
+  `tests/46_procurement_batch.sql` (**47 checks, 26 controls**, each caught: where / GPS / who delivered asked only
+  where the scope says so, a point of another client or retired, GPS abroad, an agent unnamed, the condition, the
+  moisture warnings, the point's name on the lot, price and payment out of the record and its ledger block, kept in
+  `lot_payments` and read only by the recorder and the Client Manager (and not by the next stages or another client),
+  paid later only by them, a transaction ID never an account number, only the Client Manager turns price recording on
+  (also on an active scope), the farmer card, two collection points in a batch refused, single origin, re-weighed above
+  the lots, the loss, the villages and the distinct farmers from the lots, the weighted moisture, the journey forward
+  and who may read it, the library's second names). Tests 01, 08 and 36 adapted (where/GPS/who on the helper's lots;
+  the four new API functions).
+- **API**: `remote_create_user.mjs` 95 passed; `remote_rls.mjs --t1` 192 passed. `scripts/restore_drill.mjs`: RESTORE
+  DRILL PASSED.
+- **Smoke check**: the new row `procurement batch` (49 rows): MISSING before 52, OK after.
+- **Unit**: 480 passed (new `procurement_batch.test.ts`: the form's fields by the scope's settings, the GPS in the
+  record, the offline mirror refusing what the save refuses in the save's own words (where / GPS / who, agent,
+  condition, moisture warnings, price and payment), the Collection Batch worked out on the phone (one place, villages
+  and shares, single origin, loss, GI mix, a lot the phone does not know), 27 messages in plain English and Hindi,
+  how the new values read, Places on the person's own state). `phase3.test.ts` holds the procurement mirror too.
+- **Screens**: default suite 84 tests: **81 passed** in the full run; the 3 that failed (phase6: the form now has two
+  more section headings; phase7 and phase14: a scope made in the test asks where / GPS / who, the test did not give
+  them) were adapted and **passed** (10 tests) on a rebuilt stack. Production build 14 passed; the first day from
+  nothing 1 passed (its lot now says where it was weighed). New `phase24` at 527 px: the Client Manager turns both
+  settings on for an active scope; a lot at a collection point with the farmer card, the GPS typed key by key (not
+  split until the box is left), an agent, a UPI payment (the transaction ID and the agent asked in plain words), the
+  receipt; a second lot paid later in cash; the Collection Batch person reads no payment; with no network, two places
+  refused at once, the batch of one place worked out on the phone (villages, loss warning), saved on the phone and
+  sent when the network is back; the journey forward on the record and the trace. `phase2` (Collection Batch, no
+  village typed), `phase23` (GPS split on leaving the box) adapted. Screens looked at at 527 px: the scope's settings,
+  Places (opens on Uttar Pradesh for the Client Manager), the farm-gate form, the receipt, the batch picker. One
+  wording fault found that way and fixed: the farmer card said "GI land — acres … of — kg expected" for a farmer with
+  no GI land recorded.
+- **`scripts/staging_procurement_batch.ps1`** on stand-ins, 18 scenarios: 52 waiting runs through to `RESULT:
+  PROCUREMENT AND BATCH ON STAGING`; a second run; refused: 51 and 52 waiting, 51 alone, another migration, wrong
+  words, rule not in place, push fails, read-back fails, a scope already recording prices, a payment already there,
+  the old batch form, production, functions not current, a smoke row not OK, a changed migration, a changed smoke
+  check, a changed app file; the earlier scripts now refuse. Its read-back queries run on a migrated local database.
+  Sealed: 146 files.
+
+NOT run / not known: nothing of 52 on staging; about 110 new Hindi strings unread by their users; the phone's own GPS
+taken when the form opens was not tried on a real phone (the e2e types the numbers); the receipt is on screen and
+printed from the browser (no PDF of its own); a receipt for a lot still waiting on the phone appears only once it is
+sent.
+
+## 15 October 2026, 22:43 IST: the first staging run of release 5 stopped; migration 52b
+
+- **Staging**: `staging-procurement-batch.cmd` pushed migration 52 (S1b: scopes=3, asking_where=3, recording_price=0,
+  library=12, library_second_names=1, payments=0, batch_form=new) and **stopped at S2**: smoke row `public page data` =
+  OPEN. Nothing else was changed; the app was not pushed. Record:
+  `release-evidence\staging-procurement-batch-20261015-224334.log`.
+- **Cause**: migration 52 had the public page read a Collection Batch's villages from `computed.villages`; the smoke rule
+  of migration 28 asks that `app.public_lot_journey` reads nothing of `computed` (where a buyer's name is). Only village
+  names were read, but the rule stands. **Why the tests missed it**: the smoke check was run locally only for its new
+  row (the run's other rows were not read), and the release rehearsal's stand-in answers every row OK.
+- **Fix**: migration 52b (`20261027000200_public_batch_villages`): `app.batch_villages` (village names only, closed to
+  the API); the public page calls it. Test 46 §8 (3 checks; 2 controls, caught). `tests/run_local.sh` now runs the
+  smoke check on the fresh build and fails on any row not OK but the standing ones (statement logging, reminder round,
+  nightly ledger check, and the local login shim's auth.uid mapping).
+- **Re-run**: all DB tests 1,884 ok; controls 28/28; `run_local.sh` ALL TESTS PASSED with the smoke step "every row OK
+  but the standing ones"; e2e phase2 (the public page counts the batch's farmers and names its villages), phase22,
+  phase24: 7 passed. The script now expects 52b waiting (52 on staging), or both in order; rehearsed in 21 scenarios.
+  No app file changed (the sealed list stands, 146 files).

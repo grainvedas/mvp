@@ -62,6 +62,14 @@ describe('offline maths mirror (app.reconcile, procurement and lot inward)', () 
     expect(offlinePreview('procurement', { gross_kg: 100, bags: 1, tare_kg_per_bag: 1, moisture_pct: [12, 12] }, { farmer_id: 'f' }).error).toMatch(/3 readings/);
     expect(offlinePreview('procurement', { gross_kg: 100, bags: 1, tare_kg_per_bag: 1, moisture_pct: [12, 12, 12] }, {}).error).toMatch(/farmer_id/);
   });
+  it('procurement (migration 52): where, GPS and who delivered where the scope asks them; moisture warnings', () => {
+    const base = { gross_kg: 102, bags: 2, tare_kg_per_bag: 1, moisture_pct: [12, 12, 12] };
+    expect(offlinePreview('procurement', base, { farmer_id: 'f' }, {}, { procurement_details_required: true }).error).toMatch(/say where the lot was weighed/);
+    expect(offlinePreview('procurement', { ...base, collection_point_id: 'farm', gps_lat: 27.2, gps_lng: 83, delivered_by: 'family' }, { farmer_id: 'f' }, {},
+      { procurement_details_required: true })).toMatchObject({ ok: true, qty_out: 100, computed: { collection_point: 'farm' } });
+    expect(offlinePreview('procurement', { ...base, moisture_pct: [15, 15, 15] }, { farmer_id: 'f' }, {}, { moisture_limit: 14 }).warnings)
+      .toEqual(['moisture 15.0 % is above the crop\'s limit of 14 %']);
+  });
   it('lot inward: weighed quantity goes forward; variance warning past tolerance', () => {
     const p = offlinePreview('lot_inward', { declared_kg: 500, weighed_kg: 480, source_type: 'fpo', source_name: 'X', moisture_pct: 12.5 }, {}, { lot_inward_variance_pct: 2 });
     expect(p).toMatchObject({ ok: true, qty_out: 480, computed: { variance_kg: 20, variance_pct: 4 }, warnings: ['declared vs weighed variance exceeds tolerance'] });

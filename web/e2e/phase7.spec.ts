@@ -6,7 +6,7 @@
 //   a manager gives that person an assignment: a scope and stages, a client's account, or a state.
 // The old "Users" page (one form: role + client + state + login) is gone; `/users` now lands on People & access.
 import { test, expect } from '@playwright/test';
-import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, fillLabReport, USERS, fillFarmerPlace } from './helpers';
+import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, fillLabReport, USERS, fillFarmerPlace, fillWhere } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
@@ -256,6 +256,7 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   await page.getByLabel(/^Bags/).fill('2');
   await page.getByLabel(/Tare per bag/).fill('1');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.7');
+  await fillWhere(page);                                                       // migration 52: a new scope asks where, GPS, who
   const lot = await reviewSave(new RegExp(`${code}-KNM-[A-Z0-9]+-(?:[A-Z]{2,4}-)?P-0001`));
   await signOut(page);
 

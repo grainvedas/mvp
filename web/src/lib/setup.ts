@@ -143,7 +143,9 @@ export const skuLabel = (s: { size: number | string; unit: string; material: str
 // ---------------------------------------------------------------------------------------------------------------------
 // Market profiles (the State Manager's, per crop): parameters from the library with their limits
 // ---------------------------------------------------------------------------------------------------------------------
-export interface LibraryParam { param: string; name: string; unit: string | null; type: 'number' | 'grade' | 'yesno'; method: string | null; done_by: string; grp: string; sort_order: number }
+export interface LibraryParam { param: string; name: string; unit: string | null; type: 'number' | 'grade' | 'yesno'; method: string | null; done_by: string; grp: string; sort_order: number;
+  /** Migration 52: the same test under a second name points at the first; it is not offered again. */
+  alias_of?: string | null }
 export interface ProfileParam { param: string; operator?: string; limit?: number; pass?: string[] | boolean }
 export interface MarketProfile { id: string; crop_id: string; code: string; name: string; version: number; status: 'draft' | 'active' | 'retired';
   params: ProfileParam[]; export_docs: string[]; source_file_id: string | null; source_note: string | null; created_at: string; activated_at: string | null }
