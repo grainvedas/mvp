@@ -239,3 +239,67 @@ do $seed53$ begin
                  where stage_type = 'packing' and not (physical_checks @> '["Pack count per size matches the packing record"]'::jsonb) $q$;
   end if;
 end $seed53$;
+
+-- Migration 54: the Collection Batch's collection point, Commercial (C7) and Shipment (C8) (the same edits as the
+-- migration, so a database built from nothing has them).
+-- Collection Batch: its collection point first (Veda, 16 Oct: "there can be more than 1 cc in a scope … like in mill
+-- there is option to choose"); the lots offered are that point's.
+update public.stage_definitions set form_schema =
+  '[{"key": "collection_point_id", "type": "collection_point", "label": "Collection point (where the bags are)", "section": "batch", "required": false, "required_when": "stage_details_required"}]'::jsonb
+  || (select coalesce(jsonb_agg(x order by n), '[]'::jsonb) from jsonb_array_elements(form_schema) with ordinality as e(x, n) where x->>'key' <> 'collection_point_id')
+ where stage_type = 'village_batch';
+
+-- Commercial (C7): the buyer from the list, the export market's profile and the destination, the order number, packs by
+-- type (where the batch was packed from the pack list), price and terms (kept apart; where the scope records prices).
+-- A form "with_packs" field shows where the lot it comes from has packs by type; "hidden_when_packs" hides it there.
+update public.stage_definitions set form_schema = '[
+  {"key": "buyer_id", "type": "buyer", "label": "Buyer (from the client''s list)", "section": "buyer", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required"},
+  {"key": "buyer", "type": "text", "label": "Buyer", "section": "buyer", "required": true, "hidden_when": "stage_details_required"},
+  {"key": "market", "gate": "market_verdict", "type": "select", "label": "Market", "options": ["domestic", "export"], "section": "buyer", "required": true},
+  {"key": "market_code", "type": "market_profile", "label": "Export market (its profile)", "section": "buyer", "required": false, "shown_when": "stage_details_required"},
+  {"key": "destination_country", "type": "text", "label": "Destination country (export)", "section": "buyer", "required": false, "shown_when": "stage_details_required"},
+  {"key": "order_no", "type": "text", "label": "Order or contract number", "section": "buyer", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required"},
+  {"key": "sale_route", "type": "select", "label": "Sale route", "options": ["own_brand", "white_label", "bulk", "prasaadam"], "section": "buyer", "required": false, "shown_when": "stage_details_required"},
+  {"key": "packs", "type": "order_packs", "label": "Packs sold", "section": "quantity", "required": false, "shown_when": "stage_details_required", "with_packs": true},
+  {"key": "qty_kg", "type": "number", "unit": "kg", "label": "Quantity to this buyer", "section": "quantity", "required": true, "hidden_when_packs": true},
+  {"key": "price_per_kg", "type": "number", "unit": "per kg", "label": "Price", "section": "terms", "required": false, "shown_when": "record_price"},
+  {"key": "currency", "type": "select", "label": "Currency", "options": ["INR", "USD", "EUR", "GBP", "AED", "SAR", "JPY", "AUD"], "section": "terms", "required": false, "shown_when": "record_price"},
+  {"key": "incoterms", "type": "select", "label": "Incoterms (export)", "options": ["EXW", "FCA", "FOB", "CFR", "CIF", "CPT", "CIP", "DAP", "DPU", "DDP"], "section": "terms", "required": false, "shown_when": "record_price"}
+]'::jsonb
+ where stage_type = 'commercial';
+-- what the receiver ticks (migration 49's column: a database from before it, on the upgrade path, has none yet)
+do $seed54$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stage_definitions' and column_name = 'physical_checks') then
+    execute $q$ update public.stage_definitions set physical_checks = '["Packs set aside for this buyer counted", "Packs handed over match the order"]'::jsonb
+                 where stage_type = 'commercial' $q$;
+  end if;
+end $seed54$;
+
+-- Shipment (C8): the packs of one order (partial shipments), the serials scanned for export, the domestic and export
+-- papers, the loading photo. A form "for_market" field shows for the order's market only.
+update public.stage_definitions set form_schema = '[
+  {"key": "packs", "type": "order_packs", "label": "Packs shipped", "section": "quantity", "required": false, "shown_when": "stage_details_required", "with_packs": true},
+  {"key": "shipped_kg", "type": "number", "unit": "kg", "label": "Shipped", "section": "quantity", "required": true, "hidden_when_packs": true},
+  {"key": "serials", "type": "serials", "label": "Pack codes loaded (scan or type, one per line)", "section": "quantity", "required": false, "shown_when": "stage_details_required", "for_market": "export"},
+  {"key": "vehicle_or_container", "type": "text", "label": "Vehicle / container", "section": "transport", "required": true, "hidden_when": "stage_details_required"},
+  {"key": "vehicle_no", "type": "text", "label": "Vehicle number", "section": "transport", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required", "for_market": "domestic"},
+  {"key": "transporter", "type": "text", "label": "Transporter", "section": "transport", "required": false, "shown_when": "stage_details_required", "for_market": "domestic"},
+  {"key": "driver_phone", "type": "text", "label": "Driver''s phone", "section": "transport", "required": false, "shown_when": "stage_details_required", "for_market": "domestic"},
+  {"key": "container_no", "type": "text", "label": "Container number", "section": "transport", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required", "for_market": "export"},
+  {"key": "seal_no", "type": "text", "label": "Container seal number", "section": "transport", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required", "for_market": "export"},
+  {"key": "vessel", "type": "text", "label": "Vessel", "section": "transport", "required": false, "shown_when": "stage_details_required", "for_market": "export"},
+  {"key": "forwarder", "type": "text", "label": "Forwarder", "section": "transport", "required": false, "shown_when": "stage_details_required", "for_market": "export"},
+  {"key": "port_loading", "type": "text", "label": "Port of loading", "section": "transport", "required": false, "shown_when": "stage_details_required", "for_market": "export"},
+  {"key": "port_discharge", "type": "text", "label": "Port of discharge", "section": "transport", "required": false, "shown_when": "stage_details_required", "for_market": "export"},
+  {"key": "dispatch_date", "type": "date", "label": "Dispatch date", "section": "transport", "required": true},
+  {"key": "arrival_on", "type": "date", "label": "Expected arrival", "section": "transport", "required": false, "shown_when": "stage_details_required", "for_market": "export"},
+  {"key": "destination", "type": "text", "label": "Destination", "section": "transport", "required": true},
+  {"key": "invoice_no", "type": "text", "label": "Invoice number", "section": "papers", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required"},
+  {"key": "lr_no", "type": "text", "label": "LR number (lorry receipt)", "section": "papers", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required", "for_market": "domestic"},
+  {"key": "eway_bill_no", "type": "text", "label": "E-way bill number (when required)", "section": "papers", "required": false, "shown_when": "stage_details_required", "for_market": "domestic"},
+  {"key": "shipping_bill_no", "type": "text", "label": "Shipping bill number", "section": "papers", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required", "for_market": "export"},
+  {"key": "bl_no", "type": "text", "label": "Bill of lading number (may come later)", "section": "papers", "required": false, "shown_when": "stage_details_required", "for_market": "export"},
+  {"key": "loading_photo", "type": "attachment", "label": "Loading photo (the seal or the vehicle)", "section": "documents", "required": false, "label_as": "loading_photo"},
+  {"key": "documents", "type": "attachment", "label": "Documents (photo or PDF)", "accept": "document", "section": "documents", "required": false}
+]'::jsonb
+ where stage_type = 'shipment';

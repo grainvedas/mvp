@@ -20,10 +20,10 @@ insert into public.states (name, code) values ('Uttar Pradesh', 'UPX') returning
 select t.ok((select count(*) from public.places where state_id = :'x') = 75, 'a state of that name made later (a fresh start) gets the list too');
 select t.as_user(t.u('03'));
 select app.add_place(pg_temp.f('UP'), 'siddharth nagar', 'Bansi', 'Itwa');
-select t.ok((select count(*) from public.places where state_id = pg_temp.f('UP') and district = 'Siddharthnagar' and block = 'Bansi') = 2,
+select t.ok((select count(*) from public.places where state_id = pg_temp.f('UP') and district = 'Siddharthnagar' and block = 'Bansi' and (village is null or village = 'Itwa')) = 2,   -- (the demo lists more villages of Bansi, seed 09)
             'the Client Manager adds a block and a village to a listed district (written differently, it is the same district)');
 select app.add_place(pg_temp.f('UP'), 'Siddharthnagar', ' bansi ', 'ITWA');
-select t.ok((select count(*) from public.places where state_id = pg_temp.f('UP') and district = 'Siddharthnagar' and block is not null) = 2, 'the same village twice is one place');
+select t.ok((select count(*) from public.places where state_id = pg_temp.f('UP') and district = 'Siddharthnagar' and block = 'Bansi' and (village is null or lower(village) = 'itwa')) = 2, 'the same village twice is one place');
 select t.fails($$select app.add_place((select id from public.states where code = 'UP'), 'Nowhere', 'B', 'V')$$, 'not on the list', 'a district not on the list is not added by the Client Manager');
 select t.as_user(t.u('12'));
 select t.fails($$select app.add_place((select id from public.states where code = 'UP'), 'Basti', 'Harraiya', null)$$, 'places are added by', 'someone who registers no farmer here adds no place');

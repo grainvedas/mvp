@@ -338,6 +338,22 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   only, and never reads `computed` (smoke row "public page data"). A new rule here needs a case in
   `tests/47_milling_qc_packing.sql`, its plain words in `plainErrors.ts` (EN and HI) and, for a form field, the fixture
   `web/tests/fixtures/stage_definitions.json` refreshed from a built database.
+- **A sale is to a buyer from the list, by packs; its price is kept apart; a shipment carries its papers** (migration 54,
+  Veda 16 October 2026). Where `scopes.stage_details_required`, Commercial takes a buyer of the client's list, the order
+  number and, for export, a market profile the batch passed (`app.profile_allowed`) and the destination; a batch packed
+  from the pack list is sold and shipped by packs per type from what is left (`app.packs_left_of`, `app.check_pack_lines`;
+  the kilograms are the server's). Price, currency and Incoterms never enter `footprints.payload` or the ledger:
+  `footprints_a01_sale_terms` takes them out and `footprints_z8_sale_terms` keeps them in `sale_terms` (read through
+  `app.reads_lot_payment`). Export documents are set only through `app.set_export_doc` (a received one has its file,
+  label `export_doc`); an export order ships only once they are complete. An export shipment lists the pack codes of its
+  batch (each once), is verified only with its `loading_photo`, and its bill of lading is added once through
+  `app.add_bill_of_lading`. A form field marked `for_market` shows for its order's market only, `with_packs` /
+  `hidden_when_packs` by whether the lot has packs by type (`withLotRules`). The Collection Batch names its collection
+  point and takes only that point's lots (also in `offlinePreview.ts`). A farmer's village is picked from the places list
+  (`farmers_location_rules` at step 1; the screens never call `add_place` from the farmer form); the farm-gate farmer is
+  picked by village, then farmer. A lab is the state's (`client_id` null, its State Manager) or a client's (its Client
+  Manager); a lab record or a sample names one through `app.lab_for_scope`. A new rule here needs a case in
+  `tests/48_commercial_shipment.sql` and its plain words in `plainErrors.ts` (EN and HI).
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,

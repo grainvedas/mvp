@@ -57,7 +57,7 @@ select t.as_user(t.u('06')); select app.verify_footprint(pg_temp.f('P'));
 select t.fails(format($$select app.draw_sample(%L, '{"qty_kg":1,"counter_seal_no":"CS-1","counter_stored_at":"QC shelf 3"}')$$, pg_temp.f('P')),
                'name the lab it goes to', 'the lab is named (from the state''s list)');
 select t.fails(format($$select app.draw_sample(%L, '{"qty_kg":1,"lab_id":"%s","counter_seal_no":"CS-1","counter_stored_at":"QC shelf 3"}')$$, pg_temp.f('P'), pg_temp.f('XLAB')),
-               'not one of this state''s labs', 'another state''s lab is refused');
+               'not on this state''s or this client''s list', 'another state''s lab is refused');
 select t.fails(format($$select app.draw_sample(%L, '{"qty_kg":1,"lab_id":"%s"}')$$, pg_temp.f('P'), pg_temp.f('LAB')),
                'counter-sample', 'the retained counter-sample''s seal and where it is kept are asked');
 select t.fails(format($$select app.draw_sample(%L, '{"qty_kg":1,"lab_id":"%s","counter_seal_no":"CS-1","counter_stored_at":"QC shelf 3","buyer_seal_no":"B-1"}')$$, pg_temp.f('P'), pg_temp.f('LAB')),

@@ -25,6 +25,7 @@ const pgNum = (x: number) => String(x);
 /** Migration 52: what the phone knows of the scope, the crop and the lots, for the offline mirror. */
 export interface OfflineRules {
   procurement_details_required?: boolean; record_price?: boolean;
+  /** migration 54: the scope asks the details (the Collection Batch names its collection point) */ stage_details_required?: boolean;
   /** the crop's moisture limit (its quality parameter moisture_pct, "≤" limit) */ moisture_limit?: number | null;
   thresholds?: Record<string, number> | null;
   /** the lots offered to a Collection Batch, as the phone last saw them (app.incoming_lots) */
@@ -128,6 +129,13 @@ function batchPreview(payload: Record<string, unknown>, rules: OfflineRules): Of
     const where = (l: BatchLot) => l.point_name ?? (l.point === 'farm' ? 'at the farm' : 'no place recorded');
     return refuse(`collection batch: the lots are from different collection points (${[...ls].sort((a, b) => a.code.localeCompare(b.code)).map((l) => `${l.code} ${where(l)}`).join(', ')}): a batch is the lots at one place`);
   }
+  // migration 54: the batch names its collection point (or "at the farm"); its lots are that point's. Whether the point
+  // is one of the client's active points is checked when the batch reaches the server (the phone's list may be old).
+  const named = has(payload, 'collection_point_id') ? String(payload.collection_point_id) : null;
+  if (named) {
+    const off = ls.filter((l) => l.point !== named).map((l) => l.code).sort((a, b) => a.localeCompare(b));
+    if (off.length) return refuse(`collection batch: ${off.join(', ')} not weighed at this collection point (a batch is the lots of the point it names)`);
+  } else if (rules.stage_details_required) return refuse('collection batch: choose the collection point (where the bags are)');
   // villages with their share, largest first (the same village written differently is one village)
   const byVillage = new Map<string, { village: string; kg: number }>();
   for (const l of ls) {

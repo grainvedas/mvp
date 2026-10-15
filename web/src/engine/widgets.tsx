@@ -22,16 +22,19 @@ export interface WidgetProps {
   stageType?: string;
   allowed?: string[];      // select with a gate: only these options are offered
   /** migration 53: the lot this record is made from (QC picks the sample drawn from it) */ sourceId?: string;
+  /** migration 54: the scope's state (its labs) and what is on the form so far (the batch's lots of the point chosen) */
+  stateId?: string; values?: Record<string, FieldValue>;
 }
 
 /** Types this build can render. Anything else shows a notice and blocks save if required. */
 export const SUPPORTED = new Set(['number', 'integer', 'number[3]', 'text', 'select', 'date', 'boolean', 'attachment', 'readings', 'farmer',
   'breakdown', 'packets[]', 'footprint[]', 'collection_point', 'gps',
-  'mill', 'lab', 'packing_unit', 'qc_sample', 'sku_packs']);                         // migration 53: Milling, QC, Packing   // migration 52: where the lot was weighed, and its GPS
+  'mill', 'lab', 'packing_unit', 'qc_sample', 'sku_packs',
+  'buyer', 'market_profile', 'order_packs', 'serials']);                                // migration 54: Commercial and Shipment                         // migration 53: Milling, QC, Packing   // migration 52: where the lot was weighed, and its GPS
 
 /** Field types that take the whole width of a two-column form (lists, pickers, files, groups of inputs). */
 export const FULL_WIDTH = new Set(['number[3]', 'attachment', 'readings', 'farmer', 'breakdown', 'packets[]', 'footprint[]', 'boolean', 'gps',
-  'qc_sample', 'sku_packs']);
+  'qc_sample', 'sku_packs', 'order_packs', 'serials']);
 
 /** Consecutive fields with the same `section` form one block of the form; a registry without sections gives one block. */
 export function groupSections(fields: FieldDef[]): { section: string | null; fields: FieldDef[] }[] {
@@ -95,7 +98,10 @@ export function Widget(p: WidgetProps) {
             // migration 42: a limit is a number (as before), a grade picked from the crop's list, or yes/no
             const ty = q.type ?? 'number';
             const yn = (x: unknown) => t(x ? 'common.yes' : 'common.no');
-            const hint = ty === 'grade'
+            // migration 54: a market profile's own test shows each market's limit (it has no Domestic / Export limit of the crop)
+            const hint = q.limits ? q.limits.map((l) => `${l.market} ${l.operator} ${typeof l.limit === 'number' || Array.isArray(l.limit) && typeof l.limit[0] === 'number'
+                ? limitText(l.limit as number | [number, number]) : l.limit === null || l.limit === undefined ? '—' : String(l.limit)}`).join(' · ')
+              : ty === 'grade'
               ? `${t('pv.domestic')} ${(Array.isArray(q.domestic_pass) ? q.domestic_pass : []).join(', ')} · ${t('pv.export')} ${(Array.isArray(q.export_pass) ? q.export_pass : []).join(', ')}`
               : ty === 'yesno' ? `${t('crops.passes_when')} ${t('pv.domestic')} ${yn(q.domestic_pass)} · ${t('pv.export')} ${yn(q.export_pass)}`
               : `${t('pv.domestic')} ${q.operator} ${limitText(q.domestic_limit)} · ${t('pv.export')} ${q.operator} ${limitText(q.export_limit)}`;
@@ -139,27 +145,53 @@ export function Widget(p: WidgetProps) {
       return <ListPicker id={id} name={field.key} value={(value as string) ?? ''} onChange={(v) => onChange(v)} cacheKey={`packing_units:${p.clientId}`}
         load={async () => (await listRows('packing_units', 'id,name,place', 'client_id', p.clientId)).map((m) => ({ id: m.id, label: `${m.name} · ${m.place}` }))} />;
     case 'lab':
-      return <ListPicker id={id} name={field.key} value={(value as string) ?? ''} onChange={(v) => onChange(v)} cacheKey={`labs:${p.scopeId}`}
-        load={async () => (await listRows('labs', 'id,name,kind,accreditation_no', null, null)).map((m) => ({ id: m.id,
-          label: `${m.name}${m.kind === 'in_house' ? ` · ${t('opt.in_house')}` : m.accreditation_no ? ` · ${m.accreditation_no}` : ''}` }))} />;
+      return <ListPicker id={id} name={field.key} value={(value as string) ?? ''} onChange={(v) => onChange(v)} cacheKey={`labs:${p.stateId ?? ''}:${p.clientId}`}
+        load={async () => (await labsFor(p.stateId, p.clientId)).map((m) => ({ id: m.id, label: labLabel(m, t) }))} />;
+    case 'buyer':
+      return <ListPicker id={id} name={field.key} value={(value as string) ?? ''} onChange={(v) => onChange(v)} cacheKey={`buyers:${p.clientId}`}
+        load={async () => (await listRows('buyers', 'id,name,country', 'client_id', p.clientId)).map((m) => ({ id: m.id, label: `${m.name} · ${m.country}` }))} />;
+    case 'market_profile':
+      return <MarketProfilePicker id={id} sourceId={p.sourceId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
+    case 'order_packs':
+      return <OrderPacks id={id} sourceId={p.sourceId} value={value} onChange={onChange} />;
+    case 'serials': {
+      const n = serialLines(typeof value === 'string' ? value : '').length;
+      return (
+        <div className="stack">
+          <textarea id={id} name={field.key} rows={5} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} autoComplete="off"
+            spellCheck={false} className="mono" data-testid="serials" />
+          <span className="small muted" data-testid="serials-count">{t('ship.codes_n', { n })}</span>
+        </div>);
+    }
     case 'qc_sample':
       return <SamplePicker id={id} sourceId={p.sourceId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
     case 'sku_packs':
       return <SkuPacks id={id} clientId={p.clientId} value={value} onChange={onChange} />;
     case 'footprint[]':
-      return <LotPicker id={id} scopeId={p.scopeId ?? ''} stageType={p.stageType ?? ''} value={Array.isArray(value) ? value as string[] : []} onChange={onChange} />;
+      return <LotPicker id={id} scopeId={p.scopeId ?? ''} stageType={p.stageType ?? ''} value={Array.isArray(value) ? value as string[] : []} onChange={onChange}
+        point={typeof p.values?.collection_point_id === 'string' ? p.values.collection_point_id : ''} />;
     default:
       return <p className="alert info">{t('engine.widget_missing')}</p>;
   }
 }
 
+/** The farmer of a farm-gate lot (Veda, 16 Oct: "farmer selection … should be drop down"): his village first, then the
+ *  farmer from that village's list. The whole active list (RLS: only this client's farmers, only for procurement /
+ *  village batch operators) is kept on the phone, so the farm-gate form works without a network. */
+export function villageGroups(all: Pick<Farmer, 'village'>[]): { key: string; village: string; n: number }[] {
+  const m = new Map<string, { key: string; village: string; n: number }>();
+  for (const f of all) {
+    const key = (f.village ?? '').toLowerCase().replace(/[^a-z]/g, '') || '-';            // app.norm_place: one village, however written
+    const g = m.get(key);
+    if (g) { g.n += 1; if ((f.village ?? '') < g.village) g.village = f.village ?? ''; } else m.set(key, { key, village: f.village ?? '', n: 1 });
+  }
+  return [...m.values()].sort((a, b) => a.village.localeCompare(b.village));
+}
 function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; clientId: string; scopeId?: string; value: string; onChange: (v: string) => void }) {
   const { t } = useI18n();
-  const [q, setQ] = useState('');
   const [all, setAll] = useState<Farmer[]>([]);
+  const [village, setVillage] = useState('');
   const [picked, setPicked] = useState<Farmer | null>(null);
-  // The whole active list (RLS: only this client's farmers, only for procurement / village batch operators) is kept on
-  // the phone so the farm-gate form works without a network; searching is local.
   useEffect(() => {
     let live = true;
     void cached(`farmers:${clientId}`, async () => {
@@ -171,9 +203,9 @@ function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; 
     return () => { live = false; };
   }, [clientId]);
   useEffect(() => { if (value && picked?.id !== value) setPicked(all.find((f) => f.id === value) ?? null); }, [value, picked?.id, all]);
-  const s = q.trim().toLowerCase(), digits = s.replace(/[^0-9]/g, '');
-  const list = (s ? all.filter((f) => f.name.toLowerCase().includes(s) || (f.farmer_code ?? '').toLowerCase().includes(s)
-    || f.village.toLowerCase().includes(s) || (digits.length >= 3 && (f.phone ?? '').includes(digits))) : all).slice(0, 20);
+  const groups = villageGroups(all);
+  const vk = village || (groups.length === 1 ? groups[0].key : '');
+  const inVillage = all.filter((f) => ((f.village ?? '').toLowerCase().replace(/[^a-z]/g, '') || '-') === vk);
   if (picked && value) {
     return (
       <div className="stack">
@@ -186,18 +218,17 @@ function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; 
     );
   }
   return (
-    <div>
-      <input id={id} placeholder={t('widget.farmer_search')} value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
-      <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0' }} role="listbox" aria-label={t('widget.active_farmers')}>
-        {list.map((f) => (
-          <li key={f.id}>
-            <button type="button" className="secondary" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: 4, textAlign: 'left' }}
-              onClick={() => { setPicked(f); onChange(f.id); }}>
-              <span>{f.name} · <span className="mono">{f.farmer_code}</span> · {f.village}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+    <div className="stack">
+      <select id={id} aria-label={t('widget.farmer_village')} value={vk} onChange={(e) => setVillage(e.target.value)} data-testid="pick-village">
+        <option value="">{t('widget.farmer_village')}</option>
+        {groups.map((g) => <option key={g.key} value={g.key}>{g.village} ({g.n})</option>)}
+      </select>
+      {vk && <select aria-label={t('widget.active_farmers')} value="" data-testid="pick-farmer"
+        onChange={(e) => { const f = inVillage.find((x) => x.id === e.target.value); if (f) { setPicked(f); onChange(f.id); } }}>
+        <option value="">{t('widget.farmer_pick')}</option>
+        {inVillage.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.farmer_code}</option>)}
+      </select>}
+      {groups.length === 0 && <p className="small muted" data-testid="no-farmers">{t('widget.no_farmers')}</p>}
     </div>
   );
 }
@@ -246,7 +277,8 @@ const pointOf = (l: IncomingLot) => String((l.payload as Record<string, unknown>
 
 /** The Collection Batch (migration 52, C2): the verified lots, by the place they were weighed. A batch is the lots of one
  *  place; choosing lots of two places is said at once (the save refuses it too). */
-function LotPicker({ id, scopeId, stageType, value, onChange }: { id: string; scopeId: string; stageType: string; value: string[]; onChange: (v: FieldValue) => void }) {
+function LotPicker({ id, scopeId, stageType, value, onChange, point }: { id: string; scopeId: string; stageType: string; value: string[]; onChange: (v: FieldValue) => void;
+  /** migration 54: the collection point the batch names (its lots only) */ point?: string }) {
   const { t } = useI18n();
   const [lots, setLots] = useState<IncomingLot[] | null>(null);
   const [names, setNames] = useState<Record<string, { name: string; village: string }>>({});
@@ -275,10 +307,19 @@ function LotPicker({ id, scopeId, stageType, value, onChange }: { id: string; sc
     }).catch(() => { if (live) setLots([]); });
     return () => { live = false; };
   }, [scopeId, stageType]);
+  // migration 54: a lot ticked at another point than the one named is let go (the batch is the lots of its point)
+  useEffect(() => {
+    if (!point || !lots) return;
+    const keep = value.filter((x) => lots.some((l) => l.id === x && pointOf(l) === point));
+    if (keep.length !== value.length) onChange(keep);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [point, lots]);
   if (lots === null) return <p className="small muted" id={id}>{t('common.loading', undefined, '…')}</p>;
   if (!lots.length) return <p className="alert info" id={id}>{t('widget.no_lots')}</p>;
+  const shown = point ? lots.filter((l) => pointOf(l) === point) : lots;
+  if (!shown.length) return <p className="alert info" id={id} data-testid="batch-none-here">{t('cb.none_at_point')}</p>;
   const groups = new Map<string, IncomingLot[]>();
-  for (const l of lots) groups.set(pointOf(l), [...(groups.get(pointOf(l)) ?? []), l]);
+  for (const l of shown) groups.set(pointOf(l), [...(groups.get(pointOf(l)) ?? []), l]);
   const title = (key: string, l: IncomingLot) => {
     const c = (l.computed ?? {}) as Record<string, unknown>;
     return key === 'farm' ? t('cp.at_farm') : key === '' ? t('cb.no_place') : typeof c.collection_point === 'string' ? c.collection_point : t('cp.a_point');
@@ -332,6 +373,15 @@ export function buildPayload(fields: FieldDef[], values: Record<string, FieldVal
       const rows = (v as unknown as Record<string, string>[]).filter((r) => r.sku_id && r.units);
       if (!rows.length) continue;
       out = rows.map((r) => ({ sku_id: r.sku_id, units: toNum(r.units), size_kg: toNum(r.size_kg) }));
+    } else if (f.type === 'order_packs') {
+      // migration 54: the packs of an order by type (the kilograms are the server's)
+      const rows = (v as unknown as Record<string, string>[]).filter((r) => r.sku_id && r.units && Number(r.units) > 0);
+      if (!rows.length) continue;
+      out = rows.map((r) => ({ sku_id: r.sku_id, units: toNum(r.units) }));
+    } else if (f.type === 'serials') {
+      const lines = serialLines(String(v)).map((x) => x.toUpperCase());     // pack codes are capitals (the server reads them so)
+      if (!lines.length) continue;
+      out = lines;
     } else if (f.type === 'breakdown' || f.type === 'packets[]') {
       const rows = (v as unknown as Record<string, string>[]).filter((r) => Object.values(r).some((x) => x !== ''));
       if (!rows.length) continue;
@@ -367,6 +417,17 @@ export function withScopeRules(fields: FieldDef[], scope: object): FieldDef[] {
     .map((f) => (f.required_when && on(f.required_when) ? { ...f, required: true } : f));
 }
 
+/** Migration 54: fields that follow the lot this record is made from. `for_market` is on the form only for an order of
+ *  that market (Shipment: the domestic papers or the export papers); `with_packs` only where the lot has packs by type
+ *  (packed from the client's pack list) and the scope asks the details, `hidden_when_packs` the kilograms instead. */
+export function withLotRules(fields: FieldDef[], lot: { market?: string | null; packs: boolean }): FieldDef[] {
+  return fields.filter((f) => (!f.for_market || !lot.market || f.for_market === lot.market)
+    && (!f.with_packs || lot.packs) && (!f.hidden_when_packs || !lot.packs));
+}
+
+/** The pack codes typed or scanned, one per line (or separated by commas or spaces), in the order given. */
+export const serialLines = (s: string) => s.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+
 /** Required files not chosen yet (by label): a new record only (a correction keeps the files it has). */
 export function missingFiles(fields: FieldDef[], values: Record<string, FieldValue>): string[] {
   return fields.filter((f) => f.required && f.type === 'attachment' && !(values[f.key] instanceof File)).map((f) => f.label);
@@ -381,6 +442,8 @@ export function missingRequired(fields: FieldDef[], values: Record<string, Field
     if (f.type === 'packets[]') return !Array.isArray(v) || !(v as unknown as Record<string, string>[]).some((r) => r.units && r.size_kg);
     if (f.type === 'sku_packs') return !Array.isArray(v) || !(v as unknown as Record<string, string>[]).some((r) => r.sku_id && r.units);
     if (f.type === 'footprint[]') return !Array.isArray(v) || (v as string[]).length === 0;
+    if (f.type === 'order_packs') return !Array.isArray(v) || !(v as unknown as Record<string, string>[]).some((r) => r.sku_id && Number(r.units) > 0);
+    if (f.type === 'serials') return serialLines(String(v ?? '')).length === 0;
     if (f.type === 'gps') { const g = v as Record<string, string> | null; return !g || !String(g.lat ?? '').trim() || !String(g.lng ?? '').trim(); }
     return v === undefined || v === null || v === '';
   }).map((f) => f.label);
@@ -554,5 +617,77 @@ function SkuPacks({ id, clientId, value, onChange }: { id: string; clientId: str
           {list.length > 1 && <button type="button" className="secondary" aria-label={t('widget.remove_row', { n: i + 1 })} onClick={() => set(list.filter((_, j) => j !== i))}>✕</button>}
         </div>))}
       <button type="button" className="secondary" onClick={() => set([...list, { sku_id: '', units: '', size_kg: '' }])}>{t('widget.add_packet')}</button>
+    </div>);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Migration 54 (C7, C8; Veda 16 Oct): the labs of the scope's state and of the client; the buyer's market profile; the
+// packs of an order by type, from what is left
+// ---------------------------------------------------------------------------------------------------------------------
+export interface LabRow { id: string; name: string; kind: string; accreditation_no: string | null; client_id: string | null }
+/** The labs a lab record or a sample may name: the state's own (kept by its State Manager) and the client's (kept by its
+ *  Client Manager), as app.lab_for_scope decides. */
+export async function labsFor(stateId: string | undefined, clientId: string): Promise<LabRow[]> {
+  let qy = supabase.from('labs').select('id,name,kind,accreditation_no,client_id').eq('active', true);
+  qy = stateId ? qy.or(`and(client_id.is.null,state_id.eq.${stateId}),client_id.eq.${clientId}`) : qy.or(`client_id.is.null,client_id.eq.${clientId}`);
+  const { data, error } = await qy.order('name');
+  if (error) throw error;
+  return (data ?? []) as LabRow[];
+}
+export const labLabel = (m: LabRow, t: (k: string, v?: Record<string, string | number>, f?: string) => string) =>
+  `${m.name}${m.kind === 'in_house' ? ` · ${t('opt.in_house')}` : m.accreditation_no ? ` · ${m.accreditation_no}` : ''}${m.client_id ? ` · ${t('lab.client_own')}` : ''}`;
+
+interface ProfileVerdict { code: string; name: string; verdict: string }
+function MarketProfilePicker({ id, sourceId, value, onChange }: { id: string; sourceId?: string; value: string; onChange: (v: string) => void }) {
+  const { t } = useI18n();
+  const [rows, setRows] = useState<ProfileVerdict[]>([]);
+  useEffect(() => {
+    if (!sourceId) return;
+    let live = true;
+    void cached(`lot_markets:${sourceId}`, () => rpc<{ profiles?: ProfileVerdict[] }>('lot_markets', { p_fp: sourceId }))
+      .then((r) => { if (live) setRows((r.profiles ?? []).filter((x) => x.code !== 'domestic')); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [sourceId]);
+  return (
+    <select id={id} name="market_code" value={value} onChange={(e) => onChange(e.target.value)} data-testid="pick-market_code">
+      <option value="">—</option>
+      {rows.map((r) => <option key={r.code} value={r.code}>{r.name} · {t(`pv.v_${r.verdict}`, undefined, r.verdict)}</option>)}
+    </select>);
+}
+
+export interface PackLeft { sku_id: string; name: string; size_kg: number; market: string; units: number; left: number }
+/** The packs of an order (Commercial: from the packing batch; Shipment: from the order), one line per pack type, with
+ *  what is left of each; the kilograms follow from the packs (the server works them out the same way). */
+function OrderPacks({ id, sourceId, value, onChange }: { id: string; sourceId?: string; value: FieldValue; onChange: (v: FieldValue) => void }) {
+  const { t } = useI18n();
+  const [left, setLeft] = useState<PackLeft[] | null>(null);
+  useEffect(() => {
+    if (!sourceId) { setLeft([]); return; }
+    let live = true;
+    void cached(`packs_left:${sourceId}`, () => rpc<PackLeft[]>('packs_left', { p_fp: sourceId }))
+      .then((r) => { if (live) setLeft(r); }).catch(() => { if (live) setLeft([]); });
+    return () => { live = false; };
+  }, [sourceId]);
+  type R = { sku_id: string; units: string };
+  const rows: R[] = Array.isArray(value) ? (value as unknown as R[]) : [];
+  const units = (sku: string) => rows.find((r) => r.sku_id === sku)?.units ?? '';
+  const set = (sku: string, u: string) => onChange([...rows.filter((r) => r.sku_id !== sku), ...(u ? [{ sku_id: sku, units: u }] : [])] as unknown as FieldValue);
+  if (left === null) return <p className="small muted" id={id}>{t('common.loading', undefined, '…')}</p>;
+  if (!left.length) return <p className="alert info" id={id} data-testid="no-packs-left">{t('ord.no_packs')}</p>;
+  const kgs = rows.reduce((a, r) => a + (Number(r.units) || 0) * Number(left.find((l) => l.sku_id === r.sku_id)?.size_kg ?? 0), 0);
+  return (
+    <div className="stack" id={id} data-testid="order-packs">
+      {left.map((l, i) => {
+        const over = Number(units(l.sku_id)) > Number(l.left);
+        return (
+          <div key={l.sku_id} className="row" data-testid={`order-line-${i}`}>
+            <label htmlFor={`${id}-${i}`} style={{ flex: '1 1 160px', margin: 0 }}>{l.name}<span className="hint"> {t('ord.left', { n: Number(l.left) })}</span></label>
+            <input id={`${id}-${i}`} inputMode="numeric" style={{ flex: '0 0 110px', width: 'auto' }} value={units(l.sku_id)} placeholder="0"
+              disabled={Number(l.left) <= 0 && !units(l.sku_id)} data-testid={`order-units-${i}`} aria-invalid={over}
+              onChange={(e) => set(l.sku_id, e.target.value.replace(/[^0-9]/g, ''))} />
+            {over && <span className="small" style={{ color: 'var(--red)' }}>{t('ord.over', { n: Number(l.left) })}</span>}
+          </div>);
+      })}
+      <span className="small muted" data-testid="order-kg">{t('ord.total', { kg: kgText(kgs) })}</span>
     </div>);
 }

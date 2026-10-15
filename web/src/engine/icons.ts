@@ -15,4 +15,5 @@ export const SECTION_ICON: Record<string, string> = {
   transport: '🚚', documents: '📄',
   where: '📍', optional: '➕', payment: '💰',                 // migration 52: the farm-gate form
   mill: '🏭',                                                 // migration 53: Milling
+  terms: '💱', papers: '🧾',                                  // migration 54: Commercial, Shipment
 };

@@ -2,14 +2,14 @@
 // screen where the lot is verified (src/engine/StagePage.tsx): a module of its own, so the stage screen does not load
 // the whole record page.
 import { useState } from 'react';
-import { rpc, q } from '../../lib/api';
-import { supabase } from '../../lib/supabase';
+import { rpc } from '../../lib/api';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { kg, date, todayIST } from '../../lib/format';
 import { type Footprint } from '../../lib/types';
 import { ErrorBox, Field } from '../../shell/ui';
+import { labsFor, labLabel } from '../../engine/widgets';
 
 /** Migration 53 (C5): the samples drawn from a lot that goes to Quality Control: "sent to the lab, awaiting results",
  *  their retained counter-samples, a disposal. Drawn by QC (or a manager): the server decides. */
@@ -19,13 +19,9 @@ interface Sample { id: string; code: string; status: 'sent' | 'results_in' | 'di
 export function SamplesPanel({ f, onChange }: { f: Footprint; onChange?: () => void }) {
   const { t } = useI18n();
   const { ctx } = useAuth();
-  const stateId = ctx?.scopes.find((s) => s.scope_id === f.scope_id)?.state_id;   // the labs of the scope's state
+  const stateId = ctx?.scopes.find((s) => s.scope_id === f.scope_id)?.state_id;   // the labs of the scope's state and of the client (migration 54)
   const list = useAsync(() => rpc<Sample[]>('lot_samples', { p_fp: f.id }), [f.id]);
-  const labs = useAsync(async () => {
-    let r = supabase.from('labs').select('id,name,kind,accreditation_no').eq('active', true);
-    if (stateId) r = r.eq('state_id', stateId);
-    return (await q(r.order('name'))) as { id: string; name: string; kind: string; accreditation_no: string | null }[];
-  }, [stateId]);
+  const labs = useAsync(() => labsFor(stateId, f.client_id), [stateId, f.client_id]);
   const [open, setOpen] = useState(false);
   const [v, setV] = useState<Record<string, string>>({ drawn_on: todayIST() });
   const [disp, setDisp] = useState<{ id: string; note: string } | null>(null);
@@ -57,7 +53,7 @@ export function SamplesPanel({ f, onChange }: { f: Footprint; onChange?: () => v
           <Field label={`${t('smp.drawn_on')} *`} htmlFor="smp-on"><input id="smp-on" type="date" max={todayIST()} value={v.drawn_on ?? ''} onChange={(e) => set('drawn_on', e.target.value)} /></Field>
           <Field label={`${t('smp.qty')} *`} htmlFor="smp-qty"><input id="smp-qty" inputMode="decimal" value={v.qty_kg ?? ''} onChange={(e) => set('qty_kg', e.target.value.replace(',', '.'))} data-testid="sample-qty" /></Field>
           <Field label={`${t('smp.lab')} *`} htmlFor="smp-lab"><select id="smp-lab" value={v.lab_id ?? ''} onChange={(e) => set('lab_id', e.target.value)} data-testid="sample-lab">
-            <option value="">—</option>{(labs.data ?? []).map((l) => <option key={l.id} value={l.id}>{l.name}{l.kind === 'in_house' ? ` · ${t('opt.in_house')}` : l.accreditation_no ? ` · ${l.accreditation_no}` : ''}</option>)}</select></Field>
+            <option value="">—</option>{(labs.data ?? []).map((l) => <option key={l.id} value={l.id}>{labLabel(l, t)}</option>)}</select></Field>
           <Field label={`${t('smp.counter_seal')} *`} htmlFor="smp-seal"><input id="smp-seal" value={v.counter_seal_no ?? ''} onChange={(e) => set('counter_seal_no', e.target.value)} data-testid="sample-seal" /></Field>
           <Field label={`${t('smp.counter_where')} *`} htmlFor="smp-where"><input id="smp-where" value={v.counter_stored_at ?? ''} onChange={(e) => set('counter_stored_at', e.target.value)} data-testid="sample-where" /></Field>
           <Field label={t('smp.keep_until')} hint={t('smp.keep_hint')} htmlFor="smp-keep"><input id="smp-keep" type="date" value={v.keep_until ?? ''} onChange={(e) => set('keep_until', e.target.value)} /></Field>

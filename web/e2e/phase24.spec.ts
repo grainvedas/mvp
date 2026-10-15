@@ -7,7 +7,7 @@
 // syncs when the network is back. The journey forward runs from a farmer's lot to its batch. Every rule is the
 // database's (tests/46_procurement_batch.sql); the phone's mirror says the same (tests/procurement_batch.test.ts).
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signOut, expectNoSideScroll, apiAs, openSlot, verifyIncoming, reviewAndSave, fillWhere, USERS, SCOPES } from './helpers';
+import { signIn, signOut, expectNoSideScroll, apiAs, openSlot, verifyIncoming, reviewAndSave, fillWhere, USERS, SCOPES, pickFarmer } from './helpers';
 
 test.use({ viewport: { width: 527, height: 900 } });
 const uniq = () => String(Date.now()).slice(-6);
@@ -39,8 +39,7 @@ async function payIfAsked(page: Page) {
 }
 
 async function weigh(page: Page, farmer: RegExp, gross: string) {
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill(String(farmer.source).split(' ')[0]);
-  await page.getByRole('button', { name: farmer }).click();
+  await pickFarmer(page, farmer);
   await expect(page.getByTestId('farmer-card')).toBeVisible();                 // GI land, sold this season, practice, GI area
   await page.getByLabel(/Gross weight/).fill(gross);
   await page.getByLabel(/^Bags/).fill('2');

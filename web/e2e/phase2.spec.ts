@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signOut, expectNoSideScroll, openSlotAt } from './helpers';
+import { signIn, signOut, expectNoSideScroll, openSlotAt, pickFarmer } from './helpers';
 
 // Phase 2 through the real screens: T4 (7 people, 2 buyers, labels), T2 (grading split), Village Batch.
 const op = (key: string, n: string) => ({ key, phone: `00000000${n}` });
@@ -24,8 +24,7 @@ async function reviewAndSave(page: Page, code: RegExp) {
 }
 async function procure(page: Page, place: string, farmer: RegExp, gross: string, bags: string, tare: string) {
   await open(page, 'procurement', place);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill(String(farmer.source).split(' ')[0]);
-  await page.getByRole('button', { name: farmer }).click();
+  await pickFarmer(page, farmer);
   await page.getByLabel(/Gross weight/).fill(gross);
   await page.getByLabel(/^Bags/).fill(bags);
   await page.getByLabel(/Tare per bag/).fill(tare);

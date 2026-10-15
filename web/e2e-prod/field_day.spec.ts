@@ -1,5 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
-import { signIn, USERS, SCOPES, openSlot, apiAs } from '../e2e/helpers';
+import { signIn, USERS, SCOPES, openSlot, apiAs, pickFarmer } from '../e2e/helpers';
 import { loadEnv } from '../../scripts/lib/env.mjs';
 
 // A day in the field, against the BUILT app with its service worker.
@@ -45,15 +45,14 @@ async function atHomeWithNetwork(page: Page) {
   await page.reload();
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await openSlot(page, 'procurement', SCOPES.gorakhpur);        // five scopes: the operator says where they are working today; the phone remembers
-  await expect(page.getByRole('button', { name: /Ram Achal/ })).toBeVisible();
+  await expect(page.getByTestId('pick-village').locator('option').nth(1)).toBeAttached();   // the farmers' villages are loaded
 }
 
 /** A weight nobody else uses, so the database can be asked how many records carry it. */
 const oddWeight = () => (150 + (Date.now() % 4000) / 100 + Math.floor(Math.random() * 9) / 1000).toFixed(3);
 
 async function fillLot(page: Page, farmer: string, gross: string) {
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill(farmer.split(' ')[0]);
-  await page.getByRole('button', { name: new RegExp(farmer) }).click();
+  await pickFarmer(page, new RegExp(farmer));
   await page.getByLabel(/Gross weight/).fill(gross); await page.getByLabel(/^Bags/).fill('1'); await page.getByLabel(/Tare per bag/).fill('2.5');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.9');
   await expect(page.getByTestId('preview-ok')).toBeVisible({ timeout: 20_000 });
@@ -109,11 +108,11 @@ test('The link is connected but dead and the hour is over: the save falls back t
   test.setTimeout(240_000);
   const gross = oddWeight();
   await atHomeWithNetwork(page);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');     // the form is on screen and stays there
+  await expect(page.getByTestId('pick-village')).toBeVisible();                    // the form is on screen and stays there
 
   await cutTheLink(context);
   await ageTheToken(page);
-  await page.getByRole('button', { name: /Sita Devi/ }).click();
+  await pickFarmer(page, /Sita Devi/);                                                 // the list is the phone's copy
   await page.getByLabel(/Gross weight/).fill(gross); await page.getByLabel(/^Bags/).fill('1'); await page.getByLabel(/Tare per bag/).fill('2.5');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.9');
   await expect(page.getByTestId('preview-ok')).toBeVisible({ timeout: 20_000 });   // worked out on the phone: the server could not be asked

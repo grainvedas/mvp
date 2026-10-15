@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signInWith, signOut, USERS, SCOPES, openSlot, verifyIncoming, reviewAndSave, procure, recordQc, sealLot, apiAs, freshEmail, freshPhone, fillFarmerPlace, pickFromPool } from './helpers';
+import { signIn, signInWith, signOut, USERS, SCOPES, openSlot, verifyIncoming, reviewAndSave, procure, recordQc, sealLot, apiAs, freshEmail, freshPhone, fillFarmerPlace, pickFromPool, pickFarmer, farmerOffered } from './helpers';
 
 // Phase 4 "live season" through the real screens: what goes wrong in a real week and how it is put right.
 const uniq = () => String(Date.now()).slice(-6);
@@ -7,8 +7,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 const pdf = (text: string) => Buffer.from(`%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n% ${text}\n%%EOF\n`, 'utf8');
 
 async function fillProcurement(page: Page, farmer: string, gross: string, bags: string, tare: string) {
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill(farmer.split(' ')[0]);
-  await page.getByRole('button', { name: new RegExp(farmer) }).click();
+  await pickFarmer(page, new RegExp(farmer));
   await page.getByLabel(/Gross weight/).fill(gross);
   await page.getByLabel(/^Bags/).fill(bags);
   await page.getByLabel(/Tare per bag/).fill(tare);
@@ -23,8 +22,7 @@ async function openSaved(page: Page, code: string) {
 test('Switching to another app and back keeps a half-filled form', async ({ page }) => {
   await signIn(page, USERS.procurement);
   await openSlot(page, 'procurement', SCOPES.gorakhpur);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');
-  await page.getByRole('button', { name: /Sita Devi/ }).click();
+  await pickFarmer(page, /Sita Devi/);
   await page.getByLabel(/Gross weight/).fill('150');
   // What the browser tells the page when the operator comes back from the calculator or a phone call.
   for (let i = 0; i < 3; i++) {
@@ -404,7 +402,7 @@ test('A verified farmer is changed with a reason; deactivated farmers cannot be 
   await expect(row).toContainText(/PRSDM-F-\d{4}/);
   await row.getByRole('link', { name: 'Edit' }).click();
   await expect(page.getByTestId('farmer-verified-note')).toBeVisible();                    // every change is ledgered
-  await page.getByLabel('Village *').fill('Bansi Khurd');
+  await page.locator('#farmer-village').selectOption({ label: 'Bansi Khurd' });               // migration 54: from the list
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();       // migration 44: a reason first
   await page.getByTestId('farmer-why').fill('village name corrected');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -420,9 +418,8 @@ test('A verified farmer is changed with a reason; deactivated farmers cannot be 
 
   await signIn(page, USERS.procurement);
   await openSlot(page, 'procurement', SCOPES.siddharthnagar);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Kamla');
-  await expect(page.getByRole('button', { name: /Sita Devi/ })).toHaveCount(0);            // the list has filtered
-  await expect(page.getByRole('button', { name: new RegExp(name) })).toHaveCount(0);       // not offered at the farm gate
+  expect(await farmerOffered(page, /Sita Devi/)).toBe(true);                               // (a control: an active farmer is offered)
+  expect(await farmerOffered(page, new RegExp(name))).toBe(false);                         // not offered at the farm gate
   await page.goto('/farmers');
   await expect(page.getByTestId('farmer-row').filter({ hasText: name })).toHaveCount(0);
   await signOut(page);

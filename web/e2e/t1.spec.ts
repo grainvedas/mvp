@@ -1,13 +1,12 @@
 import { test, expect, devices } from '@playwright/test';
-import { signIn, signOut, USERS, SCOPES, openSlot, apiAs } from './helpers';
+import { signIn, signOut, USERS, SCOPES, openSlot, apiAs, pickFarmer } from './helpers';
 
 // PRD §12 T1 through the real screens, signed in as three different people: procure → QC → seal → public page.
 test('T1: procurement → QC → QR seal from the UI', async ({ page }) => {
   // 1. Procurement operator records Sita Devi's lot
   await signIn(page, USERS.procurement);
   await openSlot(page, 'procurement', SCOPES.siddharthnagar);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');
-  await page.getByRole('button', { name: /Sita Devi/ }).click();
+  await pickFarmer(page, /Sita Devi/);
   await page.getByLabel(/Gross weight/).fill('150');
   await page.getByLabel(/^Bags/).fill('1');
   await page.getByLabel(/Tare per bag/).fill('2.5');

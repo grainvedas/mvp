@@ -6,7 +6,7 @@
 //   a manager gives that person an assignment: a scope and stages, a client's account, or a state.
 // The old "Users" page (one form: role + client + state + login) is gone; `/users` now lands on People & access.
 import { test, expect } from '@playwright/test';
-import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, fillLabReport, USERS, fillFarmerPlace, fillWhere } from './helpers';
+import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, fillLabReport, USERS, fillFarmerPlace, fillWhere, pickFarmer } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
@@ -254,8 +254,7 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
   // 7. the three people, each with an own password, each holding one stage of one scope: buy, test, seal
   await signInWith(page, who.procurement.email, `Kharid-${u}`);
   await page.getByTestId('slot-procurement').click();
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Ramkali');
-  await page.getByRole('button', { name: new RegExp(`Ramkali ${u}`) }).click();
+  await pickFarmer(page, new RegExp(`Ramkali ${u}`));
   await page.getByLabel(/Gross weight/).fill('120');
   await page.getByLabel(/^Bags/).fill('2');
   await page.getByLabel(/Tare per bag/).fill('1');

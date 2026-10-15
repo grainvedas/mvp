@@ -2319,3 +2319,92 @@ Veda: "ok proceed ahead with release 53" (G19), after the release-5 checks on st
 - **Not done**: the brief's deferred items (broken rice as its own lot, variety in the mill's range, the buyer's
   specification in QC, telling the State Manager of an export release, a counter-sample photo); the net weight check on
   a real scale.
+
+## 16 October 2026, 00:59 IST: release 6 on staging
+
+`staging-milling-qc-packing.cmd` (Veda): **`RESULT: MILLING QC PACKING ON STAGING`**, head **a49f01e** (44 files),
+Vercel Ready (Production) within minutes. S0 tested files (148 app and function files), only migration 53 waiting,
+functions current; S1 53 pushed; S1b `scopes=3 asking_details=3 markets=3 milling_form=new qc_form=new
+packing_form=new samples=0 market_verdicts=0 closed_lots=0 weight_checks=0`; S2 smoke 49 of 50 OK (standing: statement
+logging), the new rules in place, change log intact (46 tables), `samples=0 payments=2 packs=344 change_log_lines=1027
+ledger_head=138`, ledger audit NO FINDINGS (138 blocks, 27 records, 3 seals), NO LOGIN WITHOUT A PERSON, FUNCTIONS
+DEPLOYED AND CURRENT. Record: `release-evidence\staging-milling-qc-packing-20261016-005946.log` on Veda's machine.
+Next: the run sheet's Afterwards.
+
+## 16 October 2026, 01:00–01:40 IST: release 6 run-sheet checks on staging (KH26 Bansi)
+
+Lucky (Client Manager, holds every stage of KH26 Bansi) and Ram (State Manager) signed in by Veda; Claude drove the
+steps in Chrome, practice data only.
+
+- Menu at 1366 px: "Collection Batch (one collection point)" 48 px high (two lines), no overlap with the next line.
+- Scope page: "Milling, Quality Control and Packing" card; details on; Domestic and Export ticked; Practice EU (test)
+  ticked, still ticked after a reload.
+- Set-up lists (Lucky): Practice mill (test), Practice packing (test), packs 1 kg and 500 g pouch. Labs (Ram): UP's
+  Practice lab (test) was retired (release-4 checks); brought back. The sample form had rightly not offered it.
+- Milling: VB-0001 verified; M-0001 recorded: mill, fully cleaned (empty first: "Say how the line was cleared (the
+  mill is not dedicated to this crop)."), operator, 243 kg in, 150 / 12 / 60 / 18 out; loss 3 kg, recovery 66.67 %,
+  head-rice share 61.73 %; 150 kg forward. VB-0001 then offered "4 kg is left of this lot"; closed, 4 kg floor loss.
+- Quality Control: M-0001 verified; sample M-0001-S1 drawn on the QC screen (1 kg, Practice lab, seal CS-TEST-1, QC
+  shelf, kept until 16 Oct 2027): "sent to the lab, awaiting results". QC-0001 on that sample (no typed sample or lab
+  name), moisture 12.5, aflatoxin 1.5, the practice report PDF attached by Veda: 149 kg forward; "By market: Domestic
+  PASS · Export (general) PASS · Practice EU (test) PASS"; the sample then "results in (QC-0001)".
+- Packing: QC-0001 verified; PK-0001 from the pack list, 100 × 1 kg + 90 × 500 g = 145 kg; the wastage 2.7 % asked a
+  reason in plain words, then saved with the warning; batch B0001 with its serials.
+- Commercial before the check: "Weigh the packs the system picked (net weight check) before this record is verified."
+  Net weight: 5 packs picked; one 500 g pack at 460 g: Failed; weighed again: Passed. Commercial then verified,
+  ticking "Pack count per size matches the packing record".
+- Found (for release 54): the Collection Batch system check "✗ Village named" (looks for the old typed village);
+  "Yield" shown beside "Recovery (head + broken)" on a new milling record; on the QC form a market profile's test with
+  no crop limit reads "domestic <= undefined · export <= undefined".
+
+## 16 October 2026, morning: Commercial and Shipment, release 7 (migration 54, open item 49), local stack
+
+Veda: "continue with release 54" (G19), with her four points on release 6's checks (villages from the list; the
+Collection Batch's collection point; the farmer from a list; labs kept on GrainVeda's side, the client's too) and her
+answers ("Client Manager too", "List only", "Village, then farmer"). Release 6 is on staging (16 Oct 00:59, a49f01e);
+`staging-commercial-shipment.cmd` expects only migration 54.
+
+- **Database**: `tests/run_local.sh` **ALL TESTS PASSED** (2,048 checks on the fresh build; the smoke check on the fresh
+  build, every row OK but the standing ones; production build; **upgrade path**, all 48 test files again: it first
+  failed because seed 01's new Commercial hand-off check needs migration 49's column; the seed now skips it on a
+  database from before; concurrency). Every test file on a migrated copy: 2,023 checks, no failure. New
+  `tests/48_commercial_shipment.sql` (**74 checks, 40 controls**, each caught; one control first missed: a pack code
+  of another batch was refused only because it did not exist, so a real pack of another batch was added): client labs
+  (who keeps them, their state, never moved, the lab for a scope); villages from the list at step 1 (a state with no
+  list as before); the Collection Batch's point (only its lots; required where the details are asked); the chain to
+  packs with profiles and their limits on the QC form; Commercial (the buyer from the list, the order number, an export
+  market the batch passed, the destination, packs by type from what is left, the price kept out of the record and the
+  ledger, the total value, who reads it); export documents (received with a file, not required with why, only the
+  market's, only Commercial or a manager); Shipment (partial shipments, the domestic papers, the export papers, pack
+  codes of the batch once each, the loading photo before verification, the bill of lading once); the old path. Tests
+  08, 45 and 47 adapted. The ledger audit knows the new `bill_of_lading` block (a control without that line reports it).
+- **API**: `remote_create_user.mjs` 95 passed; `remote_rls.mjs --t1` 192 passed. `scripts/restore_drill.mjs`: RESTORE
+  DRILL PASSED.
+- **Smoke check**: the new row `commercial shipment` (51 rows): MISSING before 54, OK after.
+- **Unit**: 576 passed (new `commercial_shipment.test.tsx`, 63: the Commercial and Shipment forms by the scope's setting
+  and by the lot (its market, its packs), the packs and pack codes in the record, the worked-out values in order and in
+  words, the market profile's limits on the lab form, the batch's point offline in the save's words, the farmer by
+  village, villages on the list, the labs, plain words for every new refusal checked against the migration's own
+  sentences (with a control), every new word in English and Hindi). `setup_lists.test.ts` now holds that the farmer
+  form never adds a place.
+- **Screens**: default suite 87 tests: **82 passed** in the full run; 5 failed on the farmer picker the tests still
+  waited for (phase3 ×2, phase5 ×2: "the list is loaded" read the old button; phase26: the village list read before it
+  filled). Fixed in the tests and run again on a rebuilt stack: 16 of 17 passed; the one left (phase3 "Dashboards")
+  needs the sealed lots the earlier files make and passed in the full run. Production build 14 passed; the first day
+  from nothing 1 passed (the Client Manager adds the farmer's village in Places first). Every spec that picks a farmer
+  now picks his village, then him (`pickFarmer`). New `phase26` at 527 px (also run at 390 and 1366 px for pictures):
+  a client lab added in Set-up lists and offered to QC beside the state's; farmers picked by village; a Collection
+  Batch whose point offers only its lots; a domestic order of 10 × 1 kg and 4 × 500 g (12 kg, INR 1,440 kept apart);
+  an export order with its four documents (one received with its file, three not required); a domestic shipment with
+  the vehicle and LR; an export shipment refused with 9 codes for 10 packs, saved with 10, the loading photo, then the
+  bill of lading added once. A control: with the batch's point filter taken out, phase26 fails. Pictures looked at:
+  the forms and record pages at 390 px; one fault found that way and fixed: the record showed the export market's code
+  beside its name.
+- **`scripts/staging_commercial_shipment.ps1`** on stand-ins, 18 scenarios: 54 waiting runs through to `RESULT:
+  COMMERCIAL SHIPMENT ON STAGING` (51 files committed); a second run; refused: 53 and 54 waiting, 53 alone, another
+  migration, wrong words, rule not in place, push fails, read-back fails, an old form, sale terms already there,
+  production, functions not current, a smoke row not OK, a changed migration, a changed smoke check, a changed or a new
+  app file; the earlier scripts now refuse. Its read-back queries run on a migrated local database (and fail on one of
+  release 6). Sealed: 149 files.
+- **Not done**: one order from several batches; a buyer's own specification in QC; on a domestic order the export
+  fields (market profile, destination) still show, empty and not asked.

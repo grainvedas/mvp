@@ -359,6 +359,21 @@ select 'milling qc packing',       case when to_regclass('public.qc_samples') is
                                       then 'NOT OK (the tables are there; their change log, the sample trigger or the new milling form is missing)'
                                       else 'OK the mill and its line clearance, head rice and broken, close a lot; the sample drawn first, a verdict per market; packs from the list, the net weight check' end
 union all
+select 'commercial shipment',      case when to_regclass('public.sale_terms') is null or to_regclass('public.export_documents') is null
+                                        or to_regclass('public.bills_of_lading') is null
+                                        or to_regprocedure('app.packs_left(uuid)') is null or to_regprocedure('app.set_export_doc(uuid, text, text, uuid, text)') is null
+                                        or to_regprocedure('app.add_bill_of_lading(uuid, text)') is null or to_regprocedure('app.lab_for_scope(uuid, uuid)') is null
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'labs' and column_name = 'client_id')
+                                      then 'MISSING (push migration 54)'
+                                      when (select count(*) from pg_trigger where tgname = 'zz_change_log') < 49
+                                        or not exists (select 1 from pg_trigger where tgname = 'footprints_a01_sale_terms')
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'commercial' and form_schema @> '[{"key": "buyer_id"}]')
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'village_batch' and form_schema @> '[{"key": "collection_point_id"}]')
+                                      then 'NOT OK (the tables are there; their change log, the price trigger, or the new Commercial or Collection Batch form is missing)'
+                                      when exists (select 1 from public.ledger where payload ? 'price_per_kg')
+                                      then 'NOT OK (a sale price is in the ledger)'
+                                      else 'OK buyers from the list, packs by type, the price kept apart, export documents; the export papers, pack codes and the bill of lading; a batch of one collection point; client labs; villages from the list' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

@@ -31,3 +31,23 @@ do $seed53$ begin
                  where id::text like '00000000-0000-4000-8000-0000000004%' $q$;
   end if;
 end $seed53$;
+
+-- Migration 54: a farmer's village is picked from the places list (district, block, village) before he is verified.
+-- The demo's villages are on the list, so that the tests and the demo register farmers there; a block and village of
+-- the practice system are added by its people in Set-up lists, Places. A database from before migration 51 has no
+-- places: nothing to do.
+do $seed54$
+declare up uuid := (select id from public.states where name = 'Uttar Pradesh' limit 1); v text[];
+begin
+  if to_regclass('public.places') is null or up is null then return; end if;
+  foreach v slice 1 in array array[
+    ['Siddharthnagar', 'Bansi', 'Bansi'], ['Siddharthnagar', 'Bansi', 'Itwa'], ['Siddharthnagar', 'Bansi', 'Bansi Kalan'],
+    ['Siddharthnagar', 'Bansi', 'Bansi Khurd'], ['Siddharthnagar', 'Bansi', 'Naugarh'], ['Siddharthnagar', 'Bansi', 'Shohratgarh'],
+    ['Siddharthnagar', 'Domariyaganj', 'Domariyaganj'], ['Siddharthnagar', 'Domariyaganj', 'Domariaganj'],
+    ['Maharajganj', 'Nichlaul', 'Nichlaul'], ['Lucknow', 'Gosaiganj', 'Gosaiganj'], ['Gorakhpur', 'Campierganj', 'Campierganj']] loop
+    if exists (select 1 from public.places p where p.state_id = up and p.block is null and app.norm_place(p.district) = app.norm_place(v[1])) then
+      insert into public.places (state_id, district, block) values (up, v[1], v[2]) on conflict do nothing;
+      insert into public.places (state_id, district, block, village) values (up, v[1], v[2], v[3]) on conflict do nothing;
+    end if;
+  end loop;
+end $seed54$;

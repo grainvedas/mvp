@@ -69,7 +69,9 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
           <dt>{t('record.qty_in')}</dt><dd>{kg(f.qty_in)}</dd>
           <dt>{t('record.qty_out')}</dt><dd className="big">{kg(f.qty_out)}</dd>
           <dt>{t('record.available')}</dt><dd>{kg(r.available_kg)}</dd>
-          <ComputedRows computed={f.computed} t={t} />
+          {/* migration 54: a bill of lading added after the ship sailed is no longer "to come" */}
+          <ComputedRows computed={r.bill_of_lading ? { ...f.computed, bl_pending: false } : f.computed} t={t} />
+          {r.bill_of_lading && <><dt>{t('field.bl_no')}</dt><dd className="mono" data-testid="record-bl">{r.bill_of_lading.bl_no} · {date(r.bill_of_lading.added_at)}</dd></>}
           {f.happened_on && <><dt>{t('on.label')}</dt><dd data-testid="record-on">{date(f.happened_on)}</dd></>}
           {f.manager_reason && <><dt>{t('mgr.recorded_by_manager')}</dt><dd data-testid="record-manager-reason">“{f.manager_reason}”</dd></>}
           <dt>{t('record.recorded')}</dt><dd>{dateTime(when.at)} · {r.created_by_name ?? '—'}
@@ -103,6 +105,10 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
       {r.seal && <SealPanel code={r.seal.qr_code} hash={r.seal.ledger_hash} batch={r.seal.batch_codes} />}
       {r.seal && r.release && <ReleasePanel r={r} mayChange={!watch && (boss || isStateManager(ctx))} onDone={reload} />}
       {r.packs && <PacksPanel r={r} mayAct={me.role !== 'client_view' && !watch} onDone={reload} />}
+      {r.sale_terms && <SaleTermsPanel s={r.sale_terms} />}
+      {r.export_docs && r.export_docs.length > 0 && <ExportDocsPanel r={r} mayAct={me.role !== 'client_view' && !watch} onDone={reload} />}
+      {f.stage_type === 'shipment' && f.computed?.market === 'export' && !r.bill_of_lading && !f.payload?.bl_no && (f.status === 'pending' || f.status === 'verified')
+        && me.role !== 'client_view' && !watch && <BillOfLadingPanel f={f} onDone={reload} />}
       {f.stage_type === 'shipment' && <DeliveryPanel r={r} mayAct={me.role !== 'client_view' && !watch} onDone={reload} />}
       {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && !watch && <FinishSeal f={f} onDone={reload} />}
       {r.attachments.length > 0 && <Attachments detail={r} />}
@@ -495,6 +501,82 @@ function DeliveryPanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: bool
       <button disabled={act.busy || got === '' || !Number.isFinite(n) || !on} onClick={confirm} data-testid="delivery-confirm">{t('dl.confirm')}</button>
     </div>
   );
+}
+
+/** Migration 54 (C7): the sale's price and terms, kept apart from the record (the recorder, the client's Client Manager). */
+function SaleTermsPanel({ s }: { s: NonNullable<FootprintDetail['sale_terms']> }) {
+  const { t } = useI18n();
+  return (
+    <div className="card" data-testid="sale-terms">
+      <h2>{t('section.terms')}</h2>
+      <dl className="kv">
+        <dt>{t('field.price_per_kg')}</dt><dd>{s.price_per_kg === null ? '—' : `${s.currency} ${num(s.price_per_kg, 2)} / kg`}</dd>
+        {s.incoterms && <><dt>{t('field.incoterms')}</dt><dd>{s.incoterms}</dd></>}
+        {s.total_value !== null && <><dt>{t('ord.value')}</dt><dd data-testid="sale-value">{s.currency} {num(s.total_value, 2)}</dd></>}
+      </dl>
+    </div>);
+}
+
+/** Migration 54 (C7): the export documents the buyer's market asks for (its profile). Each is received (with its file),
+ *  applied for, or not required (with why). The shipment of the order waits until every one is received or not
+ *  required. Kept by Commercial or a manager of the scope: the server decides. */
+function ExportDocsPanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: boolean; onDone: () => void }) {
+  const { t } = useI18n();
+  const f = r.footprint;
+  const docs = r.export_docs ?? [];
+  const [edit, setEdit] = useState<{ doc: string; status: string; note: string; file: File | null } | null>(null);
+  const act = useAction();
+  const save = () => act.run(async () => {
+    let att: string | null = null;
+    if (edit!.status === 'received' && edit!.file) {
+      const path = await uploadEvidence(f, edit!.file, 'export_doc');
+      att = ((await q(supabase.from('attachments').select('id').eq('footprint_id', f.id).eq('storage_path', path).single())) as unknown as { id: string }).id;
+    }
+    await rpc('set_export_doc', { p_fp: f.id, p_doc: edit!.doc, p_status: edit!.status, p_attachment: att, p_note: edit!.note.trim() || null });
+    setEdit(null); onDone();
+  });
+  const done = docs.filter((d) => d.done).length;
+  const open = mayAct && (f.status === 'pending' || f.status === 'verified');
+  return (
+    <div className="card stack" data-testid="export-docs" data-done={done === docs.length ? 'yes' : 'no'}>
+      <h2>{t('xd.title')}</h2>
+      <p className="small muted">{t('xd.n_of_m', { n: done, m: docs.length })}</p>
+      <ul className="sys-checks">{docs.map((d, i) => (
+        <li key={d.doc} className={d.done ? 'ok' : 'not'} data-testid={`export-doc-${i}`} data-status={d.status ?? 'none'}>
+          <span aria-hidden="true">{d.done ? '✓' : '✗'}</span> {d.doc} · {t(`xd.st_${d.status ?? 'none'}`)}{d.note ? ` (“${d.note}”)` : ''}
+          {open && edit?.doc !== d.doc && <> <button type="button" className="secondary small" onClick={() => setEdit({ doc: d.doc, status: d.status ?? 'received', note: d.note ?? '', file: null })}
+            data-testid={`export-doc-edit-${i}`}>{t('common.edit')}</button></>}
+          {open && edit?.doc === d.doc && (
+            <div className="stack">
+              <Field label={t('common.status')} htmlFor={`xd-st-${i}`}><select id={`xd-st-${i}`} value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })} data-testid={`export-doc-status-${i}`}>
+                {['received', 'applied', 'not_required'].map((x) => <option key={x} value={x}>{t(`xd.st_${x}`)}</option>)}</select></Field>
+              {edit.status === 'received' && <Field label={`${t('xd.file')} *`} htmlFor={`xd-file-${i}`}>
+                <input id={`xd-file-${i}`} type="file" accept={EVIDENCE_ACCEPT} onChange={(e) => setEdit({ ...edit, file: e.target.files?.[0] ?? null })} data-testid={`export-doc-file-${i}`} /></Field>}
+              {edit.status === 'not_required' && <Field label={`${t('xd.why')} *`} htmlFor={`xd-note-${i}`}>
+                <input id={`xd-note-${i}`} value={edit.note} maxLength={300} onChange={(e) => setEdit({ ...edit, note: e.target.value })} data-testid={`export-doc-note-${i}`} /></Field>}
+              <ErrorBox error={act.error} />
+              <div className="row"><button onClick={save} data-testid={`export-doc-save-${i}`}
+                disabled={act.busy || (edit.status === 'received' && !edit.file && !d.attachment_id) || (edit.status === 'not_required' && edit.note.trim().length < 5)}>{t('common.save')}</button>
+                <button className="secondary" onClick={() => setEdit(null)}>{t('common.cancel')}</button></div>
+            </div>)}
+        </li>))}</ul>
+    </div>);
+}
+
+/** Migration 54 (C8): the bill of lading, when it comes after the ship sailed ("Sailed, BL pending"): added once. */
+function BillOfLadingPanel({ f, onDone }: { f: Footprint; onDone: () => void }) {
+  const { t } = useI18n();
+  const [bl, setBl] = useState('');
+  const act = useAction();
+  return (
+    <div className="card stack" data-testid="bl-panel">
+      <h2>{t('bl.title')}</h2>
+      <p className="small muted">{t('bl.hint')}</p>
+      <Field label={`${t('field.bl_no')} *`} htmlFor="bl-no"><input id="bl-no" value={bl} maxLength={30} autoComplete="off" onChange={(e) => setBl(e.target.value)} data-testid="bl-no" /></Field>
+      <ErrorBox error={act.error} />
+      <button disabled={act.busy || !/^[A-Za-z0-9/-]{4,30}$/.test(bl.trim())} onClick={() => void act.run(async () => { await rpc('add_bill_of_lading', { p_fp: f.id, p_bl: bl.trim() }); onDone(); })}
+        data-testid="bl-save">{t('bl.save')}</button>
+    </div>);
 }
 
 /** A QR record whose seal was refused at the gate (saved by the two-step path used before migration 24). */

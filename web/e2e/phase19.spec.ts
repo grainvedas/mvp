@@ -3,13 +3,12 @@
 // he answers it, and the lot is saved. Another detail he finds wrong he proposes, with a reason; the Client Manager
 // approves it on his Farmers page. Every rule is the database's (tests/41_farmer_proposals.sql).
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signOut, expectNoSideScroll, openSlot, reviewAndSave, localStack, USERS, SCOPES } from './helpers';
+import { signIn, signOut, expectNoSideScroll, openSlot, reviewAndSave, localStack, USERS, SCOPES, pickFarmer } from './helpers';
 
 test.use({ viewport: { width: 527, height: 900 } });
 const KALANAMAK = '00000000-0000-4000-8000-000000000101';
 const fillLot = async (page: Page) => {
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Geeta');
-  await page.getByRole('button', { name: /Geeta Kumari/ }).click();
+  await pickFarmer(page, /Geeta Kumari/);
   await page.getByLabel(/Gross weight/).fill('100');
   await page.getByLabel(/^Bags/).fill('2');
   await page.getByLabel(/Tare per bag/).fill('1');

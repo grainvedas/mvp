@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { addJoiner, apiAs, markJoined, freshEmail, setOwnPassword, signInWith, signOut, fillFarmerPlace, fillWhere } from '../e2e/helpers';
+import { addJoiner, apiAs, markJoined, freshEmail, setOwnPassword, signInWith, signOut, fillFarmerPlace, fillWhere, pickFarmer, addPlace } from '../e2e/helpers';
 
 // THE FIRST DAY OF A PILOT, from a system with nothing in it: no state, no crop, no client, no person but one admin.
 // Every other suite starts from demo rows a seed put in place; this one starts where scripts/staging_fresh_start.ps1
@@ -235,7 +235,9 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.getByRole('button', { name: 'Activate scope' }).click();
   await expect(page.getByRole('heading', { name: /Siddharthnagar/ })).toContainText('Active');
 
-  // 7. The Client Manager adds the farmer and verifies it once (step 1) …
+  // 7. The Client Manager adds the farmer's village to the state's list (migration 54: villages "entered in database
+  // before hand"), then the farmer, and verifies it once (step 1) …
+  await addPlace(page, 'Siddharthnagar', 'Bansi', 'Bansi');
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(`Ramkali ${u}`);
   await page.getByLabel('Father / husband name *').fill('Shri Bhola');
@@ -266,8 +268,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await signInWith(page, who.buy.email, made.buy.temp);
   await setOwnPassword(page, PW.buy);
   await page.getByTestId('slot-procurement').click();
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Ramkali');
-  await page.getByRole('button', { name: new RegExp(`Ramkali ${u}`) }).click();
+  await pickFarmer(page, new RegExp(`Ramkali ${u}`));
   await page.getByLabel(/Gross weight/).fill('120');
   await page.getByLabel(/^Bags/).fill('2');
   await page.getByLabel(/Tare per bag/).fill('1');

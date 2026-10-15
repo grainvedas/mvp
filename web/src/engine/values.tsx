@@ -16,11 +16,18 @@ const ORDER = ['net_kg', 'moisture_avg', 'moisture_min', 'moisture_max', 'varian
   'clean_kg', 'reject_kg', 'reject_reasons', 'grade_split', 'yield_pct', 'bran_kg', 'loss_kg', 'expected_out_kg',
   'water_removed_kg', 'grain_loss_kg', 'pop_rate_pct', 'weight_yield_pct', 'foreign_matter_kg', 'water_uptake_kg',
   'spoilage_kg', 'packed_kg', 'wastage_kg', 'batch_code', 'sample_qty_kg', 'forwarding_kg', 'market', 'buyer',
+  'buyer_country', 'order_no', 'market_code', 'market_name', 'destination_country', 'sale_route', 'packs',     // migration 54: Commercial
+  'invoice_no', 'serials_count', 'container_no', 'bl_pending',                                                 // migration 54: Shipment
   'transit_loss_kg', 'final_kg', 'grade'];
+/** Worked-out values kept for the system, not shown: the buyer's row id (his name and country are shown), the export
+ *  market's code (its name is shown: seen on the record page at 390 px, the two lines said the same). */
+const NOT_SHOWN = new Set(['buyer_id', 'market_code']);
 
 export function orderedComputed(computed: Record<string, unknown> | null | undefined): [string, unknown][] {
   const rank = (k: string) => { const i = ORDER.indexOf(k); return i < 0 ? ORDER.length : i; };
-  return Object.entries(computed ?? {}).sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b));
+  // the yield of a milling run is its recovery (found in release 6's checks: "Yield" stood beside "Recovery", the same figure)
+  const hide = (k: string) => NOT_SHOWN.has(k) || (k === 'yield_pct' && computed != null && 'recovery_pct' in computed);
+  return Object.entries(computed ?? {}).filter(([k]) => !hide(k)).sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b));
 }
 
 export const computedLabel = (key: string, t: T) => t(`computed.${key}`, undefined, humanise(key));
@@ -39,6 +46,7 @@ function row(x: unknown, t: T): string {
   if (x === null || typeof x !== 'object') return String(x ?? '');
   const r = x as Record<string, unknown>;
   if ('reason' in r) return `${String(r.reason)} ${kg(Number(r.kg ?? 0))}`;
+  if ('units' in r && 'name' in r) return `${num(Number(r.units), 0)} × ${String(r.name)}`;     // migration 54: packs of an order, by type
   if ('units' in r) return `${num(Number(r.units), 0)} × ${kg(Number(r.size_kg ?? 0))}`;
   if ('village' in r) return `${String(r.village)} ${kg(Number(r.kg ?? 0))}${r.share_pct !== undefined ? ` (${num(Number(r.share_pct), 1)} %)` : ''}`;
   return Object.entries(r).map(([k, v]) => `${t(`field.${k}`, undefined, humanise(k))} ${String(v)}`).join(', ');
@@ -72,7 +80,8 @@ export function showEntered(fd: FieldDef | undefined, key: string, v: unknown, t
   if (type === 'number[3]' && Array.isArray(v)) return `${v.map((x) => num(Number(x), 2)).join(' · ')}${fd?.unit ? ` ${fd.unit}` : ''}`;
   if (type === 'date' && typeof v === 'string') return fmtDate(v);
   if (type === 'collection_point') return v === 'farm' ? t('cp.at_farm') : t('cp.a_point');   // its name is with the worked-out values
-  if (type === 'mill' || type === 'packing_unit' || type === 'lab' || type === 'qc_sample') return t(`pick.${type}`);    // migration 53: likewise
+  if (type === 'mill' || type === 'packing_unit' || type === 'lab' || type === 'qc_sample' || type === 'buyer') return t(`pick.${type}`);    // migration 53: likewise
+  if (type === 'serials' && Array.isArray(v)) return t('ship.codes_n', { n: v.length });                                   // migration 54
   if (type === 'gps' && typeof v === 'object' && !Array.isArray(v)) { const g = v as { lat?: unknown; lng?: unknown }; return `${String(g.lat ?? '')}, ${String(g.lng ?? '')}`; }
   if (typeof v === 'number') return number(key, v, fd?.unit);
   if (typeof v === 'boolean') return t(v ? 'common.yes' : 'common.no');
@@ -99,7 +108,8 @@ export function EnteredRows({ payload: raw, fields, stage, params, computed, t }
   }
   // the name of what was picked from a list, from the record's worked-out values (migration 53: the mill, the packing
   // unit, the lab, the sample)
-  const NAME_OF: Record<string, string> = { collection_point: 'collection_point', mill: 'mill', packing_unit: 'packing_unit', lab: 'lab', qc_sample: 'sample_code' };
+  const NAME_OF: Record<string, string> = { collection_point: 'collection_point', mill: 'mill', packing_unit: 'packing_unit', lab: 'lab', qc_sample: 'sample_code',
+    buyer: 'buyer', market_profile: 'market_name' };
   const named = (f: FieldDef) => {
     const k = NAME_OF[f.type];
     if (!k || (f.type === 'collection_point' && payload[f.key] === 'farm')) return null;

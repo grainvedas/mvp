@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import writeXlsxFile from 'write-excel-file/node';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { signIn, signOut, openSlot, SCOPES, USERS, fillFarmerPlace, pickFromPool } from './helpers';
+import { signIn, signOut, openSlot, SCOPES, USERS, fillFarmerPlace, pickFromPool, pickFarmer } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
@@ -194,8 +194,7 @@ test('Role rules are visible in the UI: QC technician has no Farmers menu; clien
 test('Correct a pending record; flag it; manager resolves the flag', async ({ page }) => {
   await signIn(page, USERS.procurement);
   await page.goto('/work/00000000-0000-4000-8000-000000000403/procurement');
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Mohan');
-  await page.getByRole('button', { name: /Mohan Lal/ }).click();
+  await pickFarmer(page, /Mohan Lal/);
   await page.getByLabel(/Gross weight/).fill('100');
   await page.getByLabel(/^Bags/).fill('2');
   await page.getByLabel(/Tare per bag/).fill('1');

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { signIn, signOut, USERS, SCOPES, openSlot, reviewAndSave } from '../e2e/helpers';
+import { signIn, signOut, USERS, SCOPES, openSlot, reviewAndSave, pickFarmer } from '../e2e/helpers';
 import { loadEnv } from '../../scripts/lib/env.mjs';
 
 // Runs against the BUILT app served by scripts/serve-dist.mjs, which behaves like the production host: dist/_headers
@@ -44,13 +44,12 @@ test('Offline start: after one online sign-in the app opens with no network and 
   await page.reload();                                                    // now controlled by the worker
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await openSlot(page, 'procurement', SCOPES.gorakhpur);
-  await expect(page.getByRole('button', { name: /Ram Achal/ })).toBeVisible();
+  await expect(page.getByTestId('pick-village').locator('option').nth(1)).toBeAttached();   // the farmers' villages are loaded
 
   await context.setOffline(true);
   await page.reload();                                                    // cold start with no network
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Procurement (farm-gate)');
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');
-  await page.getByRole('button', { name: /Sita Devi/ }).click();
+  await pickFarmer(page, /Sita Devi/);
   await page.getByLabel(/Gross weight/).fill('150'); await page.getByLabel(/^Bags/).fill('1'); await page.getByLabel(/Tare per bag/).fill('2.5');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.9');
   await expect(page.getByTestId('preview-ok')).toContainText('147.5 kg');
@@ -106,8 +105,7 @@ test('Under the enforced security policy the whole journey works: sign in, recor
 
   await signIn(page, USERS.procurement);
   await openSlot(page, 'procurement', SCOPES.siddharthnagar);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');
-  await page.getByRole('button', { name: /Sita Devi/ }).click();
+  await pickFarmer(page, /Sita Devi/);
   await page.getByLabel(/Gross weight/).fill('150'); await page.getByLabel(/^Bags/).fill('1'); await page.getByLabel(/Tare per bag/).fill('2.5');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.9');
   await page.getByLabel(/Photo evidence/).setInputFiles({ name: 'bags.png', mimeType: 'image/png',

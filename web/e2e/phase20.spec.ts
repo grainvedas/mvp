@@ -4,7 +4,7 @@
 // action", his client's ledger with the return and its reason, a record he makes at a stage he does not hold (with his
 // reason), and the farmer's history with every line named. Every rule is the database's (tests/42_operator_template.sql).
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signOut, expectNoSideScroll, openSlot, reviewAndSave, procure, USERS, SCOPES, todayIST } from './helpers';
+import { signIn, signOut, expectNoSideScroll, openSlot, reviewAndSave, procure, USERS, SCOPES, todayIST, pickFarmer } from './helpers';
 
 test.use({ viewport: { width: 527, height: 900 } });
 const S = SCOPES.siddharthnagar;
@@ -18,8 +18,7 @@ test('return to sender, the date it happened, verify with a condition, and the C
   // 1 · Procurement records a lot "on" yesterday; its number names the scope (E4)
   await signIn(page, USERS.procurement);
   await openSlot(page, 'procurement', S);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Geeta');
-  await page.getByRole('button', { name: /Geeta Kumari/ }).click();
+  await pickFarmer(page, /Geeta Kumari/);
   await page.getByTestId('happened-on').fill(yesterday());
   await page.getByLabel(/Gross weight/).fill('130');
   await page.getByLabel(/^Bags/).fill('2');
@@ -89,8 +88,7 @@ test('return to sender, the date it happened, verify with a condition, and the C
 
   // 6 · he records at a stage he does not hold: only with his reason (A10)
   await page.goto(`/work/${S}/procurement`);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Geeta');
-  await page.getByRole('button', { name: /Geeta Kumari/ }).click();
+  await pickFarmer(page, /Geeta Kumari/);
   await page.getByLabel(/Gross weight/).fill('60');
   await page.getByLabel(/^Bags/).fill('1');
   await page.getByLabel(/Tare per bag/).fill('1');

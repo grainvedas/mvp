@@ -1,7 +1,7 @@
 // Decision G8 = B (4 October 2026): the prototype's frame, first screens, form sections and status words, on a laptop
 // and on a phone. The other spec files run at phone size; this one sets its own sizes.
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signOut, USERS, SCOPES, procure, recordQc, sealLot, apiAs } from './helpers';
+import { signIn, signOut, USERS, SCOPES, procure, recordQc, sealLot, apiAs, pickFarmer } from './helpers';
 
 const LAPTOP = { viewport: { width: 1366, height: 768 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 } as const;
 const noSideScroll = (page: Page, what: string) => expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
@@ -118,8 +118,7 @@ test.describe('on a laptop', () => {
     await signIn(page, USERS.procurement);
     await expect(page.getByTestId('work-picker')).toBeVisible();                           // five scopes: the first screen asks where
     await page.goto(`/work/${SCOPES.siddharthnagar}/procurement`);                         // a stage opened by its address, with no place chosen
-    await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');
-    await page.getByRole('button', { name: /Sita Devi/ }).click();
+    await pickFarmer(page, /Sita Devi/);
     const form = page.locator('form');
     await expect(form.locator('.form-section h3')).toHaveText([/Farmer/, /Weighing/, /Moisture readings/, /Evidence/, /Where it was weighed/, /If known/]);   // migration 52
     const gross = await box(page, page.getByLabel(/Gross weight/)); const bags = await box(page, page.getByLabel(/^Bags/)); const tare = await box(page, page.getByLabel(/Tare per bag/));
@@ -176,8 +175,7 @@ test.describe('on a phone', () => {
     await expect(page.getByText('My recent records')).toBeVisible();
     await noSideScroll(page, 'operator first screen');
     await page.getByTestId('slot-procurement').click();
-    await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Sita');
-    await page.getByRole('button', { name: /Sita Devi/ }).click();
+    await pickFarmer(page, /Sita Devi/);
     const gross = await box(page, page.getByLabel(/Gross weight/)); const bags = await box(page, page.getByLabel(/^Bags/));
     expect(bags.y, 'one column: bags under gross weight').toBeGreaterThan(gross.y + gross.height - 1);
     await expect(page.locator('form .form-section h3').first()).toContainText('Farmer');

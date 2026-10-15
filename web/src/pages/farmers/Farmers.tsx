@@ -19,7 +19,7 @@ import { giLandProblem, needsGiLand } from '../../lib/farmers';
 import { RegisterLink } from './FarmerRegister';
 import { ProposalsCard } from './FarmerPractice';
 import { usePlaces } from '../setup/data';
-import { blocksOf, districtListed, districtsOf, gpsNumber, gpsProblem, normPlace, parseGps, placeIsNew, villagesOf } from '../../lib/setup';
+import { blocksOf, districtListed, districtsOf, gpsNumber, gpsProblem, normPlace, parseGps, villageListed, villagesOf, villagesOfDistrict } from '../../lib/setup';
 
 /** The client whose farmers this user works with; State Managers and admins pick one. */
 export function useClientChoice() {
@@ -260,6 +260,10 @@ export function FarmerForm() {
   const gpsBad = located ? gpsProblem(f.farm_lat, f.farm_lng) : null;
   const noGps = located && needsGps && !f.farm_lat.trim();
   const districtOff = located && districts.length > 0 && !!f.district.trim() && !districtListed(pl.places, stateId, f.district);
+  const listed = located && districts.length > 0;                          // migration 54: block and village from the list only
+  const blocks = listed ? blocksOf(pl.places, stateId, f.district) : [];
+  const villages = listed ? (f.block.trim() ? villagesOf(pl.places, stateId, f.district, f.block) : villagesOfDistrict(pl.places, stateId, f.district)) : [];
+  const villageOff = listed && !!f.village.trim() && !districtOff && !villageListed(pl.places, stateId, f.district, f.block, f.village);
   const act = useAction();
   useEffect(() => {
     if (!id) return;
@@ -288,9 +292,8 @@ export function FarmerForm() {
   const submit = (e: FormEvent, andSubmit: boolean) => { e.preventDefault(); void act.run(async () => {
     const digits = f.phone.replace(/[^0-9]/g, '');
     const phone = digits.length === 10 ? `+91${digits}` : f.phone;
-    // a block or village new to the list is added first (by the people who register farmers there: app.add_place)
-    if (located && districts.length > 0 && !districtOff && placeIsNew(pl.places, stateId, f.district, f.block, f.village))
-      await rpc('add_place', { p_state: stateId, p_district: f.district.trim(), p_block: f.block.trim(), p_village: f.village.trim() || null });
+    // migration 54 (Veda, 16 Oct: "list only"): the village is picked from the list; a missing one is added first in
+    // Set-up lists, Places (the save refuses one that is not there)
     const placed = located ? { block: f.block.trim() || null, farm_lat: gpsNumber(f.farm_lat), farm_lng: gpsNumber(f.farm_lng),
       land_record_no: f.land_record_no.trim() || null, gi_user_no: f.gi_user_no.trim() || null } : {};
     const row = { ...placed, name: f.name.trim(), guardian_name: f.guardian_name.trim(), village: f.village.trim(), district: f.district.trim(), phone,
@@ -343,12 +346,29 @@ export function FarmerForm() {
             </select>
             {districtOff && <div className="small" style={{ color: 'var(--warn)' }} data-testid="farmer-district-off">{t('fl.district_off')}</div>}
           </Field>) : input('district', t('farmer.district'))}
-        {located && <Field label={t('fl.block')} hint={districts.length > 0 ? t('fl.block_hint') : undefined} htmlFor="farmer-block">
-          <input id="farmer-block" list="farmer-blocks" value={f.block} maxLength={80} onChange={set('block')} data-testid="farmer-block" />
-          <datalist id="farmer-blocks">{blocksOf(pl.places, stateId, f.district).map((b) => <option key={b} value={b} />)}</datalist></Field>}
-        <Field label={`${t('farmer.village')} *`} htmlFor="farmer-village">
-          <input id="farmer-village" list="farmer-villages" value={f.village} onChange={set('village')} required data-testid="farmer-village" />
-          {located && <datalist id="farmer-villages">{villagesOf(pl.places, stateId, f.district, f.block).map((v) => <option key={v} value={v} />)}</datalist>}</Field>
+        {located && !listed && <Field label={t('fl.block')} htmlFor="farmer-block">
+          <input id="farmer-block" value={f.block} maxLength={80} onChange={set('block')} data-testid="farmer-block" /></Field>}
+        {listed && f.district && <Field label={t('fl.block')} hint={t('fl.block_pick_hint')} htmlFor="farmer-block">
+          <select id="farmer-block" value={blocks.find((b) => normPlace(b) === normPlace(f.block)) ?? (f.block ? '__typed' : '')} data-testid="farmer-block"
+            onChange={(e) => setF((s) => ({ ...s, block: e.target.value === '__typed' ? s.block : e.target.value, village: '' }))}>
+            <option value="">—</option>
+            {f.block && !blocks.some((b) => normPlace(b) === normPlace(f.block)) && <option value="__typed">{t('fl.not_listed', { name: f.block })}</option>}
+            {blocks.map((b) => <option key={b} value={b}>{b}</option>)}
+          </select></Field>}
+        {listed ? (
+          <Field label={`${t('farmer.village')} *`} hint={t('fl.village_pick_hint')} htmlFor="farmer-village">
+            <select id="farmer-village" value={villages.find((v) => normPlace(v) === normPlace(f.village)) ?? (f.village ? '__typed' : '')} required data-testid="farmer-village"
+              onChange={(e) => setF((s) => ({ ...s, village: e.target.value === '__typed' ? s.village : e.target.value }))}>
+              <option value="">—</option>
+              {villageOff && <option value="__typed">{t('fl.not_listed', { name: f.village })}</option>}
+              {villages.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+            {villages.length === 0 && f.district && <div className="small" data-testid="farmer-no-villages">{t('fl.no_villages')}</div>}
+            {villageOff && <div className="small" style={{ color: 'var(--warn)' }} data-testid="farmer-village-off">{t('fl.village_off')}</div>}
+            {(cm || isStateManager(ctx)) && <div className="small"><Link to="/setup?tab=places" data-testid="farmer-places-link">{t('fl.add_village')}</Link></div>}
+          </Field>)
+          : <Field label={`${t('farmer.village')} *`} htmlFor="farmer-village">
+              <input id="farmer-village" value={f.village} onChange={set('village')} required data-testid="farmer-village" /></Field>}
         {located && <GpsBoxes lat={f.farm_lat} lng={f.farm_lng} required={needsGps} problem={gpsBad}
           onChange={(lat, lng) => setF((s) => ({ ...s, farm_lat: lat, farm_lng: lng }))} />}
         {located && id && <GiAreaNote farmerId={id} tick={tick} />}

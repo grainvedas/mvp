@@ -16,7 +16,7 @@ import { kg, dateTime, date, humanise, todayIST } from '../lib/format';
 import type { Footprint, FootprintReturn, IncomingLot, LotMarkets, Preview, QualityParam, ReleasePreview, StageForm, StageType, SystemCheck, VerdictPreview, Withdrawal } from '../lib/types';
 import { giLabel } from '../lib/gi';
 import { ErrorBox, Loading, Badge, Empty, Field, errorText, plainText } from '../shell/ui';
-import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, KNOWN_LOTS, loadIncomingLots, type FieldValue } from './widgets';
+import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, withLotRules, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, KNOWN_LOTS, loadIncomingLots, type FieldValue, type PackLeft } from './widgets';
 import { SamplesPanel } from '../pages/records/Samples';
 import { SECTION_ICON, stageIcon } from './icons';
 import { uploadEvidence, UPLOAD_WAIT_MS } from './evidence';
@@ -416,8 +416,27 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
   const { t } = useI18n();
   const { ctx } = useAuth();
   const online = useOnline();
+  // migration 54 (C7, C8): what the lot this record is made from decides: the order's market (Shipment: its papers) and
+  // whether it has packs by type (the packs are chosen, not the kilograms)
+  const lotRuled = form.stage.form_schema.some((fd) => fd.for_market || fd.with_packs || fd.hidden_when_packs);
+  const lotId = source?.id ?? editing?.prev_footprint_id ?? replaces?.prev_footprint_id ?? undefined;
+  const [lot, setLot] = useState<{ market: string | null; packs: boolean }>({ market: null, packs: false });
+  useEffect(() => {
+    if (!lotRuled || !lotId) return;
+    let live = true;
+    void (async () => {
+      const known = (source?.id === lotId ? source.computed : null) as Record<string, unknown> | null;
+      const c = known ?? (await cached(`lot_computed:${lotId}`, async () => ((await q(supabase.from('footprints').select('computed').eq('id', lotId).single())) as unknown as { computed: Record<string, unknown> | null }).computed).catch(() => null));
+      const packs = form.scope.stage_details_required === true
+        ? (await cached(`packs_left:${lotId}`, () => rpc<PackLeft[]>('packs_left', { p_fp: lotId })).catch(() => [])).length > 0 : false;
+      if (live) setLot({ market: typeof c?.market === 'string' ? c.market : null, packs });
+    })();
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lotId, lotRuled]);
   // migration 50 (C5): the lab report's fields are required where the scope asks for the report
-  const fields = useMemo(() => withScopeRules(form.stage.form_schema, form.scope), [form]);
+  const fields = useMemo(() => withLotRules(withScopeRules(form.stage.form_schema, form.scope), lot), [form, lot]);
+  const stateId = ctx?.scopes.find((x) => x.scope_id === form.scope.id)?.state_id;
   const [values, setValues] = useState<Record<string, FieldValue>>(() =>
     draft ? (draft.values as Record<string, FieldValue>) : initialValues(form, source, editing ?? replaces ?? null));
   // migration 52: a correction of a lot whose price was recorded opens with that price and payment (kept apart from the record)
@@ -668,7 +687,7 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
                     <label htmlFor={`f-${fd.key}`}>{fd.label}{fd.unit ? ` (${fd.unit})` : ''}{fd.required ? ' *' : ''}</label>
                     <Widget id={`f-${fd.key}`} field={fd} value={values[fd.key] ?? null} qualityParams={form.quality_params}
                       clientId={form.scope.client.id} scopeId={form.scope.id} stageType={form.stage.stage_type}
-                      sourceId={source?.id ?? (editing?.prev_footprint_id ?? undefined)}
+                      sourceId={source?.id ?? (editing?.prev_footprint_id ?? undefined)} stateId={stateId} values={values}
                       allowed={fd.gate === 'market_verdict' && markets ? markets.markets : undefined}
                       onChange={(v) => setValues((s) => ({ ...s, [fd.key]: v }))} />
                     {fd.gate === 'market_verdict' && markets && !markets.export_allowed && (
@@ -753,6 +772,7 @@ export const shiftDay = (ymd: string, days: number) => { const d = new Date(`${y
 export function offlineRules(form: StageForm): OfflineRules {
   const m = form.quality_params.find((q) => ['moisture_pct', 'moisture'].includes(q.param) && ['<=', '<'].includes(q.operator ?? '<='));
   return { procurement_details_required: form.scope.procurement_details_required === true, record_price: form.scope.record_price === true,
+    stage_details_required: form.scope.stage_details_required === true,
     moisture_limit: m && typeof m.domestic_limit === 'number' ? m.domestic_limit : null, thresholds: form.scope.crop.thresholds ?? null, lots: KNOWN_LOTS };
 }
 

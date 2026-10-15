@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { signIn, signOut, expectNoSideScroll, openSlotAt } from './helpers';
+import { signIn, signOut, expectNoSideScroll, openSlotAt, pickFarmer } from './helpers';
 
 // Phase 3 through the real screens: airplane-mode capture (PRD §12 edge check: 10 lots offline sync in order),
 // a refused offline save surfaces and is fixed, dashboards + Client View + exports, Hindi.
@@ -14,8 +14,7 @@ const FARMERS = ['Ram Achal', 'Sita Devi', 'Mohan Lal', 'Geeta Kumari', 'Suresh 
 const open = openSlotAt;
 
 async function fillProcurement(page: Page, farmer: string, gross: number) {
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill(farmer.split(' ')[0]);
-  await page.getByRole('button', { name: new RegExp(farmer) }).click();
+  await pickFarmer(page, new RegExp(farmer));
   await page.getByLabel(/Gross weight/).fill(String(gross));
   await page.getByLabel(/^Bags/).fill('1');
   await page.getByLabel(/Tare per bag/).fill('1');
@@ -26,7 +25,7 @@ test('Airplane mode: 10 farm-gate lots captured offline sync in capture order wi
   test.setTimeout(240_000);
   await signIn(page, P.proc);
   await open(page, 'procurement', 'Gorakhpur');                       // online once: form + farmer list kept on the phone
-  await expect(page.getByRole('button', { name: /Ram Achal/ })).toBeVisible();
+  await expect(page.getByTestId('pick-village').locator('option').nth(1)).toBeAttached();   // the farmers' villages are loaded
   await context.setOffline(true);
   await expect(page.getByTestId('net-badge')).toContainText('Offline');
   await expectNoSideScroll(page);                                       // the offline badge must not widen the page
@@ -167,7 +166,7 @@ test('Hindi: operator screens switch language; English stays as the database sen
   await open(page, 'procurement', 'Gorakhpur');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('ख़रीद (फ़ार्म-गेट)');   // after its pictogram
   await expect(page.getByText(/^कुल वज़न/)).toBeVisible();
-  await expect(page.getByPlaceholder('नाम, किसान आईडी, फ़ोन या गाँव')).toBeVisible();
+  await expect(page.getByTestId('pick-village').locator('option').first()).toHaveText('पहले गाँव');   // migration 54: the village first
   // The record page too: its labels, the status word and the ledger's event names (they come from the database in English).
   await page.getByRole('tab', { name: 'इस चरण के रिकॉर्ड' }).click();
   await page.locator('tbody tr').first().getByRole('link').click();

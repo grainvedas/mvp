@@ -36,8 +36,14 @@ with blocks as (
                          and r.status = l.payload->>'act')
         end
       -- migration 50: what arrived, recorded at delivery
-      when 'delivery'       then exists (select 1 from public.deliveries d where d.shipment_id = l.footprint_id and d.confirmed_by = l.actor
-                                          and d.received_kg::text = l.payload->>'received_kg')
+      when 'delivery'       then case
+          -- migration 54: the bill of lading added after the ship sailed
+          when l.payload->>'act' = 'bill_of_lading'
+            then exists (select 1 from public.bills_of_lading b where b.footprint_id = l.footprint_id and b.added_by = l.actor
+                           and b.bl_no = l.payload->>'bl_no')
+          else exists (select 1 from public.deliveries d where d.shipment_id = l.footprint_id and d.confirmed_by = l.actor
+                         and d.received_kg::text = l.payload->>'received_kg')
+        end
       when 'supervisory'    then case
           -- migration 50: a release's status changed (under investigation, recalled, active again)
           when l.payload->>'act' like 'release\_%'

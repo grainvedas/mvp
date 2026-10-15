@@ -25,6 +25,10 @@ export interface FieldDef {
   shown_when?: string;
   /** migration 53: the field is NOT on the form where the scope's setting of this name is on */
   hidden_when?: string;
+  /** migration 54: on the form only for an order of this market (domestic or export) */
+  for_market?: string;
+  /** migration 54: on the form only where the lot has packs by type (with_packs), or only where it has none (hidden_when_packs) */
+  with_packs?: boolean; hidden_when_packs?: boolean;
 }
 
 export interface StageDefinition {
@@ -57,6 +61,8 @@ export interface QualityParam {
   /** grade: the passing grades; yes/no: the passing answer */
   domestic_pass?: string[] | boolean;
   export_pass?: string[] | boolean;
+  /** migration 54: a market profile's own test (not in the crop's limits): its limit per market */
+  from_profile?: boolean; limits?: { market: string; operator: string; limit: number | [number, number] | string[] | boolean }[];
 }
 
 export interface StageForm {
@@ -232,6 +238,12 @@ export interface FootprintDetail {
   net_weight?: { needed: boolean; check: null | { serials: string[]; weights: Record<string, { g: number; size_g: number; allowed_short_g: number; ok: boolean }> | null;
     result: 'pass' | 'fail' | null; checked_at: string | null } } | null;
   delivery?: Delivery | null;
+  /** migration 54 (C7, C8): a sale's price and terms (for who may read them), its export documents, a shipment's bill of
+   *  lading added later, the packs left of a packing batch or an order */
+  sale_terms?: { price_per_kg: number | null; currency: string; incoterms: string | null; total_value: number | null } | null;
+  export_docs?: { doc: string; status: 'received' | 'applied' | 'not_required' | null; attachment_id: string | null; note: string | null; done: boolean }[] | null;
+  bill_of_lading?: { bl_no: string; added_at: string } | null;
+  packs_left?: { sku_id: string; name: string; size_kg: number; units: number; left: number }[] | null;
   release?: ReleaseStatus | null;
   attachments: { id: string; kind: string; storage_path: string; sha256: string; created_at: string; label?: string | null }[];
   ledger: { seq: number; event: string; hash: string; prev_hash: string; created_at: string; actor_name: string | null }[];

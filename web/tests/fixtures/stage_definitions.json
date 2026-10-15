@@ -273,6 +273,14 @@
         "stage_type": "village_batch",
         "form_schema": [
             {
+                "key": "collection_point_id",
+                "type": "collection_point",
+                "label": "Collection point (where the bags are)",
+                "section": "batch",
+                "required": false,
+                "required_when": "stage_details_required"
+            },
+            {
                 "key": "source_footprint_ids",
                 "type": "footprint[]",
                 "label": "Farmer lots in this batch",
@@ -996,11 +1004,21 @@
         "stage_type": "commercial",
         "form_schema": [
             {
+                "key": "buyer_id",
+                "type": "buyer",
+                "label": "Buyer (from the client's list)",
+                "section": "buyer",
+                "required": false,
+                "shown_when": "stage_details_required",
+                "required_when": "stage_details_required"
+            },
+            {
                 "key": "buyer",
                 "type": "text",
                 "label": "Buyer",
                 "section": "buyer",
-                "required": true
+                "required": true,
+                "hidden_when": "stage_details_required"
             },
             {
                 "key": "market",
@@ -1015,20 +1033,108 @@
                 "required": true
             },
             {
+                "key": "market_code",
+                "type": "market_profile",
+                "label": "Export market (its profile)",
+                "section": "buyer",
+                "required": false,
+                "shown_when": "stage_details_required"
+            },
+            {
+                "key": "destination_country",
+                "type": "text",
+                "label": "Destination country (export)",
+                "section": "buyer",
+                "required": false,
+                "shown_when": "stage_details_required"
+            },
+            {
+                "key": "order_no",
+                "type": "text",
+                "label": "Order or contract number",
+                "section": "buyer",
+                "required": false,
+                "shown_when": "stage_details_required",
+                "required_when": "stage_details_required"
+            },
+            {
+                "key": "sale_route",
+                "type": "select",
+                "label": "Sale route",
+                "options": [
+                    "own_brand",
+                    "white_label",
+                    "bulk",
+                    "prasaadam"
+                ],
+                "section": "buyer",
+                "required": false,
+                "shown_when": "stage_details_required"
+            },
+            {
+                "key": "packs",
+                "type": "order_packs",
+                "label": "Packs sold",
+                "section": "quantity",
+                "required": false,
+                "shown_when": "stage_details_required",
+                "with_packs": true
+            },
+            {
                 "key": "qty_kg",
                 "type": "number",
                 "unit": "kg",
                 "label": "Quantity to this buyer",
                 "section": "quantity",
-                "required": true
+                "required": true,
+                "hidden_when_packs": true
             },
             {
                 "key": "price_per_kg",
                 "type": "number",
-                "unit": "INR/kg",
+                "unit": "per kg",
                 "label": "Price",
-                "section": "quantity",
-                "required": false
+                "section": "terms",
+                "required": false,
+                "shown_when": "record_price"
+            },
+            {
+                "key": "currency",
+                "type": "select",
+                "label": "Currency",
+                "options": [
+                    "INR",
+                    "USD",
+                    "EUR",
+                    "GBP",
+                    "AED",
+                    "SAR",
+                    "JPY",
+                    "AUD"
+                ],
+                "section": "terms",
+                "required": false,
+                "shown_when": "record_price"
+            },
+            {
+                "key": "incoterms",
+                "type": "select",
+                "label": "Incoterms (export)",
+                "options": [
+                    "EXW",
+                    "FCA",
+                    "FOB",
+                    "CFR",
+                    "CIF",
+                    "CPT",
+                    "CIP",
+                    "DAP",
+                    "DPU",
+                    "DDP"
+                ],
+                "section": "terms",
+                "required": false,
+                "shown_when": "record_price"
             }
         ],
         "yield_alarm": false,
@@ -1040,7 +1146,8 @@
         ],
         "splits_forward": true,
         "physical_checks": [
-            "Packs set aside for this buyer counted"
+            "Packs set aside for this buyer counted",
+            "Packs handed over match the order"
         ],
         "allows_exceed_input": false
     },
@@ -1054,19 +1161,123 @@
         "stage_type": "shipment",
         "form_schema": [
             {
+                "key": "packs",
+                "type": "order_packs",
+                "label": "Packs shipped",
+                "section": "quantity",
+                "required": false,
+                "shown_when": "stage_details_required",
+                "with_packs": true
+            },
+            {
                 "key": "shipped_kg",
                 "type": "number",
                 "unit": "kg",
                 "label": "Shipped",
                 "section": "quantity",
-                "required": true
+                "required": true,
+                "hidden_when_packs": true
+            },
+            {
+                "key": "serials",
+                "type": "serials",
+                "label": "Pack codes loaded (scan or type, one per line)",
+                "section": "quantity",
+                "required": false,
+                "for_market": "export",
+                "shown_when": "stage_details_required"
             },
             {
                 "key": "vehicle_or_container",
                 "type": "text",
                 "label": "Vehicle / container",
                 "section": "transport",
-                "required": true
+                "required": true,
+                "hidden_when": "stage_details_required"
+            },
+            {
+                "key": "vehicle_no",
+                "type": "text",
+                "label": "Vehicle number",
+                "section": "transport",
+                "required": false,
+                "for_market": "domestic",
+                "shown_when": "stage_details_required",
+                "required_when": "stage_details_required"
+            },
+            {
+                "key": "transporter",
+                "type": "text",
+                "label": "Transporter",
+                "section": "transport",
+                "required": false,
+                "for_market": "domestic",
+                "shown_when": "stage_details_required"
+            },
+            {
+                "key": "driver_phone",
+                "type": "text",
+                "label": "Driver's phone",
+                "section": "transport",
+                "required": false,
+                "for_market": "domestic",
+                "shown_when": "stage_details_required"
+            },
+            {
+                "key": "container_no",
+                "type": "text",
+                "label": "Container number",
+                "section": "transport",
+                "required": false,
+                "for_market": "export",
+                "shown_when": "stage_details_required",
+                "required_when": "stage_details_required"
+            },
+            {
+                "key": "seal_no",
+                "type": "text",
+                "label": "Container seal number",
+                "section": "transport",
+                "required": false,
+                "for_market": "export",
+                "shown_when": "stage_details_required",
+                "required_when": "stage_details_required"
+            },
+            {
+                "key": "vessel",
+                "type": "text",
+                "label": "Vessel",
+                "section": "transport",
+                "required": false,
+                "for_market": "export",
+                "shown_when": "stage_details_required"
+            },
+            {
+                "key": "forwarder",
+                "type": "text",
+                "label": "Forwarder",
+                "section": "transport",
+                "required": false,
+                "for_market": "export",
+                "shown_when": "stage_details_required"
+            },
+            {
+                "key": "port_loading",
+                "type": "text",
+                "label": "Port of loading",
+                "section": "transport",
+                "required": false,
+                "for_market": "export",
+                "shown_when": "stage_details_required"
+            },
+            {
+                "key": "port_discharge",
+                "type": "text",
+                "label": "Port of discharge",
+                "section": "transport",
+                "required": false,
+                "for_market": "export",
+                "shown_when": "stage_details_required"
             },
             {
                 "key": "dispatch_date",
@@ -1076,11 +1287,75 @@
                 "required": true
             },
             {
+                "key": "arrival_on",
+                "type": "date",
+                "label": "Expected arrival",
+                "section": "transport",
+                "required": false,
+                "for_market": "export",
+                "shown_when": "stage_details_required"
+            },
+            {
                 "key": "destination",
                 "type": "text",
                 "label": "Destination",
                 "section": "transport",
                 "required": true
+            },
+            {
+                "key": "invoice_no",
+                "type": "text",
+                "label": "Invoice number",
+                "section": "papers",
+                "required": false,
+                "shown_when": "stage_details_required",
+                "required_when": "stage_details_required"
+            },
+            {
+                "key": "lr_no",
+                "type": "text",
+                "label": "LR number (lorry receipt)",
+                "section": "papers",
+                "required": false,
+                "for_market": "domestic",
+                "shown_when": "stage_details_required",
+                "required_when": "stage_details_required"
+            },
+            {
+                "key": "eway_bill_no",
+                "type": "text",
+                "label": "E-way bill number (when required)",
+                "section": "papers",
+                "required": false,
+                "for_market": "domestic",
+                "shown_when": "stage_details_required"
+            },
+            {
+                "key": "shipping_bill_no",
+                "type": "text",
+                "label": "Shipping bill number",
+                "section": "papers",
+                "required": false,
+                "for_market": "export",
+                "shown_when": "stage_details_required",
+                "required_when": "stage_details_required"
+            },
+            {
+                "key": "bl_no",
+                "type": "text",
+                "label": "Bill of lading number (may come later)",
+                "section": "papers",
+                "required": false,
+                "for_market": "export",
+                "shown_when": "stage_details_required"
+            },
+            {
+                "key": "loading_photo",
+                "type": "attachment",
+                "label": "Loading photo (the seal or the vehicle)",
+                "section": "documents",
+                "label_as": "loading_photo",
+                "required": false
             },
             {
                 "key": "documents",
@@ -1113,7 +1388,8 @@
         "aggregates": false,
         "sort_order": 160,
         "stage_type": "qr_activation",
-        "form_schema": [],
+        "form_schema": [
+        ],
         "yield_alarm": false,
         "is_processing": false,
         "handoff_checks": [
@@ -1123,7 +1399,8 @@
             "Final quantity recorded"
         ],
         "splits_forward": false,
-        "physical_checks": [],
+        "physical_checks": [
+        ],
         "allows_exceed_input": false
     }
 ]

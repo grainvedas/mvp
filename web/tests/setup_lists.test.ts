@@ -62,7 +62,10 @@ describe('the GPS point and the places (Part B: farmer additions)', () => {
     expect(placeIsNew(P, 'UP', 'Siddharthnagar', 'Itwa', '')).toBe(true);
     expect(placeIsNew(P, 'UP', 'Siddharthnagar', '', '')).toBe(false);
     const form = src('pages/farmers/Farmers.tsx');
-    expect(form).toContain("rpc('add_place'");
+    // migration 54 (Veda, 16 Oct: villages "entered in database before hand … list only"): the farmer form picks the
+    // village from the list and never adds a place itself (Set-up lists, Places, does)
+    expect(form).not.toContain("rpc('add_place'");
+    expect(form).toContain('villageListed(pl.places, stateId, f.district, f.block, f.village)');
     expect(form).toContain('farm_lat: f.farm_lat.trim()');          // a farmer with an ID: through app.change_farmer
     expect(form).toContain("rpc<{ status: 'missing' | 'not_enough' | 'near' | 'far'");
   });

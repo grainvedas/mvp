@@ -198,10 +198,39 @@ export async function reviewAndSave(page: Page, code: RegExp) {
   return (await page.getByTestId('saved').textContent())!.match(code)![0];
 }
 
+/** Migration 54 (Veda, 16 Oct: "farmer selection during procurement should be drop down"): the farmer is picked by his
+ *  village first, then from that village's farmers. Finds the village the farmer is in. */
+export async function pickFarmer(page: Page, farmer: RegExp | string) {
+  const re = typeof farmer === 'string' ? new RegExp(farmer) : farmer;
+  const village = page.getByTestId('pick-village');
+  await expect(village.locator('option').nth(1)).toBeAttached();
+  const values = await village.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value).filter(Boolean));
+  for (const v of values) {
+    await village.selectOption(v);
+    const pick = page.getByTestId('pick-farmer');
+    await expect(pick.locator('option').nth(1)).toBeAttached();
+    const hit = (await pick.locator('option').allTextContents()).find((l) => re.test(l));
+    if (hit) { await pick.selectOption({ label: hit }); await expect(page.getByTestId('farmer-picked')).toBeVisible(); return; }
+  }
+  throw new Error(`no farmer ${re} in any village`);
+}
+/** Whether any village offers a farmer of that name (an inactive farmer is not offered at the farm gate). */
+export async function farmerOffered(page: Page, farmer: RegExp): Promise<boolean> {
+  const village = page.getByTestId('pick-village');
+  await expect(village).toBeVisible();
+  const values = await village.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value).filter(Boolean));
+  for (const v of values) {
+    await village.selectOption(v);
+    const pick = page.getByTestId('pick-farmer');
+    await expect(pick.locator('option').nth(1)).toBeAttached();
+    if ((await pick.locator('option').allTextContents()).some((l) => farmer.test(l))) return true;
+  }
+  return false;
+}
+
 export async function procure(page: Page, scopeId: string, farmer: string, gross: string, bags: string, tare: string, moisture = '11.8') {
   await openSlot(page, 'procurement', scopeId);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill(farmer.split(' ')[0]);
-  await page.getByRole('button', { name: new RegExp(farmer) }).click();
+  await pickFarmer(page, new RegExp(farmer));
   await page.getByLabel(/Gross weight/).fill(gross);
   await page.getByLabel(/^Bags/).fill(bags);
   await page.getByLabel(/Tare per bag/).fill(tare);
@@ -360,12 +389,37 @@ export async function markJoined(page: Page, reason = 'Joined on the day, papers
 
 /** Migration 51 (Part B): the farmer's district from the state's list (a select where the state has one, typed where it
  *  has none), then the village, then the farm's GPS (typed; `null` leaves it empty). */
-export async function fillFarmerPlace(page: Page, district: string, village: string, gps: [string, string] | null = ['27.21', '82.95']) {
+export async function fillFarmerPlace(page: Page, district: string, village: string, gps: [string, string] | null = ['27.21', '82.95'], block?: string) {
   await page.getByTestId('farmer-district').waitFor({ timeout: 5_000 }).catch(() => undefined);
   const d = page.locator('#farmer-district');
   if (await d.evaluate((el) => el.tagName) === 'SELECT') await d.selectOption(district); else await d.fill(district);
-  await page.getByLabel('Village *', { exact: true }).fill(village);
+  // migration 54 (Veda, 16 Oct: "list only"): where the state has a list, the block and the village are picked from it
+  const v = page.locator('#farmer-village');
+  if (await v.evaluate((el) => el.tagName) === 'SELECT') {
+    if (block) { await expect(page.locator('#farmer-block option', { hasText: block }).first()).toBeAttached(); await page.locator('#farmer-block').selectOption({ label: block }); }
+    await expect(v.locator('option', { hasText: village }).first()).toBeAttached();
+    await v.selectOption({ label: village });
+  } else {
+    if (block) await page.getByTestId('farmer-block').fill(block);
+    await v.fill(village);
+  }
   if (gps) { await page.getByTestId('farmer-lat').fill(gps[0]); await page.getByTestId('farmer-lng').fill(gps[1]); }
+}
+
+/** Migration 54: a block and a village added to the state's list (Set-up lists, Places), as the Client Manager adds them
+ *  before a farmer of that village is registered. A block already there is chosen. */
+export async function addPlace(page: Page, district: string, block: string, village: string) {
+  await page.goto('/setup?tab=places');
+  await page.getByTestId('set-district').selectOption(district);
+  const blocks = page.getByTestId('set-blocks');
+  if (!(await blocks.getByRole('button', { name: block, exact: true }).count())) {
+    await page.getByTestId('set-new-block').fill(block);
+    await page.getByTestId('set-add-block').click();
+  }
+  await page.getByTestId('set-blocks').getByRole('button', { name: block, exact: true }).click();
+  await page.getByTestId('set-new-village').fill(village);
+  await page.getByTestId('set-add-village').click();
+  await expect(page.getByTestId('set-villages')).toContainText(village);
 }
 
 /** Migration 51 (A15): a pool option reads "<name>" for a free person and "<name> · <work on other scopes>" for one

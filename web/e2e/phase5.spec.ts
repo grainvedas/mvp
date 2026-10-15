@@ -3,7 +3,7 @@
 // Each fault test fails on the build of 2 October at the fault it names: the checks are ordered, or made soft, so that
 // a run against the old app reaches the fault itself and not merely an element that did not exist yet.
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, signOut, USERS, SCOPES, openSlot, verifyIncoming, reviewAndSave, procure, recordQc, sealLot, apiAs } from './helpers';
+import { signIn, signOut, USERS, SCOPES, openSlot, verifyIncoming, reviewAndSave, procure, recordQc, sealLot, apiAs, pickFarmer } from './helpers';
 import { hi } from '../src/lib/i18n.hi';
 
 const uniq = () => Math.random().toString(36).slice(2, 7).toUpperCase();
@@ -18,8 +18,7 @@ test('Text values are shown as text and lists as words: review, arrival check an
   test.setTimeout(240_000);
   await signIn(page, USERS.procurement);
   await openSlot(page, 'procurement', SCOPES.bastiMill);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Suresh');
-  await page.getByRole('button', { name: /Suresh Yadav/ }).click();
+  await pickFarmer(page, /Suresh Yadav/);
   await page.getByLabel(/Gross weight/).fill('199'); await page.getByLabel(/^Bags/).fill('2'); await page.getByLabel(/Tare per bag/).fill('2');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.8');
   await expect(page.getByTestId('preview-ok')).toBeVisible();
@@ -189,10 +188,9 @@ test('A record saved without network keeps the time it was captured (item 8)', a
   test.setTimeout(120_000);
   await signIn(page, USERS.procurement);
   await openSlot(page, 'procurement', SCOPES.siddharthnagar);
-  await expect(page.getByRole('button', { name: /Ram Achal/ })).toBeVisible();
+  await expect(page.getByTestId('pick-village').locator('option').nth(1)).toBeAttached();   // the farmers' villages are loaded
   await context.setOffline(true);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Ram');
-  await page.getByRole('button', { name: /Ram Achal/ }).click();
+  await pickFarmer(page, /Ram Achal/);
   await page.getByLabel(/Gross weight/).fill('121'); await page.getByLabel(/^Bags/).fill('1'); await page.getByLabel(/Tare per bag/).fill('1');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('12');
   await page.getByRole('button', { name: 'Review' }).click();
@@ -398,10 +396,9 @@ test('An app deployed ahead of its database still sends a save that waited on th
   });
   await signIn(page, USERS.procurement);
   await openSlot(page, 'procurement', SCOPES.siddharthnagar);
-  await expect(page.getByRole('button', { name: /Ram Achal/ })).toBeVisible();
+  await expect(page.getByTestId('pick-village').locator('option').nth(1)).toBeAttached();   // the farmers' villages are loaded
   await context.setOffline(true);
-  await page.getByPlaceholder('Name, Farmer ID, phone or village').fill('Ram');
-  await page.getByRole('button', { name: /Ram Achal/ }).click();
+  await pickFarmer(page, /Ram Achal/);
   await page.getByLabel(/Gross weight/).fill('111'); await page.getByLabel(/^Bags/).fill('1'); await page.getByLabel(/Tare per bag/).fill('1');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('12');
   await page.getByRole('button', { name: 'Review' }).click();

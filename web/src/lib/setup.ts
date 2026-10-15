@@ -54,6 +54,14 @@ export const blocksOf = (places: Place[], state: string, district: string) =>
 export const villagesOf = (places: Place[], state: string, district: string, block: string) =>
   places.filter((p) => p.state_id === state && p.village && normPlace(p.district) === normPlace(district) && normPlace(p.block) === normPlace(block))
     .map((p) => p.village as string).sort((a, b) => a.localeCompare(b));
+/** Migration 54: every village of a district (whatever its block), for a district whose blocks are not chosen. */
+export const villagesOfDistrict = (places: Place[], state: string, district: string) =>
+  [...new Set(places.filter((p) => p.state_id === state && p.village && normPlace(p.district) === normPlace(district)).map((p) => p.village as string))]
+    .sort((a, b) => a.localeCompare(b));
+/** A village picked is on the list (migration 54, app.farmers_location_rules: a state with no list accepts what is typed). */
+export const villageListed = (places: Place[], state: string, district: string, block: string, village: string) =>
+  districtsOf(places, state).length === 0 || (block.trim() ? villagesOf(places, state, district, block) : villagesOfDistrict(places, state, district))
+    .some((v) => normPlace(v) === normPlace(village));
 /** A district typed or picked is on the list (a state with no list accepts what is typed: app.district_listed). */
 export const districtListed = (places: Place[], state: string, district: string) => {
   const ds = districtsOf(places, state);
@@ -70,7 +78,9 @@ export const placeIsNew = (places: Place[], state: string, district: string, blo
 // The Client Manager's lists and the State Manager's labs: one editor, driven by these descriptions
 // ---------------------------------------------------------------------------------------------------------------------
 export type ListKind = 'collection_points' | 'mills' | 'packing_units' | 'buyers' | 'pack_skus' | 'labs';
-export const CLIENT_LISTS: ListKind[] = ['collection_points', 'mills', 'packing_units', 'buyers', 'pack_skus'];
+/** Migration 54 (Veda, 16 Oct: "the labs details should be with us … labs can be more than 1"): the client keeps labs
+ *  of its own too, beside the state's (a lab record or a sample names one of either). */
+export const CLIENT_LISTS: ListKind[] = ['collection_points', 'mills', 'packing_units', 'buyers', 'pack_skus', 'labs'];
 export interface ListField { key: string; type: 'text' | 'select' | 'number' | 'crop' | 'gps' | 'country'; options?: readonly string[]; required?: boolean; max?: number }
 export const LIST_FIELDS: Record<ListKind, ListField[]> = {
   collection_points: [

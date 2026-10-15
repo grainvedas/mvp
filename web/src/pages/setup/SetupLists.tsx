@@ -129,7 +129,9 @@ const toTyped = (kind: ListKind, r: Row): ListRow => {
 function ListEditor({ kind, owner, canEdit }: { kind: ListKind; owner: { client_id: string } | { state_id: string }; canEdit: boolean }) {
   const { t } = useI18n();
   const [col, val] = Object.entries(owner)[0];
-  const rows = useAsync(() => q(supabase.from(kind).select('*').eq(col, val).order('active', { ascending: false }).order('created_at')) as Promise<Row[]>, [kind, col, val]);
+  // migration 54: a client's own lab carries the client's state too; the state's list is the state's own labs
+  const rows = useAsync(() => { let r = supabase.from(kind).select('*').eq(col, val); if (kind === 'labs' && col === 'state_id') r = r.is('client_id', null);
+    return q(r.order('active', { ascending: false }).order('created_at')) as Promise<Row[]>; }, [kind, col, val]);
   const crops = useAsync(() => (kind === 'mills' ? q(supabase.from('crops').select('id,name').is('retired_at', null).order('name')) as Promise<{ id: string; name: string }[]> : Promise.resolve([])), [kind]);
   const [edit, setEdit] = useState<{ id: string | null; row: ListRow } | null>(null);
   const [tried, setTried] = useState(false);

@@ -7,7 +7,7 @@
 // pool lists free people first, then those already on other scopes with their work, and says so when one is picked.
 // Every rule is the database's (tests/45_setup_lists.sql).
 import { test, expect } from '@playwright/test';
-import { signIn, signOut, expectNoSideScroll, apiAs, fillFarmerPlace, USERS, SCOPES } from './helpers';
+import { signIn, signOut, expectNoSideScroll, apiAs, fillFarmerPlace, addPlace, USERS, SCOPES } from './helpers';
 
 test.use({ viewport: { width: 527, height: 900 } });
 const uniq = () => String(Date.now()).slice(-6);
@@ -148,14 +148,15 @@ test('a farmer from the lists, with the farm\'s GPS; the GPS check at step 2; th
   await expect(page.getByTestId('farmers-no-gps')).toBeChecked();
   await expect(page.getByTestId('farmer-no-gps').first()).toBeVisible();
 
-  // a new farmer: the district from the state's list, a new block, the farm's GPS before step 1
+  // a new farmer: the district from the state's list; a new block and village added to the list first (migration 54:
+  // Veda, 16 Oct, "list only"); the farm's GPS before step 1
+  await addPlace(page, 'Siddharthnagar', `Block ${letters(u)}`, `Gaon ${letters(u)}`);
   await page.goto('/farmers/new');
   await page.getByLabel('Name *', { exact: true }).fill(`Phoolmati ${u}`);
   await page.getByLabel('Father / husband name *').fill('Shri Jagdish');
   await expect(page.getByTestId('farmer-district')).toBeVisible();
   expect(await page.getByTestId('farmer-district').locator('option').count()).toBeGreaterThan(70);   // the 75 districts of UP
-  await fillFarmerPlace(page, 'Siddharthnagar', `Gaon ${letters(u)}`, null);
-  await page.getByTestId('farmer-block').fill(`Block ${letters(u)}`);
+  await fillFarmerPlace(page, 'Siddharthnagar', `Gaon ${letters(u)}`, null, `Block ${letters(u)}`);
   await page.getByLabel('Mobile number *').fill(`93${u}51`);
   await page.getByLabel('Land (acres) *').fill('2');
   await page.getByTestId('farmer-gi-land').fill('1');
