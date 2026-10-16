@@ -16,7 +16,7 @@ import { kg, dateTime, date, humanise, todayIST } from '../lib/format';
 import type { Footprint, FootprintReturn, IncomingLot, LotMarkets, Preview, QualityParam, ReleasePreview, StageForm, StageType, SystemCheck, VerdictPreview, Withdrawal } from '../lib/types';
 import { giLabel } from '../lib/gi';
 import { ErrorBox, Loading, Badge, Empty, Field, errorText, plainText } from '../shell/ui';
-import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, withLotRules, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, KNOWN_LOTS, loadIncomingLots, type FieldValue, type PackLeft } from './widgets';
+import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, withLotRules, withValueRules, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, KNOWN_LOTS, loadIncomingLots, type FieldValue, type PackLeft } from './widgets';
 import { SamplesPanel } from '../pages/records/Samples';
 import { SECTION_ICON, stageIcon } from './icons';
 import { uploadEvidence, UPLOAD_WAIT_MS } from './evidence';
@@ -435,10 +435,12 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lotId, lotRuled]);
   // migration 50 (C5): the lab report's fields are required where the scope asks for the report
-  const fields = useMemo(() => withLotRules(withScopeRules(form.stage.form_schema, form.scope), lot), [form, lot]);
+  const lotFields = useMemo(() => withLotRules(withScopeRules(form.stage.form_schema, form.scope), lot), [form, lot]);
   const stateId = ctx?.scopes.find((x) => x.scope_id === form.scope.id)?.state_id;
   const [values, setValues] = useState<Record<string, FieldValue>>(() =>
     draft ? (draft.values as Record<string, FieldValue>) : initialValues(form, source, editing ?? replaces ?? null));
+  // migration 55: a field shown only for a value of another (a domestic order has no export market, country or Incoterms)
+  const fields = useMemo(() => withValueRules(lotFields, values), [lotFields, values]);
   // migration 52: a correction of a lot whose price was recorded opens with that price and payment (kept apart from the record)
   useEffect(() => {
     const id = editing?.id;

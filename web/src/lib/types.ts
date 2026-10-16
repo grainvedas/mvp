@@ -1,7 +1,7 @@
 // Shapes returned by the database (migrations 1–16). Kept by hand; `supabase gen types` can replace them later.
 export type Role = 'admin' | 'state_manager' | 'client_manager' | 'client_view' | 'operator';
 export type StageType =
-  | 'procurement' | 'lot_inward' | 'village_batch' | 'milling' | 'sorting' | 'grading' | 'drying' | 'popping'
+  | 'procurement' | 'lot_inward' | 'village_batch' | 'warehouse' | 'milling' | 'sorting' | 'grading' | 'drying' | 'popping'
   | 'cleaning' | 'blanching' | 'cold_storage' | 'packing' | 'qc' | 'commercial' | 'shipment' | 'qr_activation';
 export type FootprintStatus = 'pending' | 'verified' | 'closed' | 'superseded' | 'legacy';
 
@@ -27,6 +27,8 @@ export interface FieldDef {
   hidden_when?: string;
   /** migration 54: on the form only for an order of this market (domestic or export) */
   for_market?: string;
+  /** migration 55: on the form only while another field of the same form has this value ({"market": "export"}) */
+  shown_if?: Record<string, string>;
   /** migration 54: on the form only where the lot has packs by type (with_packs), or only where it has none (hidden_when_packs) */
   with_packs?: boolean; hidden_when_packs?: boolean;
 }
@@ -243,6 +245,8 @@ export interface FootprintDetail {
   sale_terms?: { price_per_kg: number | null; currency: string; incoterms: string | null; total_value: number | null } | null;
   export_docs?: { doc: string; status: 'received' | 'applied' | 'not_required' | null; attachment_id: string | null; note: string | null; done: boolean }[] | null;
   bill_of_lading?: { bl_no: string; added_at: string } | null;
+  /** migration 55 (C3): a stored lot's days, bags and inspections */
+  warehouse?: WarehouseInfo | null;
   packs_left?: { sku_id: string; name: string; size_kg: number; units: number; left: number }[] | null;
   release?: ReleaseStatus | null;
   attachments: { id: string; kind: string; storage_path: string; sha256: string; created_at: string; label?: string | null }[];
@@ -261,6 +265,15 @@ export interface FootprintReturn {
   resolved_at: string | null; resolved_by_name: string | null;
 }
 
+/** migration 55 (C3): a lot in the warehouse (app.warehouse_of) */
+export type InspectionCondition = 'good' | 'minor' | 'significant' | 'pest';
+export interface WarehouseInfo {
+  days: number; bags_in: number | null; bags_out: number;
+  moves: { on: string; bags: number; note: string | null; by: string | null }[];
+  inspections: { on: string; condition: InspectionCondition; note: string | null; by: string | null }[];
+  inspection: { interval_days: number; last_on: string | null; next_due: string; state: 'ok' | 'due' | 'overdue' | 'done'; last_condition: InspectionCondition | null } | null;
+}
+
 /** migration 48 (D3): what waits for the signed-in person (app.my_actions) */
 export interface MyActions {
   returned: { id: string; code: string; stage: StageType; scope_id: string; scope: string; reason: string; by: string | null; at: string; in_place: boolean }[];
@@ -268,6 +281,10 @@ export interface MyActions {
   proposals: number; farmers_to_verify: number; requirement_lines: number; flags: number; conditions: number;
   /** migration 51: verified farmers of my clients without their farm's GPS (asked to add it) */
   farmers_without_gps?: number;
+  /** migration 55 (C3): stored lots whose inspection is due or overdue (for who keeps them) */
+  inspections?: { id: string; code: string; scope: string; state: 'due' | 'overdue'; next_due: string }[];
+  /** migration 55 (C3): in a scope without a Warehouse, lots waiting for Milling too long (for its managers) */
+  stored_unrecorded?: { id: string; code: string; scope: string; days: number }[];
 }
 
 export const MANAGER_ROLES: Role[] = ['admin', 'state_manager', 'client_manager'];

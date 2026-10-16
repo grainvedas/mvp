@@ -20,6 +20,7 @@ import { lotPayment } from './Receipt';
 import { ForwardPanel } from '../trace/Forward';
 import { paymentProblem } from '../../engine/offlinePreview';
 import { SamplesPanel } from './Samples';
+import { WarehousePanel } from './Warehouse';
 
 export function RecordDetail() {
   const { id = '' } = useParams();
@@ -104,6 +105,14 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
       {r.qc && <QcPanel detail={r} onChange={reload} canOverride={boss} params={form?.quality_params ?? []} asksNames={form?.scope.stage_details_required === true} />}
       {r.seal && <SealPanel code={r.seal.qr_code} hash={r.seal.ledger_hash} batch={r.seal.batch_codes} />}
       {r.seal && r.release && <ReleasePanel r={r} mayChange={!watch && (boss || isStateManager(ctx))} onDone={reload} />}
+      {/* migration 55 (C3): the Warehouse (or a manager) inspects; the Warehouse, the stage that takes the lot or a manager records bags out */}
+      {f.stage_type === 'warehouse' && r.warehouse && (() => {
+        const slots = (ctx?.slots ?? []).filter((x) => x.scope_id === f.scope_id);
+        const next = slots[0]?.chain ? slots[0].chain[slots[0].chain.indexOf('warehouse') + 1] : undefined;
+        const keeps = boss || slots.some((x) => x.stage_type === 'warehouse');
+        const can = !watch && me.role !== 'client_view';
+        return <WarehousePanel f={f} w={r.warehouse} mayInspect={can && keeps} mayMove={can && (keeps || slots.some((x) => x.stage_type === next))} onDone={reload} />;
+      })()}
       {r.packs && <PacksPanel r={r} mayAct={me.role !== 'client_view' && !watch} onDone={reload} />}
       {r.sale_terms && <SaleTermsPanel s={r.sale_terms} />}
       {r.export_docs && r.export_docs.length > 0 && <ExportDocsPanel r={r} mayAct={me.role !== 'client_view' && !watch} onDone={reload} />}

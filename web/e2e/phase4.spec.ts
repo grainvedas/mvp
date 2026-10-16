@@ -402,6 +402,7 @@ test('A verified farmer is changed with a reason; deactivated farmers cannot be 
   await expect(row).toContainText(/PRSDM-F-\d{4}/);
   await row.getByRole('link', { name: 'Edit' }).click();
   await expect(page.getByTestId('farmer-verified-note')).toBeVisible();                    // every change is ledgered
+  await expect(page.locator('select#farmer-village option', { hasText: 'Bansi Khurd' })).toBeAttached();   // the list loaded (a busy machine: 16 Oct)
   await page.locator('#farmer-village').selectOption({ label: 'Bansi Khurd' });               // migration 54: from the list
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();       // migration 44: a reason first
   await page.getByTestId('farmer-why').fill('village name corrected');

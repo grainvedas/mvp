@@ -11,7 +11,7 @@ const stages = defs as unknown as StageDefinition[];
 const PHASE2_TYPES = new Set(['footprint[]', 'breakdown', 'packets[]']);
 
 describe('generic engine', () => {
-  it('has all 16 stage definitions', () => expect(stages).toHaveLength(16));
+  it('has all 17 stage definitions', () => expect(stages).toHaveLength(17));
 
   it.each(stages.map((s) => [s.stage_type, s] as const))('renders every field of %s without stage-specific code', (_t, s) => {
     for (const f of s.form_schema) {

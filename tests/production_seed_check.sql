@@ -6,7 +6,7 @@ select t.ok((select count(*) from public.states) = 1 and (select count(*) from p
 select t.ok((select count(*) from public.app_users) = 0 and (select count(*) from public.farmers) = 0
             and (select count(*) from public.scopes) = 0 and (select count(*) from public.footprints) = 0,
             'production: no demo people, farmers, scopes or lots');
-select t.ok((select count(*) from public.stage_definitions) = 16, 'production: all 16 stage definitions are present');
+select t.ok((select count(*) from public.stage_definitions) = 17, 'production: all 17 stage definitions are present');
 select t.ok((select count(*) from public.ledger) = 0 and not exists (select 1 from app.verify_ledger()), 'production: the ledger starts empty and verifies');
 select t.ok((select jsonb_array_length(quality_params) from public.crops where code = 'KNM') = 3, 'production: Kalanamak carries its three quality limits');
 select t.ok((select count(*) from public.onboarding_templates where is_default and active) = 1

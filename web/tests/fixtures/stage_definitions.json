@@ -334,6 +334,94 @@
         "allows_exceed_input": false
     },
     {
+        "code": "WH",
+        "label": "Warehouse",
+        "is_gate": false,
+        "is_first": false,
+        "aggregates": false,
+        "sort_order": 35,
+        "stage_type": "warehouse",
+        "form_schema": [
+            {
+                "key": "declared_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Sent (what the lot holds)",
+                "section": "arrival",
+                "required": true
+            },
+            {
+                "key": "received_kg",
+                "type": "number",
+                "unit": "kg",
+                "label": "Received (weighed here)",
+                "section": "arrival",
+                "required": true
+            },
+            {
+                "key": "discrepancy_reason",
+                "type": "text",
+                "label": "Why the weights differ (when they do)",
+                "section": "arrival",
+                "required": false
+            },
+            {
+                "key": "condition",
+                "type": "select",
+                "label": "Condition on arrival",
+                "options": [
+                    "good",
+                    "damp",
+                    "pest",
+                    "mixed"
+                ],
+                "section": "arrival",
+                "required": true
+            },
+            {
+                "key": "bags_in",
+                "type": "integer",
+                "label": "Bags in",
+                "section": "arrival",
+                "required": true
+            },
+            {
+                "key": "location",
+                "type": "text",
+                "label": "Warehouse or location",
+                "section": "stored",
+                "required": true
+            },
+            {
+                "key": "stack",
+                "type": "text",
+                "label": "Stack or row",
+                "section": "stored",
+                "required": false
+            },
+            {
+                "key": "photo",
+                "type": "attachment",
+                "label": "Photo of the stack (optional)",
+                "section": "stored",
+                "required": false
+            }
+        ],
+        "yield_alarm": false,
+        "is_processing": false,
+        "handoff_checks": [
+            "Received weight recorded; any difference explained",
+            "Location and stack recorded",
+            "Bags counted in"
+        ],
+        "splits_forward": false,
+        "physical_checks": [
+            "Bags counted out of the warehouse",
+            "The grain looks and smells sound (no mould, no insects)"
+        ],
+        "allows_exceed_input": false
+    },
+    {
         "code": "M",
         "label": "Milling",
         "is_gate": false,
@@ -1038,6 +1126,9 @@
                 "label": "Export market (its profile)",
                 "section": "buyer",
                 "required": false,
+                "shown_if": {
+                    "market": "export"
+                },
                 "shown_when": "stage_details_required"
             },
             {
@@ -1046,6 +1137,9 @@
                 "label": "Destination country (export)",
                 "section": "buyer",
                 "required": false,
+                "shown_if": {
+                    "market": "export"
+                },
                 "shown_when": "stage_details_required"
             },
             {
@@ -1134,6 +1228,9 @@
                 ],
                 "section": "terms",
                 "required": false,
+                "shown_if": {
+                    "market": "export"
+                },
                 "shown_when": "record_price"
             }
         ],

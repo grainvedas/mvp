@@ -425,6 +425,12 @@ export function withLotRules(fields: FieldDef[], lot: { market?: string | null; 
     && (!f.with_packs || lot.packs) && (!f.hidden_when_packs || !lot.packs));
 }
 
+/** Migration 55: a field marked `shown_if` is on the form only while another field of the form has that value (a
+ *  domestic order does not show the export market, the destination country or the Incoterms). */
+export function withValueRules(fields: FieldDef[], values: Record<string, unknown>): FieldDef[] {
+  return fields.filter((f) => !f.shown_if || Object.entries(f.shown_if).every(([k, v]) => values[k] === v));
+}
+
 /** The pack codes typed or scanned, one per line (or separated by commas or spaces), in the order given. */
 export const serialLines = (s: string) => s.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
 
@@ -449,7 +455,7 @@ export function missingRequired(fields: FieldDef[], values: Record<string, Field
   }).map((f) => f.label);
 }
 
-export const PREFILL_FROM_SOURCE = ['input_kg', 'qty_kg', 'stored_kg', 'shipped_kg'];
+export const PREFILL_FROM_SOURCE = ['input_kg', 'qty_kg', 'stored_kg', 'shipped_kg', 'declared_kg'];   // migration 55: what the Warehouse was sent
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Migration 52 (C1): where the lot was weighed, its GPS, the farmer card

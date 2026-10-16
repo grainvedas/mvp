@@ -21,7 +21,7 @@ describe('Hindi dictionary', () => {
     expect(wrongVars).toEqual([]);
   });
 
-  it('translates every stage name, form field, option and handoff check of all 16 stages', () => {
+  it('translates every stage name, form field, option and handoff check of all 17 stages', () => {
     const t = (key: string, v?: Record<string, string | number>, f?: string) => translate('hi', key, v, f);
     const gaps: string[] = [];
     for (const s of stages) {

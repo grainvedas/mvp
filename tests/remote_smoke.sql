@@ -27,7 +27,7 @@ select 'RLS on every table',    case when count(*) = 0 then 'OK' else 'OFF ON ' 
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity
 union all
-select 'stage_definitions (16)', case when count(*) = 16 then 'OK' else 'GOT ' || count(*) end from public.stage_definitions
+select 'stage_definitions (17)', case when count(*) = 17 then 'OK' else 'GOT ' || count(*) end from public.stage_definitions
 union all
 select 'ledger guard trigger',   case when exists (select 1 from pg_trigger where tgname = 'ledger_no_update_delete') then 'OK' else 'MISSING' end
 union all
@@ -373,6 +373,18 @@ select 'commercial shipment',      case when to_regclass('public.sale_terms') is
                                       when exists (select 1 from public.ledger where payload ? 'price_per_kg')
                                       then 'NOT OK (a sale price is in the ledger)'
                                       else 'OK buyers from the list, packs by type, the price kept apart, export documents; the export papers, pack codes and the bill of lading; a batch of one collection point; client labs; villages from the list' end
+union all
+select 'warehouse',                case when to_regclass('public.warehouse_inspections') is null or to_regclass('public.warehouse_bags_out') is null
+                                        or to_regprocedure('app.record_inspection(uuid, date, text, text)') is null
+                                        or to_regprocedure('app.record_bags_out(uuid, integer, date, text)') is null
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'scopes' and column_name = 'warehouse_inspection_days')
+                                      then 'MISSING (push migration 55)'
+                                      when (select count(*) from pg_trigger where tgname = 'zz_change_log') < 51
+                                        or not exists (select 1 from pg_trigger where tgname = 'footprints_z9_warehouse_flag')
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'warehouse' and form_schema @> '[{"key": "received_kg"}]')
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'commercial' and form_schema @> '[{"key": "incoterms", "shown_if": {"market": "export"}}]')
+                                      then 'NOT OK (the tables are there; their change log, the flag trigger, the Warehouse stage or the Commercial form is missing)'
+                                      else 'OK the Warehouse: sent and received, a reason and a flag above 2 %, inspections due and overdue, bags out, days in storage; stored but not recorded' end
 union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole

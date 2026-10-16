@@ -11,6 +11,7 @@ export type T = (key: string, vars?: Record<string, string | number>, fallback?:
 /** The order worked-out values are listed in, whatever order the server (or the phone, offline) sends them. */
 const ORDER = ['net_kg', 'moisture_avg', 'moisture_min', 'moisture_max', 'variance_kg', 'variance_pct', 'source_count',
   'total_kg', 'farmers', 'villages', 'collection_point',                                     // migration 52: the Collection Batch
+  'discrepancy_kg', 'discrepancy_pct', 'condition', 'bags_in', 'location', 'stack',          // migration 55: the Warehouse
   'mill', 'line_clearance', 'head_rice_kg', 'broken_kg', 'husk_kg', 'recovery_pct', 'head_rice_pct', 'transit_loss_kg',   // migration 53
   'sample_code', 'lab', 'lab_kind', 'packing_unit', 'wastage_pct',
   'clean_kg', 'reject_kg', 'reject_reasons', 'grade_split', 'yield_pct', 'bran_kg', 'loss_kg', 'expected_out_kg',

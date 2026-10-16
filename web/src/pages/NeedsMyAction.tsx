@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { rpc } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 import { useI18n } from '../lib/i18n';
-import { dateTime } from '../lib/format';
+import { date, dateTime } from '../lib/format';
 import type { MyActions } from '../lib/types';
 
 export interface ActionLine { key: string; n: number; text: string; to: string; action: string; detail?: string }
@@ -20,6 +20,11 @@ export function actionLines(a: MyActions, t: (k: string, v?: Record<string, stri
     action: t(r.in_place ? 'act.correct' : 'act.withdraw_again') });
   for (const v of a.to_verify) out.push({ key: `v-${v.scope_id}-${v.stage}`, n: Number(v.n), to: `/work/${v.scope_id}/${v.stage}`,
     text: t('act.to_verify', { n: v.n, from: stage(v.from_stage), stage: stage(v.stage) }), detail: v.scope, action: t('act.open') });
+  // migration 55 (C3): a stored lot to inspect; a lot waiting for Milling in a scope that keeps no warehouse record
+  for (const i of a.inspections ?? []) out.push({ key: `i-${i.id}`, n: 1, to: `/records/${i.id}`,
+    text: t(i.state === 'overdue' ? 'act.inspection_overdue' : 'act.inspection_due', { code: i.code, date: date(i.next_due) }), detail: i.scope, action: t('act.open') });
+  for (const u of a.stored_unrecorded ?? []) out.push({ key: `u-${u.id}`, n: 1, to: `/records/${u.id}`,
+    text: t('act.stored_unrecorded', { code: u.code, n: u.days }), detail: u.scope, action: t('act.open') });
   if (a.farmers_to_verify > 0) out.push({ key: 'farmers', n: a.farmers_to_verify, to: '/farmers', text: t('act.farmers', { n: a.farmers_to_verify }), action: t('act.open') });
   if (a.proposals > 0) out.push({ key: 'proposals', n: a.proposals, to: '/farmers', text: t('act.proposals', { n: a.proposals }), action: t('act.open') });
   if ((a.farmers_without_gps ?? 0) > 0) out.push({ key: 'nogps', n: a.farmers_without_gps!, to: '/farmers?gps=missing', text: t('act.farmers_gps', { n: a.farmers_without_gps! }), action: t('act.open') });

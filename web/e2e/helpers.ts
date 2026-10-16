@@ -218,12 +218,18 @@ export async function pickFarmer(page: Page, farmer: RegExp | string) {
 export async function farmerOffered(page: Page, farmer: RegExp): Promise<boolean> {
   const village = page.getByTestId('pick-village');
   await expect(village).toBeVisible();
-  const values = await village.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value).filter(Boolean));
-  for (const v of values) {
-    await village.selectOption(v);
-    const pick = page.getByTestId('pick-farmer');
-    await expect(pick.locator('option').nth(1)).toBeAttached();
-    if ((await pick.locator('option').allTextContents()).some((l) => farmer.test(l))) return true;
+  await expect(village.locator('option').nth(1)).toBeAttached();
+  // looked at three times, a second and a half apart: on a busy machine the client's farmers can still be on their way
+  // (16 Oct 2026: once "not offered" for a farmer who was)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await page.waitForTimeout(1500);
+    const values = await village.locator('option').evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value).filter(Boolean));
+    for (const v of values) {
+      await village.selectOption(v);
+      const pick = page.getByTestId('pick-farmer');
+      await expect(pick.locator('option').nth(1)).toBeAttached();
+      if ((await pick.locator('option').allTextContents()).some((l) => farmer.test(l))) return true;
+    }
   }
   return false;
 }

@@ -123,6 +123,7 @@ function Step({ s }: { s: JourneyStep }) {
           <div className="small" data-testid="pv-markets">{t('pv.by_market')}: {s.markets.map((m, i) => (
             <span key={m.code}>{i > 0 ? ' · ' : ''}{m.name} <span className={`badge ${m.verdict}`}>{t(`pv.v_${m.verdict}`)}</span></span>))}</div>
         )}
+        {typeof s.days_in_storage === 'number' && <div data-testid="pv-storage">{t('pv.days_in_storage', { n: s.days_in_storage })}</div>}
         {s.batch_code && <div className="small">{t('pv.batch')} <span className="mono">{s.batch_code}</span></div>}
         {s.destination && <div>{t('pv.shipped_to', { place: s.destination })}{s.dispatched_on ? ` · ${date(s.dispatched_on)}` : ''}</div>}
       </div>

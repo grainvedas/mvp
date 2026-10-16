@@ -15,11 +15,13 @@ import { actsAsStateManager, buildsScope, buildsScopes, oversees } from '../../l
 import { RosterEditor } from '../people/People';
 import { assembleChain, offeredForScope, splitChain, type CropFull } from '../../lib/crops';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
+import { plainWords } from '../../lib/plainErrors';
 
 interface ScopeRow { id: string; client_id: string; crop_id: string; season_code: string; geography: string; chain: StageType[]; status: string; activated_at: string | null;
   /** migration 48 (E4): in the scope's record numbers */ short_code?: string | null;
   /** migration 50 (C5): the lab record names the lab, the report and attaches it (set before activation) */ qc_report_required?: boolean;
   state_id?: string; season_end?: string | null;
+  /** migration 55 (C3): a stored lot is inspected every so many days (its Client Manager, any time) */ warehouse_inspection_days?: number;
   /** migration 52 (C1): Procurement records price and payment; asks where, the GPS and who delivered. Changed at any time. */
   record_price?: boolean; procurement_details_required?: boolean;
   /** migration 53 (C4–C6): Milling, Quality Control and Packing ask the mill, sample, lab, packing unit and packs from
@@ -81,6 +83,7 @@ export function ScopeWizard() {
   const [cropId, setCropId] = useState('');
   const [entry, setEntry] = useState<StageType>('procurement');
   const [villageBatch, setVillageBatch] = useState(false);
+  const [warehouse, setWarehouse] = useState(false);        // migration 55 (C3): a Warehouse after the entry (or the batch)
   const [before, setBefore] = useState<StageType[]>([]);
   const [after, setAfter] = useState<StageType[]>([]);
   const [commercial, setCommercial] = useState(false);
@@ -96,21 +99,24 @@ export function ScopeWizard() {
     setClientId(s.client_id); setSeason(s.season_code); setGeo(s.geography); setCropId(s.crop_id); setShort(s.short_code ?? ''); setLabReport(s.qc_report_required !== false);
     setStateId(s.state_id ?? ''); setSeasonEnd(s.season_end ?? '');
     const c = s.chain, qi = c.indexOf('qc');
-    setEntry(c[0]); setVillageBatch(c.includes('village_batch'));
+    setEntry(c[0]); setVillageBatch(c.includes('village_batch')); setWarehouse(c.includes('warehouse'));
     const proc = (x: StageType) => defs.data?.find((d) => d.stage_type === x)?.is_processing;
     setBefore(c.slice(1, qi).filter(proc)); setAfter(c.slice(qi + 1).filter(proc));
     setCommercial(c.includes('commercial')); setShipment(c.includes('shipment'));
     // a draft whose chain is saved opens on step 4, People (14 Oct 2026, brief F); ?step=chain opens the chain. Chosen once
     // per scope: before, every save re-ran this and put a reopened draft back on step 3, so "Save draft → People" seemed
     // to do nothing.
-    if (placed.current !== s.id || search.get('step')) {
-      placed.current = s.id;
+    // (16 Oct 2026, release 8: a link with ?step=chain put the draft back on step 3 after "Save draft → People" too;
+    // the step a link asks for is now taken once per scope and link, like the scope's own first step)
+    const placeKey = `${s.id}:${search.get('step') ?? ''}`;
+    if (placed.current !== placeKey) {
+      placed.current = placeKey;
       const want = search.get('step');
       setStep(s.status !== 'draft' ? 4 : want === 'chain' ? 3 : want === 'crop' ? 2 : want === 'season' ? 1 : 4);
     }
   }, [existing.data, defs.data, search]);
 
-  const chain = useMemo(() => assembleChain({ entry, villageBatch, before, after, commercial, shipment }), [entry, villageBatch, before, after, commercial, shipment]);
+  const chain = useMemo(() => assembleChain({ entry, villageBatch, warehouse, before, after, commercial, shipment }), [entry, villageBatch, warehouse, before, after, commercial, shipment]);
   useEffect(() => {
     if (!cropId) return;
     // a refusal of the check is shown, never swallowed (14 Oct 2026, brief F: the button stayed off with no word)
@@ -209,7 +215,7 @@ export function ScopeWizard() {
             setCropId(e.target.value);
             if (c?.recommended_chain?.length) {
               const p = splitChain(c.recommended_chain, (x) => !!defs.data?.find((d) => d.stage_type === x)?.is_processing);
-              setEntry(p.entry); setVillageBatch(p.villageBatch); setBefore(p.before); setAfter(p.after); setCommercial(p.commercial); setShipment(p.shipment);
+              setEntry(p.entry); setVillageBatch(p.villageBatch); setWarehouse(p.warehouse); setBefore(p.before); setAfter(p.after); setCommercial(p.commercial); setShipment(p.shipment);
             } else { setBefore([]); setAfter([]); }
           }}>
             <option value="">—</option>{(crops.data ?? []).filter((c) => (!c.state_id || c.state_id === (stateId || homeState)) && !c.retired_at)
@@ -225,6 +231,8 @@ export function ScopeWizard() {
           {(['procurement', 'lot_inward'] as StageType[]).map((x) => (
             <label key={x} className="check"><input type="radio" name="entry" checked={entry === x} onChange={() => setEntry(x)} />{label(x)}</label>))}
           {entry === 'procurement' && <label className="check"><input type="checkbox" checked={villageBatch} onChange={(e) => setVillageBatch(e.target.checked)} />{label('village_batch')}</label>}
+          <label className="check"><input type="checkbox" data-testid="wz-warehouse" checked={warehouse} onChange={(e) => setWarehouse(e.target.checked)} />{label('warehouse')}</label>
+          <p className="muted small">{t('wizard.warehouse_note')}</p>
           <h3>Processing before QC</h3>
           {processing.map((d) => <label key={d.stage_type} className="check"><input type="checkbox" data-testid={`before-${d.stage_type}`} checked={before.includes(d.stage_type)}
             onChange={() => toggle(before, setBefore, after, setAfter, d.stage_type)} />{d.label}</label>)}
@@ -237,7 +245,7 @@ export function ScopeWizard() {
           <label className="check"><input type="checkbox" checked={shipment} onChange={(e) => setShipment(e.target.checked)} />{label('shipment')}</label>
           <p className="muted small">Ends with {label('qr_activation')}.</p>
           <div className="alert info" data-testid="chain-preview"><strong>Chain:</strong> {chain.map(label).join(' → ')}</div>
-          {problems && problems.length > 0 && <div className="alert error" data-testid="chain-problems">{t('wizard.problems')}<ul>{problems.map((p) => <li key={p}>{p}</li>)}</ul></div>}
+          {problems && problems.length > 0 && <div className="alert error" data-testid="chain-problems">{t('wizard.problems')}<ul>{problems.map((p) => <li key={p}>{plainWords(p, t) ?? p}</li>)}</ul></div>}
           {problems && problems.length === 0 && <div className="alert ok">{t('wizard.ok')}</div>}
           <ErrorBox error={checkError} />
           <ErrorBox error={act.error} />
@@ -313,6 +321,8 @@ function StageSettings({ s, onSaved }: { s: ScopeRow; onSaved: (x: ScopeRow) => 
   const profiles = useAsync(() => q(supabase.from('market_profiles').select('code, name').eq('crop_id', s.crop_id).eq('status', 'active').order('code')) as Promise<{ code: string; name: string }[]>, [s.crop_id]);
   const [details, setDetails] = useState(s.stage_details_required !== false);
   const [codes, setCodes] = useState<string[]>(s.market_codes ?? ['domestic', 'export']);
+  const [every, setEvery] = useState(String(s.warehouse_inspection_days ?? 15));
+  const everyOk = /^[0-9]{1,3}$/.test(every) && Number(every) >= 1 && Number(every) <= 120;
   const save = (patch: Partial<ScopeRow>, undo: () => void) => void act.run(async () => {
     try { onSaved(await q(supabase.from('scopes').update(patch).eq('id', s.id).select().single()) as ScopeRow); }
     catch (e) { undo(); throw e; }
@@ -335,6 +345,13 @@ function StageSettings({ s, onSaved }: { s: ScopeRow; onSaved: (x: ScopeRow) => 
           <label key={m.code} className="check"><input type="checkbox" checked={codes.includes(m.code)} disabled={act.busy || (codes.length === 1 && codes.includes(m.code))}
             onChange={(e) => toggle(m.code, e.target.checked)} data-testid={`ss-market-${m.code}`} />{m.name}</label>))}
       <p className="hint">{t('ss.markets_hint')}</p>
+      {s.chain.includes('warehouse') && <>
+        <Field label={t('ss.inspection_days')} htmlFor="ss-every" hint={t('ss.inspection_hint')}>
+          <div className="row"><input id="ss-every" inputMode="numeric" value={every} style={{ maxWidth: 90 }} data-testid="ss-every"
+            onChange={(e) => setEvery(e.target.value.replace(/[^0-9]/g, ''))} />
+            <button className="secondary" disabled={act.busy || !everyOk || Number(every) === (s.warehouse_inspection_days ?? 15)} data-testid="ss-every-save"
+              onClick={() => { const was = String(s.warehouse_inspection_days ?? 15); save({ warehouse_inspection_days: Number(every) }, () => setEvery(was)); }}>{t('common.save')}</button></div></Field>
+      </>}
       <ErrorBox error={act.error} />
     </div>);
 }

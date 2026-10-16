@@ -179,6 +179,9 @@ test('C7 and C8: an order by packs and an export order with its documents; a dom
   await expect(page.getByLabel(/^Quantity to this buyer/)).toHaveCount(0);                 // the packs, not the kilograms
   await page.getByTestId('pick-buyer_id').selectOption({ label: `e2e54 Delhi Wholesale ${u} · IN` });
   await page.getByLabel(/^Market/).selectOption('domestic');
+  // migration 55 (Veda, 16 Oct): a domestic order shows no export market, destination country or Incoterms
+  for (const l of [/^Destination country/, /^Incoterms/]) await expect(page.getByLabel(l)).toHaveCount(0);
+  await expect(page.getByTestId('pick-market_code')).toHaveCount(0);
   await page.getByLabel(/^Order or contract number/).fill(`PO-${u}`);
   await page.getByLabel(/^Sale route/).selectOption('own_brand');
   await expect(page.getByTestId('order-line-0')).toContainText('55 left');

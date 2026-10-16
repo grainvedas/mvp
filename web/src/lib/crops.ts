@@ -45,6 +45,7 @@ export function splitChain(c: StageType[], isProcessing: (s: StageType) => boole
   return {
     entry: (c[0] === 'lot_inward' ? 'lot_inward' : 'procurement') as StageType,
     villageBatch: c.includes('village_batch'),
+    warehouse: c.includes('warehouse'),                       // migration 55 (C3): chosen per scope, right after the entry (or the batch)
     before: (qi < 0 ? [] : c.slice(1, qi)).filter(isProcessing),
     after: (qi < 0 ? [] : c.slice(qi + 1)).filter(isProcessing),
     commercial: c.includes('commercial'),
@@ -53,8 +54,9 @@ export function splitChain(c: StageType[], isProcessing: (s: StageType) => boole
 }
 
 /** Builds the ordered chain from the builder's choices (the scope wizard and the crop's recommended chain). */
-export function assembleChain(o: { entry: StageType; villageBatch: boolean; before: StageType[]; after: StageType[]; commercial: boolean; shipment: boolean }): StageType[] {
-  return [o.entry, ...(o.villageBatch && o.entry === 'procurement' ? ['village_batch' as StageType] : []), ...o.before, 'qc',
+export function assembleChain(o: { entry: StageType; villageBatch: boolean; warehouse?: boolean; before: StageType[]; after: StageType[]; commercial: boolean; shipment: boolean }): StageType[] {
+  return [o.entry, ...(o.villageBatch && o.entry === 'procurement' ? ['village_batch' as StageType] : []),
+    ...(o.warehouse ? ['warehouse' as StageType] : []), ...o.before.filter((s) => s !== 'warehouse'), 'qc',
     ...o.after, ...(o.commercial ? ['commercial' as StageType] : []), ...(o.shipment ? ['shipment' as StageType] : []), 'qr_activation'];
 }
 

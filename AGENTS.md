@@ -354,6 +354,18 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   picked by village, then farmer. A lab is the state's (`client_id` null, its State Manager) or a client's (its Client
   Manager); a lab record or a sample names one through `app.lab_for_scope`. A new rule here needs a case in
   `tests/48_commercial_shipment.sql` and its plain words in `plainErrors.ts` (EN and HI).
+- **A stored lot is the Warehouse's record** (migrations 55a and 55, Veda 16 October 2026). The Warehouse is a stage of
+  the chain, only right after the entry stage or the Collection Batch (`app.chain_problems`); a scope gets it when it is
+  built, never later (the chain is frozen at activation). Its save takes what was sent and what was received (the
+  difference worked out, a reason for any difference); above the crop's `warehouse_discrepancy_pct` (2) the trigger
+  `footprints_z9_warehouse_flag` opens one flag. Inspections and bags out are written only through
+  `app.record_inspection` and `app.record_bags_out` (the tables are read-only to everyone else, each with its change
+  log); who keeps a stored lot is `app.keeps_warehouse`. Its days, bags and inspections are `app.warehouse_of` (the
+  record page); `app.public_lot_journey` gives the days in storage only, never the place, stack or reason. A new stage
+  type goes in a migration of its own before the one that uses it (a new enum value is used only after its
+  transaction). A form field marked `shown_if` shows only while another field of the form has that value
+  (`withValueRules`). A new rule here needs a case in `tests/49_warehouse.sql` and its plain words in `plainErrors.ts`
+  (EN and HI).
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,

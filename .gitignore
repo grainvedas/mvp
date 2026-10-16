@@ -11,3 +11,5 @@ test-results/
 playwright-report/
 backups/
 release-evidence/
+# files Claude hands over for reading (reports, PDFs): kept on the computer, not in the repository (Veda, 16 Oct 2026)
+Claude outputs/

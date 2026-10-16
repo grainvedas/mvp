@@ -2408,3 +2408,74 @@ answers ("Client Manager too", "List only", "Village, then farmer"). Release 6 i
   release 6). Sealed: 149 files.
 - **Not done**: one order from several batches; a buyer's own specification in QC; on a domestic order the export
   fields (market profile, destination) still show, empty and not asked.
+
+## 16 October 2026, 03:56 IST: release 7 on staging
+
+Veda ran `staging-commercial-shipment.cmd`: `RESULT: COMMERCIAL SHIPMENT ON STAGING`, head **d4efafb** (52 files),
+Vercel Ready (checked on its Deployments page). S1b: `commercial_form=new shipment_form=new batch_form=new villages=3
+state_labs=1 client_labs=0 draft_farmers=0 sale_terms=0 export_documents=0 bills_of_lading=0`. S2: smoke 50 of 51 OK
+(not OK: `statement logging`, a go-live step); the new rules in place, the change log intact; ledger audit NO FINDINGS
+(187 blocks, 39 records, 4 seals, 3 evidence files); NO LOGIN WITHOUT A PERSON; FUNCTIONS DEPLOYED AND CURRENT. The
+52nd file was `Claude outputs/practice_lab_report_test.pdf` (the made-up report of release 6's checks), committed because
+that folder is not git-ignored.
+
+## 16 October 2026, 04:00–04:25 IST: release 7 run-sheet checks on staging (KH26 Bansi)
+
+Lucky signed in by Veda; Claude drove the checks in Chrome; practice data named "(test)". Passed: Places (a block and a
+village added); the farmer form's lists (not saved); a client lab offered to QC as "client's own"; buyers (one brought
+back, one export buyer added); Procurement by village, then farmer (P-0003, P-0004); the Collection Batch's point and
+its lots only (VB-0002); "Villages taken from the lots" at Milling; Recovery once on M-0001; CM-0001 domestic by packs
+with the price apart; CM-0002 export with its document received (file attached by Veda); SH-0001 domestic papers only;
+the export shipment refused without the document and with 9 codes for 10 packs; SH-0002 with 10 codes and the loading
+photo (attached by Veda); the bill of lading added once. Seen: a second, unlabelled document on SH-0002 (a file put in
+the form's "Documents" box too); the domestic order's form still shows the export fields, empty (known, listed).
+
+## 16 October 2026, morning: the Warehouse, release 8 (migrations 55a and 55, open item 50), local stack
+
+Veda: "yes proceed" (G19), to release 8 as proposed (C3 the Warehouse) and her two points on release 7's run (a domestic
+order without the export fields; `Claude outputs/` git-ignored). Release 7 is on staging (16 Oct 03:56, d4efafb);
+`staging-warehouse.cmd` expects only migrations 55a and 55.
+
+- **Database**: `tests/run_local.sh` **ALL TESTS PASSED** (2,122 checks on the fresh build; the smoke check on the fresh
+  build, every row OK but the standing ones; production build, now 17 stage definitions; upgrade path, all 49 test
+  files again; concurrency). Every test file on a migrated copy: 2,097 checks, no failure. New `tests/49_warehouse.sql`
+  (**74 checks, 31 controls**, each caught; one control first missed: "stored but not recorded" at once could not be
+  told from "after 0 days" inside one transaction, so the control sets the limit below 0): where the Warehouse sits in
+  a chain; a scope built with one, staffed and activated; the interval (1 to 120, its Client Manager only, the chain
+  frozen); the arrival (sent, received, never more received, the reason, the condition, whole bags, the place), the
+  flag above 2 % (once, in the recorder's name, with the reason), the system checks and their figures; inspections
+  (who: the Warehouse or a manager, not QC, Milling or the client's viewer; the dates; what was found), due and
+  overdue, in "Needs my action"; bags out (the Warehouse or the next stage, never more than came in); days in storage;
+  Milling taking the stored lot; "stored but not recorded" (16 days; not for a scope with a Warehouse, not for an
+  operator, not once Milling took some); the public page's days in storage (5), never the place or the reason. Test 08
+  knows the two new functions.
+- **API**: `remote_create_user.mjs` 95 passed; `remote_rls.mjs --t1` 192 passed. `scripts/restore_drill.mjs`: RESTORE
+  DRILL PASSED.
+- **Smoke check**: `stage_definitions (17)` and the new row `warehouse` (52 rows): MISSING before 55, OK after.
+- **Unit**: 614 passed (new `warehouse.test.tsx`, 37: the chain the wizard builds and reads back, the form and its
+  sections, what was sent opened from the lot, the hand-off words in Hindi, the worked-out values in order and words, a
+  domestic order without the export fields, the record panel (days, bags, state; who may inspect or record bags out;
+  an inspection that found something asks what; no more bags out than are left), "Needs my action", the public page's
+  words, plain words for every refusal of the migration (checked against its own sentences)).
+- **Screens**: default suite **88 passed** (in the first full run 86: T5 found phase27 had left the Grading operator on
+  a second stage, so phase27 now takes its people off its scope afterwards; phase4's farmer checks waited on lists still
+  loading on a busy machine, now they wait for them; both re-run and passed). Production build 14 passed; the first
+  day from nothing 1 passed. New `phase27` at 527 px: the Warehouse ticked in the wizard's chain (the preview, "valid");
+  two lots and their batch; the arrival 200 kg sent, 194 received: the reason asked, then saved, "flagged for the
+  manager", the flag with the reason; 0 days, 4 in; an inspection "minor" refused until what was found is said; the
+  Client Manager sets 1 day, "inspection due" on his home; Milling records 5 bags out (refused), then 4, and takes the
+  lot: "done". `phase26` now holds that a domestic order shows no export market, country or Incoterms. Pictures looked
+  at (390 px): the wizard, the form, the record, the settings, the home; one fault found that way and fixed: the system
+  check said "6.000 kg, 3.00 %" (now "6 kg, 3.06 %", with a check in test 49; that change came after the screen runs and
+  is covered by test 49, the controls and `run_local`, run again after it). Found while building: a link to the
+  chain step put the draft back on it after "Save draft" (fixed, WH9).
+- **`scripts/staging_warehouse.ps1`** on stand-ins, 22 scenarios: 55a and 55 waiting run through to `RESULT: WAREHOUSE
+  ON STAGING` (the practice PDF leaves the repository, stays on disk; 43 files committed); a second run; only 55 waiting
+  (a run stopped after 55a) runs through; refused: only 55a, 54 too, out of order, another migration, wrong words,
+  rule not in place, push fails, read-back fails, the old stage, a scope with a Warehouse already, production,
+  functions not current, a smoke row not OK, a changed 55a, 55 or smoke check, a changed or a new app file; the earlier
+  scripts now refuse. Its read-back queries run on a migrated local database (and fail on one of release 7). Sealed:
+  151 files.
+- **Not done**: a warehouse from the client's lists (typed, with its stack); moves between warehouses; fumigation
+  records (an inspection's note); "stored but not recorded" and the public page's days cannot be shown on staging
+  without waiting (the tests cover them).

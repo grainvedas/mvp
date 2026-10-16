@@ -303,3 +303,43 @@ update public.stage_definitions set form_schema = '[
   {"key": "documents", "type": "attachment", "label": "Documents (photo or PDF)", "accept": "document", "section": "documents", "required": false}
 ]'::jsonb
  where stage_type = 'shipment';
+
+-- Migration 55 (C3, Veda 16 Oct 2026): the Warehouse stage and the domestic order's form. A database whose stage types do
+-- not have 'warehouse' yet (before migration 55a: the upgrade path) is left as it is; migration 55 does the same there.
+do $seed55$ begin
+  if exists (select 1 from pg_enum e join pg_type t on t.oid = e.enumtypid where t.typname = 'stage_type' and e.enumlabel = 'warehouse')
+     and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'stage_definitions' and column_name = 'physical_checks') then
+    execute $w55$
+-- ---------------------------------------------------------------------------------------------------------------------
+-- The Warehouse stage (stage_definitions) and the domestic order's form (Veda, 16 Oct)
+-- ---------------------------------------------------------------------------------------------------------------------
+insert into public.stage_definitions
+  (stage_type, code, label, is_first, is_gate, splits_forward, aggregates, allows_exceed_input, yield_alarm, is_processing, sort_order, form_schema, handoff_checks, physical_checks)
+values ('warehouse', 'WH', 'Warehouse', false, false, false, false, false, false, false, 35,
+ '[{"key": "declared_kg", "type": "number", "unit": "kg", "label": "Sent (what the lot holds)", "section": "arrival", "required": true},
+   {"key": "received_kg", "type": "number", "unit": "kg", "label": "Received (weighed here)", "section": "arrival", "required": true},
+   {"key": "discrepancy_reason", "type": "text", "label": "Why the weights differ (when they do)", "section": "arrival", "required": false},
+   {"key": "condition", "type": "select", "label": "Condition on arrival", "options": ["good", "damp", "pest", "mixed"], "section": "arrival", "required": true},
+   {"key": "bags_in", "type": "integer", "label": "Bags in", "section": "arrival", "required": true},
+   {"key": "location", "type": "text", "label": "Warehouse or location", "section": "stored", "required": true},
+   {"key": "stack", "type": "text", "label": "Stack or row", "section": "stored", "required": false},
+   {"key": "photo", "type": "attachment", "label": "Photo of the stack (optional)", "section": "stored", "required": false}]'::jsonb,
+ '["Received weight recorded; any difference explained", "Location and stack recorded", "Bags counted in"]'::jsonb,
+ '["Bags counted out of the warehouse", "The grain looks and smells sound (no mould, no insects)"]'::jsonb)
+on conflict (stage_type) do update set
+  code = excluded.code, label = excluded.label, is_first = excluded.is_first, is_gate = excluded.is_gate,
+  splits_forward = excluded.splits_forward, aggregates = excluded.aggregates, allows_exceed_input = excluded.allows_exceed_input,
+  yield_alarm = excluded.yield_alarm, is_processing = excluded.is_processing, sort_order = excluded.sort_order,
+  form_schema = excluded.form_schema, handoff_checks = excluded.handoff_checks, physical_checks = excluded.physical_checks;
+
+-- A domestic order does not show the export fields: the market's profile, the destination and the Incoterms show only
+-- when the market chosen is export ("shown_if"; display only, the save asks them for export as before).
+update public.stage_definitions set form_schema = (
+  select jsonb_agg(case when x->>'key' in ('market_code', 'destination_country', 'incoterms')
+                        then x || '{"shown_if": {"market": "export"}}'::jsonb else x end order by n)
+    from jsonb_array_elements(form_schema) with ordinality as e(x, n))
+ where stage_type = 'commercial';
+
+    $w55$;
+  end if;
+end $seed55$;

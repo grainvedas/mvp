@@ -291,6 +291,7 @@ function CropForm({ edit, setEdit, keys, typed, setTyped, defs, stateLabel, sett
       <div className="row wrap">
         {(['procurement', 'lot_inward'] as StageType[]).map((x) => <label key={x} className="check"><input type="radio" name="cr-entry" checked={parts.entry === x} onChange={() => setChain({ entry: x })} />{label(x)}</label>)}
         {parts.entry === 'procurement' && <label className="check"><input type="checkbox" checked={parts.villageBatch} onChange={(e) => setChain({ villageBatch: e.target.checked })} />{label('village_batch')}</label>}
+        <label className="check"><input type="checkbox" data-testid="rc-warehouse" checked={parts.warehouse} onChange={(e) => setChain({ warehouse: e.target.checked })} />{label('warehouse')}</label>
       </div>
       <p className="small">{t('crops.before_qc')}</p>
       <div className="row wrap">{processing.map((d) => <label key={d.stage_type} className="check"><input type="checkbox" data-testid={`rc-before-${d.stage_type}`} checked={parts.before.includes(d.stage_type)}

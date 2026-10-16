@@ -162,7 +162,7 @@ export function AddJoiner() {
             {!f.opening_id && <Field label={t('open.role')} hint={t('common.optional')} htmlFor="j-role"><select id="j-role" value={f.intended_role} onChange={set('intended_role')}>
               <option value="">—</option>{HIRE_ROLES.map((r) => <option key={r} value={r}>{t(`role.${r}`)}</option>)}</select></Field>}
             {!f.opening_id && f.intended_role === 'operator' && <Field label={t('open.stage')} hint={t('common.optional')} htmlFor="j-stage"><select id="j-stage" value={f.intended_stage} onChange={set('intended_stage')}>
-              <option value="">—</option>{(['procurement', 'lot_inward', 'village_batch', 'milling', 'sorting', 'grading', 'drying', 'popping', 'cleaning', 'blanching', 'cold_storage', 'packing', 'qc', 'commercial', 'shipment', 'qr_activation'] as StageType[]).map((x) => <option key={x} value={x}>{stage(x)}</option>)}</select></Field>}
+              <option value="">—</option>{(['procurement', 'lot_inward', 'village_batch', 'warehouse', 'milling', 'sorting', 'grading', 'drying', 'popping', 'cleaning', 'blanching', 'cold_storage', 'packing', 'qc', 'commercial', 'shipment', 'qr_activation'] as StageType[]).map((x) => <option key={x} value={x}>{stage(x)}</option>)}</select></Field>}
             {chosen && <p className="small" data-testid="opening-role"><RoleLabel role={chosen.role} stage={chosen.stage} /> · {chosen.state_name}</p>}
             <Field label={t('jl.owner')} htmlFor="j-owner"><select id="j-owner" value={f.hr_owner} onChange={set('hr_owner')}>
               <option value="">{t('jl.owner_none')}</option>{(hrPeople.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
