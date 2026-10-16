@@ -195,11 +195,14 @@ export function ledgerBanner(s: LedgerStatus, now = Date.now()): { key: string; 
   return { key: s.added_since > 0 ? 'led.since' : 'led.none_since', tone: 'muted' };
 }
 
-export interface Elsewhere { scope_id: string; label: string; status: string; client: string; stages: string[] }
+export interface Elsewhere { scope_id?: string; label?: string; status: string; client?: string; stages: string[];
+  /** migration 56: work for another client: said (busy, its stages), not named */
+  other_client?: boolean }
 export interface PoolPerson { id: string; name: string; me?: boolean; ready_for?: string | null; elsewhere?: Elsewhere[] }
 /** Pure: "Milling on KH26 · gkp (active)", one per scope. */
 export const elsewhereLine = (e: Elsewhere, t: (k: string, v?: Record<string, string | number>, f?: string) => string) =>
-  t('pool.work', { stages: e.stages.map((s) => t(`stage.${s}`, undefined, s)).join(', '), scope: e.label, status: t(`pool.st_${e.status}`, undefined, e.status) });
+  t(e.other_client || !e.label ? 'pool.work_other' : 'pool.work', { stages: e.stages.map((s) => t(`stage.${s}`, undefined, s)).join(', '),
+    scope: e.label ?? '', status: t(`pool.st_${e.status}`, undefined, e.status) });
 /** Pure: the pool in its two groups, free people first (the server orders them; a person in both is impossible). */
 export const poolGroups = <P extends PoolPerson>(pool: P[]) => ({
   free: pool.filter((p) => !(p.elsewhere?.length)), busy: pool.filter((p) => (p.elsewhere?.length ?? 0) > 0) });

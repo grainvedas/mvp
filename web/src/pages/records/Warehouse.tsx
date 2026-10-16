@@ -17,7 +17,8 @@ export function inspectionLine(w: WarehouseInfo, t: (k: string, v?: Record<strin
   const i = w.inspection;
   if (!i) return '';
   if (i.state === 'done') return t('wp.state_done');
-  return t(`wp.state_${i.state}`, { date: date(i.next_due), n: i.interval_days });
+  // migration 56: "every day", not "every 1 days"
+  return t(`wp.state_${i.state}${Number(i.interval_days) === 1 ? '_1' : ''}`, { date: date(i.next_due), n: i.interval_days });
 }
 
 export function WarehousePanel({ f, w, mayInspect, mayMove, onDone }: {
@@ -46,7 +47,7 @@ export function WarehousePanel({ f, w, mayInspect, mayMove, onDone }: {
     <div className="card stack" data-testid="warehouse-panel" data-state={state}>
       <h2>{t('wp.title')}</h2>
       <dl className="kv">
-        <dt>{t('wp.days')}</dt><dd className="big" data-testid="wp-days">{t('wp.days_n', { n: w.days })}</dd>
+        <dt>{t('wp.days')}</dt><dd className="big" data-testid="wp-days">{t(Number(w.days) === 1 ? 'wp.days_1' : 'wp.days_n', { n: w.days })}</dd>
         {w.bags_in !== null && <><dt>{t('wp.bags')}</dt><dd data-testid="wp-bags">{t('wp.bags_n', { in: w.bags_in, out: w.bags_out, left: left ?? 0 })}</dd></>}
         {w.inspection && <><dt>{t('wp.next')}</dt><dd data-testid="wp-next">
           <span className={`badge ${state === 'overdue' ? 'fail' : state === 'due' ? 'pending' : state === 'done' ? 'closed' : 'verified'}`} data-testid="wp-badge">{t(`wp.badge_${state}`)}</span>{' '}

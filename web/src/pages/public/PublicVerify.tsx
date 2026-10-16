@@ -45,7 +45,7 @@ export function PublicVerify() {
   const { code = '' } = useParams();
   const { t } = useI18n();
   const j = useAsync(() => loadJourney(code), [code]);
-  useEffect(() => { if (code) countScan(code); }, [code]);
+  useEffect(() => { if (code) void countScan(code); }, [code]);
   return (
     <PublicFrame>
       {j.loading && <Loading />}

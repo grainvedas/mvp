@@ -14,6 +14,7 @@ import { dateTime, humanise } from '../../lib/format';
 import { Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { useAuth } from '../../auth/AuthProvider';
 import { isStateManager } from '../../lib/rights';
+import { ScanFlagsCard } from '../records/BuyerShare';
 
 interface State { id: string; name: string; code: string }
 interface Client { id: string; name: string; code: string; type: string; state_id: string }
@@ -110,6 +111,7 @@ export function OpenFlags() {
   }, []);
   return (
     <div><h1><span aria-hidden="true">🚩 </span>{t('flags.title')}</h1>
+      <ScanFlagsCard />   {/* migration 56 (D6): packs whose scans look copied */}
       {list.loading ? <Loading /> : <ErrorBox error={list.error} />}
       {list.data?.length === 0 && <Empty />}
       {!!list.data?.length && <div className="card table-wrap"><table><thead><tr><th>Record</th><th>Flag</th><th>Raised</th></tr></thead>

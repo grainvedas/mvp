@@ -2479,3 +2479,108 @@ order without the export fields; `Claude outputs/` git-ignored). Release 7 is on
 - **Not done**: a warehouse from the client's lists (typed, with its stack); moves between warehouses; fumigation
   records (an inspection's note); "stored but not recorded" and the public page's days cannot be shown on staging
   without waiting (the tests cover them).
+
+## 16 October 2026, 07:22 IST: release 8 on staging
+
+`staging-warehouse.cmd`: `RESULT: WAREHOUSE ON STAGING`, head 9cfe6c9 (Vercel built it: the wizard offers the Warehouse).
+S0 both migrations waiting; S1 55a then 55 pushed; S1b warehouse_stage=new commercial_form=new stages=17 scopes=4
+warehouse_scopes=0 inspections=0 bags_out=0; S2 smoke 51/52 (statement logging, a go-live step), the new rules in place,
+the change log intact, ledger audit NO FINDINGS (207 blocks, 46 records, 4 seals, 6 evidence files), logins and
+functions current; S3 77 files: the 42 delivered and 35 files of `Claude outputs/` taken out of git (they stay on disk).
+Record: `release-evidence/staging-warehouse-20261016-072234.log`.
+
+## 16 October 2026, 07:25–07:45 IST: release 8 run-sheet checks on staging (KH26 · Practice godown (test))
+
+Lucky signed in by Veda; Claude drove the 13 rows in Chrome at laptop width; practice data.
+
+| # | Result |
+|---|---|
+| 1 | Wizard: Collection Batch, Warehouse, Milling ticked → "Procurement → Collection Batch → Warehouse → Milling → Quality Control → QR Activation", "This chain is valid" |
+| 2 | Saved draft opened on People; Lucky on all six stages (the four "verifies his own records" warnings shown); activated |
+| 3 | Inspection interval 1 day, kept after a reload |
+| 4 | P-0001, P-0002 (farmers 1 and 2, 100 kg each, at the farm, GPS) |
+| 5 | Both checked in at the Collection Batch; VB-0001 at the farm, 200 kg |
+| 6 | Warehouse checked VB-0001 in; the form opened with Sent 200; Received 194 refused in plain words ("Say why 6 kg less …"); with the reason saved WH-0001, "flagged for the manager" |
+| 7 | Record: 6 kg, 3 %, Good, 4 bags in, Practice godown (test), S-1; system check "Received within the limit … (6 kg, 3 %)" ✗ |
+| 8 | Flags: "Warehouse: received 194 kg, 3 % less than was sent (200 kg); more than 2 %. Reason given: dried on the way (practice)" |
+| 9 | 0 days; 4 in · 0 out · 4 left; DUE by 17 Oct; Minor deterioration: Save off with "damp", on with the full note; listed with the date and Lucky |
+| 10 | Home: "TCUP-KNM-KH26-PRC-WH-0001: inspection due by 17 Oct 2026" (and "1 from Warehouse waiting … at Milling") |
+| 11 | Milling's check-in asked "Bags counted out of the warehouse" and "The grain looks and smells sound"; bags out 5: Save off ("4 still in"); 4 saved: 4 in · 4 out · 0 left |
+| 12 | M-0001 from WH-0001 (194 kg in, 120 head rice); WH-0001 "DONE nothing is left in storage" |
+| 13 | KH26 Bansi, PK-0001 → Commercial: Domestic: no Export market, Destination country or Incoterms; Export: all three shown (not saved) |
+
+Found, small, for release 56: "every 1 days" on the record; at Procurement the farmer picker says "No active farmer of
+this client yet" for a moment while the client's farmers load. Not checked on staging (waiting needed): "stored but
+not recorded" and the public page's days in storage (`tests/49` §7–8).
+
+
+## 16 October 2026, morning: share with the buyer, scans and copies, release 9 (migration 56, open item 51), local stack
+
+Veda, 16 Oct: "ok / also check that one client data should not be visible to another client. / also during collection
+there can be filter use such as village … / proceed with 56". Everything below ran on the local stack (a rehearsal);
+nothing ran on staging yet.
+
+- **Database tests**: every test file on a template built from all migrations and seeds: **2,174 checks**, all ok (2,097
+  before release 9). New: `tests/51_buyer_link_scans.sql` **59 checks**, **29 negative controls** (`controls56.py`, each
+  breaks one rule in the function's own text: 29 of 29 caught); `tests/50_client_isolation.sql` **18 checks**, with
+  three leaks put in on purpose inside the test (a table opened to all, `activation_missing` without its guard, a new
+  function answering for any record): each caught.
+- **The isolation probe** on a populated copy (two clients): 15 people bound to a client, 39 tables, 9,120 calls with the other
+  client's ids before the fixes found three leaks (another client's lab; a scope's activation list; the roster pool's
+  work elsewhere naming the other client and scope); after migration 56: `leaks: []`.
+- **run_local**: ALL TESTS PASSED (2,215 checks; the smoke check every row OK but the standing ones; the production
+  build; the upgrade path, 51 test files again) — run before the pgcrypto fix below and again after it (see the last line).
+- **Unit**: 638 tests (24 new in `buyer_link_scans.test.tsx`: the link and token, the buyer-file function with fetch
+  stubbed, the scan function's headers, the scan flag's words, the lot filters, the three fixes, every refusal's plain
+  words, every new key in both languages). Typecheck clean.
+- **End to end**: main suite **90 passed** (21.1 min; new `e2e/phase28.spec.ts`: a shipment shared, the buyer's page at
+  527 px without a sign-in, no price or farmer's name, a lab report opened through `buyer-file` (signed address answered
+  200), the evidence pack downloaded, three views listed, revoked → "This link does not open"; a pack scanned in Delhi
+  and Rotterdam → "Needs my action", the Flags page with both places, the pack page's warning naming the seller,
+  cleared → gone; the Collection Batch's village filter, search by code and by farmer, "Choose the 1 shown", "1 chosen
+  lots are hidden"); built app **14 passed** (public page 174 KB, 1.7 s on slow 4G); first day from nothing **1 passed**.
+- **API checks**: `remote_rls.mjs --t1` 192 passed; `remote_create_user.mjs` 95 passed.
+- **Restore drill**: FAILED at first: `function digest(text, unknown) does not exist` at migration 56 (the drill places
+  pgcrypto as Supabase does, in `extensions`; the two link functions had `search_path = public`). Fixed (`public,
+  extensions`, FIX_LIST FX2); then the database tests (2,174), phase27 + phase28 and the drill: **RESTORE DRILL PASSED**.
+- **Release script rehearsal** (`scripts/staging_buyer_link_scans.ps1` on stand-ins, from the release-8 state): the full
+  run ends `RESULT: BUYER LINK AND SCANS ON STAGING` (S0, S1, S1c, S1b, S2 with `leaks=0`, S3, 40 files); 26 more
+  scenarios each stop where they should (wrong words; 55 or another migration waiting; production; the six functions
+  not current; push fails; buyer-file deploy fails or is not current after; the read-back fails, old form, a link or a
+  scan with a place already there; rule not in place; **a leak**; the probe cannot run; a smoke row not OK; a changed
+  migration, smoke check, `check_functions.mjs`, `web/api` file or `buyer-file`; a new file under `web/api`); a rerun
+  after a full run deploys `buyer-file` again and commits nothing.
+- **Part H**: pictures of the Collection Batch and Lot Inward operators at 390 px, report `docs/PART_H_OPERATOR_VIEW.md`.
+
+NOT run / not known: nothing on staging yet; the scan's place from Vercel's headers (only the function's text is
+tested; staging shows it, run-sheet row 6); about 130 new Hindi strings unread by their users.
+- **After the pgcrypto fix**: run_local again: ALL TESTS PASSED (2,215 checks), exit 0. The app files were sealed after
+  it (157 files, `scripts/tested_app_files.txt`).
+
+## 16 October 2026, 09:59 IST: release 9 on staging, first run: STOPPED at S2 (the isolation check), as designed
+
+Veda ran `staging-buyer-link-scans.cmd`. S0, S1 (migration 56 pushed), S1c (`buyer-file` deployed, build 2026-10-16;
+FUNCTIONS DEPLOYED AND CURRENT), S1b (`commercial_form=new stages=17 links=0 link_views=0 scan_flags=0 scans=1
+scans_with_place=0`) OK. S2: `A CLIENT CAN SEE ANOTHER CLIENT'S DATA: leaks=2 people=7 tables=40 calls=7440
+own_rows=2147 clients=3 what=table:openings. The app was not pushed`. The old app works on the new database meanwhile.
+
+Cause: `openings_read` (migration 39) let every Client Manager (`app.can_assign()`) read every opening, and an opening
+made from a scope's requirement names its client and scope. The local data had no opening of any client, so the probe
+had nothing to find there. Reproduced locally first: `tests/50_client_isolation.sql`, with every table the probe reads
+given a row of each client (37 tables) and a Client Manager for the second client, failed with exactly that:
+`[{"kind": "table", "role": "client_manager", "what": "openings"}, {"kind": "table", "role": "operator", "what": "openings"}]`
+(the second is the other client's Client Manager, whose summary role still says operator).
+
+Fixed by **migration 56b** (`20261031000200_openings_isolation`): a manager reads the openings of the clients he may see
+(and GrainVeda's own, of no client); HR and the admin as before; the probe also reads `buyer_links` (open by column) and
+traces a link's views. Then, local stack:
+
+- test 50: 23 checks (+5: each Client Manager reads only his client's openings, HR both; a control puts the old rule back
+  and the probe catches it); every database test 2,179; `controls56.py` 29 of 29; smoke row `client isolation`
+  (negative control: the old rule → `MISSING (push migration 56b …)`).
+- run_local: ALL TESTS PASSED (2,220 checks, upgrade path, production build), exit 0.
+- e2e phase11 (HR openings), phase18 (requirements → openings), phase27, phase28: 6 passed; `remote_rls --t1` 192
+  passed; restore drill PASSED.
+- The release script (`patch56b.py` after `mkrel56.py`): 29 rehearsal scenarios; the case of staging now (56 in,
+  `buyer-file` deployed, only 56b waiting) ends `RESULT: BUYER LINK AND SCANS ON STAGING`; 56b changed, 56 alone or out
+  of order waiting, a leak: each stops.

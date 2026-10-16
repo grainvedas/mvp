@@ -366,6 +366,22 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   transaction). A form field marked `shown_if` shows only while another field of the form has that value
   (`withValueRules`). A new rule here needs a case in `tests/49_warehouse.sql` and its plain words in `plainErrors.ts`
   (EN and HI).
+- **A buyer sees his order through a link; a scan has a place; one client never sees another** (migration 56, Veda
+  16 October 2026). What a buyer may see is one function, `app.buyer_content` (never a price, a currency, a farmer's
+  name, another buyer's order, the farm-gate record or the quantities before the sale): a new way in (a buyer's
+  sign-in) calls it, never a copy of it. A link's token is never stored or logged (its SHA-256 in `buyer_links`, the
+  link carries it after the `#`); links are made and revoked only through `app.create_buyer_link` /
+  `app.revoke_buyer_link`, every view is a `buyer_link_views` row, and a file reaches a buyer only through the server
+  function `buyer-file` (`app.buyer_file` is the service role's). `buyer-file` carries its own `VERSION`; the six older
+  functions keep their common one (`scripts/check_functions.mjs`, `APART`). A scan is counted through
+  `app.record_scan_at` with the place the host saw (`web/api/scan.js` on Vercel; nothing of the person, the point
+  rounded to one decimal); a copy is a `scan_flags` row, decided only through `app.decide_scan_flag`. **A new table, read
+  rule or app function that takes a record's id must keep `app.isolation_probe()` empty**: `tests/50_client_isolation.sql`
+  runs it on two clients' data (every table it reads gets a row of each client: a new table needs its line in that
+  test's `fill`, or the test fails) and the release script on staging; a row of a new table must be traceable to its client
+  (`app.isolation_owner`), and GrainVeda's workforce (`app_users`, `employee_*`) is the one thing shared (G20: a
+  person's work for another client is said, not named). A new rule here needs a case in `tests/51_buyer_link_scans.sql`
+  and its plain words in `plainErrors.ts` (EN and HI).
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,

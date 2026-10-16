@@ -2,7 +2,7 @@
   "buildCommand": "npx vite build --mode staging",
   "outputDirectory": "dist",
   "git": { "deploymentEnabled": { "ledger-anchors": false } },
-  "rewrites": [{ "source": "/((?!assets/|sw\\.js|manifest\\.webmanifest|icon\\.svg|asset-manifest\\.json).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!api/|assets/|sw\\.js|manifest\\.webmanifest|icon\\.svg|asset-manifest\\.json).*)", "destination": "/index.html" }],
   "headers": [
     { "source": "/(.*)", "headers": [
       { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" },

@@ -31,6 +31,8 @@ export function actionLines(a: MyActions, t: (k: string, v?: Record<string, stri
   if (a.requirement_lines > 0) out.push({ key: 'lines', n: a.requirement_lines, to: '/scopes', text: t('act.lines', { n: a.requirement_lines }), action: t('act.open') });
   if (a.conditions > 0) out.push({ key: 'conditions', n: a.conditions, to: '/flags', text: t('act.conditions', { n: a.conditions }), action: t('act.open') });
   if (a.flags > 0) out.push({ key: 'flags', n: a.flags, to: '/flags', text: t('act.flags', { n: a.flags }), action: t('act.open') });
+  // migration 56 (D6): a pack's code scanned far apart or very often: cleared or confirmed on the Flags page
+  if ((a.scan_flags ?? 0) > 0) out.push({ key: 'scanflags', n: a.scan_flags!, to: '/flags', text: t('act.scan_flags', { n: a.scan_flags! }), action: t('act.open') });
   return out;
 }
 

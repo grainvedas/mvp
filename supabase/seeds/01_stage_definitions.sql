@@ -343,3 +343,12 @@ update public.stage_definitions set form_schema = (
     $w55$;
   end if;
 end $seed55$;
+
+-- Migration 56: an export sale asks its market's profile and its destination; the form now says so ("required", shown
+-- only for export). The same change as the migration's, for a database seeded after it. A form that does not yet show
+-- them only for export (before migration 55) is left as it is.
+update public.stage_definitions d
+   set form_schema = (select jsonb_agg(case when f->>'key' in ('market_code', 'destination_country') then f || '{"required": true}'::jsonb else f end
+                                       order by n)
+                        from jsonb_array_elements(d.form_schema) with ordinality as x(f, n))
+ where d.stage_type = 'commercial' and exists (select 1 from jsonb_array_elements(d.form_schema) f where f->>'key' = 'market_code' and f ? 'shown_if');

@@ -33,12 +33,26 @@ export interface Journey {
   packs?: { n: number; packed_on: string | null; best_before: string | null } | null;
 }
 /** app.public_pack (migration 50): one pack; before release only what the label says */
-export interface PackView { serial: string; batch_code: string; size_kg: number; packed_on: string; best_before: string | null; void: boolean }
+export interface PackView { serial: string; batch_code: string; size_kg: number; packed_on: string; best_before: string | null; void: boolean;
+  /** migration 56 (D6): this code was scanned far apart or very often and is being checked (or was found copied) */
+  copy_warning?: boolean;
+  /** migration 56: the client that sells it (named in the copy warning) */
+  seller?: string }
 export type PublicPack = (Journey & { pack: PackView; released: true })
   | { pack: PackView; released: false; crop: Journey['crop']; season: string; geography: string; gi_status?: Journey['gi_status'] };
 export const loadPack = (serial: string) => rpc<PublicPack | null>('public_pack', { p_serial: serial });
-/** Every scan is counted (time and code, nothing about the person); a failed count never stops the page. */
-export const countScan = (code: string) => { void rpc('record_scan', { p_code: code }).catch(() => undefined); };
+export interface ScanCount { counted?: boolean; copy_warning?: boolean }
+/** Every scan is counted (time and code, and since migration 56 the approximate place the host saw: city, region,
+ *  country, a point rounded to about 10 km; nothing about the person). The host's /api/scan adds the place; where it does
+ *  not answer JSON (the local stack, a host without it) the scan is counted without one. A failed count never stops the page. */
+export async function countScan(code: string): Promise<ScanCount | null> {
+  try {
+    const r = await fetch('/api/scan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
+    if (r.ok && (r.headers.get('content-type') ?? '').includes('application/json')) return (await r.json()) as ScanCount;
+  } catch { /* counted below without a place */ }
+  try { await rpc('record_scan', { p_code: code }); } catch { /* never stops the page */ }
+  return null;
+}
 export const loadJourney = (code: string) => rpc<Journey | null>('public_lot_journey', { p_qr_code: code });
 
 export const SEASONS: Record<string, string> = { KH: 'Kharif', RB: 'Rabi', ZD: 'Zaid' };

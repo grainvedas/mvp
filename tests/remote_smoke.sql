@@ -386,6 +386,31 @@ select 'warehouse',                case when to_regclass('public.warehouse_inspe
                                       then 'NOT OK (the tables are there; their change log, the flag trigger, the Warehouse stage or the Commercial form is missing)'
                                       else 'OK the Warehouse: sent and received, a reason and a flag above 2 %, inspections due and overdue, bags out, days in storage; stored but not recorded' end
 union all
+select 'buyer link scans',         case when to_regclass('public.buyer_links') is null or to_regclass('public.buyer_link_views') is null or to_regclass('public.scan_flags') is null
+                                        or to_regprocedure('app.buyer_view(text)') is null or to_regprocedure('app.record_scan_at(text, text, text, text, numeric, numeric)') is null
+                                        or to_regprocedure('app.decide_scan_flag(uuid, text, text)') is null
+                                      then 'MISSING (push migration 56)'
+                                      when (select count(*) from pg_trigger where tgname = 'zz_change_log') < 54
+                                        or has_column_privilege('authenticated', 'public.buyer_links', 'token_hash', 'select')
+                                        or has_function_privilege('anon', 'app.buyer_file(text, uuid)', 'execute')
+                                        or not has_function_privilege('anon', 'app.buyer_view(text)', 'execute')
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'scans' and column_name = 'country')
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'commercial' and form_schema @> '[{"key": "market_code", "required": true}]')
+                                      then 'NOT OK (the tables are there; their change log, a grant, the scans'' place or the Commercial form is not as migration 56 left it)'
+                                      else 'OK a sale or a shipment shared with its buyer (expires, revoked, every view logged); scans with their place, copies flagged and warned' end
+union all
+select 'client isolation',         case when to_regprocedure('app.isolation_probe(boolean, boolean)') is null then 'MISSING (push migration 56)'
+                                      when exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'labs' and policyname = 'labs_read'
+                                                     and qual not like '%can_access_client%')
+                                        or has_function_privilege('authenticated', 'app.isolation_probe(boolean, boolean)', 'execute')
+                                        or position('can_access_client' in pg_get_functiondef('app.activation_missing(uuid)'::regprocedure)) = 0
+                                        or position('other_client' in pg_get_functiondef('app.work_elsewhere(uuid, uuid)'::regprocedure)) = 0
+                                      then 'NOT OK (a lab, a scope''s activation list or the roster pool shows another client''s data again)'
+                                      when exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'openings' and policyname = 'openings_read'
+                                                     and qual not like '%can_access_client%')
+                                      then 'MISSING (push migration 56b: another client''s openings are readable by every Client Manager)'
+                                      else 'OK another client''s labs, openings, scope lists and work are not shown (the release script runs the full probe)' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

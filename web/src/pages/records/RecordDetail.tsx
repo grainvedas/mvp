@@ -21,6 +21,7 @@ import { ForwardPanel } from '../trace/Forward';
 import { paymentProblem } from '../../engine/offlinePreview';
 import { SamplesPanel } from './Samples';
 import { WarehousePanel } from './Warehouse';
+import { BuyerSharePanel } from './BuyerShare';
 
 export function RecordDetail() {
   const { id = '' } = useParams();
@@ -119,6 +120,9 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
       {f.stage_type === 'shipment' && f.computed?.market === 'export' && !r.bill_of_lading && !f.payload?.bl_no && (f.status === 'pending' || f.status === 'verified')
         && me.role !== 'client_view' && !watch && <BillOfLadingPanel f={f} onDone={reload} />}
       {f.stage_type === 'shipment' && <DeliveryPanel r={r} mayAct={me.role !== 'client_view' && !watch} onDone={reload} />}
+      {/* migration 56 (Part F): a sale or a shipment shared with its buyer, by the managers of its scope */}
+      {(f.stage_type === 'commercial' || f.stage_type === 'shipment') && boss && !watch && (f.status === 'pending' || f.status === 'verified')
+        && <BuyerSharePanel fp={f.id} code={f.footprint_code} />}
       {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && !watch && <FinishSeal f={f} onDone={reload} />}
       {r.attachments.length > 0 && <Attachments detail={r} />}
       {me.role !== 'client_view' && !watch && f.status !== 'superseded' && <AddEvidence f={f} onDone={reload} />}

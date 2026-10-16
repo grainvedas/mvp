@@ -10,6 +10,7 @@ import { PublicPack } from './pages/public/PublicPack';
 
 const PrivateApp = lazy(() => import('./PrivateApp'));
 const InvitePage = lazy(() => import('./pages/public/Invite'));
+const BuyerView = lazy(() => import('./pages/public/BuyerView'));   // migration 56 (Part F): a buyer's link
 
 export function App() {
   return (
@@ -21,6 +22,7 @@ export function App() {
             <Route path="/verify/:code" element={<PublicVerify />} />
             <Route path="/p/:serial" element={<PublicPack />} />   {/* migration 50: one pack's own QR */}
             <Route path="/invite" element={<Suspense fallback={<main><Loading /></main>}><InvitePage /></Suspense>} />
+            <Route path="/b" element={<Suspense fallback={<main><Loading /></main>}><BuyerView /></Suspense>} />
             <Route path="/*" element={<Suspense fallback={<main><Loading /></main>}><PrivateApp /></Suspense>} />
           </Routes>
         </BrowserRouter>

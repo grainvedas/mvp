@@ -118,6 +118,8 @@ export const enPublic: Record<string, string> = {
   'pv.pack_not_found': 'No GrainVeda pack has the code {code}. Check the code on the label.',
   'pv.not_released': 'Packed, not yet released. Its full record shows here once the lot is released.',
   'pv.pack_void': 'This pack is void: do not use it.',
+  'pv.copy_warning': 'Caution: this pack\'s code has been scanned in places far apart, or very often. It may be a copy. {seller} is checking it; buy only from a trusted seller.',   // migration 56
+  'pv.copy_warning_plain': 'Caution: this pack\'s code has been scanned in places far apart, or very often. It may be a copy; buy only from a trusted seller.',   // migration 56
   'pv.by_market': 'By market',
 };
 
@@ -248,5 +250,7 @@ export const hiPublic: Record<string, string> = {
   'pv.pack_not_found': 'किसी GrainVeda पैक का कोड {code} नहीं है। लेबल पर कोड जाँचें।',
   'pv.not_released': 'पैक हो चुका, अभी जारी नहीं हुआ। लॉट जारी होने पर इसका पूरा रिकॉर्ड यहाँ दिखेगा।',
   'pv.pack_void': 'यह पैक रद्द है: इसका उपयोग न करें।',
+  'pv.copy_warning': 'सावधान: इस पैक का कोड बहुत दूर-दूर की जगहों पर या बहुत बार स्कैन हुआ है। यह नकल हो सकती है। {seller} इसकी जाँच कर रहा है; सिर्फ़ भरोसेमंद विक्रेता से खरीदें।',   // migration 56
+  'pv.copy_warning_plain': 'सावधान: इस पैक का कोड बहुत दूर-दूर की जगहों पर या बहुत बार स्कैन हुआ है। यह नकल हो सकती है; सिर्फ़ भरोसेमंद विक्रेता से खरीदें।',   // migration 56
   'pv.by_market': 'बाज़ार के अनुसार',
 };

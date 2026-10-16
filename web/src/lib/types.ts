@@ -285,6 +285,8 @@ export interface MyActions {
   inspections?: { id: string; code: string; scope: string; state: 'due' | 'overdue'; next_due: string }[];
   /** migration 55 (C3): in a scope without a Warehouse, lots waiting for Milling too long (for its managers) */
   stored_unrecorded?: { id: string; code: string; scope: string; days: number }[];
+  /** migration 56 (D6): packs whose scans look copied (far apart, or very often), for the managers of their scope */
+  scan_flags?: number;
 }
 
 export const MANAGER_ROLES: Role[] = ['admin', 'state_manager', 'client_manager'];

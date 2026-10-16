@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Are the six server functions deployed on this project, and are they the build this repository holds?
+// Are the seven server functions deployed on this project, and are they the build this repository holds?
+// (The six older ones carry one common build; buyer-file, migration 56, carries its own.)
 //   node scripts/check_functions.mjs                       (the project of .env.local: staging)
 //   ENV_FILE=.env.production node scripts/check_functions.mjs
 // Reads only: it sends GET to each function (no login, no key beyond the public one) and reads the build from the
@@ -14,14 +15,18 @@ import { supabaseConfig } from './lib/env.mjs';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cfg = supabaseConfig();
 const NAMES = ['create-user', 'reset-password', 'ledger-check', 'daily-code', 'id-numbers', 'invite'];
+const APART = ['buyer-file'];                                  // migration 56: its own build
 const versionIn = (name) => /export const VERSION = '([^']+)'/.exec(readFileSync(join(root, 'supabase', 'functions', name, 'handler.ts'), 'utf8'))?.[1] ?? null;
 const here = Object.fromEntries(NAMES.map((n) => [n, versionIn(n)]));
 if (new Set(Object.values(here)).size !== 1 || !here['create-user']) { console.error('FAIL  the six handler.ts files do not carry one VERSION:', JSON.stringify(here)); process.exit(1); }
 const needed = here['create-user'];
+const own = Object.fromEntries(APART.map((n) => [n, versionIn(n)]));
+if (Object.values(own).some((v) => !v)) { console.error('FAIL  a handler.ts carries no VERSION:', JSON.stringify(own)); process.exit(1); }
 
 console.log(`project: ${new URL(cfg.url).host}   build in this repository: ${needed}`);
 let bad = 0;
-for (const name of NAMES) {
+for (const name of [...NAMES, ...APART]) {
+  const want = own[name] ?? needed;
   let line;
   try {
     const r = await fetch(`${cfg.url}/functions/v1/${name}`, { headers: { apikey: cfg.anon, authorization: `Bearer ${cfg.anon}` }, signal: AbortSignal.timeout(15000) });
@@ -29,7 +34,7 @@ for (const name of NAMES) {
     const text = (await r.text().catch(() => '')).slice(0, 200);
     if (r.status === 404) line = `FAIL  ${name}: not deployed`;
     else if (!build) line = `FAIL  ${name}: deployed, but an older build (it does not say which; before 2026-10-04)`;
-    else if (build !== needed) line = `FAIL  ${name}: deployed build ${build}, this repository holds ${needed}`;
+    else if (build !== want) line = `FAIL  ${name}: deployed build ${build}, this repository holds ${want}`;
     else if (/not configured|"configured":false|NOT_CONFIGURED/.test(text)) line = `FAIL  ${name}: build ${build}, but its secrets are not set (${text.replace(/[{}"]/g, '').slice(0, 120)})`;
     else line = `ok    ${name}: build ${build}`;
   } catch (e) { line = `FAIL  ${name}: no answer (${e?.message ?? e})`; }
@@ -37,8 +42,8 @@ for (const name of NAMES) {
   console.log(line);
 }
 if (bad) {
-  console.log(`\n${bad} of ${NAMES.length} NOT READY. Deploy: supabase functions deploy create-user · supabase functions deploy reset-password · `
-    + 'supabase functions deploy ledger-check --no-verify-jwt · supabase functions deploy daily-code · supabase functions deploy id-numbers · supabase functions deploy invite --no-verify-jwt   (secrets of ledger-check: docs/RUNSHEET_phase3.md steps 7 and 8; ID_HMAC_KEY of id-numbers: docs/OPERATIONS.md)');
+  console.log(`\n${bad} of ${NAMES.length + APART.length} NOT READY. Deploy: supabase functions deploy create-user · supabase functions deploy reset-password · `
+    + 'supabase functions deploy ledger-check --no-verify-jwt · supabase functions deploy daily-code · supabase functions deploy id-numbers · supabase functions deploy invite --no-verify-jwt · supabase functions deploy buyer-file --no-verify-jwt   (secrets of ledger-check: docs/RUNSHEET_phase3.md steps 7 and 8; ID_HMAC_KEY of id-numbers: docs/OPERATIONS.md)');
   process.exit(1);
 }
 console.log('\nFUNCTIONS DEPLOYED AND CURRENT');

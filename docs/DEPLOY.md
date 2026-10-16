@@ -59,12 +59,19 @@ allows any Supabase project because the file cannot read the build's environment
 Vercel's schema and no comment: any other property fails the deploy before the build starts (`tests/phase4.test.tsx`
 "hosting config"). `web` installs from `web/package-lock.json`: no `package.json` above it may name it as a workspace.
 
+**The scan's place (migration 56).** A scan of a QR is counted through `/api/scan`, a small function of the host that
+adds the place the host saw (city, region, country, a point rounded to about 10 km). On Vercel it is `web/api/scan.js`
+(an Edge Function reading `x-vercel-ip-*`; it uses `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the project's
+settings, the public key only), and `vercel.json` leaves `/api/` out of the app's rewrite. On Cloudflare or Netlify the
+same few lines are needed (Cloudflare: a Worker reading `request.cf`); until then the page counts the scan without a
+place (decision G21).
+
 ## Three things are deployed apart, and must match
 
 | What | How it gets there | How to see what is there |
 |---|---|---|
 | Database rules | `supabase db push` | `supabase db push --linked --dry-run` lists nothing; `tests/remote_smoke.sql` |
-| Server functions (`create-user`, `reset-password`, `ledger-check`, `daily-code`, `id-numbers`, `invite`) | `supabase functions deploy …` (run-sheet Phase 5 D4; Phase 4 C6) | `node scripts/check_functions.mjs`: `FUNCTIONS DEPLOYED AND CURRENT` |
+| Server functions (`create-user`, `reset-password`, `ledger-check`, `daily-code`, `id-numbers`, `invite`; `buyer-file` since migration 56, its own build) | `supabase functions deploy …` (run-sheet Phase 5 D4; Phase 4 C6) | `node scripts/check_functions.mjs`: `FUNCTIONS DEPLOYED AND CURRENT` |
 | The app | a push to GitHub `main` (Vercel), or `wrangler deploy` | the app itself: the Add joiner page shows a yellow warning when the functions are older than the app needs |
 
 A function left behind does not fail loudly. On 4 October 2026 the staging database was at migration 29 and
@@ -96,9 +103,9 @@ explanation of each step.
    With sign-up off, nobody can make a login for themselves; the settings check then reports an "auto-confirm"
    setting as a note, not a failure.
 5. **Functions and secrets**: `supabase functions deploy create-user`, `reset-password`, `daily-code`, `id-numbers`, and
-   `ledger-check --no-verify-jwt`, `invite --no-verify-jwt` (with `ID_HMAC_KEY` of production: `docs/OPERATIONS.md`); a new `LEDGER_CHECK_TOKEN` for production (`scripts/make_ledger_token.mjs` with
+   `ledger-check --no-verify-jwt`, `invite --no-verify-jwt`, `buyer-file --no-verify-jwt` (with `ID_HMAC_KEY` of production: `docs/OPERATIONS.md`); a new `LEDGER_CHECK_TOKEN` for production (`scripts/make_ledger_token.mjs` with
    `ENV_FILE=.env.production`), uploaded with `supabase secrets set --env-file .env.functions.production`.
-6. **Checks, read-only**: `tests/remote_smoke.sql` (52 rows; "environment" must say `OK production`, "demo data" must
+6. **Checks, read-only**: `tests/remote_smoke.sql` (54 rows; "environment" must say `OK production`, "demo data" must
    say `OK production: no demo people or scopes`), `ENV_FILE=.env.production node tests/remote_auth_settings.mjs`
    (must end `AUTH SETTINGS PASSED`; on production an open setting is a failure, not a warning).
 6b. **Production safeguards** (migration 45): the go-live checklist of `docs/PRODUCTION_SAFEGUARDS.md` (two owners,

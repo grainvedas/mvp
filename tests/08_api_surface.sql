@@ -102,6 +102,9 @@ insert into allowed values
   ('authenticated', 'pick_net_weight'), ('authenticated', 'record_net_weights'),                                   -- migration 53
   ('authenticated', 'packs_left'), ('authenticated', 'set_export_doc'), ('authenticated', 'add_bill_of_lading'),         -- migration 54
   ('authenticated', 'record_inspection'), ('authenticated', 'record_bags_out'),                                         -- migration 55
+  ('anon', 'record_scan_at'), ('authenticated', 'record_scan_at'), ('anon', 'buyer_view'), ('authenticated', 'buyer_view'),
+  ('anon', 'buyer_log'), ('authenticated', 'buyer_log'), ('authenticated', 'scan_flags_list'), ('authenticated', 'decide_scan_flag'),
+  ('authenticated', 'create_buyer_link'), ('authenticated', 'revoke_buyer_link'), ('authenticated', 'buyer_links_of'),   -- migration 56
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

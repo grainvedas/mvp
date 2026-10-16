@@ -190,6 +190,7 @@ export function villageGroups(all: Pick<Farmer, 'village'>[]): { key: string; vi
 function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; clientId: string; scopeId?: string; value: string; onChange: (v: string) => void }) {
   const { t } = useI18n();
   const [all, setAll] = useState<Farmer[]>([]);
+  const [loaded, setLoaded] = useState(false);   // migration 56: "no farmer yet" only once the list has come
   const [village, setVillage] = useState('');
   const [picked, setPicked] = useState<Farmer | null>(null);
   useEffect(() => {
@@ -199,7 +200,7 @@ function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; 
         .eq('client_id', clientId).eq('status', 'active').order('name').limit(5000);
       if (error) throw error;
       return (data ?? []) as Farmer[];
-    }).then((l) => { if (live) setAll(l); }).catch(() => undefined);
+    }).then((l) => { if (live) { setAll(l); setLoaded(true); } }).catch(() => { if (live) setLoaded(true); });
     return () => { live = false; };
   }, [clientId]);
   useEffect(() => { if (value && picked?.id !== value) setPicked(all.find((f) => f.id === value) ?? null); }, [value, picked?.id, all]);
@@ -228,7 +229,8 @@ function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; 
         <option value="">{t('widget.farmer_pick')}</option>
         {inVillage.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.farmer_code}</option>)}
       </select>}
-      {groups.length === 0 && <p className="small muted" data-testid="no-farmers">{t('widget.no_farmers')}</p>}
+      {groups.length === 0 && (loaded ? <p className="small muted" data-testid="no-farmers">{t('widget.no_farmers')}</p>
+        : <p className="small muted" data-testid="farmers-loading">{t('widget.farmers_loading')}</p>)}
     </div>
   );
 }
@@ -281,7 +283,10 @@ function LotPicker({ id, scopeId, stageType, value, onChange, point }: { id: str
   /** migration 54: the collection point the batch names (its lots only) */ point?: string }) {
   const { t } = useI18n();
   const [lots, setLots] = useState<IncomingLot[] | null>(null);
-  const [names, setNames] = useState<Record<string, { name: string; village: string }>>({});
+  const [names, setNames] = useState<Record<string, { name: string; village: string; farmer_code?: string }>>({});
+  // migration 56 (Veda, 16 Oct 2026: "there will be many lots per farmer per village"): a village, a search, all shown
+  const [fVillage, setFVillage] = useState('');
+  const [fText, setFText] = useState('');
   useEffect(() => {
     if (!scopeId || !stageType) return;
     let live = true;
@@ -291,10 +296,11 @@ function LotPicker({ id, scopeId, stageType, value, onChange, point }: { id: str
       setLots(verified);
       const ids = [...new Set(verified.map((x) => x.farmer_id).filter(Boolean) as string[])];
       const nm = ids.length ? await cached(`lot_farmers:${scopeId}:${stageType}`, async () => {
-        const { data, error } = await supabase.from('farmers').select('id,name,village').in('id', ids);
+        const { data, error } = await supabase.from('farmers').select('id,name,village,farmer_code').in('id', ids);
         if (error) throw error;
-        return Object.fromEntries(((data ?? []) as { id: string; name: string; village: string }[]).map((f) => [f.id, { name: f.name, village: f.village }]));
-      }).catch(() => ({} as Record<string, { name: string; village: string }>)) : {};
+        return Object.fromEntries(((data ?? []) as { id: string; name: string; village: string; farmer_code: string }[])
+          .map((f) => [f.id, { name: f.name, village: f.village, farmer_code: f.farmer_code }]));
+      }).catch(() => ({} as Record<string, { name: string; village: string; farmer_code?: string }>)) : {};
       if (!live) return;
       setNames(nm);
       for (const l of verified) {
@@ -316,8 +322,13 @@ function LotPicker({ id, scopeId, stageType, value, onChange, point }: { id: str
   }, [point, lots]);
   if (lots === null) return <p className="small muted" id={id}>{t('common.loading', undefined, '…')}</p>;
   if (!lots.length) return <p className="alert info" id={id}>{t('widget.no_lots')}</p>;
-  const shown = point ? lots.filter((l) => pointOf(l) === point) : lots;
-  if (!shown.length) return <p className="alert info" id={id} data-testid="batch-none-here">{t('cb.none_at_point')}</p>;
+  const atPoint = point ? lots.filter((l) => pointOf(l) === point) : lots;
+  if (!atPoint.length) return <p className="alert info" id={id} data-testid="batch-none-here">{t('cb.none_at_point')}</p>;
+  const villages = lotVillages(atPoint, names);
+  const shown = filterLots(atPoint, names, fVillage, fText);
+  const shownIds = new Set(shown.map((l) => l.id));
+  const hiddenChosen = value.filter((x) => atPoint.some((l) => l.id === x) && !shownIds.has(x)).length;
+  const allShown = shown.length > 0 && shown.every((l) => value.includes(l.id));
   const groups = new Map<string, IncomingLot[]>();
   for (const l of shown) groups.set(pointOf(l), [...(groups.get(pointOf(l)) ?? []), l]);
   const title = (key: string, l: IncomingLot) => {
@@ -328,13 +339,34 @@ function LotPicker({ id, scopeId, stageType, value, onChange, point }: { id: str
   return (
     <div id={id} className="stack" data-testid="batch-lots">
       {chosenPlaces.size > 1 && <div className="alert warn" role="alert" data-testid="batch-two-places">{t('cb.one_place')}</div>}
+      {atPoint.length > 1 && (
+        <div className="stack" data-testid="batch-filter">
+          <div className="row">
+            {villages.length > 1 && <select aria-label={t('cb.f_village')} value={fVillage} onChange={(e) => setFVillage(e.target.value)} data-testid="batch-f-village" style={{ flex: '1 1 10rem' }}>
+              <option value="">{t('cb.f_all_villages', { n: atPoint.length })}</option>
+              {villages.map((v) => <option key={v.key} value={v.key}>{v.village} ({v.n})</option>)}
+            </select>}
+            <input type="search" aria-label={t('cb.f_search')} placeholder={t('cb.f_search')} value={fText} onChange={(e) => setFText(e.target.value)}
+              data-testid="batch-f-text" style={{ flex: '1 1 10rem' }} />
+          </div>
+          <div className="row">
+            <span className="small muted" data-testid="batch-f-count">{t('cb.f_shown', { n: shown.length, of: atPoint.length, chosen: value.filter((x) => atPoint.some((l) => l.id === x)).length })}</span>
+            {shown.length > 0 && <button type="button" className="secondary small" data-testid="batch-f-all"
+              onClick={() => onChange(allShown ? value.filter((x) => !shownIds.has(x)) : [...new Set([...value, ...shown.map((l) => l.id)])])}>
+              {allShown ? t('cb.f_none_shown') : t('cb.f_all_shown', { n: shown.length })}</button>}
+          </div>
+          {hiddenChosen > 0 && <p className="small muted" data-testid="batch-f-hidden">{t('cb.f_hidden', { n: hiddenChosen })}</p>}
+        </div>)}
+      {shown.length === 0 && <p className="small muted" data-testid="batch-f-none">{t('cb.f_none')}</p>}
       {[...groups.entries()].map(([key, ls], gi) => {
         const all = ls.every((l) => value.includes(l.id));
+        const here = new Set(ls.map((l) => l.id));
+        const placeLots = atPoint.filter((l) => pointOf(l) === key).map((l) => l.id);
         return (
           <fieldset key={key || 'none'} className="stack" data-testid={`batch-place-${gi}`} data-place={key}>
             <legend className="small"><strong>{title(key, ls[0])}</strong> · {t('cb.n_lots', { n: ls.length })} · {kgText(ls.reduce((a, l) => a + Number(l.qty_out), 0))}</legend>
             <button type="button" className="secondary small" data-testid={`batch-place-all-${gi}`}
-              onClick={() => onChange(all ? value.filter((x) => !ls.some((l) => l.id === x)) : ls.map((l) => l.id))}>
+              onClick={() => onChange(all ? value.filter((x) => !here.has(x)) : [...new Set([...value.filter((x) => placeLots.includes(x)), ...here])])}>
               {all ? t('cb.none_here') : t('cb.all_here')}</button>
             {ls.map((l) => {
               const f = l.farmer_id ? names[l.farmer_id] : undefined;
@@ -351,6 +383,30 @@ function LotPicker({ id, scopeId, stageType, value, onChange, point }: { id: str
   );
 }
 const kgText = (n: number) => `${n.toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg`;
+
+type LotNames = Record<string, { name: string; village: string; farmer_code?: string }>;
+const villageKey = (v: string | null | undefined) => (v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+/** Pure (migration 56): the villages of the lots, with how many lots each, by name. */
+export function lotVillages(lots: Pick<IncomingLot, 'farmer_id'>[], names: LotNames): { key: string; village: string; n: number }[] {
+  const m = new Map<string, { key: string; village: string; n: number }>();
+  for (const l of lots) {
+    const v = l.farmer_id ? names[l.farmer_id]?.village ?? '' : '';
+    const key = villageKey(v) || '-';
+    const g = m.get(key);
+    if (g) g.n += 1; else m.set(key, { key, village: v || '—', n: 1 });
+  }
+  return [...m.values()].sort((a, b) => a.village.localeCompare(b.village));
+}
+/** Pure (migration 56): the lots of a village (its key, or all) whose code, farmer's name or farmer's code has the text. */
+export function filterLots<L extends Pick<IncomingLot, 'farmer_id' | 'footprint_code'>>(lots: L[], names: LotNames, village: string, text: string): L[] {
+  const q = text.trim().toLowerCase();
+  return lots.filter((l) => {
+    const f = l.farmer_id ? names[l.farmer_id] : undefined;
+    if (village && (villageKey(f?.village) || '-') !== village) return false;
+    if (!q) return true;
+    return [l.footprint_code, f?.name, f?.farmer_code].some((x) => (x ?? '').toLowerCase().includes(q));
+  });
+}
 
 /** Field values → payload (numbers parsed) and column values. Attachments are returned separately. */
 export function buildPayload(fields: FieldDef[], values: Record<string, FieldValue>) {
