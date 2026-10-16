@@ -322,11 +322,14 @@ select t.fails($q$ select app.bootstrap_seats() $q$, 'only the admin', 'seats: o
 -- 6 · the screens' reads keep the wall ------------------------------------------------------------------------------------------------
 select t.as_user(t.u('03'));
 select t.ok((select count(*) from jsonb_array_elements(app.people_directory()) p where (p->>'unassigned')::boolean) >= 1
-            and (select (p->>'elsewhere')::int = 2 and jsonb_array_length(p->'assignments') = 0 from jsonb_array_elements(app.people_directory()) p where p->>'id' = pg_temp.f('intern')::text)
-            and (select count(*) from jsonb_array_elements(app.people_directory()) p where p->>'status' = 'offboarded') = 0,
-            'directory: a manager sees the pool; another client''s assignments are a number only ("2 elsewhere"); no offboarded people');
-select t.ok((select jsonb_array_length(app.employee_profile(pg_temp.f('intern'))->'assignments') = 0 and (app.employee_profile(pg_temp.f('intern'))->>'elsewhere')::int = 2),
-            'profile: the same wall on the profile');
+            -- migration 57 (G20, Veda: "client info should not be shared"): a person who works now for another client is
+            -- not in a Client Manager's directory at all (before: there, with "2 elsewhere")
+            and not exists (select 1 from jsonb_array_elements(app.people_directory()) p where p->>'id' = pg_temp.f('intern')::text)
+            and (select count(*) from jsonb_array_elements(app.people_directory()) p where p->>'status' = 'offboarded') = 0
+            and not exists (select 1 from jsonb_array_elements(app.people_directory()) p where (p->>'elsewhere')::int > 0),
+            'directory: a manager sees the pool; a person working for another client is not in it, and no count of work elsewhere; no offboarded people');
+select t.fails(format($q$ select app.employee_profile(%L) $q$, pg_temp.f('intern')), 'not found',
+            'profile: the same wall on the profile (another client''s person is not found)');
 select t.ok((select not (app.employee_profile(t.u('06'))->'can'->>'suspend')::boolean and (app.employee_profile(t.u('09'))->'can'->>'assign')::boolean),
             'profile: it tells the screen what this reader may do (assign: yes; suspend: no)');
 select t.fails($q$ select app.audit_feed() $q$, 'admin and the HR Admin', 'audit: a manager does not read the feed');

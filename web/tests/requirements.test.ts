@@ -59,12 +59,14 @@ describe('openings by client and scope (section D)', () => {
 });
 
 describe('one person on two stages in a row (section E)', () => {
-  it('the public page uses the approved words when the same person recorded and checked a step', () => {
-    expect(howKey(false, true)).toBe('pv.how_same_person');
-    expect(howKey(true, false)).toBe('pv.how');
-    expect(howKey(false)).toBe('pv.how_mixed');
-    expect(hiPublic['pv.how_same_person']).toBeTruthy();
-    expect(enPublic['pv.how_same_person']).toBe('Some steps of this lot were recorded and checked by the same person. The full record is kept in the ledger.');
+  it('migration 57 (G21, Veda: "this line should not appear"): the public page never says one person recorded and checked a step', () => {
+    expect(howKey(true)).toBe('pv.how');
+    expect(howKey(false)).toBe('pv.how_basic');
+    for (const d of [enPublic, hiPublic]) {
+      expect(d['pv.how_same_person']).toBeUndefined();
+      expect(d['pv.how_mixed']).toBeUndefined();
+      expect(Object.values(d).join(' ')).not.toMatch(/same person|एक ही व्यक्ति/);
+    }
   });
   it('the warning says who and what it means, in English and Hindi', () => {
     expect(en['warn.adjacent_stages']).toBe('{name} also holds {first}. At {second} he will verify his own {first_lower} records.');

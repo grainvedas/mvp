@@ -252,8 +252,10 @@ begin
   perform t.as_user(t.u('07')); seal := app.seal_lot(qr);
   perform t.as_anon();
   j := app.public_lot_journey(seal.qr_code);
-  perform t.ok((j->>'same_person')::boolean and not (j->>'independent')::boolean,
-               'the public page is told some steps were recorded and checked by the same person');
+  -- migration 57 (G21, Veda: "this line should not appear"): the public page is not told so; it only does not claim the check
+  perform t.ok(not (j ? 'same_person') and not (j->>'independent')::boolean
+               and exists (select 1 from jsonb_array_elements(j->'journey') e where e->>'stage' = 'procurement' and not (e->>'checked')::boolean),
+               'the public page is not told that one person recorded and checked a step; that step only is not marked checked');
   perform t.as_user(t.u('01'));
   j := app.ledger_page(null, null, s, t.u('05'), false, 20, 0);
   perform t.ok(exists (select 1 from jsonb_array_elements(j->'rows') r where r->>'event' = 'verify' and r->>'footprint_id' = p::text

@@ -411,6 +411,20 @@ select 'client isolation',         case when to_regprocedure('app.isolation_prob
                                       then 'MISSING (push migration 56b: another client''s openings are readable by every Client Manager)'
                                       else 'OK another client''s labs, openings, scope lists and work are not shown (the release script runs the full probe)' end
 union all
+select 'people public page packs', case when to_regprocedure('app.busy_for_other_client(uuid)') is null or to_regprocedure('app.order_pack_codes(uuid, uuid)') is null
+                                      then 'MISSING (push migration 57)'
+                                      when position('busy_for_other_client' in pg_get_functiondef('app.cm_seen_ids()'::regprocedure)) = 0
+                                        or position('busy_for_other_client' in pg_get_functiondef('app.roster_pool(uuid, text)'::regprocedure)) = 0
+                                        or position('''same_person''' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) > 0
+                                        or position('''checked''' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
+                                        or position('''vehicle_no''' in pg_get_functiondef('app.buyer_content(uuid)'::regprocedure)) > 0
+                                        or has_function_privilege('anon', 'app.order_pack_codes(uuid, uuid)', 'execute')
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'shipment' and form_schema @> '[{"key": "serials", "with_packs": true}]')
+                                        or exists (select 1 from public.stage_definitions d, jsonb_array_elements(d.form_schema) f
+                                                    where d.stage_type = 'shipment' and f->>'key' = 'serials' and f ? 'for_market')
+                                      then 'NOT OK (another client''s people, the public page''s same-person line, the buyer''s vehicle number or the Shipment form is not as migration 57 left it)'
+                                      else 'OK another client''s people not shown; the public page says only true checks; pack codes for every shipment of packs' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

@@ -32,7 +32,7 @@ export interface BuyerContent {
   crop: { name: string; gi_tag: string | null; origin: string | null }; season: string; gi_status: 'gi' | 'non_gi' | 'unknown';
   order: { code: string; order_no: string | null; buyer: string | null; buyer_country: string | null; market: string | null; market_name: string | null;
     destination_country: string | null; packs: { name: string; units: number; size_kg: number }[] | null; kg: number; on: string | null };
-  shipments: { code: string; on: string | null; destination: string | null; invoice_no: string | null; market: string | null; vehicle_no: string | null;
+  shipments: { code: string; on: string | null; destination: string | null; invoice_no: string | null; market: string | null; vehicle_no?: string | null; /** migration 57 */ eway_bill_no?: string | null;
     transporter: string | null; lr_no: string | null; container_no: string | null; seal_no: string | null; shipping_bill_no: string | null; vessel: string | null;
     port_loading: string | null; port_discharge: string | null; bl_no: string | null; kg: number; pack_codes: number | null;
     delivery: { on: string; received_kg: number; note: string | null } | null }[];
@@ -130,7 +130,7 @@ export default function BuyerView() {
               <dt>{t('bv.quantity')}</dt><dd>{Number(s.kg).toLocaleString('en-IN')} kg{s.pack_codes ? ` · ${t('bv.pack_codes', { n: s.pack_codes })}` : ''}</dd>
               {([['invoice_no', s.invoice_no], ['container_no', s.container_no], ['seal_no', s.seal_no], ['shipping_bill_no', s.shipping_bill_no],
                  ['vessel', s.vessel], ['port_loading', s.port_loading], ['port_discharge', s.port_discharge], ['bl_no', s.bl_no],
-                 ['vehicle_no', s.vehicle_no], ['transporter', s.transporter], ['lr_no', s.lr_no]] as const).filter(([, x]) => x).map(([k, x]) => (
+                 ['transporter', s.transporter], ['lr_no', s.lr_no], ['eway_bill_no', s.eway_bill_no]] as const).filter(([, x]) => x).map(([k, x]) => (
                 <span key={k} style={{ display: 'contents' }}><dt>{t(`bv.${k}`)}</dt><dd className="mono">{x}</dd></span>))}
               {s.delivery && <><dt>{t('bv.delivered')}</dt><dd>{date(s.delivery.on)} · {Number(s.delivery.received_kg).toLocaleString('en-IN')} kg</dd></>}
             </dl>

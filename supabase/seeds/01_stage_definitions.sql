@@ -275,12 +275,13 @@ do $seed54$ begin
   end if;
 end $seed54$;
 
--- Shipment (C8): the packs of one order (partial shipments), the serials scanned for export, the domestic and export
+-- Shipment (C8): the packs of one order (partial shipments), the serials scanned (migration 57: for both markets, where
+-- the order's lot has packs), the domestic and export
 -- papers, the loading photo. A form "for_market" field shows for the order's market only.
 update public.stage_definitions set form_schema = '[
   {"key": "packs", "type": "order_packs", "label": "Packs shipped", "section": "quantity", "required": false, "shown_when": "stage_details_required", "with_packs": true},
   {"key": "shipped_kg", "type": "number", "unit": "kg", "label": "Shipped", "section": "quantity", "required": true, "hidden_when_packs": true},
-  {"key": "serials", "type": "serials", "label": "Pack codes loaded (scan or type, one per line)", "section": "quantity", "required": false, "shown_when": "stage_details_required", "for_market": "export"},
+  {"key": "serials", "type": "serials", "label": "Pack codes loaded", "section": "quantity", "required": false, "shown_when": "stage_details_required", "with_packs": true},
   {"key": "vehicle_or_container", "type": "text", "label": "Vehicle / container", "section": "transport", "required": true, "hidden_when": "stage_details_required"},
   {"key": "vehicle_no", "type": "text", "label": "Vehicle number", "section": "transport", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required", "for_market": "domestic"},
   {"key": "transporter", "type": "text", "label": "Transporter", "section": "transport", "required": false, "shown_when": "stage_details_required", "for_market": "domestic"},

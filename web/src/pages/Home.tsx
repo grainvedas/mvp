@@ -8,6 +8,7 @@
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useI18n } from '../lib/i18n';
+import { waitingSplit } from '../lib/waiting';
 import { rpc, q } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { useAsync } from '../lib/useAsync';
@@ -180,7 +181,9 @@ function StageCard({ slot, userId, compact }: { slot: Slot; userId: string; comp
       <div className="stage-body">
         <div className={`inbox${waiting > 0 ? ' waiting' : ''}`}>
           {first ? <strong>{t('home.first_stage')}</strong>
-            : inc.data ? <strong data-testid="incoming-count">{waiting > 0 ? t('home.waiting_n', { n: waiting }) : t('home.nothing_waiting')}</strong>
+            : inc.data ? <strong data-testid="incoming-count">{waiting > 0
+                ? waitingSplit(t, (inc.data as { status?: string }[]).filter((r) => r.status === 'pending').length, (inc.data as { status?: string }[]).filter((r) => r.status !== 'pending').length)   // migration 57 (G22)
+                : t('home.nothing_waiting')}</strong>
               : <strong className="muted">{t('home.waiting_unknown')}</strong>}
           <Link className="btn secondary" to={to}>{t(gate ? 'home.go_seal' : waiting > 0 && !first ? 'home.go_waiting' : 'home.go_stage', { stage: label })}</Link>
         </div>

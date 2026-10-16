@@ -379,9 +379,19 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   rule or app function that takes a record's id must keep `app.isolation_probe()` empty**: `tests/50_client_isolation.sql`
   runs it on two clients' data (every table it reads gets a row of each client: a new table needs its line in that
   test's `fill`, or the test fails) and the release script on staging; a row of a new table must be traceable to its client
-  (`app.isolation_owner`), and GrainVeda's workforce (`app_users`, `employee_*`) is the one thing shared (G20: a
-  person's work for another client is said, not named). A new rule here needs a case in `tests/51_buyer_link_scans.sql`
-  and its plain words in `plainErrors.ts` (EN and HI).
+  (`app.isolation_owner`), and GrainVeda's workforce (`app_users`, `employee_*`) is the one thing shared: since migration
+  57 (G20, Veda: "client info should not be shared") a Client Manager does not see a person who works now for another
+  client at all (`app.busy_for_other_client` in `app.cm_seen_ids` and the roster pool; no count of work "elsewhere");
+  HR and the admin see everyone. A new list of people for a Client Manager goes through `app.cm_seen_ids`. A new rule
+  here needs a case in `tests/51_buyer_link_scans.sql` (or `tests/52_people_public_page_packs.sql`) and its plain words
+  in `plainErrors.ts` (EN and HI).
+- **The public page claims only what happened** (migration 57, G21b, Veda 16 Oct: the same-person line "should not
+  appear"). It never says that one person recorded and checked a step, and claims a check only where the server says
+  so: a step's `checked`, the lot's `independent` (`pv.how`, else `pv.how_basic`). `same_person` stays in the ledger,
+  the State Manager's home and the Roster, never in the public data. The page's look is the design system's provenance
+  story (`.pv*` in `styles.css`): no emoji there (inline icons), gold only as a fill. A shipment of packs carries the codes
+  loaded, domestic too; the loader (`engine/PackCodes.tsx`) keeps the field's value the text of codes and the save
+  checks every code again (`app.reconcile`); it checks them as they come against `app.order_pack_codes`.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,

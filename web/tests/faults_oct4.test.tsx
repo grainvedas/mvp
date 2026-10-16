@@ -78,7 +78,11 @@ describe('worked-out values on the screens (items 6, 10, 11)', () => {
     expect(orderedComputed(online).map(([k]) => k)).toEqual(orderedComputed(offline).map(([k]) => k));
   });
   it('one English name per stage, the registry\'s own (lists said "Qc" and "Qr Activation")', () => {
-    for (const s of stages) expect(en[`stage.${s.stage_type}`], s.stage_type).toBe(s.label);
+    // migration 57 (G22, Part H 3): a long name is shortened in menus and titles, the rest said under the title (stage_sub)
+    for (const s of stages) {
+      if (en[`stage_sub.${s.stage_type}`]) expect(s.label.startsWith(`${en[`stage.${s.stage_type}`]} (`), s.stage_type).toBe(true);
+      else expect(en[`stage.${s.stage_type}`], s.stage_type).toBe(s.label);
+    }
     expect(tEn('stage.qc', undefined, 'Qc')).toBe('Quality Control');
   });
   it('a withdrawn record is called withdrawn (the badge said "Superseded", the card under it "Withdrawn")', () => {

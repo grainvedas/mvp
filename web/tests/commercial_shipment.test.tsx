@@ -20,7 +20,8 @@ import type { FieldDef, QualityParam } from '../src/lib/types';
 const defs = JSON.parse(readFileSync(join(__dirname, 'fixtures/stage_definitions.json'), 'utf8')) as { stage_type: string; form_schema: FieldDef[]; physical_checks: string[] }[];
 const form = (s: string) => defs.find((d) => d.stage_type === s)!;
 const src = (f: string) => readFileSync(join(__dirname, '../src', f), 'utf8');
-const migration = readFileSync(join(__dirname, '../../supabase/migrations/20261029000100_commercial_shipment.sql'), 'utf8');
+const migration = readFileSync(join(__dirname, '../../supabase/migrations/20261029000100_commercial_shipment.sql'), 'utf8')
+  + readFileSync(join(__dirname, '../../supabase/migrations/20261101000100_people_public_page_packs.sql'), 'utf8');   // migration 57: the pack codes, domestic too
 const t = (k: string, v?: Record<string, string | number>, f?: string) => {
   let s = en[k] ?? f ?? k;
   for (const [n, x] of Object.entries(v ?? {})) s = s.replace(`{${n}}`, String(x));
@@ -61,11 +62,11 @@ describe('C7 · the Commercial form', () => {
 
 describe('C8 · the Shipment form', () => {
   const s = form('shipment').form_schema;
-  it('a domestic order asks the vehicle, the LR and the e-way bill; an export order the container, seal, shipping bill and pack codes', () => {
+  it('a domestic order asks the vehicle, the LR and the e-way bill; an export order the container, seal, shipping bill; both the pack codes (migration 57)', () => {
     const d = keys(withLotRules(withScopeRules(s, on), { market: 'domestic', packs: true }));
     const x = keys(withLotRules(withScopeRules(s, on), { market: 'export', packs: true }));
     expect(d).toEqual(expect.arrayContaining(['vehicle_no', 'transporter', 'driver_phone', 'lr_no', 'eway_bill_no', 'invoice_no', 'packs']));
-    expect(d).not.toEqual(expect.arrayContaining(['container_no'])); expect(d).not.toContain('serials'); expect(d).not.toContain('shipping_bill_no');
+    expect(d).not.toEqual(expect.arrayContaining(['container_no'])); expect(d).toContain('serials'); expect(d).not.toContain('shipping_bill_no');
     expect(x).toEqual(expect.arrayContaining(['container_no', 'seal_no', 'shipping_bill_no', 'bl_no', 'vessel', 'port_loading', 'serials', 'invoice_no']));
     expect(x).not.toContain('vehicle_no'); expect(x).not.toContain('lr_no');
     expect(withLotRules(withScopeRules(s, on), { market: 'export', packs: true }).find((f) => f.key === 'container_no')?.required).toBe(true);
@@ -226,6 +227,7 @@ describe('the plain words for every new refusal', () => {
     ['shipment: give the invoice number', /invoice number/],
     ['shipment: the export documents of order CO-0002 are not complete (Health certificate): attach their files at Commercial first', /order CO-0002 are not complete \(Health certificate\)/],
     ['shipment: scan or type the codes of the packs loaded (export)', /Scan or type the codes/],
+    ['shipment: scan or type the codes of the packs loaded', /Scan or type the codes/],   // migration 57: domestic too
     ['shipment: a pack code is there twice', /twice/],
     ['shipment: NOT-A-PACK not a pack of this order\'s batch (or void)', /NOT-A-PACK: not a pack of this order's batch/],
     ['shipment: K-0001 shipped already', /K-0001: shipped already/],

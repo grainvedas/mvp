@@ -9,6 +9,7 @@ import { useI18n } from '../lib/i18n';
 import { cached, isNetworkError } from '../offline/cache';
 import { gpsProblem, parseGps } from '../lib/setup';
 import { rpc } from '../lib/api';
+import { PackCodes, codeLines } from './PackCodes';
 
 export type FieldValue = string | boolean | string[] | Record<string, string> | File | null;
 export interface WidgetProps {
@@ -24,6 +25,7 @@ export interface WidgetProps {
   /** migration 53: the lot this record is made from (QC picks the sample drawn from it) */ sourceId?: string;
   /** migration 54: the scope's state (its labs) and what is on the form so far (the batch's lots of the point chosen) */
   stateId?: string; values?: Record<string, FieldValue>;
+  /** migration 57: the record being corrected (its own pack codes are not "shipped already") */ editingId?: string;
 }
 
 /** Types this build can render. Anything else shows a notice and blocks save if required. */
@@ -155,13 +157,11 @@ export function Widget(p: WidgetProps) {
     case 'order_packs':
       return <OrderPacks id={id} sourceId={p.sourceId} value={value} onChange={onChange} />;
     case 'serials': {
-      const n = serialLines(typeof value === 'string' ? value : '').length;
-      return (
-        <div className="stack">
-          <textarea id={id} name={field.key} rows={5} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} autoComplete="off"
-            spellCheck={false} className="mono" data-testid="serials" />
-          <span className="small muted" data-testid="serials-count">{t('ship.codes_n', { n })}</span>
-        </div>);
+      // migration 57: scanned, a range, or typed; each code checked as it comes (engine/PackCodes.tsx)
+      const lines = (Array.isArray(p.values?.packs) ? p.values!.packs as unknown as { sku_id: string; units: string }[] : [])
+        .map((r) => ({ sku_id: r.sku_id, units: Number(r.units) || 0 }));
+      return <PackCodes id={id} name={field.key} sourceId={p.sourceId} editingId={p.editingId} value={typeof value === 'string' ? value : ''}
+        onChange={(v) => onChange(v)} packLines={lines} />;
     }
     case 'qc_sample':
       return <SamplePicker id={id} sourceId={p.sourceId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
@@ -341,13 +341,13 @@ function LotPicker({ id, scopeId, stageType, value, onChange, point }: { id: str
       {chosenPlaces.size > 1 && <div className="alert warn" role="alert" data-testid="batch-two-places">{t('cb.one_place')}</div>}
       {atPoint.length > 1 && (
         <div className="stack" data-testid="batch-filter">
-          <div className="row">
-            {villages.length > 1 && <select aria-label={t('cb.f_village')} value={fVillage} onChange={(e) => setFVillage(e.target.value)} data-testid="batch-f-village" style={{ flex: '1 1 10rem' }}>
+          <div className="lot-filters">{/* migration 57 (G22): on two rows on a small phone (the boxes were cut) */}
+            {villages.length > 1 && <select aria-label={t('cb.f_village')} value={fVillage} onChange={(e) => setFVillage(e.target.value)} data-testid="batch-f-village">
               <option value="">{t('cb.f_all_villages', { n: atPoint.length })}</option>
               {villages.map((v) => <option key={v.key} value={v.key}>{v.village} ({v.n})</option>)}
             </select>}
             <input type="search" aria-label={t('cb.f_search')} placeholder={t('cb.f_search')} value={fText} onChange={(e) => setFText(e.target.value)}
-              data-testid="batch-f-text" style={{ flex: '1 1 10rem' }} />
+              data-testid="batch-f-text" />
           </div>
           <div className="row">
             <span className="small muted" data-testid="batch-f-count">{t('cb.f_shown', { n: shown.length, of: atPoint.length, chosen: value.filter((x) => atPoint.some((l) => l.id === x)).length })}</span>
@@ -384,7 +384,26 @@ function LotPicker({ id, scopeId, stageType, value, onChange, point }: { id: str
 }
 const kgText = (n: number) => `${n.toLocaleString('en-IN', { maximumFractionDigits: 1 })} kg`;
 
-type LotNames = Record<string, { name: string; village: string; farmer_code?: string }>;
+export type LotNames = Record<string, { name: string; village: string; farmer_code?: string }>;
+/** Migration 57 (G22): the farmer and village of each lot waiting at a stage (RLS: the client's farmers the person may
+ *  see), kept on the phone like the batch form's. */
+export function useLotNames(scopeId: string, stageType: string, lots: Pick<IncomingLot, 'farmer_id'>[] | null): LotNames {
+  const [names, setNames] = useState<LotNames>({});
+  const key = lots ? [...new Set(lots.map((l) => l.farmer_id).filter(Boolean) as string[])].sort().join(',') : '';
+  useEffect(() => {
+    if (!key) { setNames({}); return; }
+    let live = true;
+    const ids = key.split(',');
+    void cached(`lot_farmers_all:${scopeId}:${stageType}`, async () => {
+      const { data, error } = await supabase.from('farmers').select('id,name,village,farmer_code').in('id', ids);
+      if (error) throw error;
+      return Object.fromEntries(((data ?? []) as { id: string; name: string; village: string; farmer_code: string }[])
+        .map((f) => [f.id, { name: f.name, village: f.village, farmer_code: f.farmer_code }])) as LotNames;
+    }).then((n) => { if (live) setNames(n); }).catch(() => { /* the cards show without the farmer */ });
+    return () => { live = false; };
+  }, [scopeId, stageType, key]);
+  return names;
+}
 const villageKey = (v: string | null | undefined) => (v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 /** Pure (migration 56): the villages of the lots, with how many lots each, by name. */
 export function lotVillages(lots: Pick<IncomingLot, 'farmer_id'>[], names: LotNames): { key: string; village: string; n: number }[] {
@@ -435,7 +454,7 @@ export function buildPayload(fields: FieldDef[], values: Record<string, FieldVal
       if (!rows.length) continue;
       out = rows.map((r) => ({ sku_id: r.sku_id, units: toNum(r.units) }));
     } else if (f.type === 'serials') {
-      const lines = serialLines(String(v)).map((x) => x.toUpperCase());     // pack codes are capitals (the server reads them so)
+      const lines = codeLines(String(v));     // pack codes are capitals (the server reads them so); migration 57: a pack page's address gives its code
       if (!lines.length) continue;
       out = lines;
     } else if (f.type === 'breakdown' || f.type === 'packets[]') {

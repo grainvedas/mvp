@@ -80,10 +80,13 @@ test('Part F and D5–D6: a buyer link (what it shows, every view, revoked); a c
   await signOut(page);
   await signIn(page, USERS.cm);
   ok(await (await apiAs(page)).update('scopes', `id=eq.${S}`, { stage_details_required: true }));
+  // migration 57: a domestic shipment of packs carries the codes loaded too
+  const codes = (await (await apiAs(page)).rows('packs', `footprint_id=eq.${(await footprint(page, k)).id}&status=eq.packed&order=serial&limit=20`)).map((x) => String(x.serial));
+  expect(codes).toHaveLength(20);
   await signOut(page);
   const d = await step(USERS.commercial, k, 'commercial', { buyer_id: buyer, market: 'domestic', order_no: `PO-${u}`, packs: [{ sku_id: kg1, units: 20 }] }, true);
   const sh = await step(USERS.shipment, d, 'shipment', { packs: [{ sku_id: kg1, units: 20 }], vehicle_no: 'UP53AB1234', transporter: 'Basti Roadways',
-    dispatch_date: new Date().toISOString().slice(0, 10), destination: 'Delhi', invoice_no: `INV-${u}`, lr_no: `LR-${u}` });
+    dispatch_date: new Date().toISOString().slice(0, 10), destination: 'Delhi', invoice_no: `INV-${u}`, lr_no: `LR-${u}`, serials: codes });
 
   // Part F · the Client Manager makes a link for the shipment: 7 days, a note; it is shown once
   await signIn(page, USERS.cm);
@@ -114,7 +117,8 @@ test('Part F and D5–D6: a buyer link (what it shows, every view, revoked); a c
   await expect(bp.getByTestId('bv-order')).toContainText(`e2e56 Amira Foods ${u}`);
   await expect(bp.getByTestId('bv-order')).toContainText('20 kg');
   await expect(bp.getByTestId('bv-shipment')).toContainText(`INV-${u}`);
-  await expect(bp.getByTestId('bv-shipment')).toContainText('UP53AB1234');
+  await expect(bp.getByTestId('bv-shipment')).not.toContainText('UP53AB1234');   // migration 57: the vehicle number stays with the seller
+  await expect(bp.getByTestId('bv-shipment')).toContainText(`LR-${u}`);
   await expect(bp.getByTestId('bv-lab')).toContainText('Domestic');
   await expect(bp.getByTestId('bv-origin')).toContainText('Shohratgarh');
   await expect(bp.getByTestId('bv-origin')).toContainText('100 %');

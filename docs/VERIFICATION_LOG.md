@@ -2621,3 +2621,51 @@ is not a Supabase project's: 500, nothing called — this test fails against the
 `e2e/phase1` 6 passed (a sealed lot for the next suite), `e2e/phase28` 2 passed, the built app 14 passed (public page
 174 KB, 1.7 s). Sealed 157 files. The release script needs no migration now: rehearsed with nothing waiting and links
 already made (S1b reads back, does not stop).
+
+## 16 October 2026, 11:22 IST: 56.1 on staging (the app only), and row 6 again
+
+Third run: S0 (nothing waiting), S1 not run, S1c `buyer-file` again, S1b read back (`links=1 link_views=2 scan_flags=0
+scans=1 scans_with_place=0`: the practice link of row 1; no stop, nothing was waiting), S2 smoke 53/54, one client and
+another `leaks=0 people=7 tables=43 calls=10800 own_rows=2387 clients=3`, ledger audit NO FINDINGS (253 blocks, 60
+records, 4 seals, 10 evidence files), S3 pushed d7ad030 (9 files). `RESULT: BUYER LINK AND SCANS ON STAGING`.
+
+Row 6 (Chrome, after Vercel built d7ad030): the pack page `/p/TCUP-2026-KNM-001-0001` (a practice pack of 14 Oct) sent
+`POST /api/scan` → **200** (it answered `500 not configured` before); called directly for a practice pack:
+`{"counted":true,"copy_warning":false}`. The place itself is not readable from the app (no screen shows a scan that is
+not flagged); the next read-back that counts `scans_with_place` will show it. Also seen: a practice pack of before
+release 3 has the serial `not yet-0001` (the batch code "not yet" of the old form; FIX_LIST G7 of the brief).
+
+## 16 October 2026, afternoon: another client's people, the public page, the packs loaded, release 10 (migration 57, open item 52), local stack
+
+Veda's decisions G20, G21b, G22 and G23 ("rest all ok and proceed with 57"). Built and checked on the local stack; not on
+staging yet (`staging-people-public-page.cmd`, `docs/RUNSHEET_people_public_page.md`).
+
+- Every database test on a template rebuilt from all migrations and seeds: **2,210 ok**, none failed (2,179 before; new
+  `tests/52_people_public_page_packs.sql` 26 checks; `tests/25`, `19`, `40`, `48`, `50`, `51` changed for the decisions:
+  a Client Manager no longer sees another client's person, the public data has no `same_person`, a domestic shipment of
+  packs carries its codes). `tests/run_local.sh`: ALL TESTS PASSED.
+- Negative controls for `tests/52`: **15 of 15 caught** (each breaks one rule of migration 57 in its own definition:
+  nobody busy, People shows him, the other client's work named, the count elsewhere, the shared person dropped, the
+  codes for anyone, a correction's own codes, the codes for export only, `same_person` back, every step "checked", the
+  typed place shown, no farmers' count, no limits, the last scan as the first, the vehicle to the buyer).
+- Unit: 656 passed (34 files; new `release57.test.tsx` 15). Typecheck (`tsc -b`) clean.
+- End to end, whole suite at 527 px: 91 of 92 the first time; `phase22` stopped on the pack page ("157 packs", the
+  lot's pack count, was gone from a pack's page in the new look): put back in the pack card, then `phase22` 2 passed.
+  `phase26` (a domestic shipment's codes checked as they come; Remove; a range), `phase28` (the buyer's page without the
+  vehicle number), new `phase29` (the public pack page: villages, six steps "Checked by another person", the lab
+  readings with their limits, the scans "Gorakhpur", nothing of "same person", no farmer's name, no domestic place, in
+  Hindi too, no side scroll; the Collection Batch operator: "N to check in · M checked in, ready", the cards with the
+  village filter and the search, "Collection Batch" with its line under it, the tabs on one row, the filters on two
+  rows at 390 px) passed, twice. The built app: 14 passed (the public page 180 KB, 1.7 s; 174 KB before). The API
+  checks (RLS T1, create-user) passed; the fresh start passed.
+- Restore drill: after the whole suite, HR documents 4 of 5 (one HR record of an e2e without its file, as after release
+  9's suite); on a fresh stack after `phase26`, `phase28`, `phase29`: RESTORE DRILL PASSED.
+- The release script's own queries run on a database built with 57: `shipment_form=new stages=17 functions=new
+  public_same_person=no`, `rule57=OK`, `iso: leaks=0 people=15 tables=42 calls=1215`. Rehearsal on stand-ins, 21 runs:
+  the full run (S0 to S3, the seven functions current, nothing deployed), again (nothing waiting, nothing to commit),
+  and each stop (wrong words, 56b also waiting, another migration, production, a function not current, the push, the
+  read-back, the old Shipment form, `same_person` still public, the rules, a leak, the probe not running, a smoke row,
+  a changed migration, smoke check or app file, a new app file); the older release scripts refuse (their tested files
+  changed). Sealed 160 files.
+- Seen: pictures at 390 px of the new public pack page, the operator's first screen and waiting list, and the pack
+  codes loader (sent to Veda with this release).

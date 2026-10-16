@@ -201,6 +201,10 @@ create temp table ser as select array_agg(serial order by serial) as s from (sel
 insert into public.packs (serial, batch_code, footprint_id, scope_id, size_kg, packed_on, sku_id)        -- a real pack of another batch
   select 'OTHER-BATCH-0001', batch_code, pg_temp.f('P'), scope_id, size_kg, packed_on, sku_id from public.packs where serial = (select s[40] from ser);
 grant select on ser to authenticated;
+-- migration 57: a domestic shipment of packs scans them too (the order D's: 30 of 1 kg after the export's 40, and 4 of 500 g)
+create temp table serd as select (select array_agg(serial order by serial) from (select serial from public.packs where footprint_id = (select id from fx where k = 'K') and sku_id = (select id from fx where k = 'SKU1') order by serial offset 40 limit 30) x) as s1,
+                                 (select array_agg(serial order by serial) from (select serial from public.packs where footprint_id = (select id from fx where k = 'K') and sku_id = (select id from fx where k = 'SKU500') order by serial limit 4) x) as s5;
+grant select on serd to authenticated;
 select t.as_user(t.u('14'));
 create or replace function pg_temp.export_ship(p_serials text[]) returns jsonb language sql stable as $$
   select jsonb_build_object('invoice_no', 'EXP-1', 'container_no', 'MSKU 123456-7', 'seal_no', 'SL-9911', 'shipping_bill_no', '1234567', 'dispatch_date', to_char(now(), 'YYYY-MM-DD'),
@@ -237,9 +241,16 @@ select t.fails(format($$select pg_temp.ship(%L, '{"invoice_no":"INV-1","vehicle_
                'e-way bill number is 12 digits', 'the e-way bill''s format');
 select t.fails(format($$select pg_temp.ship(%L, '{"invoice_no":"INV-1","vehicle_no":"UP53AB1234","lr_no":"LR-1","dispatch_date":"2026-10-16","destination":"Delhi","packs":[{"sku_id":"%s","units":31}]}')$$, pg_temp.f('D'), pg_temp.f('SKU1')),
                'only 30 packs', 'no more than the order');
-insert into fx select 'SD1', pg_temp.ship(pg_temp.f('D'), format('{"invoice_no":"INV-1","vehicle_no":"up-53 ab 1234","transporter":"Basti Roadways","driver_phone":"98390 12345","lr_no":"LR-1","eway_bill_no":"1234 5678 9012","dispatch_date":"2026-10-16","destination":"Delhi","packs":[{"sku_id":"%s","units":20}]}', pg_temp.f('SKU1'))::jsonb);
+select t.fails(format($$select pg_temp.ship(%L, '{"invoice_no":"INV-1","vehicle_no":"UP53AB1234","lr_no":"LR-1","dispatch_date":"2026-10-16","destination":"Delhi","packs":[{"sku_id":"%s","units":20}]}')$$, pg_temp.f('D'), pg_temp.f('SKU1')),
+               'scan or type the codes of the packs loaded', 'migration 57: a domestic shipment of packs: the codes loaded are asked too');
+select t.fails(format($$select pg_temp.ship(%L, %L)$$, pg_temp.f('D'), format('{"invoice_no":"INV-1","vehicle_no":"UP53AB1234","lr_no":"LR-1","dispatch_date":"2026-10-16","destination":"Delhi","packs":[{"sku_id":"%s","units":20}]}', pg_temp.f('SKU1'))::jsonb
+                                                                       || jsonb_build_object('serials', to_jsonb((select s1[1:19] from serd)))),
+               'do not match the packs shipped', 'and they match the packs shipped (domestic too)');
+insert into fx select 'SD1', pg_temp.ship(pg_temp.f('D'), format('{"invoice_no":"INV-1","vehicle_no":"up-53 ab 1234","transporter":"Basti Roadways","driver_phone":"98390 12345","lr_no":"LR-1","eway_bill_no":"1234 5678 9012","dispatch_date":"2026-10-16","destination":"Delhi","packs":[{"sku_id":"%s","units":20}]}', pg_temp.f('SKU1'))::jsonb
+                                                       || jsonb_build_object('serials', to_jsonb((select s1[1:20] from serd))));
 select t.ok((pg_temp.fp(pg_temp.f('SD1'))).qty_out = 20 and (pg_temp.fp(pg_temp.f('SD1'))).computed @> '{"market": "domestic", "invoice_no": "INV-1"}', 'a partial domestic shipment: 20 of the order''s packs');
-insert into fx select 'SD2', pg_temp.ship(pg_temp.f('D'), format('{"invoice_no":"INV-2","vehicle_no":"UP53AB1235","lr_no":"LR-2","dispatch_date":"2026-10-16","destination":"Delhi","packs":[{"sku_id":"%s","units":10},{"sku_id":"%s","units":4}]}', pg_temp.f('SKU1'), pg_temp.f('SKU500'))::jsonb);
+insert into fx select 'SD2', pg_temp.ship(pg_temp.f('D'), format('{"invoice_no":"INV-2","vehicle_no":"UP53AB1235","lr_no":"LR-2","dispatch_date":"2026-10-16","destination":"Delhi","packs":[{"sku_id":"%s","units":10},{"sku_id":"%s","units":4}]}', pg_temp.f('SKU1'), pg_temp.f('SKU500'))::jsonb
+                                                       || jsonb_build_object('serials', to_jsonb((select s1[21:30] || s5 from serd))));
 select t.ok((pg_temp.fp(pg_temp.f('SD2'))).qty_out = 12 and app.available_qty(pg_temp.f('D')) = 0, 'the rest of the order in a second shipment');
 select t.fails(format($$select pg_temp.ship(%L, '{"invoice_no":"INV-3","vehicle_no":"UP53AB1236","lr_no":"LR-3","dispatch_date":"2026-10-16","destination":"Delhi","packs":[{"sku_id":"%s","units":1}]}')$$, pg_temp.f('D'), pg_temp.f('SKU1')),
                'is closed', 'nothing more of a shipped order (it closes when all of it is shipped)');

@@ -16,14 +16,19 @@ export interface JourneyStep {
   /** migration 55 (C3): how long the lot was in the warehouse */
   days_in_storage?: number;
   /** migration 53 (C5): the lab's verdict per market the lot was judged against (names and verdicts only) */
-  markets?: { code: string; name: string; verdict: 'pass' | 'fail' | 'pending'; failed?: string[] }[];
+  markets?: { code: string; name: string; verdict: 'pass' | 'fail' | 'pending'; failed?: string[];
+    /** migration 57: the market profile's limits ({param, operator, limit}) */ limits?: MarketLimit[] | null }[];
+  /** migration 57 (G21): checked by someone other than who recorded it; absent on older servers (then nothing is said) */
+  checked?: boolean;
 }
+export interface MarketLimit { param: string; operator: string; limit: number | [number, number] | string | boolean | null }
 export interface Journey {
   qr_code: string; sealed_at: string; ledger_hash: string; batch_codes: string[]; season: string; geography: string;
   /** true when every step was checked by someone other than who recorded it (migration 35); absent on older servers */
   independent?: boolean;
-  /** migration 46: some steps were recorded and checked by the same person */
-  same_person?: boolean;
+  /** migration 46 sent same_person; migration 57 (G21) no longer does, and the page never shows it */
+  /** migration 57: the villages by share of the lot's weight, with how many farmers (never a name) */
+  villages?: { village: string; district: string; share_pct: number; farmers: number }[];
   crop: { name: string; gi_tag: string | null; origin: string | null }; client: { name: string; type: string };
   /** migration 49: distinct farmers in the sealed lot, and its GI status (GI only when every source is from the GI area) */
   farmer_count?: number; gi_status?: 'gi' | 'non_gi' | 'unknown';
@@ -38,7 +43,9 @@ export interface PackView { serial: string; batch_code: string; size_kg: number;
   /** migration 56 (D6): this code was scanned far apart or very often and is being checked (or was found copied) */
   copy_warning?: boolean;
   /** migration 56: the client that sells it (named in the copy warning) */
-  seller?: string }
+  seller?: string;
+  /** migration 57: how often this pack was scanned, and the first place (a city; nothing about anyone) */
+  scans?: { n: number; first_city: string | null; first_country: string | null } }
 export type PublicPack = (Journey & { pack: PackView; released: true })
   | { pack: PackView; released: false; crop: Journey['crop']; season: string; geography: string; gi_status?: Journey['gi_status'] };
 export const loadPack = (serial: string) => rpc<PublicPack | null>('public_pack', { p_serial: serial });

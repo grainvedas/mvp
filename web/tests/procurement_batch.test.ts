@@ -161,8 +161,10 @@ describe('how the new values read', () => {
   });
   it('the Collection Batch is named for one collection point, in both languages; no village is typed', () => {
     expect(vb.label).toBe('Collection Batch (one collection point)');
-    expect(en['stage.village_batch']).toBe(vb.label);
-    expect(hi['stage.village_batch']).toBeTruthy();
+    // migration 57 (G22, Part H 3): the short name in menus and titles; "one collection point" under the title
+    expect(en['stage.village_batch']).toBe('Collection Batch');
+    expect(en['stage_sub.village_batch']).toMatch(/One collection point/);
+    expect(hi['stage.village_batch'] && hi['stage_sub.village_batch']).toBeTruthy();
     expect(vb.form_schema.some((f) => f.key === 'village')).toBe(false);
   });
 });

@@ -16,12 +16,13 @@ import { kg, dateTime, date, humanise, todayIST } from '../lib/format';
 import type { Footprint, FootprintReturn, IncomingLot, LotMarkets, Preview, QualityParam, ReleasePreview, StageForm, StageType, SystemCheck, VerdictPreview, Withdrawal } from '../lib/types';
 import { giLabel } from '../lib/gi';
 import { ErrorBox, Loading, Badge, Empty, Field, errorText, plainText } from '../shell/ui';
-import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, withLotRules, withValueRules, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, KNOWN_LOTS, loadIncomingLots, type FieldValue, type PackLeft } from './widgets';
+import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, withLotRules, withValueRules, groupSections, FULL_WIDTH, PREFILL_FROM_SOURCE, SUPPORTED, KNOWN_LOTS, loadIncomingLots, useLotNames, lotVillages, filterLots, type FieldValue, type PackLeft } from './widgets';
 import { SamplesPanel } from '../pages/records/Samples';
 import { SECTION_ICON, stageIcon } from './icons';
 import { uploadEvidence, UPLOAD_WAIT_MS } from './evidence';
 import { offlinePreview, paymentProblem, type OfflinePreview, type OfflineRules } from './offlinePreview';
 import { localiseForm } from './localise';
+import { waitingSplit } from '../lib/waiting';
 import { ComputedRows, capturedAt, leftAfter } from './values';
 import { cached, isNetworkError } from '../offline/cache';
 import { enqueue, discard, getOutboxItem, insertOnce, type OutboxItem } from '../offline/outbox';
@@ -74,6 +75,7 @@ export function StagePage() {
     })().catch(() => { setReplaces(null); setReplacesFailed(true); });
   }, [replacesId]);
   const [tab, setTab] = useState<'incoming' | 'new' | 'records'>('incoming');
+  const [incCount, setIncCount] = useState<number | null>(null);   // migration 57 (G22): the waiting tab says how many
   const [newKey, setNewKey] = useState(0);                  // migration 49 (A5/G11): a new record without reloading the page
   const [source, setSource] = useState<Footprint | null>(null);
   const [editing, setEditing] = useState<Footprint | null>(null);
@@ -115,19 +117,23 @@ export function StagePage() {
         <div><div className="band-title">{f.scope.crop.name} · {f.scope.season_code} · {f.scope.geography}</div>
           <div className="sub">{f.scope.client.name}{f.scope.crop.gi_tag ? ` · ${giLabel(f.scope.crop.gi_tag, t)}` : ''}</div></div>
       </div>
-      <div className="page-hd"><h1><span aria-hidden="true">{stageIcon(f.stage.stage_type)} </span>{f.stage.label}</h1></div>
-      <div className="tabs" role="tablist">
+      <div className="page-hd"><h1><span aria-hidden="true">{stageIcon(f.stage.stage_type)} </span>{f.stage.label}</h1>
+        {/* migration 57 (G22): the short name in the title, what the stage is under it */}
+        {t(`stage_sub.${f.stage.stage_type}`, undefined, '') && <p className="sub small muted" data-testid="stage-sub">{t(`stage_sub.${f.stage.stage_type}`, undefined, '')}</p>}</div>
+      {/* migration 57 (G22): one row of short words on a phone; the full words stay the tabs' names */}
+      <div className="tabs one-row" role="tablist">
         {!f.stage.is_first && <button role="tab" aria-selected={!opened && tab === 'incoming'} className={!opened && tab === 'incoming' ? 'active' : ''}
-          onClick={() => pick('incoming')}>{t('engine.incoming', { stage: prevLabel })}</button>}
+          aria-label={t('engine.incoming', { stage: prevLabel })} onClick={() => pick('incoming')}>{t('engine.tab_waiting')}{incCount !== null ? ` · ${incCount}` : ''}</button>}
         {(f.stage.is_first || f.stage.aggregates) && f.can_create && <button role="tab" aria-selected={!opened && tab === 'new'} className={!opened && tab === 'new' ? 'active' : ''}
-          onClick={() => pick('new')}>{t('engine.new_record', { stage: f.stage.label })}</button>}
-        <button role="tab" aria-selected={!opened && tab === 'records'} className={!opened && tab === 'records' ? 'active' : ''} onClick={() => pick('records')}>{t('engine.my_records')}</button>
+          aria-label={t('engine.new_record', { stage: f.stage.label })} onClick={() => pick('new')}>{t('engine.tab_new')}</button>}
+        <button role="tab" aria-selected={!opened && tab === 'records'} className={!opened && tab === 'records' ? 'active' : ''}
+          aria-label={t('engine.my_records')} onClick={() => pick('records')}>{t('engine.tab_records')}</button>
       </div>
       {draft && <RecordForm key={draft.id} form={f} source={draft.source as Footprint | null} editing={null} draft={draft} onNew={() => pick(f.stage.is_first ? 'new' : 'incoming')} />}
       {!draft && replaces && <RecordForm key={`r-${replaces.old.id}`} form={f} source={replaces.source} editing={null} replaces={replaces.old} onNew={() => pick(f.stage.is_first ? 'new' : 'incoming')} />}
       {!draft && !replaces && editing && <RecordForm key={`e-${editing.id}`} form={f} source={null} editing={editing} onNew={() => pick(f.stage.is_first ? 'new' : 'incoming')} />}
       {opening && <Loading />}
-      {!opened && !opening && tab === 'incoming' && !source && <Incoming form={f} onPick={(fp) => setSource(fp)} />}
+      {!opened && !opening && tab === 'incoming' && !source && <Incoming form={f} onPick={(fp) => setSource(fp)} onCount={setIncCount} />}
       {!opened && !opening && tab === 'incoming' && source && (
         <VerifyAndContinue form={f} source={source} onBack={() => setSource(null)} onReload={(fp) => setSource(fp)} />
       )}
@@ -140,33 +146,50 @@ export function StagePage() {
 // ---------------------------------------------------------------------------------------------------------------
 // Step 2: what is waiting from the stage behind (thumb rule: only that stage, only this scope)
 // ---------------------------------------------------------------------------------------------------------------
-function Incoming({ form, onPick }: { form: StageForm; onPick: (f: Footprint) => void }) {
+function Incoming({ form, onPick, onCount }: { form: StageForm; onPick: (f: Footprint) => void; onCount?: (n: number) => void }) {
   const { t } = useI18n();
   // migration 49 (A3/G2): each waiting lot with what is left on it; a server before migration 49: the older list
   const inc = useAsync(() => loadIncomingLots(form.scope.id, form.stage.stage_type), [form.scope.id, form.stage.stage_type]);
+  // migration 57 (G22, Part H 2): a card per lot (its number on one line, farmer · village, kg left, status), and the
+  // batch form's village filter and search above them (Veda: "there will be many lots per farmer per village")
+  const names = useLotNames(form.scope.id, form.stage.stage_type, inc.data ?? null);
+  const [fVillage, setFVillage] = useState('');
+  const [fText, setFText] = useState('');
+  useEffect(() => { if (inc.data) onCount?.(inc.data.length); }, [inc.data, onCount]);
+  const lots = inc.data ?? [];
+  const villages = lotVillages(lots, names);
+  const shown = filterLots(lots, names, fVillage, fText);
+  const toCheck = lots.filter((r) => r.status === 'pending').length;
   return (
     <div className="card">
       <Stepper current={2} form={form} />
       {inc.loading ? <Loading /> : <ErrorBox error={inc.error} onRetry={inc.reload} />}
       {inc.data && inc.data.length === 0 && <Empty>{t('engine.no_incoming', { stage: form.prev_stage?.label ?? '' })}</Empty>}
-      {inc.data && inc.data.length > 0 && (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>{t('engine.col_code')}</th><th>{t('inc.col_left')}</th><th>{t('common.status')}</th><th className="hide-mobile">{t('engine.col_recorded')}</th></tr></thead>
-            <tbody>
-              {inc.data.map((r) => (
-                <tr key={r.id} className="clickable" onClick={() => onPick(r)} data-testid="incoming-row">
-                  <td className="mono">{r.footprint_code}{r.grade ? ` · Grade ${r.grade}` : ''}
-                    {r.made_by_me && <div className="small"><span className="same-person" data-testid="incoming-mine">{t('inc.mine')}</span></div>}</td>
-                  <td className="num" data-testid="incoming-left">{Number(r.available_kg) < Number(r.qty_out) ? t('inc.left', { left: kg(r.available_kg), all: kg(r.qty_out) }) : kg(r.qty_out)}</td>
-                  <td>{r.returned ? <Badge value="pending" label={t('ret.badge')} /> : <Badge value={r.status} />}</td>
-                  <td className="hide-mobile">{dateTime(capturedAt(r).at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {lots.length > 0 && <p className="small" data-testid="incoming-split">{waitingSplit(t, toCheck, lots.length - toCheck)}</p>}
+      {lots.length > 1 && (
+        <div className="lot-filters" data-testid="incoming-filter">
+          {villages.length > 1 && <select aria-label={t('cb.f_village')} value={fVillage} onChange={(e) => setFVillage(e.target.value)} data-testid="inc-f-village">
+            <option value="">{t('cb.f_all_villages', { n: lots.length })}</option>
+            {villages.map((v) => <option key={v.key} value={v.key}>{v.village} ({v.n})</option>)}
+          </select>}
+          <input type="search" aria-label={t('cb.f_search')} placeholder={t('cb.f_search')} value={fText} onChange={(e) => setFText(e.target.value)} data-testid="inc-f-text" />
+        </div>)}
+      {lots.length > 0 && shown.length === 0 && <p className="small muted" data-testid="inc-f-none">{t('cb.f_none')}</p>}
+      {shown.length > 0 && (
+        <div className="lot-cards">
+          {shown.map((r) => {
+            const fm = r.farmer_id ? names[r.farmer_id] : undefined;
+            return (
+              <button type="button" key={r.id} className="lot-card" onClick={() => onPick(r)} data-testid="incoming-row">
+                <span className="lot-card-hd"><span className="mono lot-code">{r.footprint_code}{r.grade ? ` · Grade ${r.grade}` : ''}</span>
+                  {r.returned ? <Badge value="pending" label={t('ret.badge')} /> : <Badge value={r.status} label={r.status === 'pending' ? t('inc.to_check_in') : r.status === 'verified' ? t('inc.ready') : undefined} />}</span>
+                <span className="lot-card-ln"><span>{fm ? `${fm.name} · ${fm.village}` : r.maker_name ? t('inc.by', { name: r.maker_name }) : ''}</span>
+                  <strong data-testid="incoming-left">{Number(r.available_kg) < Number(r.qty_out) ? t('inc.left', { left: kg(r.available_kg), all: kg(r.qty_out) }) : kg(r.qty_out)}</strong></span>
+                <span className="lot-card-ln small muted"><span>{dateTime(capturedAt(r).at)}</span>
+                  {r.made_by_me && <span className="same-person" data-testid="incoming-mine">{t('inc.mine')}</span>}</span>
+              </button>);
+          })}
+        </div>)}
     </div>
   );
 }
@@ -689,7 +712,7 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
                     <label htmlFor={`f-${fd.key}`}>{fd.label}{fd.unit ? ` (${fd.unit})` : ''}{fd.required ? ' *' : ''}</label>
                     <Widget id={`f-${fd.key}`} field={fd} value={values[fd.key] ?? null} qualityParams={form.quality_params}
                       clientId={form.scope.client.id} scopeId={form.scope.id} stageType={form.stage.stage_type}
-                      sourceId={source?.id ?? (editing?.prev_footprint_id ?? undefined)} stateId={stateId} values={values}
+                      sourceId={source?.id ?? (editing?.prev_footprint_id ?? undefined)} stateId={stateId} values={values} editingId={editing?.id}
                       allowed={fd.gate === 'market_verdict' && markets ? markets.markets : undefined}
                       onChange={(v) => setValues((s) => ({ ...s, [fd.key]: v }))} />
                     {fd.gate === 'market_verdict' && markets && !markets.export_allowed && (

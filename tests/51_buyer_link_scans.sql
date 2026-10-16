@@ -53,9 +53,14 @@ select t.as_service(); select t.attach(pg_temp.f('E'), 'export_doc');
 select t.as_user(t.u('11'));
 select app.set_export_doc(pg_temp.f('E'), 'Phytosanitary certificate', 'received', (select id from public.attachments where footprint_id = pg_temp.f('E') and label = 'export_doc' limit 1));
 select app.set_export_doc(pg_temp.f('E'), 'Health certificate', 'not_required', null, 'the buyer waives it in the contract');
+select t.as_service();
+create temp table serd as select jsonb_agg(serial order by serial) as s from (select serial from public.packs where footprint_id = (select id from fx where k = 'K') order by serial offset 40 limit 30) x;
+grant select on serd to authenticated;
 select t.as_user(t.u('14')); select app.verify_footprint(pg_temp.f('D')); select app.verify_footprint(pg_temp.f('E'));
 insert into fx select 'SD', pg_temp.ins(t.scope('05'), 'shipment', pg_temp.f('D'), t.u('14'),
-  format('{"invoice_no":"INV-1","vehicle_no":"UP53AB1234","transporter":"Basti Roadways","lr_no":"LR-1","dispatch_date":"2026-10-16","destination":"Delhi","packs":[{"sku_id":"%s","units":30}]}', pg_temp.f('SKU1'))::jsonb);
+  format('{"invoice_no":"INV-1","vehicle_no":"UP53AB1234","transporter":"Basti Roadways","lr_no":"LR-1","eway_bill_no":"123456789012","dispatch_date":"2026-10-16","destination":"Delhi","packs":[{"sku_id":"%s","units":30}]}', pg_temp.f('SKU1'))::jsonb
+  -- migration 57: a domestic shipment of packs scans them too (30 after the 40 the export ships)
+  || jsonb_build_object('serials', (select s from serd)));
 select t.as_service();
 create temp table ser as select array_agg(serial order by serial) as s from (select serial from public.packs where footprint_id = (select id from fx where k = 'K') order by serial limit 40) x;
 grant select on ser to authenticated, anon;

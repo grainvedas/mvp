@@ -8,10 +8,11 @@ select t.as_service();
 do $$
 declare s uuid := '00000000-0000-4000-8000-000000000405'; c uuid := '00000000-0000-4000-8000-000000000201';
         p uuid; q uuid; m uuid; pk uuid; ex uuid; sh uuid; qr uuid; seal public.qr_seals; j jsonb; txt text; bad text;
-        top_ok constant text[] := array['qr_code','sealed_at','ledger_hash','batch_codes','crop','client','season','geography','verdict','journey','independent','same_person','farmer_count','gi_status','packs','release'];   -- migration 49: farmers counted, GI status
+        top_ok constant text[] := array['qr_code','sealed_at','ledger_hash','batch_codes','crop','client','season','geography','verdict','journey','independent','farmer_count','gi_status','packs','release','villages'];   -- migration 49: farmers counted, GI status; 57: villages (no same_person)
         step_ok constant text[] := array['stage','code','qty_in_kg','qty_out_kg','verified_at','created_at','captured_at','grade','farmer','farmers',
                                          'village','source','readings','batch_code','destination','dispatched_on',
-                                         'markets'];   -- migration 53: the lab's verdict per market (names and verdicts only)
+                                         'markets',    -- migration 53: the lab's verdict per market (names and verdicts only)
+                                         'checked'];   -- migration 57: checked by another person (true or false)
 begin
   p := t.procure(s, t.farmer('05'), 199, 2, 2, 11.8, 11.7, 11.9);
   perform t.as_user(t.u('06')); perform app.verify_footprint(p);
@@ -56,6 +57,7 @@ begin
   perform t.ok(bad is null, 'public data: top level holds only the listed keys' || coalesce(' (extra: ' || bad || ')', ''));
   select string_agg(distinct k, ', ') into bad from jsonb_array_elements(j->'journey') e, jsonb_object_keys(e) k where k <> all (step_ok);
   perform t.ok(bad is null, 'public data: every step holds only the listed keys' || coalesce(' (extra: ' || bad || ')', ''));
+  perform t.ok(not (j ? 'same_person'), 'public data (migration 57, G21): nothing says one person recorded and checked a step');
   -- what the page draws is still there
   -- migration 50 (Part D): the farmer's village and district, never the name
   perform t.ok(exists (select 1 from jsonb_array_elements(j->'journey') e where e->'farmer'->>'village' is not null and not (e->'farmer' ? 'name'))

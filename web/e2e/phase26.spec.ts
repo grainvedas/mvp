@@ -168,6 +168,10 @@ test('C7 and C8: an order by packs and an export order with its documents; a dom
   ok(await cm2.update('scopes', `id=eq.${S}`, { stage_details_required: true, record_price: true }));
   const serials = (await cm2.rows('packs', `footprint_id=eq.${(await footprint(page, k)).id}&sku_id=eq.${kg1}&status=eq.packed&order=serial&limit=10`)).map((x) => String(x.serial));
   expect(serials).toHaveLength(10);
+  // migration 57: the domestic shipment scans its packs too (ten more of 1 kg and four of 500 g)
+  const dSerials = [...(await cm2.rows('packs', `footprint_id=eq.${(await footprint(page, k)).id}&sku_id=eq.${kg1}&status=eq.packed&order=serial&offset=10&limit=10`)),
+    ...(await cm2.rows('packs', `footprint_id=eq.${(await footprint(page, k)).id}&sku_id=eq.${g500}&status=eq.packed&order=serial&limit=4`))].map((x) => String(x.serial));
+  expect(dSerials).toHaveLength(14);
   await signOut(page);
 
   // C7 · a domestic order by packs: the buyer from the list, the order number, the price kept apart
@@ -247,9 +251,17 @@ test('C7 and C8: an order by packs and an export order with its documents; a dom
   await verifyIncoming(page, d);
   await page.getByRole('button', { name: /Record Shipment for this lot/ }).click();
   await expect(page.getByLabel(/^Container number/)).toHaveCount(0);                        // the export papers are not asked
-  await expect(page.getByTestId('serials')).toHaveCount(0);
   await page.getByTestId('order-units-0').fill('10');
   await page.getByTestId('order-units-1').fill('4');
+  // migration 57: the codes loaded, domestic too; each checked as it comes
+  await page.getByTestId('serials').fill([...dSerials.slice(0, 13), 'NOT-A-PACK'].join('\n'));
+  await expect(page.getByTestId('pc-bad')).toContainText("Not this order's batch");
+  await expect(page.getByTestId('pc-progress')).toContainText('13');
+  if (process.env.SHOTS_DIR) { await page.setViewportSize({ width: 390, height: 844 }); await page.getByTestId('pack-codes').screenshot({ path: `${process.env.SHOTS_DIR}/57_pack_codes_390.png` }); await page.setViewportSize({ width: 527, height: 900 }); }
+  await page.getByRole('button', { name: 'Remove: NOT-A-PACK' }).click();
+  await page.getByTestId('serials').fill(dSerials.join('\n'));
+  await expect(page.getByTestId('pc-bad')).toHaveCount(0);
+  await expect(page.getByTestId('pc-sku')).toHaveCount(2);
   await page.getByLabel(/^Vehicle number/).fill('UP53AB1234');
   await page.getByLabel(/^Transporter/).fill('Basti Roadways');
   await page.getByLabel(/^Dispatch date/).fill(new Date().toISOString().slice(0, 10));

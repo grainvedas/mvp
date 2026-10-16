@@ -1278,11 +1278,11 @@
             {
                 "key": "serials",
                 "type": "serials",
-                "label": "Pack codes loaded (scan or type, one per line)",
+                "label": "Pack codes loaded",
                 "section": "quantity",
                 "required": false,
-                "for_market": "export",
-                "shown_when": "stage_details_required"
+                "shown_when": "stage_details_required",
+                "with_packs": true
             },
             {
                 "key": "vehicle_or_container",
@@ -1485,7 +1485,8 @@
         "aggregates": false,
         "sort_order": 160,
         "stage_type": "qr_activation",
-        "form_schema": [],
+        "form_schema": [
+        ],
         "yield_alarm": false,
         "is_processing": false,
         "handoff_checks": [
@@ -1495,7 +1496,8 @@
             "Final quantity recorded"
         ],
         "splits_forward": false,
-        "physical_checks": [],
+        "physical_checks": [
+        ],
         "allows_exceed_input": false
     }
 ]

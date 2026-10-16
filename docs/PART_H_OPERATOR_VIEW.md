@@ -58,3 +58,9 @@ sign in as such operators).
 
 Not looked at here (other days of the brief): the offline day (`e2e-prod/field_day.spec.ts` covers it), the Hindi of
 these screens (G6: two field operators read it).
+
+## Decided (Veda, 16 October 2026: "rest all ok and proceed with 57"; G22)
+
+Points 1, 2, 3, 5 and 6 are built in release 10 (migration 57's release, `docs/RUNSHEET_people_public_page.md`); point 4
+stays as it is ("Farmers" only where the stage registers farmers, which is what the menu does). Pictures of the new
+first screen and waiting list at 390 px: `e2e/phase29.spec.ts` takes them when `SHOTS_DIR` is set.

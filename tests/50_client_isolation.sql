@@ -175,10 +175,18 @@ select t.ok((select string_agg(name, ',' order by name) from public.labs where n
 select t.ok(app.activation_missing('00000000-0000-4000-8000-000000000401') is not null, 'his own scope: its activation list');
 create temp table pool as select x from jsonb_array_elements(app.roster_pool('00000000-0000-4000-8000-000000000401')) x;
 grant select on pool to authenticated;
-select t.ok((select x->'elsewhere' = '[{"other_client": true, "status": "active", "stages": ["procurement", "qc", "qr_activation"]}]'::jsonb
-               from pool where x->>'id' = t.u('12')::text)
-            and not exists (select 1 from pool where (x->'elsewhere')::text ~* 'demox|Demo Exporter|499'),
-            'the roster pool: a person''s work for another client is said (busy, its stages), not named');
+-- migration 57 (G20, Veda: "client info should not be shared"): before, the pool listed him with his work said, not
+-- named ("Milling for another client (active)"); now a person who works for another client is not in the pool at all
+select t.ok(not exists (select 1 from pool where x->>'id' = t.u('12')::text)
+            and not exists (select 1 from pool where (x->'elsewhere')::text ~* 'demox|Demo Exporter|499|other_client'),
+            'the roster pool: a person who works now for another client is not offered (nor his work said)');
+select t.ok(not exists (select 1 from public.app_users where id = t.u('12')) and not exists (select 1 from public.employee_org where employee_id = t.u('12'))
+            and not exists (select 1 from jsonb_array_elements(app.people_directory()) p where p->>'id' = t.u('12')::text),
+            'nor is he in People: his name, his record, his directory line');
+select t.as_user(t.u('16'));
+select t.ok(exists (select 1 from jsonb_array_elements(app.people_directory()) p where p->>'id' = t.u('12')::text),
+            'HR sees him (HR staffs across clients)');
+select t.as_user(t.u('03'));
 select t.ok((select jsonb_array_length(x->'elsewhere') >= 3 and not exists (select 1 from jsonb_array_elements(x->'elsewhere') e where not (e ? 'client' and e ? 'label' and e ? 'scope_id'))
                from pool where x->>'id' = t.u('05')::text),
             'his own client''s other scopes are still named (the Procurement operator''s)');

@@ -74,12 +74,11 @@ describe('words that must not mislead', () => {
   });
   it('public page: "checked by the next person" only when the server says every step had that check (brief 1b)', () => {
     expect(howKey(true)).toBe('pv.how');
-    expect(howKey(false)).toBe('pv.how_mixed');
+    expect(howKey(false)).toBe('pv.how_basic');      // migration 57 (G21): no sentence about who did not check
     expect(howKey(undefined)).toBe('pv.how_basic');
     expect(en['pv.how']).toMatch(/next person/);
-    expect(en['pv.how_mixed']).toMatch(/not checked by the next person/);
     expect(en['pv.how_basic']).not.toMatch(/next person|checked/);
-    for (const k of ['pv.how_mixed', 'pv.how_basic']) expect(hi[k], k).toBeTruthy();
+    for (const k of ['pv.how', 'pv.how_basic']) expect(hi[k], k).toBeTruthy();
   });
   it('no word about an override is shown to the admin as his to do', () => {
     expect(`${en['seats.admin_note']} ${en['guide.admin.1']} ${en['guide.admin.2']}`).not.toMatch(/override/i);
