@@ -1,5 +1,6 @@
 // Shape returned by app.public_lot_journey (migrations 6, 20, 28, 29) and helpers shared by the public page and the labels.
 import { rpc } from '../../lib/api';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../../lib/supabase';
 
 export interface JourneyStep {
   stage: string; code: string; qty_in_kg: number; qty_out_kg: number; verified_at: string | null; created_at: string;
@@ -47,7 +48,7 @@ export interface ScanCount { counted?: boolean; copy_warning?: boolean }
  *  not answer JSON (the local stack, a host without it) the scan is counted without one. A failed count never stops the page. */
 export async function countScan(code: string): Promise<ScanCount | null> {
   try {
-    const r = await fetch('/api/scan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
+    const r = await fetch('/api/scan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, url: SUPABASE_URL, key: SUPABASE_ANON_KEY }) });   // the project, for a host without settings
     if (r.ok && (r.headers.get('content-type') ?? '').includes('application/json')) return (await r.json()) as ScanCount;
   } catch { /* counted below without a place */ }
   try { await rpc('record_scan', { p_code: code }); } catch { /* never stops the page */ }

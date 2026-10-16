@@ -11,7 +11,7 @@ import { plainWords } from '../src/lib/plainErrors';
 import { actionLines } from '../src/pages/NeedsMyAction';
 import { inspectionLine } from '../src/pages/records/Warehouse';
 import { buyerLinkUrl, shareMessage, scanFlagText, type ScanFlag } from '../src/pages/records/BuyerShare';
-import { buyerToken, evidencePack, type BuyerContent } from '../src/pages/public/BuyerView';
+import { buyerToken, evidencePack, readingText, type BuyerContent } from '../src/pages/public/BuyerView';
 import { filterLots, lotVillages } from '../src/engine/widgets';
 import { elsewhereLine } from '../src/lib/setup';
 import { en } from '../src/lib/i18n.en';
@@ -40,6 +40,10 @@ describe('Part F · the buyer link', () => {
     expect(buyerToken('#nope')).toBeNull();
     expect(buyerToken(`#${'A'.repeat(48)}`)).toBeNull();
     expect(tokenShape(tok)).toBe(true);
+  });
+  it('a reading with its unit (staging, 16 Oct: the page showed the bare keys)', () => {
+    expect(readingText('moisture_pct', 12.5)).toBe('12.5 %'); expect(readingText('aflatoxin_ppb', 1.5)).toBe('1.5 ppb'); expect(readingText('grains', 3)).toBe('3');
+    expect(read('web/src/pages/public/BuyerView.tsx')).toContain('t(`qp.${k}`');
   });
   it('the message names the order and the date, not a price', () => {
     const m = shareMessage('X-CM-0001', 'https://a/b#t', '2026-11-15T00:00:00Z', t);
@@ -111,6 +115,25 @@ describe('D5–D6 · scans, their place, and copies', () => {
     for (const h of ['x-vercel-ip-city', 'x-vercel-ip-country', 'x-vercel-ip-country-region', 'x-vercel-ip-latitude', 'x-vercel-ip-longitude']) expect(s).toContain(h);
     expect(s).toContain('/rest/v1/rpc/record_scan_at'); expect(s).toContain('VITE_SUPABASE_ANON_KEY');
     expect(s).not.toMatch(/SERVICE_ROLE|x-forwarded-for|user-agent/i);
+  });
+  it('the host\'s function: the place from the headers, the project from the page when the host has no settings', async () => {
+    // @ts-ignore -- a plain JavaScript module (Vercel runs it as it is)
+    const scan = await import('../api/scan.js');
+    const calls: { url: string; body: Record<string, unknown> }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (u: string, init: RequestInit) => {
+      calls.push({ url: String(u), body: JSON.parse(String(init.body)) });
+      return new Response(JSON.stringify({ counted: true, copy_warning: false }), { status: 200 });
+    }));
+    const req = (body: unknown) => new Request('https://app/api/scan', { method: 'POST', body: JSON.stringify(body), headers: {
+      'x-vercel-ip-city': 'New%20Delhi', 'x-vercel-ip-country': 'IN', 'x-vercel-ip-country-region': 'DL', 'x-vercel-ip-latitude': '28.6139', 'x-vercel-ip-longitude': '77.209' } });
+    const ok = await scan.default(req({ code: 'P-1', url: 'https://abcdefghijklmnopqrst.supabase.co', key: 'sb_publishable_abcdefghij1234567890' }));
+    expect(ok.status).toBe(200);
+    expect(calls[0].url).toBe('https://abcdefghijklmnopqrst.supabase.co/rest/v1/rpc/record_scan_at');
+    expect(calls[0].body).toEqual({ p_code: 'P-1', p_city: 'New Delhi', p_region: 'DL', p_country: 'IN', p_lat: 28.6139, p_lng: 77.209 });
+    // not a Supabase project's address: nothing is called
+    const bad = await scan.default(req({ code: 'P-1', url: 'https://evil.example.com', key: 'sb_publishable_abcdefghij1234567890' }));
+    expect(bad.status).toBe(500); expect(calls).toHaveLength(1);
+    expect(read('web/src/pages/public/journey.ts')).toContain('JSON.stringify({ code, url: SUPABASE_URL, key: SUPABASE_ANON_KEY })');
   });
   it('vercel.json leaves /api/ to the functions (the app is every other path)', () => {
     const v = JSON.parse(read('web/vercel.json'));

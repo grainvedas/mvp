@@ -4,6 +4,11 @@ Veda, 16 October 2026, "proceed with 56" (decision G19). Release 9 of the operat
 `docs/FIX_LIST.md`. Releases 1 to 8 (migrations 48 to 55) are on staging since 16 Oct 2026, 07:22 (9cfe6c9); this
 script expects **migrations 56 and 56b** waiting, or **56b alone**.
 
+**On staging since 16 Oct 10:23** (the second run). **A third run is needed for the app only** (no migration waits): the
+check of row 6 found the scan's place not recorded (the Vercel project has no settings; FIX_LIST FX3). The same
+double-click: S1 is skipped, `buyer-file` is deployed again, the checks run (the "nothing yet" read-back of S1b is
+checked only when a migration was waiting), and the app is pushed. Then row 6 again.
+
 **The first run (16 Oct, 09:59) stopped at S2**, as it should: the isolation check found another client's **openings**
 readable by every Client Manager (`leaks=2 … what=table:openings`). Migration 56 and `buyer-file` were in; the app was
 not pushed. **Migration 56b** closes it (a manager reads only the openings of his own clients). Run the same

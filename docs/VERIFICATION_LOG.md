@@ -2584,3 +2584,40 @@ traces a link's views. Then, local stack:
 - The release script (`patch56b.py` after `mkrel56.py`): 29 rehearsal scenarios; the case of staging now (56 in,
   `buyer-file` deployed, only 56b waiting) ends `RESULT: BUYER LINK AND SCANS ON STAGING`; 56b changed, 56 alone or out
   of order waiting, a leak: each stops.
+
+## 16 October 2026, 10:23 IST: release 9 on staging (migration 56b and the app)
+
+Second run of `staging-buyer-link-scans.cmd`: S0 (waiting: 56b alone), S1 56b pushed, S1c `buyer-file` (FUNCTIONS
+DEPLOYED AND CURRENT), S1b `commercial_form=new stages=17 links=0 link_views=0 scan_flags=0 scans=1 scans_with_place=0`,
+S2 smoke 53/54 (the standing `statement logging`), new rules in place, change log intact, **one client and another:
+`leaks=0 people=7 tables=43 calls=7680 own_rows=2151 clients=3`**, ledger audit NO FINDINGS (222 blocks, 51 records, 4
+seals, 6 evidence files checked), logins, functions; S3 pushed 58d2dfc (41 files). `RESULT: BUYER LINK AND SCANS ON
+STAGING`.
+
+## 16 October 2026, 10:35–10:50 IST: release 9 run-sheet checks on staging (Lucky signed in by Veda; Claude in Chrome)
+
+| # | Result |
+|---|---|
+| 1 | KH26 Bansi, SH-0002 (export) → Share with the buyer → 7 days, "practice (test)": "Link made; it works until 23 Oct 2026", the link `…/b#<48 hex>`, WhatsApp and Email links; the list: Active, opened 0 times |
+| 2 | The buyer's page: "Shared with you by Test Client UP"; order EX-TEST-1, Practice export buyer (test) · NL, Export · Export (general), Netherlands, 10 kg, 10 × 1 kg pouch; the shipment's invoice, container, seal, shipping bill, port, bill of lading MAEU0000001; the lab result per market with the readings; IEC received; 2 farmers, the villages' shares; the chain from the Collection Batch; three files. No price, currency or farmer's name; nothing wider than the window. (Opened in Lucky's browser: the page asks the same function signed in or not; the signed-out case is `e2e/phase28`.) |
+| 3 | The lab report through `buyer-file`: a signed address, answered 200, a PDF. The evidence pack download was not clicked (a download on Veda's computer; tested in `phase28`) |
+| 4 | The record: opened 2 times; "Every view": page opened, a file opened, with the times |
+| 5 | Revoked, "practice done (test)": Revoked with the reason; the buyer's page: "This link does not open" |
+| 6 | **Not met: the scan's place.** `/api/scan` answered `500 {"counted":false,"problem":"not configured"}`: the Vercel project has no settings of its own (the app builds with the staging project's public values, written in `vite.config.ts`), so the function had no project to call. Scans are still counted (the page falls back to `record_scan`), without a place. Fixed in the app (56.1, below) |
+| 7 | Flags: no scan flag (none raised); the Warehouse flag of release 8 as before |
+| 8 | KH26 Bansi roster pool: a person working for another client reads "… for another client (active)", no client or scope named |
+| 9 | KH26 Bansi, New Collection Batch: one lot waiting at the farm, so the filter is not shown (it shows from two lots; `phase28`) |
+| 10 | Commercial, Market Export: EXPORT MARKET (ITS PROFILE) * and DESTINATION COUNTRY (EXPORT) * (not saved) |
+
+Also seen: on the buyer's page the readings' names are the plain keys ("moisture", "aflatoxin ppb"), and the villages
+show "village1" and "village 1" apart (the open item of release 4, `app.norm_place`; practice data).
+
+## 16 October 2026, ~11:00 IST: 56.1, the scan's place (app only), local stack
+
+`web/api/scan.js` takes the project from the host's settings, else from the page (a Supabase project's address only);
+`countScan` sends it; the buyer's page names the readings with their units. Unit 640 (the scan function run with the
+place headers and a page-sent project: `record_scan_at` called with New Delhi, DL, IN, 28.6139, 77.209; an address that
+is not a Supabase project's: 500, nothing called — this test fails against the function as it was); typecheck clean;
+`e2e/phase1` 6 passed (a sealed lot for the next suite), `e2e/phase28` 2 passed, the built app 14 passed (public page
+174 KB, 1.7 s). Sealed 157 files. The release script needs no migration now: rehearsed with nothing waiting and links
+already made (S1b reads back, does not stop).

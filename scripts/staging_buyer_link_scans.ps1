@@ -15,6 +15,9 @@
 #     read only); the Collection Batch filters its lots by village, by a farmer or a lot code. Three fixes of release 8.
 #   - 56b: the first run (16 Oct 09:59) stopped at S2: the isolation check found another client's OPENINGS readable by
 #     every Client Manager. 56b closes it; this run pushes 56b (and 56, where it is not in yet) and checks again.
+#   - The app again (16 Oct, after 10:23): on staging the scan's place was not recorded (the Vercel project has no
+#     settings of its own, so web/api/scan.js answered not configured); it now uses the project the page talks to.
+#     With nothing waiting, this run deploys buyer-file again, checks, and pushes the app.
 # docs/FIX_LIST.md item 51; docs/RUNSHEET_buyer_link_scans.md.
 # RUN IT ONLY WHEN VEDA HAS SAID SO: it changes the staging database and PUSHES TO THE MAIN BRANCH (Vercel builds the
 # staging app from that push), and it deploys one new server function (buyer-file). It asks once, in words, first.
@@ -161,7 +164,7 @@ $tested = [ordered]@{
   'scripts/templates/ledger-anchor.yml' = '9759bd65771371bebba38e4317a345852913a0c491647e57eed9b3095c284f80'
   'tests/remote_ledger_audit.sql' = 'f45f90d2e2f6c2a424ba56a7bbbd15bb68da4cb6a7015fbd22472ce531a3cdbf'
 }
-$appListHash = '600d3dd809c83ab95e0d6920306087702c81848a1dfdf313d8c9600616247b22'
+$appListHash = 'bee3f5a1115bf4a3fb166cc8d2351eeb02c50cc8a097f7f6b8088795b8a0ae7d'
 $changed = @()
 foreach ($path in $tested.Keys) {
   if (-not (Test-Path (Join-Path $root $path))) { $changed += "$path (missing)"; continue }
@@ -263,7 +266,8 @@ if ($script:Code -ne 0 -or $script:Out -notmatch 'fix: .* end') { Stop-Run 'S1b'
 $fix = [regex]::Match($script:Out, 'fix: (.*?) end').Groups[1].Value
 Say "  $fix"
 if ($fix -notmatch '^commercial_form=new stages=17 ') { Stop-Run 'S1b' 'the Commercial form is not the new one (read the line above)' }
-if ($fix -notmatch 'links=0 link_views=0 scan_flags=0 scans=\d+ scans_with_place=0$') { Stop-Run 'S1b' 'a link, a view, a scan flag or a scan with a place is there before anyone made one (read the line above)' }
+# (only while the migrations are new: once they are in and the app is live, people make links and scans have places)
+if (-not $dbDone -and $fix -notmatch 'links=0 link_views=0 scan_flags=0 scans=\d+ scans_with_place=0$') { Stop-Run 'S1b' 'a link, a view, a scan flag or a scan with a place is there before anyone made one (read the line above)' }
 Mark 'S1b' 'OK' $fix
 
 # ---------------------------------------------------------------------------------------------------------------

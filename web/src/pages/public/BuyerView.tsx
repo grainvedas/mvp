@@ -13,7 +13,7 @@ import { en } from '../../lib/i18n.en';
 import { hi } from '../../lib/i18n.hi';
 import { rpc } from '../../lib/api';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../../lib/supabase';
-import { date } from '../../lib/format';
+import { date, humanise } from '../../lib/format';
 import { Badge, Loading } from '../../shell/ui';
 import { PublicFrame } from './PublicVerify';
 import { seasonName } from './journey';
@@ -45,6 +45,12 @@ export interface BuyerContent {
   files: { id: string; label: string; record: string; sha256: string; at: string }[];
 }
 type View = { state: 'loading' } | { state: 'gone' } | { state: 'error' } | { state: 'ok'; expires_at: string; content: BuyerContent };
+
+/** Pure: a reading with its unit, from its key (moisture_pct 12.5 → "12.5 %", aflatoxin_ppb 1.5 → "1.5 ppb"). */
+export function readingText(key: string, v: number): string {
+  const unit = key.endsWith('_pct') ? ' %' : key.endsWith('_ppb') ? ' ppb' : key.endsWith('_ppm') ? ' ppm' : '';
+  return `${v}${unit}`;
+}
 
 /** Pure: the evidence pack: the page as data, with each file's SHA-256 so a downloaded file can be checked. */
 export function evidencePack(c: BuyerContent, expires: string): string {
@@ -138,7 +144,7 @@ export default function BuyerView() {
                 <ul data-testid="bv-markets">{l.markets.map((m) => <li key={m.name}>{m.name}: <Badge value={m.verdict} />{m.failed.length ? ` (${m.failed.join(', ')})` : ''}</li>)}</ul>
                 {l.released_on_acceptance && <p className="small">{t('bv.on_acceptance')}</p>}
                 {l.readings && <div className="table-wrap"><table><tbody>{Object.entries(l.readings).map(([k, x]) => (
-                  <tr key={k}><td>{t(`param.${k}`, undefined, k.replace(/_/g, ' '))}</td><td className="mono">{x}</td></tr>))}</tbody></table></div>}
+                  <tr key={k}><td>{t(`qp.${k}`, undefined, humanise(k.replace(/_(pct|ppb|ppm)$/, '')))}</td><td className="mono">{readingText(k, x)}</td></tr>))}</tbody></table></div>}
               </div>))}
           </section>)}
         {c.documents.length > 0 && (
