@@ -1175,6 +1175,15 @@
                 "with_packs": true
             },
             {
+                "key": "cartons",
+                "type": "order_cartons",
+                "label": "Cartons",
+                "section": "quantity",
+                "required": false,
+                "shown_when": "stage_details_required",
+                "with_packs": true
+            },
+            {
                 "key": "qty_kg",
                 "type": "number",
                 "unit": "kg",

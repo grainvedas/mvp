@@ -356,6 +356,22 @@ tr.clickable { cursor: pointer; } tbody tr:hover td { background: var(--g50); }
 .label-small { font-size: 7.5pt; color: var(--muted); } .label-code { font-size: 9pt; font-weight: 700; margin-top: 1mm; }
 @media print { @page { size: A4; margin: 8mm; } .label { border-color: #bbb; } main { max-width: none; padding: 0; } }
 @media (max-width: 600px) { .label-sheet { grid-template-columns: 1fr; } }   /* two labels side by side were wider than a phone */
+/* migration 58: carton labels. A4: 2 × 4 per page (about 99 × 70 mm each); a label printer: one 100 × 150 mm label a page */
+.carton-sheet { display: grid; gap: 3mm; }
+.carton-sheet.a4_8 { grid-template-columns: repeat(2, 1fr); }
+.carton-label { border: 1px dashed var(--border2); border-radius: 3mm; padding: 3mm; display: flex; gap: 3mm; align-items: center; background: #fff; color: #000; break-inside: avoid; }
+.carton-sheet.a4_8 .carton-label { height: 66mm; }
+.carton-sheet.a4_8 .carton-label img { width: 40mm; height: 40mm; image-rendering: pixelated; flex: 0 0 auto; }
+.carton-sheet.label_100x150 { grid-template-columns: 1fr; max-width: 100mm; }
+.carton-sheet.label_100x150 .carton-label { flex-direction: column; text-align: center; height: 146mm; justify-content: center; break-after: page; }
+.carton-sheet.label_100x150 .carton-label img { width: 70mm; height: 70mm; image-rendering: pixelated; }
+.cl-text { min-width: 0; overflow-wrap: anywhere; }
+.cl-code { font-size: 11pt; font-weight: 700; }
+.cl-big { font-size: 13pt; font-weight: 700; margin: 1mm 0; }
+.cl-small { font-size: 8pt; color: #333; }
+.carton-sheet.label_100x150 .cl-code { font-size: 14pt; } .carton-sheet.label_100x150 .cl-big { font-size: 18pt; } .carton-sheet.label_100x150 .cl-small { font-size: 10pt; }
+@media print { .carton-label { border-color: #bbb; } .carton-sheet.label_100x150 .carton-label { border: none; } }
+@media (max-width: 600px) { .carton-sheet.a4_8 { grid-template-columns: 1fr; } .carton-sheet.a4_8 .carton-label { height: auto; } }
 
 /* F13 chain as stage dots */
 .dots { list-style: none; padding: 0; margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 8px; }

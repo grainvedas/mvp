@@ -18,7 +18,8 @@ const ORDER = ['net_kg', 'moisture_avg', 'moisture_min', 'moisture_max', 'varian
   'water_removed_kg', 'grain_loss_kg', 'pop_rate_pct', 'weight_yield_pct', 'foreign_matter_kg', 'water_uptake_kg',
   'spoilage_kg', 'packed_kg', 'wastage_kg', 'batch_code', 'sample_qty_kg', 'forwarding_kg', 'market', 'buyer',
   'buyer_country', 'order_no', 'market_code', 'market_name', 'destination_country', 'sale_route', 'packs',     // migration 54: Commercial
-  'invoice_no', 'serials_count', 'container_no', 'bl_pending',                                                 // migration 54: Shipment
+  'units',                                                                                                     // migration 58: what the order set aside
+  'invoice_no', 'serials_count', 'cartons_count', 'container_no', 'bl_pending',                                // migration 54: Shipment (58: cartons)
   'transit_loss_kg', 'final_kg', 'grade'];
 /** Worked-out values kept for the system, not shown: the buyer's row id (his name and country are shown), the export
  *  market's code (its name is shown: seen on the record page at 390 px, the two lines said the same). */
@@ -53,9 +54,20 @@ function row(x: unknown, t: T): string {
   return Object.entries(r).map(([k, v]) => `${t(`field.${k}`, undefined, humanise(k))} ${String(v)}`).join(', ');
 }
 
+/** Migration 58: the units of an order in words (the codes are on the Shipment's list). */
+export function unitsText(u: { kind?: string; n?: number }[], t: T): string {
+  const c = u.filter((x) => x.kind === 'carton'), p = u.filter((x) => x.kind !== 'carton');
+  const inC = c.reduce((a, x) => a + Number(x.n ?? 0), 0);
+  const parts = [c.length ? t('units.cartons_of', { n: c.length, packs: inC }) : '', p.length ? t('units.loose', { n: p.length }) : ''].filter(Boolean);
+  return parts.length ? parts.join(t('units.and')) : '—';
+}
+
 /** A worked-out value (footprints.computed): numbers with their unit, text as text, lists as words. Never "NaN". */
 export function showComputed(key: string, v: unknown, t: T): string {
   if (v === null || v === undefined || v === '') return '—';
+  // migration 58: the cartons and loose packs an order set aside: "3 cartons (60 packs) and 5 loose packs"
+  if (key === 'units' && Array.isArray(v)) return unitsText(v as { kind?: string; n?: number }[], t);
+  if (key === 'cartons_count' && typeof v === 'number') return t('units.cartons', { n: v });
   if (typeof v === 'number') return number(key, v);
   if (typeof v === 'boolean') return t(v ? 'common.yes' : 'common.no');
   if (Array.isArray(v)) return v.length ? v.map((x) => row(x, t)).join(' · ') : '—';

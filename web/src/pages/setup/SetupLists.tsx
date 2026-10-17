@@ -158,6 +158,7 @@ function ListEditor({ kind, owner, canEdit }: { kind: ListKind; owner: { client_
             ? <FragmentKV key="gps" k={t('set.f_gps')} v={r.lat == null ? '—' : `${r.lat}, ${r.lng}`} />
             : <FragmentKV key={f.key} k={t(`set.f_${f.key}`)} v={word(f.key, r[f.key])} />)}
             {kind === 'pack_skus' && <FragmentKV k={t('set.f_label_type')} v={word('label_type', r.label_type)} />}
+            {kind === 'pack_skus' && <FragmentKV k={t('set.f_packs_per_carton')} v={r.packs_per_carton == null ? t('set.no_cartons') : String(r.packs_per_carton)} />}
             <FragmentKV k={t('set.added')} v={date(r.created_at)} /></dl>
           {canEdit && <div className="row">
             <button className="secondary" onClick={() => { setEdit({ id: r.id, row: toTyped(kind, r) }); setTried(false); }} disabled={act.busy}>{t('common.edit')}</button>
@@ -191,7 +192,7 @@ function ListEditor({ kind, owner, canEdit }: { kind: ListKind; owner: { client_
             if (f.type === 'country') return <Field key={f.key} label={label} hint={t('set.country_hint')} htmlFor={id}>
               <input id={id} list="set-countries" value={v} maxLength={2} onChange={(e) => setV(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))} data-testid={id} />
               <datalist id="set-countries">{COUNTRIES.map((c) => <option key={c} value={c} />)}</datalist></Field>;
-            return <Field key={f.key} label={label} htmlFor={id}><input id={id} value={v} maxLength={f.max} inputMode={f.type === 'number' || f.key === 'fssai_licence' ? 'decimal' : undefined}
+            return <Field key={f.key} label={label} hint={f.key === 'packs_per_carton' ? t('set.per_carton_hint') : undefined} htmlFor={id}><input id={id} value={v} maxLength={f.max} inputMode={f.key === 'packs_per_carton' ? 'numeric' : f.type === 'number' || f.key === 'fssai_licence' ? 'decimal' : undefined}
               onChange={(e) => setV(e.target.value)} data-testid={id} /></Field>;
           })}</div>
           {tried && problems.length > 0 && <div className="alert warn small" data-testid="set-problems">{problems.map((p) => t(p)).join(' · ')}</div>}

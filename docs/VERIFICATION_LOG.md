@@ -2669,3 +2669,42 @@ staging yet (`staging-people-public-page.cmd`, `docs/RUNSHEET_people_public_page
   changed). Sealed 160 files.
 - Seen: pictures at 390 px of the new public pack page, the operator's first screen and waiting list, and the pack
   codes loader (sent to Veda with this release).
+
+## 16 October 2026, 21:11 IST: release 10 on staging (migration 57 and the app)
+
+First run: S0 (57 waiting, the seven functions current), S1 pushed `20261101000100_people_public_page_packs.sql`, S1b
+`shipment_form=new stages=17 functions=new public_same_person=no`, S2 smoke 54/55 (statement logging standing), the
+new rules in place and the change log intact, one client and another `leaks=0 people=7 tables=43 calls=10935
+own_rows=2405 clients=3`, ledger audit NO FINDINGS (259 blocks, 61 records, 5 seals, 10 evidence files), no login
+without a person, functions current; S3 pushed 978fe0d (42 files). `RESULT: PEOPLE, PUBLIC PAGE AND PACKS ON STAGING`.
+
+Run-sheet checks (Lucky signed in by Veda; Claude drove them): rows 1 to 4 passed. Seen: "1 farmers of village 1" (no `.one` form; fixed in release 11).
+Rows 5 and 6 (a domestic shipment of packs with its codes; its buyer link) moved to release 11's checks.
+
+## 16 October 2026, night: cartons, Reports to and departments, release 11 (migration 58, open item 53), local stack
+
+Veda's decision G24 ("proceed with 58"). Built and checked on the local stack; not on staging yet
+(`staging-cartons-people.cmd`, `docs/RUNSHEET_cartons_people.md`).
+
+- Every database test on a template rebuilt from all migrations and seeds: **2,275 ok**, none failed (2,210 before; new
+  `tests/53_cartons_people_choices.sql` 65 checks; `tests/08` four functions in the allowlist, `tests/50` a carton in
+  the isolation probe's `fill`). `tests/run_local.sh` (with the upgrade path and the concurrency check): ALL TESTS PASSED.
+- Negative controls for `tests/53`: **19 of 19 caught** (each breaks one rule of migration 58 in its own definition: no
+  cartons made, cartons kept on a correction, a void pack not opening its carton, labels for any stage, a taken carton
+  chosen, a carton split, the choice ignored, a partly taken carton offered, a pack with its carton, an opened carton
+  shipped, any carton shipped, a carton's pack shipped again, any manager, any state, a buddy anywhere, any department,
+  HR of another state, an HR resource keeping the list, the import trusting).
+- The smoke check: 56 rows on a 58 database, the new row `cartons people choices` OK; on a 57 database it says `MISSING
+  (push migration 58)`; with the people trigger dropped it says NOT OK.
+- App: `npx tsc` clean; **669 unit tests** (35 files; new `web/tests/release58.test.tsx`, 13). The full Playwright suite
+  on a rebuilt stack: 90 of the first 91 passed when the container restarted (the run stopped at 91 of 94); the one
+  failure was `phase2` T4 at QC's "Verify this lot" (a checkbox click that did not change its state; nothing in that
+  path changed in this release). On a fresh stack afterwards: `phase2`, `phase9` (all, with the three not reached) and
+  the new `phase30` (cartons and HR choices at 527 px): **11 passed**. The built app (`playwright.prod.config.ts`): **14
+  passed**, the public page 181 KB. `remote_rls.mjs --t1`: REMOTE RLS PASSED. `remote_create_user.mjs`: CREATE-USER
+  PASSED. Restore drill: RESTORE DRILL PASSED. The first day from nothing (`fresh_start.spec.ts`): 1 passed.
+- Seen in pictures at 390 px: the order's cartons (free runs, the range, the packs chosen against the order), the
+  carton labels (A4 two across; the 100 × 150 mm label), the loader with two cartons (40 of 40, "Carton · 20 packs").
+- Not proved here: printing on a real label printer (the page sets `@page` to 100 mm × 150 mm; the printer's own
+  driver must be set to that size), the camera reading a carton label (the same QR reader as packs), and a lot of
+  1 lakh packs (the checks are on sets; no load test was run at that size).

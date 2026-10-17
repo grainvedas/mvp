@@ -45,7 +45,9 @@ export interface PackView { serial: string; batch_code: string; size_kg: number;
   /** migration 56: the client that sells it (named in the copy warning) */
   seller?: string;
   /** migration 57: how often this pack was scanned, and the first place (a city; nothing about anyone) */
-  scans?: { n: number; first_city: string | null; first_country: string | null } }
+  scans?: { n: number; first_city: string | null; first_country: string | null };
+  /** migration 58: the carton it was packed in (its code only) */
+  carton?: string | null }
 export type PublicPack = (Journey & { pack: PackView; released: true })
   | { pack: PackView; released: false; crop: Journey['crop']; season: string; geography: string; gi_status?: Journey['gi_status'] };
 export const loadPack = (serial: string) => rpc<PublicPack | null>('public_pack', { p_serial: serial });

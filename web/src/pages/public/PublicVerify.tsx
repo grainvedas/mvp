@@ -261,6 +261,7 @@ function PackCard({ pack, lot }: { pack: PackView; lot?: Journey['packs'] }) {
         <dt>{t('pv.pack')}</dt><dd className="mono">{pack.serial}</dd>
         <dt>{t('pv.weight')}</dt><dd>{Number(pack.size_kg).toLocaleString('en-IN')} kg</dd>
         <dt>{t('pv.batch')}</dt><dd className="mono">{pack.batch_code}</dd>
+        {pack.carton && <><dt>{t('pv.carton')}</dt><dd className="mono" data-testid="pv-carton">{pack.carton}</dd></>}
         <dt>{t('pv.packed')}</dt><dd>{pvDate(pack.packed_on)}</dd>
         {pack.best_before && <><dt>{t('pv.best_before_label')}</dt><dd>{pvDate(pack.best_before)}</dd></>}
         {pack.seller && <><dt>{t('pv.sold_by')}</dt><dd>{pack.seller}</dd></>}

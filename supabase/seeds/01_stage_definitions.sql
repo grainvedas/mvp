@@ -252,6 +252,7 @@ update public.stage_definitions set form_schema =
 -- Commercial (C7): the buyer from the list, the export market's profile and the destination, the order number, packs by
 -- type (where the batch was packed from the pack list), price and terms (kept apart; where the scope records prices).
 -- A form "with_packs" field shows where the lot it comes from has packs by type; "hidden_when_packs" hides it there.
+-- Migration 58: "cartons", the full cartons chosen for this order (else the oldest free ones are set aside).
 update public.stage_definitions set form_schema = '[
   {"key": "buyer_id", "type": "buyer", "label": "Buyer (from the client''s list)", "section": "buyer", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required"},
   {"key": "buyer", "type": "text", "label": "Buyer", "section": "buyer", "required": true, "hidden_when": "stage_details_required"},
@@ -261,6 +262,7 @@ update public.stage_definitions set form_schema = '[
   {"key": "order_no", "type": "text", "label": "Order or contract number", "section": "buyer", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required"},
   {"key": "sale_route", "type": "select", "label": "Sale route", "options": ["own_brand", "white_label", "bulk", "prasaadam"], "section": "buyer", "required": false, "shown_when": "stage_details_required"},
   {"key": "packs", "type": "order_packs", "label": "Packs sold", "section": "quantity", "required": false, "shown_when": "stage_details_required", "with_packs": true},
+  {"key": "cartons", "type": "order_cartons", "label": "Cartons", "section": "quantity", "required": false, "shown_when": "stage_details_required", "with_packs": true},
   {"key": "qty_kg", "type": "number", "unit": "kg", "label": "Quantity to this buyer", "section": "quantity", "required": true, "hidden_when_packs": true},
   {"key": "price_per_kg", "type": "number", "unit": "per kg", "label": "Price", "section": "terms", "required": false, "shown_when": "record_price"},
   {"key": "currency", "type": "select", "label": "Currency", "options": ["INR", "USD", "EUR", "GBP", "AED", "SAR", "JPY", "AUD"], "section": "terms", "required": false, "shown_when": "record_price"},

@@ -106,6 +106,8 @@ insert into allowed values
   ('anon', 'buyer_log'), ('authenticated', 'buyer_log'), ('authenticated', 'scan_flags_list'), ('authenticated', 'decide_scan_flag'),
   ('authenticated', 'create_buyer_link'), ('authenticated', 'revoke_buyer_link'), ('authenticated', 'buyer_links_of'),   -- migration 56
   ('authenticated', 'order_pack_codes'),                                                                                  -- migration 57
+  ('authenticated', 'available_cartons'), ('authenticated', 'carton_labels'), ('authenticated', 'set_department'),
+  ('authenticated', 'org_choices'),                                                                                       -- migration 58
   -- migration 39: HR by geography
   ('authenticated', 'hr_scope'), ('authenticated', 'set_hr_states'), ('authenticated', 'set_base_location'), ('authenticated', 'person_geo'),
   ('authenticated', 'hr_people_states'), ('authenticated', 'my_hr_states'), ('authenticated', 'hr_full'), ('authenticated', 'hr_covers'),

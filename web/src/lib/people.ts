@@ -11,6 +11,8 @@ export interface AssignmentInfo {
 export interface OrgFacts {
   employment_type: EmploymentType | null; designation_band: string | null; department: string | null; job_title: string | null;
   reports_to?: string | null; buddy?: string | null; reports_to_name?: string | null; buddy_name?: string | null;
+  /** migration 58 (joiner_detail): the state the person is based in: whom Reports to and the buddy may be */
+  base_state_id?: string | null;
 }
 export interface DirectoryPerson {
   id: string; name: string; email: string | null; phone: string | null; status: EmployeeStatus; system_role: SystemRole;

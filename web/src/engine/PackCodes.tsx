@@ -7,14 +7,32 @@
 //     already shipped (and on which shipment), not this order's batch, void, scanned twice; each problem can be removed;
 //   - the count per pack type against the packs shipped on the same form.
 // The value stays the text of codes, one per line, as before: the server checks every code again when it saves.
+// Migration 58 (Veda, 16 Oct: "in future there will be more than 1 lakhs packs"; at loading "share suggestion"): an order
+// that set aside cartons lists them (and its loose packs); a carton's code counts all its packs, so a truck of 1 lakh
+// packs is about 5,000 scans. A carton opened since (a pack voided) is scanned pack by pack; a pack of a carton set aside
+// is accepted on its own too, but never with its carton.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { rpc } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { cached } from '../offline/cache';
 
-export interface PackCode { serial: string; sku_id: string | null; sku: string | null; size_kg: number; void: boolean; shipped_in: string | null }
-export type CodeStatus = 'ok' | 'twice' | 'other' | 'void' | 'shipped';
-export interface CheckedCode { code: string; status: CodeStatus; sku_id: string | null; shipped_in?: string | null }
+export interface PackCode { serial: string; sku_id: string | null; sku: string | null; size_kg: number; void: boolean; shipped_in: string | null;
+  /** migration 58: a carton set aside for the order (n packs, first to last) or a pack */
+  kind?: 'pack' | 'carton'; n?: number; first_serial?: string | null; last_serial?: string | null; opened?: boolean }
+export type CodeStatus = 'ok' | 'twice' | 'other' | 'void' | 'shipped' | 'opened';
+export interface CheckedCode { code: string; status: CodeStatus; sku_id: string | null; shipped_in?: string | null; kind: 'pack' | 'carton'; n: number }
+
+/** Pure: the carton (of the order's) that holds a pack code, by its range. */
+export function cartonOf(code: string, packs: PackCode[] | null): PackCode | null {
+  const x = splitCode(code);
+  if (!x) return null;
+  for (const p of packs ?? []) {
+    if (p.kind !== 'carton' || !p.first_serial || !p.last_serial) continue;
+    const a = splitCode(p.first_serial.toUpperCase()), b = splitCode(p.last_serial.toUpperCase());
+    if (a && b && a.stem === x.stem && x.n >= a.n && x.n <= b.n) return p;
+  }
+  return null;
+}
 
 /** Pure: a code as scanned or typed: a pack page's address (…/p/<code>) gives its code; capitals, no spaces. */
 export function normCode(raw: string): string {
@@ -29,15 +47,28 @@ export const codeLines = (s: string) => s.split(/[\s,;]+/).map(normCode).filter(
 export function checkCodes(codes: string[], packs: PackCode[] | null): CheckedCode[] {
   const by = new Map((packs ?? []).map((p) => [p.serial.toUpperCase(), p]));
   const seen = new Set<string>();
+  // a pack and its carton both given: the later one is "twice" (the server counts each pack once)
+  const holder = (code: string) => (by.has(code) ? null : cartonOf(code, packs));
   return codes.map((code) => {
-    const p = by.get(code);
-    const twice = seen.has(code); seen.add(code);
-    if (twice) return { code, status: 'twice', sku_id: p?.sku_id ?? null };
-    if (!packs) return { code, status: 'ok', sku_id: null };                    // nothing to check against yet: the save checks
-    if (!p) return { code, status: 'other', sku_id: null };
-    if (p.void) return { code, status: 'void', sku_id: p.sku_id };
-    if (p.shipped_in) return { code, status: 'shipped', sku_id: p.sku_id, shipped_in: p.shipped_in };
-    return { code, status: 'ok', sku_id: p.sku_id };
+    const p = by.get(code) ?? null;
+    const box = p ? null : holder(code);
+    const kind: 'pack' | 'carton' = p?.kind === 'carton' ? 'carton' : 'pack';
+    const n = p?.kind === 'carton' ? Number(p.n ?? 1) : 1;
+    const inside = p?.kind === 'carton' && [...seen].some((c) => holder(c)?.serial.toUpperCase() === code);
+    const twice = seen.has(code) || inside || (box != null && seen.has(box.serial.toUpperCase()));
+    seen.add(code);
+    const sku = p?.sku_id ?? box?.sku_id ?? null;
+    if (twice) return { code, status: 'twice', sku_id: sku, kind, n };
+    if (!packs) return { code, status: 'ok', sku_id: null, kind, n };          // nothing to check against yet: the save checks
+    if (!p && box) {                                                            // a pack of a carton set aside, on its own
+      if (box.shipped_in) return { code, status: 'shipped', sku_id: sku, shipped_in: box.shipped_in, kind, n };
+      return { code, status: box.void ? 'void' : 'ok', sku_id: sku, kind, n };
+    }
+    if (!p) return { code, status: 'other', sku_id: null, kind, n };
+    if (p.void) return { code, status: 'void', sku_id: p.sku_id, kind, n };
+    if (p.opened) return { code, status: 'opened', sku_id: p.sku_id, kind, n };
+    if (p.shipped_in) return { code, status: 'shipped', sku_id: p.sku_id, shipped_in: p.shipped_in, kind, n };
+    return { code, status: 'ok', sku_id: p.sku_id, kind, n };
   });
 }
 
@@ -72,7 +103,7 @@ export function codeRuns(codes: string[]): { from: string; to: string; n: number
 export function perSku(checked: CheckedCode[], lines: { sku_id: string; units: number }[], packs: PackCode[] | null) {
   const name = (id: string) => packs?.find((p) => p.sku_id === id)?.sku ?? '';
   return lines.filter((l) => l.units > 0).map((l) => {
-    const n = checked.filter((c) => c.status === 'ok' && c.sku_id === l.sku_id).length;
+    const n = checked.filter((c) => c.status === 'ok' && c.sku_id === l.sku_id).reduce((a, c) => a + c.n, 0);
     return { sku_id: l.sku_id, name: name(l.sku_id), n, of: l.units };
   });
 }
@@ -114,6 +145,9 @@ export function PackCodes({ id, name, sourceId, editingId, value, onChange, pack
   const codes = useMemo(() => codeLines(value ?? ''), [value]);
   const checked = useMemo(() => checkCodes(codes, packs), [codes, packs]);
   const good = checked.filter((c) => c.status === 'ok');
+  const goodPacks = good.reduce((a, c) => a + c.n, 0);
+  const cartonsIn = good.filter((c) => c.kind === 'carton').length;
+  const allocated = (packs ?? []).some((p) => p.kind === 'carton');
   const bad = checked.filter((c) => c.status !== 'ok');
   const wanted = packLines.reduce((a, l) => a + (l.units > 0 ? l.units : 0), 0);
   const skus = perSku(checked, packLines, packs);
@@ -164,20 +198,21 @@ export function PackCodes({ id, name, sourceId, editingId, value, onChange, pack
   const rangeChecked = range ? checkCodes([...codes, ...range], packs).slice(codes.length) : [];
   const rangeOk = rangeChecked.filter((c) => c.status === 'ok').length;
   // the whole rest of a batch: offered when the order takes exactly what is left of a pack type
-  const wholeBatch = packs ? skus.map((s) => {
+  const wholeBatch = packs && !allocated ? skus.map((s) => {
     const free = packs.filter((p) => p.sku_id === s.sku_id && !p.void && !p.shipped_in).map((p) => p.serial.toUpperCase());
     const missing = free.filter((c) => !codes.includes(c));
     return free.length > 0 && free.length === s.of && missing.length > 0 ? { sku: s.name, codes: missing, n: free.length } : null;
   }).filter(Boolean) as { sku: string; codes: string[]; n: number }[] : [];
   const batchOf = (c: string) => splitCode(c)?.stem.replace(/-$/, '') ?? '';
-  const stLabel = (c: CheckedCode) => c.status === 'shipped' ? t('pc.st_shipped', { code: c.shipped_in ?? '' }) : t(`pc.st_${c.status}`);
+  const stLabel = (c: CheckedCode) => c.status === 'shipped' ? t('pc.st_shipped', { code: c.shipped_in ?? '' })
+    : c.status === 'other' && allocated ? t('pc.st_not_aside') : t(`pc.st_${c.status}`);
 
   return (
     <div className="stack pack-codes" id={id} data-testid="pack-codes">
       {wanted > 0 && (
         <div className="pc-progress" data-testid="pc-progress">
-          <div className="pc-big"><b>{good.length}</b> {t('pc.of_packs', { m: wanted })}</div>
-          <div className="pc-bar"><span style={{ width: `${Math.min(100, Math.round((good.length / Math.max(1, wanted)) * 100))}%` }} /></div>
+          <div className="pc-big"><b>{goodPacks}</b> {t('pc.of_packs', { m: wanted })}{cartonsIn > 0 && <span className="small muted" data-testid="pc-cartons"> · {t('pc.in_cartons', { n: cartonsIn })}</span>}</div>
+          <div className="pc-bar"><span style={{ width: `${Math.min(100, Math.round((goodPacks / Math.max(1, wanted)) * 100))}%` }} /></div>
           {skus.map((s) => (
             <div className="pc-sku" key={s.sku_id} data-testid="pc-sku">
               <span>{s.name || t('pc.a_type')}</span>
@@ -221,11 +256,16 @@ export function PackCodes({ id, name, sourceId, editingId, value, onChange, pack
 
       {codes.length > 0 && (
         <div className="pc-list" data-testid="pc-list">
-          {codeRuns(good.map((c) => c.code)).map((r) => (
-            <div className="pc-row" key={r.from} data-testid="pc-run">
+          {codeRuns(good.map((c) => c.code)).map((r) => {
+            const inRun = good.filter((c) => c.kind === 'carton' && r.from <= c.code && c.code <= r.to);
+            const cartonRun = inRun.length > 0;
+            const packsInRun = inRun.reduce((a, c) => a + c.n, 0);
+            return (
+            <div className="pc-row" key={r.from} data-testid="pc-run" data-kind={cartonRun ? 'carton' : 'pack'}>
               <span className="mono small">{r.from === r.to ? r.from : `${r.from} … ${splitCode(r.to)?.n.toString().padStart(splitCode(r.to)!.width, '0')}`}</span>
-              <span className="badge verified">{r.n === 1 ? t('pc.ok') : t('pc.ok_run', { n: r.n })}</span>
-            </div>))}
+              <span className="badge verified">{cartonRun ? t(r.n === 1 ? 'pc.ok_carton' : 'pc.ok_cartons', { n: r.n, packs: packsInRun })
+                : r.n === 1 ? t('pc.ok') : t('pc.ok_run', { n: r.n })}</span>
+            </div>); })}
           {bad.map((c) => {
             const i = checked.indexOf(c);
             return (

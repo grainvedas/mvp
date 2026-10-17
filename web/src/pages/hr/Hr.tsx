@@ -17,12 +17,10 @@ import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { FileBox, OrgLine, StatusBadge, TempPassword, uploadHrFile, useStageName } from '../people/shared';
 import { HIRE_ROLES, sendInvites, type HireRole, type OpeningsSummary } from '../../lib/scale';
 import { HrLinks, InviteResults, RoleLabel, useHrPeople } from './Scale';
+import { BuddySelect, DepartmentSelect, DepartmentsCard, ReportsToSelect, useOrgChoices } from './OrgChoices';
 import { BaseLocation, stateChoices, useAllStates, useHrScope } from './Geo';
 import type { StageType } from '../../lib/types';
 
-interface Person { id: string; display_name: string; status: string; external: boolean }
-const usePeople = () => useAsync(() => q(supabase.from('app_users').select('id,display_name,status,external').eq('external', false)
-  .in('status', ['invited', 'onboarding', 'active']).order('display_name')) as Promise<Person[]>, []);
 interface Template { id: string; name: string; is_default: boolean; active: boolean; role?: HireRole | null; first_day_time?: string | null; first_day_place?: string | null; first_day_ask_for?: string | null; first_day_bring?: string | null }
 
 function Countdown({ days, status, on }: { days: number | null | undefined; status?: string; on?: string | null }) {
@@ -108,7 +106,6 @@ export function AddJoiner() {
   const { t } = useI18n();
   const { ctx } = useAuth();
   const can = ctx?.user?.can ?? NO_RIGHTS;
-  const people = usePeople();
   const templates = useAsync(() => q(supabase.from('onboarding_templates').select('id,name,is_default,active').eq('active', true).order('name')) as Promise<Template[]>, []);
   const fn = useAsync(() => functionState('create-user'), []);
   const openings = useAsync(() => rpc<OpeningsSummary>('openings_summary', {}).catch(() => null), []);
@@ -123,6 +120,14 @@ export function AddJoiner() {
   useEffect(() => { if (!f.hr_owner && ctx?.user?.id && (ctx.user.system_role === 'hr_admin' || ctx.user.system_role === 'hr_resource')) setF((s) => ({ ...s, hr_owner: ctx.user!.id })); }, [ctx, f.hr_owner]);
   const chosen = (openings.data?.openings ?? []).find((o) => o.id === f.opening_id);
   const set = (k: keyof typeof blankJoiner) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  // migration 58: the choices are those of the state the person is based in (as the server decides it)
+  const baseState = f.base_state_id || (scope.data && !scope.data.full && scope.data.states.length === 1 ? scope.data.states[0].id : '') || chosen?.state_id || '';
+  const org = useOrgChoices(baseState || null);
+  useEffect(() => {
+    if (!org) return;
+    setF((s) => ({ ...s, reports_to: org.managers.some((m) => m.id === s.reports_to) ? s.reports_to : '',
+                          buddy: org.buddies.some((m) => m.id === s.buddy) ? s.buddy : '' }));
+  }, [org]);
   const submit = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
     const r = await callFunction<{ app_user_id: string; sign_in: string; temporary_password: string; invite_emailed: boolean }>('create-user', {
       kind: 'joiner', ...f, intended_role: f.opening_id ? '' : f.intended_role, intended_stage: !f.opening_id && f.intended_role === 'operator' ? f.intended_stage : '',
@@ -183,12 +188,10 @@ export function AddJoiner() {
               {EMPLOYMENT_TYPES.map((x) => <option key={x} value={x}>{t(`emptype.${x}`)}</option>)}</select></Field>
             <Field label={t('hr.f_band')} htmlFor="j-band"><select id="j-band" value={f.designation_band} onChange={set('designation_band')}>
               <option value="">—</option>{DESIGNATION_BANDS.map((x) => <option key={x} value={x}>{x}</option>)}</select></Field>
-            <Field label={t('hr.f_dept')} htmlFor="j-dept"><input id="j-dept" value={f.department} onChange={set('department')} /></Field>
+            <Field label={t('hr.f_dept')} hint={t('org.dept_hint')} htmlFor="j-dept"><DepartmentSelect id="j-dept" value={f.department} onChange={(v) => setF({ ...f, department: v })} choices={org} /></Field>
             <Field label={t('hr.f_title')} htmlFor="j-title"><input id="j-title" value={f.job_title} onChange={set('job_title')} /></Field>
-            <Field label={t('hr.f_reports')} htmlFor="j-reports"><select id="j-reports" value={f.reports_to} onChange={set('reports_to')}>
-              <option value="">—</option>{(people.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}</select></Field>
-            <Field label={t('hr.f_buddy')} hint={t('common.optional')} htmlFor="j-buddy"><select id="j-buddy" value={f.buddy} onChange={set('buddy')}>
-              <option value="">—</option>{(people.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.display_name}</option>)}</select></Field>
+            <Field label={t('hr.f_reports')} hint={t('org.reports_hint')} htmlFor="j-reports"><ReportsToSelect id="j-reports" value={f.reports_to} onChange={(v) => setF({ ...f, reports_to: v })} choices={org} /></Field>
+            <Field label={t('hr.f_buddy')} hint={t('org.buddy_hint')} htmlFor="j-buddy"><BuddySelect id="j-buddy" value={f.buddy} onChange={(v) => setF({ ...f, buddy: v })} choices={org} /></Field>
             <Field label={t('hr.f_template')} htmlFor="j-template"><select id="j-template" value={f.template_id} onChange={set('template_id')}>
               <option value="">{t('aj.template_auto')}</option>
               {(templates.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
@@ -217,7 +220,6 @@ export function JoinerPage() {
   const nav = useNavigate();
   const d = useAsync(() => rpc<Detail>('joiner_detail', { p_employee: id }), [id]);
   const { ctx, refresh } = useAuth();
-  const people = usePeople();
   const act = useAction();
   const [temp, setTemp] = useState<{ who: string; pw: string } | null>(null);
   const [note, setNote] = useState('');
@@ -295,7 +297,7 @@ export function JoinerPage() {
       {ours.length > 0 && mayDo && (
         <div className="queue" data-testid="waiting-on-you">
           <h2>{t('hr.waiting_on_you', { n: ours.length })}</h2>
-          {ours.map((k) => <OurTask key={k.id} task={k} person={p.id} people={people.data ?? []} current={x} busy={act.busy} done={(data) => run(() => rpc('complete_task', { p_task: k.id, p_data: data }))} />)}
+          {ours.map((k) => <OurTask key={k.id} task={k} person={p.id} current={x} busy={act.busy} done={(data) => run(() => rpc('complete_task', { p_task: k.id, p_data: data }))} />)}
         </div>)}
 
       <h2 className="section-title">{t('hr.checklist')}</h2>
@@ -349,9 +351,9 @@ export function JoinerPage() {
             </div>)}
         </div>
         <div className="card">
-          <h2 style={{ marginTop: 0 }}>{t('hr.org_facts')} {x.can_manage && <button type="button" className="secondary small-btn" onClick={() => setEdit(!edit)}>{t(edit ? 'common.cancel' : 'common.edit')}</button>}</h2>
+          <h2 style={{ marginTop: 0 }}>{t('hr.org_facts')} {x.can_manage && <button type="button" className="secondary small-btn" onClick={() => setEdit(!edit)} data-testid="edit-org">{t(edit ? 'common.cancel' : 'common.edit')}</button>}</h2>
           {!edit ? (
-            <dl className="kv">
+            <dl className="kv" data-testid="org-facts">
               <dt>{t('account.sign_in')}</dt><dd>{p.email ?? '—'}</dd>
               <dt>{t('hr.f_phone')}</dt><dd>{p.phone ?? '—'}</dd>
               <dt>{t('hr.f_type')}</dt><dd>{x.org.employment_type ? t(`emptype.${x.org.employment_type}`) : '—'}</dd>
@@ -361,7 +363,7 @@ export function JoinerPage() {
               <dt>{t('hr.f_reports')}</dt><dd>{x.org.reports_to_name ?? '—'}</dd>
               <dt>{t('hr.f_buddy')}</dt><dd>{x.org.buddy_name ?? '—'}</dd>
               <dt>{t('hr.added_by')}</dt><dd>{p.created_by ?? '—'} · {date(p.created_at)}</dd>
-            </dl>) : <OrgEditor detail={x} people={people.data ?? []} busy={act.busy} save={(patch) => run(async () => { await rpc('update_joiner', { p_employee: p.id, p: patch }); setEdit(false); })} />}
+            </dl>) : <OrgEditor detail={x} busy={act.busy} save={(patch) => run(async () => { await rpc('update_joiner', { p_employee: p.id, p: patch }); setEdit(false); })} />}
           <h2>{t('hr.notes')}</h2>
           {x.can_manage && <form className="row" onSubmit={(e) => { e.preventDefault(); if (note.trim()) void run(async () => { await rpc('add_hr_note', { p_employee: p.id, p_note: note }); setNote(''); }); }}>
             <input aria-label={t('hr.note_new')} placeholder={t('hr.note_new')} value={note} onChange={(e) => setNote(e.target.value)} style={{ flex: 1 }} />
@@ -542,14 +544,15 @@ function FirstDayEditor({ x, busy, save }: { x: Detail; busy: boolean; save: (p:
 }
 
 /** A task that is HR's or IT's, with what that kind of task needs. */
-function OurTask({ task, person, people, current, busy, done }:
-  { task: Task; person: string; people: Person[]; current: Detail; busy: boolean; done: (data: Record<string, unknown>) => Promise<unknown> }) {
+function OurTask({ task, person, current, busy, done }:
+  { task: Task; person: string; current: Detail; busy: boolean; done: (data: Record<string, unknown>) => Promise<unknown> }) {
   const { t } = useI18n();
   const [note, setNote] = useState('');
   const [buddy, setBuddy] = useState(current.org.buddy ?? '');
   const [goals, setGoals] = useState<Record<number, string>>({ 30: '', 60: '', 90: '' });
   const [file, setFile] = useState<File | null>(null);
   const kind: TaskKind = task.kind;
+  const org = useOrgChoices(kind === 'buddy' ? current.org.base_state_id ?? null : undefined);
   const ready = kind === 'buddy' ? !!buddy : kind === 'goals' ? [30, 60, 90].every((h) => goals[h].trim() || current.goals.some((g) => g.horizon === h)) : true;
   const submit = async () => {
     if (kind === 'countersign' && file) await uploadHrFile(person, 'contract', file, task.id);
@@ -561,8 +564,8 @@ function OurTask({ task, person, people, current, busy, done }:
       <div style={{ flex: '1 1 260px', minWidth: 0 }}>
         <strong><TaskTitle task={task} /></strong> <Owner owner={task.owner} />
         <div className={`small ${task.overdue ? 'gap' : 'muted'}`}>{t('hr.due', { d: date(task.due_on) })}</div>
-        {kind === 'buddy' && <Field label={t('hr.f_buddy')} htmlFor={`buddy-${task.id}`}><select id={`buddy-${task.id}`} value={buddy} onChange={(e) => setBuddy(e.target.value)}>
-          <option value="">—</option>{people.filter((x) => x.id !== person).map((x) => <option key={x.id} value={x.id}>{x.display_name}</option>)}</select></Field>}
+        {kind === 'buddy' && <Field label={t('hr.f_buddy')} hint={t('org.buddy_hint')} htmlFor={`buddy-${task.id}`}>
+          <BuddySelect id={`buddy-${task.id}`} value={buddy} onChange={setBuddy} choices={org} exclude={person} before={current.org.buddy_name} /></Field>}
         {kind === 'goals' && [30, 60, 90].map((h) => (
           <Field key={h} label={t('goals.days', { n: h })} htmlFor={`goal-${h}-${task.id}`}><input id={`goal-${h}-${task.id}`} value={goals[h]} onChange={(e) => setGoals({ ...goals, [h]: e.target.value })}
             placeholder={current.goals.find((g) => g.horizon === h)?.goal ?? ''} /></Field>))}
@@ -575,12 +578,14 @@ function OurTask({ task, person, people, current, busy, done }:
   );
 }
 
-function OrgEditor({ detail, people, busy, save }: { detail: Detail; people: Person[]; busy: boolean; save: (p: Record<string, string>) => Promise<unknown> }) {
+function OrgEditor({ detail, busy, save }: { detail: Detail; busy: boolean; save: (p: Record<string, string>) => Promise<unknown> }) {
   const { t } = useI18n();
   const o = detail.org;
   const [f, setF] = useState({ join_date: detail.person.join_date ?? '', employment_type: o.employment_type ?? 'full_time', designation_band: o.designation_band ?? '',
     department: o.department ?? '', job_title: o.job_title ?? '', reports_to: o.reports_to ?? '', buddy: o.buddy ?? '' });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  const org = useOrgChoices(o.base_state_id ?? null);
+  // a choice made before that is no longer offered stays as it is (the database checks only what changes)
   return (
     <form onSubmit={(e) => { e.preventDefault(); void save(f); }} aria-label={t('hr.org_facts')}>
       <Field label={t('hr.f_join')} hint={t('hr.join_moves')} htmlFor="o-join"><input id="o-join" type="date" value={f.join_date} onChange={set('join_date')} /></Field>
@@ -588,12 +593,12 @@ function OrgEditor({ detail, people, busy, save }: { detail: Detail; people: Per
         {EMPLOYMENT_TYPES.map((k) => <option key={k} value={k}>{t(`emptype.${k}`)}</option>)}</select></Field>
       <Field label={t('hr.f_band')} htmlFor="o-band"><select id="o-band" value={f.designation_band} onChange={set('designation_band')}>
         <option value="">—</option>{DESIGNATION_BANDS.map((k) => <option key={k} value={k}>{k}</option>)}</select></Field>
-      <Field label={t('hr.f_dept')} htmlFor="o-dept"><input id="o-dept" value={f.department} onChange={set('department')} /></Field>
+      <Field label={t('hr.f_dept')} hint={t('org.dept_hint')} htmlFor="o-dept"><DepartmentSelect id="o-dept" value={f.department} onChange={(v) => setF({ ...f, department: v })} choices={org} /></Field>
       <Field label={t('hr.f_title')} htmlFor="o-title"><input id="o-title" value={f.job_title} onChange={set('job_title')} /></Field>
-      <Field label={t('hr.f_reports')} htmlFor="o-reports"><select id="o-reports" value={f.reports_to} onChange={set('reports_to')}>
-        <option value="">—</option>{people.filter((k) => k.id !== detail.person.id).map((k) => <option key={k.id} value={k.id}>{k.display_name}</option>)}</select></Field>
-      <Field label={t('hr.f_buddy')} htmlFor="o-buddy"><select id="o-buddy" value={f.buddy} onChange={set('buddy')}>
-        <option value="">—</option>{people.filter((k) => k.id !== detail.person.id).map((k) => <option key={k.id} value={k.id}>{k.display_name}</option>)}</select></Field>
+      <Field label={t('hr.f_reports')} hint={t('org.reports_hint')} htmlFor="o-reports"><ReportsToSelect id="o-reports" value={f.reports_to} onChange={(v) => setF({ ...f, reports_to: v })}
+        choices={org} exclude={detail.person.id} before={o.reports_to_name} /></Field>
+      <Field label={t('hr.f_buddy')} hint={t('org.buddy_hint')} htmlFor="o-buddy"><BuddySelect id="o-buddy" value={f.buddy} onChange={(v) => setF({ ...f, buddy: v })}
+        choices={org} exclude={detail.person.id} before={o.buddy_name} /></Field>
       <button type="submit" disabled={busy}>{t('common.save')}</button>
     </form>
   );
@@ -692,6 +697,7 @@ export function Templates() {
       <h1>{t('hr.templates')}</h1>
       <HrLinks here="templates" />
       <p className="muted small">{t('hr.templates_note')}</p>
+      <DepartmentsCard canEdit={canWrite} />
       {tpls.loading ? <Loading /> : <ErrorBox error={tpls.error} />}
       <div className="row">
         <Field label={t('hr.template')} htmlFor="tpl"><select id="tpl" value={sel} onChange={(e) => setSel(e.target.value)}>

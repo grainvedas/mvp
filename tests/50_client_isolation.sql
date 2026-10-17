@@ -63,6 +63,8 @@ begin
   insert into public.export_documents (footprint_id, scope_id, doc, status, set_by) values (p_fp, p_scope, 'iso doc', 'applied', p_user);
   insert into public.qc_verdicts (footprint_id) values (p_fp);
   insert into public.pack_batches (batch_code, footprint_id, scope_id) values ('ISO-B-' || p_tag, p_fp, p_scope);
+  insert into public.cartons (code, batch_code, footprint_id, scope_id, seq, first_serial, last_serial, n)       -- migration 58
+    values ('ISO-B-' || p_tag || '-C0001', 'ISO-B-' || p_tag, p_fp, p_scope, 1, 'ISO-P-' || p_tag, 'ISO-P-' || p_tag, 1);
   insert into public.packs (serial, batch_code, footprint_id, scope_id, size_kg, packed_on) values ('ISO-P-' || p_tag, 'ISO-B-' || p_tag, p_fp, p_scope, 1, current_date);
   insert into public.pack_skus (client_id, size, unit, material, market) values (p_client, 7, 'kg', 'pouch', 'domestic');
   insert into public.bills_of_lading (footprint_id, scope_id, bl_no, added_by) values (p_fp, p_scope, 'ISOBL' || p_tag, p_user);

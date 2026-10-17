@@ -9,7 +9,8 @@ import { useI18n } from '../lib/i18n';
 import { cached, isNetworkError } from '../offline/cache';
 import { gpsProblem, parseGps } from '../lib/setup';
 import { rpc } from '../lib/api';
-import { PackCodes, codeLines } from './PackCodes';
+import { PackCodes, codeLines, normCode } from './PackCodes';
+import { OrderCartons } from './OrderCartons';
 
 export type FieldValue = string | boolean | string[] | Record<string, string> | File | null;
 export interface WidgetProps {
@@ -32,11 +33,11 @@ export interface WidgetProps {
 export const SUPPORTED = new Set(['number', 'integer', 'number[3]', 'text', 'select', 'date', 'boolean', 'attachment', 'readings', 'farmer',
   'breakdown', 'packets[]', 'footprint[]', 'collection_point', 'gps',
   'mill', 'lab', 'packing_unit', 'qc_sample', 'sku_packs',
-  'buyer', 'market_profile', 'order_packs', 'serials']);                                // migration 54: Commercial and Shipment                         // migration 53: Milling, QC, Packing   // migration 52: where the lot was weighed, and its GPS
+  'buyer', 'market_profile', 'order_packs', 'serials', 'order_cartons']);   // migration 58: the cartons an order chooses                                // migration 54: Commercial and Shipment                         // migration 53: Milling, QC, Packing   // migration 52: where the lot was weighed, and its GPS
 
 /** Field types that take the whole width of a two-column form (lists, pickers, files, groups of inputs). */
 export const FULL_WIDTH = new Set(['number[3]', 'attachment', 'readings', 'farmer', 'breakdown', 'packets[]', 'footprint[]', 'boolean', 'gps',
-  'qc_sample', 'sku_packs', 'order_packs', 'serials']);
+  'qc_sample', 'sku_packs', 'order_packs', 'serials', 'order_cartons']);
 
 /** Consecutive fields with the same `section` form one block of the form; a registry without sections gives one block. */
 export function groupSections(fields: FieldDef[]): { section: string | null; fields: FieldDef[] }[] {
@@ -161,6 +162,12 @@ export function Widget(p: WidgetProps) {
       const lines = (Array.isArray(p.values?.packs) ? p.values!.packs as unknown as { sku_id: string; units: string }[] : [])
         .map((r) => ({ sku_id: r.sku_id, units: Number(r.units) || 0 }));
       return <PackCodes id={id} name={field.key} sourceId={p.sourceId} editingId={p.editingId} value={typeof value === 'string' ? value : ''}
+        onChange={(v) => onChange(v)} packLines={lines} />;
+    }
+    case 'order_cartons': {
+      const lines = (Array.isArray(p.values?.packs) ? p.values!.packs as unknown as { sku_id: string; units: string }[] : [])
+        .map((r) => ({ sku_id: r.sku_id, units: Number(r.units) || 0 }));
+      return <OrderCartons id={id} sourceId={p.sourceId} editingId={p.editingId} value={Array.isArray(value) ? value as string[] : []}
         onChange={(v) => onChange(v)} packLines={lines} />;
     }
     case 'qc_sample':
@@ -453,6 +460,11 @@ export function buildPayload(fields: FieldDef[], values: Record<string, FieldVal
       const rows = (v as unknown as Record<string, string>[]).filter((r) => r.sku_id && r.units && Number(r.units) > 0);
       if (!rows.length) continue;
       out = rows.map((r) => ({ sku_id: r.sku_id, units: toNum(r.units) }));
+    } else if (f.type === 'order_cartons') {
+      // migration 58: the carton codes chosen (none: the server sets aside the oldest free ones)
+      const codes = [...new Set((Array.isArray(v) ? v as string[] : []).map(normCode).filter(Boolean))];
+      if (!codes.length) continue;
+      out = codes;
     } else if (f.type === 'serials') {
       const lines = codeLines(String(v));     // pack codes are capitals (the server reads them so); migration 57: a pack page's address gives its code
       if (!lines.length) continue;

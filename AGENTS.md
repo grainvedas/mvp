@@ -392,6 +392,15 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   story (`.pv*` in `styles.css`): no emoji there (inline icons), gold only as a fill. A shipment of packs carries the codes
   loaded, domestic too; the loader (`engine/PackCodes.tsx`) keeps the field's value the text of codes and the save
   checks every code again (`app.reconcile`); it checks them as they come against `app.order_pack_codes`.
+- **Packs go in cartons; an order sets them aside; Reports to is a rule** (migration 58, Veda 16 Oct 2026, G24). A
+  carton is made only by the packing save (`app.make_cartons` from `app.make_packs`, when the pack type has
+  `packs_per_carton`); never insert, delete or renumber one; it is opened only by `app.void_pack`. What an order takes is
+  `computed.units` (`app.allocate_units`, from `app.reconcile`; side-effect free, because the preview runs the same
+  rule): never a table of reservations written elsewhere. A shipment's codes may be carton codes; any rule over codes
+  works on sets (`unnest`, joins), never a loop per code, and names at most ten codes in an error (1 lakh packs). Reports
+  to, the buddy and the department are the trigger `employee_org_b5_choices` (`app.manager_ok`, `app.buddy_ok`, the
+  `departments` list kept through `app.set_department`); a screen offers `app.org_choices(state)`, never a list of
+  everyone. A new rule here needs a case in `tests/53_cartons_people_choices.sql` and its plain words in `plainErrors.ts`.
 - **The admin marks one person as joined: the HR Admin seat holder** (migration 36). Everyone else is HR's to mark, also
   while the seat is vacant. Nobody is activated by being given the seat, and nobody has HR access while Joining.
 - **On production, an agent changes nothing directly** (Veda, 14 Oct 2026; the table in `docs/PRODUCTION_SAFEGUARDS.md`,

@@ -425,6 +425,21 @@ select 'people public page packs', case when to_regprocedure('app.busy_for_other
                                       then 'NOT OK (another client''s people, the public page''s same-person line, the buyer''s vehicle number or the Shipment form is not as migration 57 left it)'
                                       else 'OK another client''s people not shown; the public page says only true checks; pack codes for every shipment of packs' end
 union all
+select 'cartons people choices', case when to_regclass('public.cartons') is null or to_regclass('public.departments') is null
+                                        or to_regprocedure('app.allocate_units(uuid, uuid, jsonb, jsonb)') is null or to_regprocedure('app.org_choices(uuid)') is null
+                                      then 'MISSING (push migration 58)'
+                                      when (select count(*) from pg_trigger where tgname = 'zz_change_log') < 56
+                                        or not exists (select 1 from pg_trigger where tgname = 'employee_org_b5_choices' and tgrelid = 'public.employee_org'::regclass)
+                                        or position('allocate_units' in pg_get_functiondef('app.reconcile(footprints, scopes)'::regprocedure)) = 0
+                                        or position('make_cartons' in pg_get_functiondef('app.make_packs(uuid, text)'::regprocedure)) = 0
+                                        or position('cartons' in pg_get_functiondef('app.void_pack(text, text)'::regprocedure)) = 0
+                                        or has_function_privilege('anon', 'app.available_cartons(uuid, uuid)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.allocate_units(uuid, uuid, jsonb, jsonb)', 'execute')
+                                        or (xpath('/row/n/text()', query_to_xml('select count(*) as n from public.departments', false, true, '')))[1]::text::int < 9
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'commercial' and form_schema @> '[{"key": "cartons", "type": "order_cartons"}]')
+                                      then 'NOT OK (the cartons, the departments, the people''s choices or the Commercial form are not as migration 58 left them)'
+                                      else 'OK cartons from the pack list; orders set them aside; Reports to, buddy and department from the rule' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

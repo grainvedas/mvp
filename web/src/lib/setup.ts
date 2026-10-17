@@ -99,7 +99,9 @@ export const LIST_FIELDS: Record<ListKind, ListField[]> = {
   pack_skus: [
     { key: 'size', type: 'number', required: true }, { key: 'unit', type: 'select', options: ['kg', 'g'], required: true },
     { key: 'material', type: 'select', options: MATERIALS, required: true }, { key: 'market', type: 'select', options: ['domestic', 'export', 'any'], required: true },
-    { key: 'label_type', type: 'select', options: ['sticker', 'printed', 'tag'], required: true }],
+    { key: 'label_type', type: 'select', options: ['sticker', 'printed', 'tag'], required: true },
+    // migration 58 (Veda, 16 Oct: "carton size - cm sets them in the pack list"): empty = the packs are not put in cartons
+    { key: 'packs_per_carton', type: 'number' }],
   labs: [
     { key: 'name', type: 'text', required: true, max: 120 }, { key: 'kind', type: 'select', options: ['external', 'in_house'], required: true },
     { key: 'accreditation_no', type: 'text', max: 40 }, { key: 'location', type: 'text', required: true, max: 120 }],
@@ -128,6 +130,8 @@ export function listProblems(kind: ListKind, r: ListRow): string[] {
     if (v('contact_phone') && !/^\+?[0-9 ]{8,16}$/.test(v('contact_phone'))) out.push('set.bad_phone');
   }
   if (kind === 'pack_skus' && v('size') && !(Number(v('size').replace(',', '.')) > 0)) out.push('set.bad_size');
+  if (kind === 'pack_skus' && v('packs_per_carton') && !/^[0-9]{1,4}$/.test(v('packs_per_carton'))) out.push('set.bad_per_carton');
+  else if (kind === 'pack_skus' && v('packs_per_carton') && !(Number(v('packs_per_carton')) >= 1 && Number(v('packs_per_carton')) <= 1000)) out.push('set.bad_per_carton');
   if (kind === 'labs' && v('kind') === 'external' && !v('accreditation_no')) out.push('set.lab_accreditation');
   if (kind === 'labs' && v('accreditation_no') && v('accreditation_no').length < 3) out.push('set.short_accreditation_no');
   return out;
