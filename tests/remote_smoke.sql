@@ -477,11 +477,11 @@ select 'export corrections',       case when to_regprocedure('app.stage_balance(
                                         or position('v_price' in pg_get_functiondef('app.export_record(uuid, boolean, numeric)'::regprocedure)) = 0
                                         or position('floor_loss_closure' in pg_get_functiondef('app.export_table(uuid[], boolean, jsonb, text)'::regprocedure)) = 0
                                         or position('''purchases''' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
-                                        or position('set the shelf life for this crop' in pg_get_functiondef('app.reconcile(footprints, scopes)'::regprocedure)) = 0
-                                      then 'NOT OK (the mass balance, the export columns, the prices rule, the closure line, the public purchases line or the shelf-life rule are not as migration 61 left them)'
+                                        or position('no shelf life is set for this crop' in pg_get_functiondef('app.reconcile(footprints, scopes)'::regprocedure)) = 0   -- 61c: a warning
+                                      then 'NOT OK (the mass balance, the export columns, the prices rule, the closure line, the public purchases line or the shelf-life warning are not as migrations 61 to 61c left them; push 61c)'
                                       when position('count(distinct (fa.village, fa.district))' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
                                       then 'NOT OK (push migration 61b: the public page counts a batch''s villages two ways)'
-                                      else 'OK floor loss without by-products; closures as their own line; prices only where recorded; the mass balance per stage; one line for a batch''s purchases; Packing needs a shelf life' end
+                                      else 'OK floor loss without by-products; closures as their own line; prices only where recorded; the mass balance per stage; one line for a batch''s purchases; Packing without a shelf life warns' end
 union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole

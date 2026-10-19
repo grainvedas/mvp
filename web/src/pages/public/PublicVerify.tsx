@@ -11,7 +11,7 @@
 // lot is released shows "Packed, not yet released" (crop, batch code, date packed); "Code not found" only for a code
 // that is neither a sealed lot nor a pack.
 // Migration 61 (E2.3/E2.4): a collection batch's purchases as one line ("Bought from 2 farmers: 250 kg", the villages'
-// shares) and "2 farmers from 2 villages"; the best-before date on every pack page ("not recorded (old data)" for packs
+// shares) and "2 farmers from 2 villages"; the best-before date on every pack page ("not recorded" for packs
 // of before).
 import { useEffect, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';

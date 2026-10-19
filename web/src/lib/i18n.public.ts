@@ -161,7 +161,7 @@ export const enPublic: Record<string, string> = {
   'pv.bought_from_1': 'Bought from 1 farmer: {kg}',
   'pv.farmers_from': '{n} farmers from {v} villages',
   'pv.farmers_from_1v': '{n} farmers from 1 village',
-  'pv.bb_old': 'not recorded (old data)',
+  'pv.bb_old': 'not recorded',
   'pv.sold_by': 'Sold by',
   'pv.sealed_step': 'Its QR code was sealed to this record; the record cannot be changed afterwards.',
 };
@@ -336,7 +336,7 @@ export const hiPublic: Record<string, string> = {
   'pv.bought_from_1': '1 किसान से खरीदा: {kg}',
   'pv.farmers_from': '{v} गाँवों के {n} किसान',
   'pv.farmers_from_1v': '1 गाँव के {n} किसान',
-  'pv.bb_old': 'दर्ज नहीं (पुराना डेटा)',
+  'pv.bb_old': 'दर्ज नहीं',
   'pv.sold_by': 'विक्रेता',
   'pv.sealed_step': 'इसका QR कोड इस रिकॉर्ड से सील हुआ; बाद में रिकॉर्ड बदला नहीं जा सकता।',
 };

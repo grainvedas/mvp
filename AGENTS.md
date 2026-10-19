@@ -420,8 +420,9 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   Audit line in the same call. A new column needs its `exp.c.*` words (EN and HI) and a case in
   `tests/56_export_corrections.sql`. **Kilograms add up** (migration 61): a stage's by-products, samples and water are
   never floor loss (`app.record_parts`, one rule for both exports, the journey page and `app.stage_balance`); a new
-  stage or a new worked-out by-product goes there first. A lot closed as floor loss is its own line; Packing needs the
-  crop's shelf life for the pack's material.
+  stage or a new worked-out by-product goes there first. A lot closed as floor loss is its own line. The crop's shelf life
+  for the pack's material gives each pack its best-before date; it is **not mandatory** (Veda, 20 Oct 2026, migration
+  61c): without one Packing saves with a warning and the packs say "Best before: not recorded".
 - **Packs go in cartons; an order sets them aside; Reports to is a rule** (migration 58, Veda 16 Oct 2026, G24). A
   carton is made only by the packing save (`app.make_cartons` from `app.make_packs`, when the pack type has
   `packs_per_carton`); never insert, delete or renumber one; it is opened only by `app.void_pack`. What an order takes is

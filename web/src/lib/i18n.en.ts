@@ -3426,7 +3426,7 @@ export const en: Record<string, string> = {
   'exp.footer_internal_for': 'For {client} and GrainVeda\'s people on this scope only. Made on {at} IST.',
   'exp.print_scope': '{client} · {crop} · {season} · {place}',
   'exp.closure_line': 'Closed as floor loss',
-  'exp.bb_old': 'not recorded (old data)',
+  'exp.bb_old': 'not recorded',
   'exp.mkt.domestic': 'Domestic',
   'exp.mkt.export': 'Export',
   'exp.h.generated_by': 'Made by',
@@ -3519,7 +3519,7 @@ export const en: Record<string, string> = {
   'trace.floor_loss': 'Floor loss {kg}',
   'trace.closure': 'Closed as floor loss: {kg}, {date}',
   'trace.closure_label': 'Closed',
-  'pk.best_before_old': 'Best before: not recorded (old data)',
+  'pk.best_before_old': 'Best before: not recorded',
   'err.pk_shelf_life': 'Ask the State Manager to set the shelf life for this crop and pack material ({material}).',
   'err.pk_shelf_life_crop': 'Ask the State Manager to set the shelf life for this crop.',
 };

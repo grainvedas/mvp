@@ -3547,7 +3547,7 @@ export const hi: Record<string, string> = {
   'exp.footer_internal_for': 'केवल {client} और इस स्कोप पर GrainVeda के लोगों के लिए। {at} IST को बनी।',
   'exp.print_scope': '{client} · {crop} · {season} · {place}',
   'exp.closure_line': 'फ़र्श पर कमी के रूप में बंद',
-  'exp.bb_old': 'दर्ज नहीं (पुराना डेटा)',
+  'exp.bb_old': 'दर्ज नहीं',
   'exp.mkt.domestic': 'घरेलू',
   'exp.mkt.export': 'निर्यात',
   'exp.h.generated_by': 'किसने बनाई',
@@ -3640,7 +3640,7 @@ export const hi: Record<string, string> = {
   'trace.floor_loss': 'फ़र्श पर कमी {kg}',
   'trace.closure': 'फ़र्श पर कमी के रूप में बंद: {kg}, {date}',
   'trace.closure_label': 'बंद',
-  'pk.best_before_old': 'इससे पहले उपयोग करें: दर्ज नहीं (पुराना डेटा)',
+  'pk.best_before_old': 'इससे पहले उपयोग करें: दर्ज नहीं',
   'err.pk_shelf_life': 'इस फ़सल और पैक सामग्री ({material}) की शेल्फ़ लाइफ़ स्टेट मैनेजर से तय करवाएँ।',
   'err.pk_shelf_life_crop': 'इस फ़सल की शेल्फ़ लाइफ़ स्टेट मैनेजर से तय करवाएँ।',
 };

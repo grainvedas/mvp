@@ -6,7 +6,7 @@
 --   C1.4       packs counted by size; C3: staff and the buyer named in the shareable copy, the farmer and the agent not
 --   E2.2       milling's floor loss without head rice, broken, husk and bran; the by-products in kg and %
 --   E2.3       the public page: one line for all the purchases of a collection batch, the villages' shares
---   E2.4       the best-before date on the pack page; Packing refused without the crop's shelf life for the material
+--   E2.4       the best-before date on the pack page; without the crop's shelf life Packing warns (61c: not mandatory)
 --   E2.5       a lot closed as floor loss is its own line; the mass balance per stage, and a difference shown
 -- Scope 06 (Bansi batch): Procurement (05) → Collection Batch (15) → QC (06) → QR (07). Scope 05 (Basti mill): Procurement (05)
 -- → QC (06) → Milling (08) → Packing (09) → Commercial (11) → Shipment (14) → QR (07). 03 the Client Manager of client 201;
@@ -171,21 +171,27 @@ insert into fx select 'M', pg_temp.ins(t.scope('05'), 'milling', pg_temp.f('Q5')
   'husk_kg', 60, 'bran_kg', 26, 'mill_id', pg_temp.f('MILL'), 'line_clearance', 'fully_cleaned', 'mill_operator', 'Shyam (operator)', 'polish', 'medium'));
 select t.as_user(t.u('09')); select app.verify_footprint(pg_temp.f('M'));
 
--- E2.4 · Packing needs the shelf life of the crop for the pack's material -----------------------------------------------
+-- E2.4 · the shelf life of the crop for the pack's material (61c: a warning, not a refusal) --------------------------------------------
 select t.as_service();
 create temp table crop as select c.id, c.shelf_life_days, c.shelf_life_by_material from public.crops c join public.scopes s on s.crop_id = c.id where s.id = t.scope('05');
 update public.crops set shelf_life_days = null, shelf_life_by_material = '{"pouch": 300}' where id = (select id from crop);
 create or replace function pg_temp.pack(p jsonb) returns uuid language sql as $$ select pg_temp.ins(t.scope('05'), 'packing', pg_temp.f('M'), t.u('09'), p) $$;
 grant execute on function pg_temp.pack(jsonb) to authenticated;
 select t.as_user(t.u('09'));
-select t.fails(format($$select pg_temp.pack('{"input_kg":188,"packing_unit_id":"%s","packets":[{"sku_id":"%s","units":100,"size_kg":1},{"sku_id":"%s","units":17,"size_kg":5}]}')$$,
-                      pg_temp.f('PU'), pg_temp.f('SKU1'), pg_temp.f('SKU5')),
-               'ask the State Manager to set the shelf life for this crop and pack material (jute)',
-               'E2.4: no shelf life for jute bags of this crop: Packing does not go ahead, and says whom to ask');
-select t.fails($$select pg_temp.pack('{"input_kg":10,"packets":[{"units":10,"size_kg":1}]}')$$, 'ask the State Manager to set the shelf life',
-               'E2.4: nor packs not from the list while the crop has no shelf life of its own');
-select t.ok(app.preview_reconcile(t.scope('05'), 'packing', pg_temp.f('M'), format('{"input_kg":100,"packing_unit_id":"%s","packets":[{"sku_id":"%s","units":100,"size_kg":1}]}', pg_temp.f('PU'), pg_temp.f('SKU1'))::jsonb, null, false, null, false) is not null,
-            'E2.4: pouches, which have a shelf life, may be packed');
+-- migration 61c (Veda, 20 Oct 2026: "DONT MAKE THIS MANDATORY"): Packing goes ahead without a shelf life, with a warning
+create or replace function pg_temp.pv(p jsonb) returns jsonb language sql as $$
+  select app.preview_reconcile(t.scope('05'), 'packing', pg_temp.f('M'), p, null, false, null, false) $$;
+grant execute on function pg_temp.pv(jsonb) to authenticated;
+select t.ok((select (r->>'ok')::boolean and r->'warnings' ? 'no shelf life is set for this crop and pack material (jute): these packs carry no best-before date (the State Manager sets it)'
+               from (select pg_temp.pv(format('{"input_kg":188,"packing_unit_id":"%s","packets":[{"sku_id":"%s","units":100,"size_kg":1},{"sku_id":"%s","units":17,"size_kg":5}]}',
+                                              pg_temp.f('PU'), pg_temp.f('SKU1'), pg_temp.f('SKU5'))::jsonb) r) x),
+            'E2.4 (61c): no shelf life for jute bags of this crop: Packing goes ahead, with a warning that names the material');
+select t.ok((select (r->>'ok')::boolean and r->'warnings' ? 'no shelf life is set for this crop: these packs carry no best-before date (the State Manager sets it)'
+               from (select pg_temp.pv('{"input_kg":10,"packets":[{"units":10,"size_kg":1}]}') r) x),
+            'E2.4 (61c): packs not from the list while the crop has no shelf life of its own: likewise');
+select t.ok((select (r->>'ok')::boolean and not exists (select 1 from jsonb_array_elements_text(r->'warnings') w where w like 'no shelf life%')
+               from (select pg_temp.pv(format('{"input_kg":100,"packing_unit_id":"%s","packets":[{"sku_id":"%s","units":100,"size_kg":1}]}', pg_temp.f('PU'), pg_temp.f('SKU1'))::jsonb) r) x),
+            'E2.4: pouches, which have a shelf life, are packed without the warning');
 select t.as_service();
 update public.crops set shelf_life_days = 365, shelf_life_by_material = '{"jute": 270}' where id = (select id from crop);
 select t.as_user(t.u('09'));

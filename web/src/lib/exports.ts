@@ -123,8 +123,10 @@ export function seasonSheets(e: SeasonExport, t: T) {
     [cell(t('exp.s.kg_in')), cell(Number(tt.kg_in))],
     [cell(t('exp.s.gi_kg')), cell(Number(tt.gi_kg)), cell(tt.gi_pct === null ? null : `${tt.gi_pct} %`)],
     [cell(t('exp.s.farm_verified_kg')), cell(Number(tt.farm_verified_kg))],
+    // head rice is the main product, not a by-product (staging, 20 Oct): its own line, then the by-products
+    ...(Number(bp?.head_rice_kg ?? 0) > 0 ? [[cell(t('exp.c.head_rice_kg')), cell(Number(bp.head_rice_kg))]] : []),
     [bold(t('exp.s.by_products_title'))],
-    ...(['head_rice_kg', 'broken_kg', 'husk_kg', 'bran_kg', 'reject_kg', 'foreign_matter_kg'] as const)
+    ...(['broken_kg', 'husk_kg', 'bran_kg', 'reject_kg', 'foreign_matter_kg'] as const)
       .filter((k) => Number(bp?.[k] ?? 0) > 0).map((k) => [cell(t(`exp.c.${k}`)), cell(Number(bp[k]))]),
     [cell(t('exp.s.loss_kg')), cell(Number(tt.floor_loss_kg))],
     [cell(t('exp.s.transit_all')), cell(Number(tt.transit_loss_kg))],

@@ -43,8 +43,8 @@ describe('C1/E2 · the new columns and values, in the reader\'s language', () =>
   });
   it('the closure line, an old pack\'s best-before, a choice\'s words', () => {
     expect(cellValue('stage', 'floor_loss_closure', T)).toBe('Closed as floor loss');
-    expect(cellValue('best_before', 'not_recorded', T)).toBe('not recorded (old data)');
-    expect(cellValue('best_before', 'not_recorded', H)).toBe('दर्ज नहीं (पुराना डेटा)');
+    expect(cellValue('best_before', 'not_recorded', T)).toBe('not recorded');
+    expect(cellValue('best_before', 'not_recorded', H)).toBe('दर्ज नहीं');
     expect(cellValue('best_before', '2027-10-16', T)).toBe('2027-10-16');
     expect(cellValue('collection_point', 'farm', T)).toBe(en['opt.farm']);
     expect(cellValue('collection_point', 'Bansi centre', T)).toBe('Bansi centre');
@@ -76,9 +76,10 @@ describe('C2/E2.5 · the season\'s Summary is the mass balance', () => {
   });
   it('the by-products apart from the losses; batches by size; who made it', () => {
     const { sheets } = seasonSheets(season, T);
-    expect(text(sheets[1])).toContain('By-products of the season (kg)\nHead rice (kg)|150\nBroken rice (kg)|20\nHusk (kg)|50\nBran (kg)|20\nFloor loss, all stages (kg)|6');
+    // head rice is the main product: its own line, never under the by-products (staging, 20 Oct)
+    expect(text(sheets[1])).toContain('Head rice (kg)|150\nBy-products of the season (kg)\nBroken rice (kg)|20\nHusk (kg)|50\nBran (kg)|20\nFloor loss, all stages (kg)|6');
     expect(text(sheets[1])).toContain('Closed as floor loss, all stages (kg)|4');
-    expect(text(sheets[1])).toContain('B1|150|0|B1-0001|B1-0150|150 × 1 kg pouch|not recorded (old data)');
+    expect(text(sheets[1])).toContain('B1|150|0|B1-0001|B1-0150|150 × 1 kg pouch|not recorded');
     expect(text(sheets[0])).toContain('Made by|Lucky');
   });
 });
@@ -126,7 +127,7 @@ describe('E2.3/E2.4 · the public pages', () => {
     expect(screen.getByTestId('pv-best-before').textContent).toBe('16 Oct 2027');
     cleanup();
     render(<MemoryRouter><PackNotReleased p={{ ...p, pack: { ...p.pack, best_before: null } }} /></MemoryRouter>);
-    expect(screen.getByTestId('pv-best-before').textContent).toBe('not recorded (old data)');
+    expect(screen.getByTestId('pv-best-before').textContent).toBe('not recorded');   // 61c: old packs and packs without a shelf life alike
     cleanup();
     render(<MemoryRouter><PackNotReleased p={{ ...p, pack: { ...p.pack, void: true } }} /></MemoryRouter>);
     expect(screen.queryByTestId('pv-best-before')).toBeNull();

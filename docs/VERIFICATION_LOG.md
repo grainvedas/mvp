@@ -2903,3 +2903,53 @@ the export says "bansi 60.0 %; Bansi 40.0 %"); both fail without 61b. Every `tes
 **2,390 checks, no failure**; controls 15 of 15. The smoke row `export corrections` says "push migration 61b" on a database
 without it. `tests/run_local.sh`: ALL TESTS PASSED. On the local stack: `phase2`, `phase26`, `phase28`, `phase32`, `phase33`
 9 passed; REMOTE RLS PASSED; RESTORE DRILL PASSED. The app is unchanged.
+
+## 20 October 2026, 00:29 IST: migration 61b on staging (`staging-village-counts.cmd`)
+
+Veda ran it. S0 (61b waiting, the 169 app and function files unchanged and the tested ones), S1 pushed
+`20261105000200_village_counts.sql`, S1b `villages_rule=yes batches=6`, S2 smoke 58/59 (statement logging standing), the
+rules in place, `leaks=0 people=7 tables=44 calls=12180 clients=3`, ledger audit NO FINDINGS (287 blocks), S3 pushed
+b617238 (7 files). `RESULT: VILLAGE COUNTS ON STAGING`. Record: `release-evidence\staging-village-counts-20261020-002917.log`.
+Run sheet row 8 again (Claude, the built-in browser, signed out): `/verify/GV-8B1E15E15317` now reads "Grown by 2 farmers
+in 2 villages", "Bought from 2 farmers: 250 kg", "village1 60 % · village 1 40 %", "Collection Batch", "2 farmers from 2
+villages": **passed**. Rows 1–7 and 10 need sign-ins.
+
+## 20 October 2026, about 00:35 IST: release 3's run sheet, rows 2–7 (staging, Lucky signed in by Veda)
+
+Claude, the built-in browser at 527 px. Rows 4, 5 and 7 were read through the same server calls the download buttons
+make (`app.export_journey`, `app.export_season`; each wrote its Audit line); no file was downloaded. The footers are
+written by the browser and held by the unit tests.
+- Row 2, Bansi's dashboard, "Mass balance": all 8 stages "Balanced". Collection Batch: in 2,196.2 kg, went on 2,189.2,
+  floor loss 3, closed as floor loss 4, left 0. Milling: in 2,189.2, went on 1,419.5, by-products 743, floor loss 26.2
+  (release 2 said 769.2), left 0.5. No sideways scroll (512 of 527 px). **Passed.**
+- Row 3, the journey of `GV-8B1E15E15317`: the batch "Floor loss 3 kg" and "Closed as floor loss: 4 kg, 16 Oct 2026, 1:09
+  am IST · Lucky · Practice (test): swept from the floor, not fit to mill"; Milling "By-products 90 kg · Floor loss 3 kg"
+  (release 2: 93); Packing "Floor loss 4 kg". **Passed.**
+- Row 4, shareable: 10 lines, the closure as its own line after VB-0001 (4 kg); milling head rice 150, husk 60, floor
+  loss 3; 76 columns (none of vessel, container, ports: empty in every line); "Recorded by" named; no farmer's name (the
+  two names of the internal copy appear nowhere in it), no price, no `raw_values`. **Passed.**
+- Row 5, internal: the farmers' names, the agent, the price columns (Bansi records prices), `raw_values` last. **Passed.**
+- Row 6, the printed heading: "GrainVeda · Journey of GV-8B1E15E15317 / Test Client UP · Kalanamak Rice · KH26 · Bansi,
+  Uttar Pradesh / Shareable copy · made 20 Oct 2026, 12:35 am IST". **Passed.**
+- Row 7, the season: 34 lines, one closure line; the Summary per stage balanced (no difference); totals by-products 743
+  kg apart from floor loss 41.2 and closed 4; batches by size ("100 × 1 kg pouch, 90 × 500 g pouch"), best-before "not
+  recorded (old data)"; made by Lucky. **Fault:** the Excel's "By-products of the season" listed head rice (195 kg), the
+  main product. Fixed in the app (release 3c: head rice on its own line above the by-products; `release61.test.tsx`
+  holds it); `staging-season-summary-fix.cmd`. Unit 700 passed; e2e `phase3`, `phase32`, `phase33` 5 passed on the local stack.
+- Rows 1 (Ram: the pouch shelf life of Kalanamak Rice for AGTX and TCUP) and 10 (tcup): not yet.
+
+## 20 October 2026: release 3c (migration 61c, the shelf life optional; head rice apart), local stack
+
+Veda, at run-sheet row 1 (Ram signed in; Claude had opened the Kalanamak Rice form, saved nothing, then closed it with
+Cancel: still "Jute bag 270 days" only): "DONT MAKE THIS MANDATORY. DONT CHANGE AS OF NOW".
+`20261105000300_shelf_life_optional.sql`: Packing without the crop's shelf life for the pack's material saves with a
+warning ("no shelf life is set for this crop and pack material (jute): these packs carry no best-before date (the State
+Manager sets it)"); the app says "Best before: not recorded" (EN, HI) for any pack without one, and lists head rice on its
+own line in the season's Summary (row 7's fault). `tests/56`: the two refusals became three checks through the save's own
+preview (the warning names the material; the crop's own; none for pouches, which have one; the old "pouches may be
+packed" check could not fail: the preview always answers); they fail on a database with 61b only. Every `tests/NN_*.sql`
+with 61c: **2,390 checks, no failure**; controls 15 of 15 (the shelf-life control now removes the warning).
+`tests/run_local.sh`: ALL TESTS PASSED. Unit 700. On the local stack `phase2`, `phase3`, `phase25`, `phase26`, `phase31`,
+`phase32`, `phase33`: 15 passed; the built app 14 passed; REMOTE RLS PASSED; RESTORE DRILL PASSED. The smoke row `export
+corrections` reads NOT OK on a database without 61c. `staging-shelf-life-optional.cmd` replaces
+`staging-season-summary-fix.cmd` (not run; it would refuse: the app is no longer the one it tested).

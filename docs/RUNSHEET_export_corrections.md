@@ -25,6 +25,12 @@ script expects **migration 61** waiting and nothing else.
   were set. **Packing is refused** while the crop has no shelf life for the pack's material ("Ask the State Manager to
   set the shelf life for this crop and pack material"). S1b lists the crops and materials without one.
 
+**Changed on 20 Oct 2026 (migration 61c, Veda: "DONT MAKE THIS MANDATORY. DONT CHANGE AS OF NOW"):** Packing is no
+longer refused without a shelf life: it saves with a warning, and those packs say "Best before: not recorded" (the words
+"(old data)" are gone, since new packs can lack one too). Row 1 is dropped; the crops on staging are left as they are.
+The village counts (61b) and head rice on its own line in the season's Summary (found at rows 8 and 7) go with it.
+Run `staging-shelf-life-optional.cmd` (type `OPTIONAL`).
+
 **Not in this release:** E2.1 (only the serials of a released shipment go live; `B0001-0150` still shows as released
 until release 4), the closing check and the season report (Part D, release 5).
 

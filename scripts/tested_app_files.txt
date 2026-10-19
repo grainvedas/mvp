@@ -1,5 +1,5 @@
-# Tested 19 Oct 2026 (release 3 of Phase 1, migration 61): DB 2,388 checks, unit 700, e2e 99 of 99, the built app 14
-# SHA-256 of the text with line ends as LF. Read by scripts/staging_export_corrections.ps1 (step S0). Do not edit by hand.
+# Tested 20 Oct 2026 (release 3c of Phase 1, migration 61c: the shelf life optional; head rice apart): DB 2,390, unit 700, e2e 15 of the export and packing files, the built app 14
+# SHA-256 of the text with line ends as LF. Read by scripts/staging_shelf_life_optional.ps1 (step S0). Do not edit by hand.
 ad11e4e0ad6777fa9c689ab392cac74c19cb92c4d987580167f4b2e4b71cd26d  web/index.html
 b715cea12d7d05f45a22b630d4607b06818befdbbb1f3f921be62a63e1c65bf4  web/package-lock.json
 7e38e126c135678cf35a9e5d0dd05c0c886e0f21738e86ff0f5eef3c6eaf7810  web/package.json
@@ -47,13 +47,13 @@ c622615a0bf932fb7e03407398c976c241a17d8d016840483885e8ed1dc1d496  web/src/lib/cs
 1e274e78f6645009d36335d17991fb9f4b976d8b39c517ed0ef8aa0110b98f65  web/src/lib/environment.ts
 40d3fb486d5f27ac7cb8b76a2a39939b7723f1f5fc033ff3708b8e59d5918c28  web/src/lib/errorLog.ts
 bbbce81ba805b2c7cbcaa8bb1743203b974b71b28389afb0c029bef1c36bd6d0  web/src/lib/errors.ts
-8a1bbddf90923c5bebfa66a4278d437ad15425d82b7e52ef32d1c87adcfe7343  web/src/lib/exports.ts
+aef7defaa9b677d28b394b81235dbed9c72bf5d07d203198a26634cece47f338  web/src/lib/exports.ts
 c95b6e80ce5332d1d584b6799b2938dc0565172097017f832d442fca04a72993  web/src/lib/farmers.ts
 1aed1502485a3361c785eb8f5712bca25d22ae5943c86f676ea20d4345a8a549  web/src/lib/format.ts
 eea9f07ab6418d8caf92974c45aa0372ec7f560698dd5d571d5c0ef504cceec1  web/src/lib/gi.ts
-657ea6eb6f2d8602301e3232b6c0c7f78a5304f798c9ac7167d0257bfead4c69  web/src/lib/i18n.en.ts
-c7f8524ad02f6f32064b3de3fdae50ba67df507687555b5099bd9dee359b0832  web/src/lib/i18n.hi.ts
-3da00944c0707ef583fbd8a5d5941ef172f53e9e18cb99529d3706097b609785  web/src/lib/i18n.public.ts
+1ed6ee8f50648715a4cbf4c20d81d642ca0908fc5ab69fbf41a91ac30dcf0ee2  web/src/lib/i18n.en.ts
+a0a67bb6e5a5931e31d27fcdf88f26e88ecebb660bfe11a3e8557fccf8af60ea  web/src/lib/i18n.hi.ts
+6397bccbf0c10bc97b24ed6a835aeaff60f5af87873b95f8a69b33087ebe2efa  web/src/lib/i18n.public.ts
 6de6e8130b05021c691fe8a294c2e43d00ba7c5be9b8c5567df1e2849118195f  web/src/lib/i18n.tsx
 52812e432ee089d7a24250ddcf8cd894e3745dc3cd0056abdb94f2b15b16238c  web/src/lib/idNumbers.ts
 62233811fe5d295373d5a0e7c0093cd5c7b33da5cd09a947534b068866f031e0  web/src/lib/keptLogin.ts
@@ -103,7 +103,7 @@ bc83c92601a946135c5353cfe824da95077c63deb46db29fb14477ab66ccc6c7  web/src/pages/
 080170534811defbda900d7a8ab6038152755f70ea2c90600d7486dc45780d25  web/src/pages/public/Invite.tsx
 3eedc7e163a11c66b6752452d0bccf6cd8dc4e912fe027d639a9a4386ce085cc  web/src/pages/public/Labels.tsx
 bcb30e3100437f1bbf4a78169aed81ec508879421f0280bd7239e08a3421cfab  web/src/pages/public/PublicPack.tsx
-530060e6aa469545d7910b666f4cc025c17933308181dbff116833251d3bda0a  web/src/pages/public/PublicVerify.tsx
+c31c1076eec8017952b174acd9981fb75561e199ffe453bf04c6d875c0385de3  web/src/pages/public/PublicVerify.tsx
 c56a8b73111e030e989e3b12d15194bc6546aa70ea22d98336065805a11686a3  web/src/pages/public/journey.ts
 8d305eff852e6969a0ac90483691515ba51310d196c94f9092162b66959c709c  web/src/pages/records/BuyerShare.tsx
 6490c3f337091ea93de906c58d0d78970e79afc86143a511dc1f0e003728f662  web/src/pages/records/PackLabels.tsx
@@ -158,7 +158,7 @@ bdbe911cefd122a8086b91e5228bf992550b8b983f4c2c2d99a31086de104004  web/tests/rele
 438131a375d13d11dce544a307509c6bb4077184a2c086f6e16968a5759dd757  web/tests/release58.test.tsx
 7268d54c10a5dc0a9ee9ad49c41be306eb787702ba2555bd4a543d5ded9e5c9a  web/tests/release59.test.tsx
 e97d2b3b30f1c2495b192dbe5e724d7c57a9b895f8b8c15da6e9465a6e98d213  web/tests/release60.test.tsx
-c9603f99d17704cf5886c1fbed0f41c964c8747c3b052e88a6d8f43a475c15a7  web/tests/release61.test.tsx
+353cd7726f62e7119fd3dfdb46c9e22ba88f36f2cb6839be2e347a7929dd8dc6  web/tests/release61.test.tsx
 2227a0a291895bb10c4c5dc854c4a474de9b8382dffe1a95975927a01fd74883  web/tests/requirements.test.ts
 3fc460d02375570d0d985290873efa3f487ae86daa7e52d23eb5dce34896a428  web/tests/rules_and_ids.test.ts
 c3b9c00010cdf47b46057acf8576d09ecfe103afecacedaf280d238b50ec8613  web/tests/safeguards.test.ts
