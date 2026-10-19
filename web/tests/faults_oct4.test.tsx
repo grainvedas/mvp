@@ -9,8 +9,9 @@ import { capturedAt, computedLabel, leftAfter, orderedComputed, showComputed, sh
 import { limitInput, limitTyping } from '../src/pages/admin/Admin';
 import { farmerNote } from '../src/pages/farmers/Farmers';
 import { stepDate } from '../src/pages/public/journey';
-import { SEASON_HEADER, seasonRow, type SeasonRow } from '../src/pages/dashboard/ScopeDashboard';
-import { TRACE_HEADER, traceRows, type Trace } from '../src/pages/trace/LotTrace';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { columnLabel, tableOf, type ExportTable } from '../src/lib/exports';
 import type { FieldDef, StageDefinition } from '../src/lib/types';
 import defs from './fixtures/stage_definitions.json';
 
@@ -173,29 +174,17 @@ describe('the time a record was captured (item 8)', () => {
     expect(stepDate(step)).toBe('2026-10-05T04:30:00Z');
     expect(stepDate({ created_at: '2026-10-07T04:00:00Z' })).toBe('2026-10-07T04:00:00Z');
   });
-  it('the journey export gives both times', () => {
-    const tr: Trace = { footprint_id: '1', generated_at: 'now', steps: [{ id: '1', code: 'X-P-0001', stage: 'procurement', stage_label: 'Procurement', status: 'verified',
-      prev_id: null, qty_in_kg: 100, qty_out_kg: 98, grade: null, payload: {}, computed: {}, warnings: [], farmer: null, created_at: 'sent', captured_at: 'captured',
-      created_by: 'Op', verified_at: null, verified_by: null, qc: null, seal: null, flags: [], evidence: [], ledger: [] }] };
-    const row = traceRows(tr)[0];
-    expect(row).toHaveLength(TRACE_HEADER.length);
-    expect(row[TRACE_HEADER.indexOf('recorded_at')]).toBe('captured');
-    expect(row[TRACE_HEADER.indexOf('received_by_server_at')]).toBe('sent');
-  });
-  it('the season export gives both times; a record from a server without the column keeps the one it has', () => {
-    const r: SeasonRow = { footprint_code: 'X-P-0001', stage_type: 'procurement', status: 'verified', qty_in: 100, qty_out: 98, grade: null,
-      lot_closed: false, warnings: ['a', 'b'], created_at: 'sent', captured_at: 'captured', verified_at: null, farmer_id: 'f', payload: { batch_code: 'B1' } };
-    const row = seasonRow(r, { farmer_code: 'X-F-0001', name: 'Ram', village: 'Bansi' });
-    expect(row).toHaveLength(SEASON_HEADER.length);
-    expect(row[SEASON_HEADER.indexOf('recorded_at')]).toBe('captured');
-    expect(row[SEASON_HEADER.indexOf('received_by_server_at')]).toBe('sent');
-    expect(row[SEASON_HEADER.indexOf('warnings')]).toBe('a | b');
-    expect(row[SEASON_HEADER.indexOf('farmer')]).toBe('Ram');
-    const { captured_at: _none, ...old } = r;
-    expect(seasonRow(old)[SEASON_HEADER.indexOf('recorded_at')]).toBe('sent');
-    // the columns that existed before keep their places: only the name of the time column changed, the new one is last
-    expect(SEASON_HEADER.slice(0, 13).join(',')).toBe('code,stage,status,qty_in_kg,qty_out_kg,grade,lot_closed,farmer_id,farmer,village,batch_code,buyer,market');
-    expect(SEASON_HEADER.slice(13)).toEqual(['recorded_at', 'verified_at', 'warnings', 'received_by_server_at', 'happened_on', 'data_note']);   // migration 48: the date it happened, last   // data_note: migration 59 (A8), at the end
+  // since migration 60 (Part C) both exports are made on the server: tests/55_exports.sql checks the values; here the columns
+  it('the journey and season exports give both times: when the work was done and when the server got it', () => {
+    const mig = readFileSync(join(__dirname, '../../supabase/migrations/20261104000100_exports.sql'), 'utf8');
+    expect(mig).toContain("'recorded_at', to_char(coalesce(f.captured_at, f.created_at) at time zone 'Asia/Kolkata'");
+    expect(mig).toContain("'received_at', to_char(f.created_at at time zone 'Asia/Kolkata'");
+    const t = (k: string, v?: Record<string, string | number>, f?: string) => translate('en', k, v, f);
+    expect(columnLabel('recorded_at', {}, t)).toBe('Recorded (IST)');
+    expect(columnLabel('received_at', {}, t)).toBe('Received by the server (IST)');
+    const e = { columns: ['code', 'recorded_at', 'received_at', 'warnings'], rows: [['X-P-0001', '2026-10-05 10:00', '2026-10-07 09:30', 'a | b']], copy: 'shareable',
+      generated_at: 'now', units: {}, scope: {} } as unknown as ExportTable;
+    expect(tableOf(e, t).rows[0]).toEqual(['X-P-0001', '2026-10-05 10:00', '2026-10-07 09:30', 'a | b']);
   });
 });
 

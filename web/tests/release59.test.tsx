@@ -8,9 +8,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { JourneyView, PackNotReleased, readingRows } from '../src/pages/public/PublicVerify';
 import type { Journey, JourneyStep } from '../src/pages/public/journey';
 import { readingText } from '../src/pages/public/BuyerView';
-import { labLine, readingsLine, TRACE_HEADER } from '../src/pages/trace/LotTrace';
+import { labLine, readingsLine } from '../src/pages/trace/LotTrace';
 import { pendingByStage } from '../src/pages/ClientWaiting';
-import { SEASON_HEADER } from '../src/pages/dashboard/ScopeDashboard';
 import { isClientLogin } from '../src/lib/rights';
 import { isSameFile } from '../src/engine/DupFile';
 import { AppError } from '../src/lib/errors';
@@ -84,7 +83,7 @@ describe('A5 · the lab', () => {
   it('its name and accreditation number wherever the report number is', () => {
     expect(labLine({ name: 'Gorakhpur Grain Lab', accreditation_no: 'TC-5521', report_no: 'GGL/118', report_date: '2026-10-15' }))
       .toBe('Gorakhpur Grain Lab (accreditation TC-5521) · report GGL/118 of 2026-10-15');
-    expect(TRACE_HEADER.slice(-3)).toEqual(['lab', 'same_person', 'data_note']);
+    expect(read('supabase/migrations/20261104000100_exports.sql')).toMatch(/'same_person'[\s\S]*'lab'[\s\S]*'data_note'\]/);   // the exports (migration 60)
     expect(en['lab.accreditation']).toContain('{no}'); expect(hi['lab.accreditation']).toContain('{no}');
   });
 });
@@ -102,7 +101,7 @@ describe('A6 · one file as two kinds of document', () => {
 
 describe('A8 · old data and typed batch codes', () => {
   it('the exports carry the note; the refusal of a typed code in use is plain', () => {
-    expect(SEASON_HEADER.at(-1)).toBe('data_note');
+    expect(read('supabase/migrations/20261104000100_exports.sql')).toContain("'received_at', 'data_note']");   // the exports (migration 60)
     expect(plainWords('batch code TCUP-2026-KNM-001 is in use already: a batch code is given by the system', tr(en))).toBe('Batch code TCUP-2026-KNM-001 is already in use: batch codes are given by the system.');
     expect(en['scope.old_data']).toMatch(/^Practice \(old data\)/);
   });

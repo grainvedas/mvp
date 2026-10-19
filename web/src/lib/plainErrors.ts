@@ -352,6 +352,7 @@ export const PLAIN_RULES: PlainRule[] = [
   { re: /a client login reads only/i, key: 'err.client_reads_only' },
   { re: /same file: this exact file is already attached as (.+?) on (\S+)/i, key: 'err.same_file', vars: ['doc', 'code'] },
   { re: /batch code (\S+) is in use already/i, key: 'err.batch_in_use', vars: ['code'] },
+  { re: /the internal copy is for the people of this scope/i, key: 'err.internal_copy' },   // migration 60 (C4)
   // the database's inside words, in general
   { re: /violates not-null constraint|null value in column/i, key: 'err.missing_value' },
   { re: /invalid input syntax for type (numeric|integer|bigint|real|double precision)/i, key: 'err.not_number' },

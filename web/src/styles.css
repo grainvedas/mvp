@@ -284,6 +284,16 @@ tr.clickable { cursor: pointer; } tbody tr:hover td { background: var(--g50); }
   body, main { background: #fff; }
   .card { border: none; }
 }
+/* migration 60 (Part C): the journey printed: its own heading and page numbers, the shareable content only */
+.print-only { display: none; }
+@media print {
+  .print-only { display: block; }
+  .trace { page: journey; }
+  .trace-print-head { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #999; padding-bottom: 4px; margin-bottom: 8px; font-size: 10pt; }
+  .trace .card { break-inside: avoid; }
+}
+@page journey { size: A4; margin: 14mm 12mm 16mm;
+  @bottom-right { content: counter(page) " / " counter(pages); font-size: 8pt; color: #555; } }
 
 /* public verify page. Migration 57 (Veda, 16 Oct: "make a good UI"): the GrainVeda design system's provenance story:
    paper and sand grounds, a deep forest hero, Georgia for the story's titles, gold only as a fill (the seal). */

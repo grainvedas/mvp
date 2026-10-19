@@ -9,7 +9,6 @@ import { Widget } from '../src/engine/widgets';
 import { passwordProblem } from '../src/auth/SetPassword';
 import { sessionExpired } from '../src/auth/AuthProvider';
 import { daysWaiting } from '../src/pages/admin/Health';
-import { TRACE_HEADER, traceRows, type Trace } from '../src/pages/trace/LotTrace';
 import type { FieldDef, StageDefinition } from '../src/lib/types';
 import defs from './fixtures/stage_definitions.json';
 
@@ -172,23 +171,12 @@ describe('health page', () => {
 });
 
 describe('journey export', () => {
-  const step = { id: '1', code: 'PRSDM-KNM-KH26-M-0002', stage: 'milling', stage_label: 'Milling', status: 'verified', prev_id: null,
-    qty_in_kg: 119, qty_out_kg: 90, grade: null, payload: {}, computed: {}, warnings: [], farmer: null, created_at: 'a', created_by: 'Mill',
-    verified_at: null, verified_by: null, qc: null, seal: null, flags: [], evidence: [], ledger: [] };
-  it('a replacement names what it replaces and why; a withdrawn record says who withdrew it', () => {
-    const tr: Trace = { footprint_id: '1', generated_at: 'now', steps: [
-      { ...step, replaces: { code: 'PRSDM-KNM-KH26-M-0001', qty_out_kg: 80, reason: 'bran typed as 30, was 20', by: 'Client Manager', at: 't' } },
-      { ...step, id: '0', status: 'superseded', withdrawn: { reason: 'bran typed as 30, was 20', by: 'Client Manager', at: 't' } },
-    ] };
-    const rows = traceRows(tr);
-    expect(rows[0]).toHaveLength(TRACE_HEADER.length);
-    expect(rows[0][TRACE_HEADER.indexOf('replaces')]).toBe('PRSDM-KNM-KH26-M-0001 (80 kg) withdrawn by Client Manager: bran typed as 30, was 20');
-    expect(rows[1][TRACE_HEADER.indexOf('withdrawn')]).toBe('t · Client Manager: bran typed as 30, was 20');
-  });
-  it('an ordinary step leaves both columns empty (older servers do not send the keys)', () => {
-    const rows = traceRows({ footprint_id: '1', generated_at: 'now', steps: [step] });
-    expect(rows[0][TRACE_HEADER.indexOf('withdrawn')]).toBe('');
-    expect(rows[0][TRACE_HEADER.indexOf('replaces')]).toBe('');
+  // since migration 60 (Part C) made on the server (tests/55_exports.sql checks the values)
+  const mig = readFileSync(join(__dirname, '../../supabase/migrations/20261104000100_exports.sql'), 'utf8');
+  it('a replacement names what it replaces and why; a withdrawn record says when and why (who: the Audit log)', () => {
+    expect(mig).toContain("'replaces', (select o.footprint_code || ' (' || o.qty_out || ' kg)' || coalesce(': ' || w.reason, '')");
+    expect(mig).toContain("'withdrawn', (select to_char(w.withdrawn_at at time zone 'Asia/Kolkata', 'YYYY-MM-DD HH24:MI') || ': ' || w.reason");
+    expect(en['exp.c.replaces']).toBeTruthy(); expect(en['exp.c.withdrawn']).toBeTruthy();
   });
 });
 

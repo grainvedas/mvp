@@ -2768,3 +2768,67 @@ Veda's combined brief of 19 Oct 2026, Parts A and B; "ok start" to the plan's tw
   `phase11`, `tests/51`, `tests/remote_rls.mjs`.
 - Not proved here: the staging run (Veda's), the scopes marked "Practice (old data)" on staging (S1b lists them), the
   GI badge on a practice lot of a Siddharthnagar farmer (run sheet rows 8 and 9), PDF exports (release 2 and 3).
+
+## 19 October 2026, 17:47 IST: Phase 1 release 1 on staging (`staging-fixes-client-reads-only.cmd`)
+
+Veda ran it. S0 (59 waiting, 166 app and function files the tested ones, the seven functions current), S1 pushed
+`20261103000100_fixes_client_reads_only.sql`, S1b `columns=new reads_only_tables=40 upload_policy=new emails_closed=yes
+old_data_scopes=2` (old data: TCUP KH26 BNS, TCUP KH26 GKP, both active), S1c Kalanamak Rice's GI area: Siddharthnagar,
+Gorakhpur, Maharajganj, Kushinagar, Deoria, Basti, Sant Kabir Nagar, Gonda, Bahraich, Balrampur, Shravasti. S2 smoke 56/57
+(statement logging standing), the new rules in place and the change log intact, one client and another `leaks=0 people=7
+tables=44 calls=11537 own_rows=2580 clients=3`, `same_file_reasons=0 old_data_scopes=2 packs=813 ledger_head=283`, ledger
+audit NO FINDINGS (283 blocks, 67 records, 6 seals, 13 evidence files), no login without a person, functions current; S3
+pushed 7183569 (54 files). `RESULT: FIXES AND CLIENT READS ONLY ON STAGING`. Record:
+`release-evidence\staging-fixes-client-reads-only-20261019-174722.log`. Run-sheet checks: not yet.
+
+Run-sheet checks, 19 Oct evening (tcup, then Lucky, then Ram, then Lucky, signed in by Veda; Claude drove them in Chrome;
+practice data):
+- Row 1 (tcup): menu Dashboard, Farmers, Season Scopes, My guide, My account; no stages, no "Needs action"; "Waiting on
+  GrainVeda" 2 at Shipment, 1 at Milling (KPI 3); open flags 1 (PRC-WH-0001).
+- Row 2: `/work/<Bansi>/procurement` goes home.
+- Row 3: 4 farmers, every phone `••••••` and four digits, no action buttons.
+- Row 4: BNS-QR-0001: no buttons, no file input, no flag; "Practice (old data)" on the record, its journey and the Bansi
+  dashboard; the journey's lab "Practice lab (test) · accreditation TC-0000 · report TEST-R53-1", readings "Moisture
+  12.5 % · Aflatoxin 1.5 µg/kg", the same-person mark on 8 steps. `/verify/GV-8B1E15E15317`: the sentence on 7 steps,
+  units on every reading. Found: the public page says "Lab tested" with no lab name (A5 there next release); tcup sees
+  "Print labels" on a sealed lot (the browser's print only).
+- Row 5 (Lucky): People & access 5 people, no email; phones only of people on his scopes' stages. (Ram, State Manager:
+  7 people with their emails, unchanged.)
+- Row 10 (Lucky): the practice PDF attached on BNS-QC-0001 as a lab report (sha256 1d81c7bc…) attached on QC-0003 as a
+  document: refused "This exact file is already attached as lab report on TCUP-KNM-KH26-BNS-QC-0001. Give a reason to
+  attach it here too."; with the reason "Run-sheet row 10 (test): practice lab PDF reused" attached, `dup_reason` kept.
+  The Audit line is for the admin's eyes (not checked yet). Staging already had that one file as lab report on two QC
+  records, an export document, a POD and two plain documents, all from before the rule.
+- Row 8: "Siddharthnagar GI (test)" (TCUP-F-0005, Siddharthnagar, Practice village (test), 2 acres, 1 GI acre, a fake
+  mobile, typed GPS) by Lucky, then Ram issued F-UP-00007.
+- Row 9: nobody holds a stage on the Siddharthnagar scope, so (Veda) on Bansi, where Lucky holds Procurement: the
+  farmer's good farming practice answered (GAP 1, gap 2: yes), BNS-P-0005 (51 kg net, at the farm): "GI status: GI
+  (every source from the GI area)". Its label's GI tag needs the lot sealed: not checked.
+- Row 6: `/verify/TCUP-KNM-KH26-B0003-0001` (B0003 not released): "Kalanamak Rice", the serial, "Packed, not yet released.
+  Its full record shows here once the lot is released.", batch TCUP-KNM-KH26-B0003, packed on 17 Oct 2026; nothing else.
+- Row 7: done with row 4 (`/verify/GV-8B1E15E15317`).
+- Not yet: row 9's label (the lot sealed first); the Audit line of row 10 (as the admin).
+
+## 19 October 2026, night: the exports, Phase 1 release 2 (migration 60, open item 56), local stack
+
+Veda's combined brief of 19 Oct 2026, Part C ("release 2"). Migration `20261104000100_exports.sql`, the app; run sheet
+`docs/RUNSHEET_exports.md`.
+- Database tests: every `tests/NN_*.sql` on a template built from the 63 migrations: **2,359 checks, no failure**; the new
+  `tests/55_exports.sql` 31 checks (what each copy holds, to the text: no farmer's or person's name, no price, no payment
+  reference in the shareable copy; the columns, shares, GI, farm-verified, lab, loss, packs and serials; who takes which
+  copy; the Audit lines; both times and a withdrawal; the public page's lab). Negative controls: **8 of 8 caught**.
+  `tests/run_local.sh`: ALL TESTS PASSED.
+- Unit tests 689 (`web/tests/release60.test.tsx` 8; the old browser-built export tests moved to the server's columns);
+  `tsc` clean.
+- End to end at 527 px on the local stack, the whole suite: **98 passed** (new `e2e/phase32.spec.ts`: a Siddharthnagar lot
+  recorded, checked and sealed; its journey shareable (no "Mohan Lal", no Client Manager's name, no raw values, the
+  shareable footer) and internal (the farmer, "Recorded by", "Entered values (raw)" last, the internal footer); the
+  season's internal Excel file (Heading, Summary, Records); the admin offered the shareable copy only and refused the
+  internal one by the server; the three downloads in the Audit log; `phase3` reads the season's Excel file). The built
+  app: 14 passed. `remote_rls.mjs --t1`: REMOTE RLS PASSED. `remote_create_user.mjs`: CREATE-USER PASSED. The first day
+  from nothing: 1 passed.
+- Restore drill: after the whole suite, HR documents 4 of 5 (as before); on a fresh stack after `phase26`, `phase28`,
+  `phase32`: **RESTORE DRILL PASSED**.
+- Not proved here: printing (the heading and page numbers use the browser's `@page` margin boxes: Chrome 131 and later;
+  an older browser prints without page numbers), the Hindi Excel file opened in Excel (the unit test checks the words),
+  the staging run.

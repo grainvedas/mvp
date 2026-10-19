@@ -189,6 +189,8 @@ export function JourneyView({ j, pack, warn }: { j: Journey; pack?: PackView; wa
           {/* an export released by the client's written acceptance is "released", never "passed" (migration 50) */}
           <p className="pv-verdicts">{t('pv.quality')}: {t('pv.domestic')} <span className={`badge ${j.verdict.domestic}`}>{t(`pv.v_${j.verdict.domestic}`)}</span>
             {' · '}{t('pv.export')} <span className={`badge ${j.verdict.export}`}>{t(`pv.v_${j.verdict.export}`)}</span></p>
+          {labsOf(j.journey).map((l) => (
+            <p className="small" key={l.name} data-testid="pv-lab-name">{l.accreditation_no ? t('pv.tested_by_acc', { lab: l.name, no: l.accreditation_no }) : t('pv.tested_by', { lab: l.name })}</p>))}
           {j.verdict.overridden && <p className="small" data-testid="pv-released-not-passed">{t('pv.override')}</p>}
           {markets.length > 0 && (
             <p className="small" data-testid="pv-markets">{t('pv.by_market')}: {markets.map((m, i) => (
@@ -287,6 +289,13 @@ function PackCard({ pack, lot }: { pack: PackView; lot?: Journey['packs'] }) {
  *  date packed; nothing else. */
 /** A pack before its lot is released (migration 59, A1): the crop, serial, batch code and date packed. A voided pack says
  *  so; a code scanned far apart or very often is warned of, without the seller's name. */
+/** Pure (migration 60): the labs that tested the lot, each once. */
+export function labsOf(steps: JourneyStep[]): { name: string; accreditation_no: string | null }[] {
+  const out: { name: string; accreditation_no: string | null }[] = [];
+  for (const s of steps) if (s.lab?.name && !out.some((o) => o.name === s.lab!.name)) out.push({ name: s.lab.name, accreditation_no: s.lab.accreditation_no ?? null });
+  return out;
+}
+
 export function PackNotReleased({ p, warn = false }: { p: PackBeforeRelease; warn?: boolean }) {
   const { t } = useI18n();
   return (

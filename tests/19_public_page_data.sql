@@ -9,7 +9,7 @@ do $$
 declare s uuid := '00000000-0000-4000-8000-000000000405'; c uuid := '00000000-0000-4000-8000-000000000201';
         p uuid; q uuid; m uuid; pk uuid; ex uuid; sh uuid; qr uuid; seal public.qr_seals; j jsonb; txt text; bad text;
         top_ok constant text[] := array['qr_code','sealed_at','ledger_hash','batch_codes','crop','client','season','geography','verdict','journey','independent','farmer_count','gi_status','packs','release','villages','units'];   -- migration 49: farmers counted, GI status; 57: villages (no same_person)
-        step_ok constant text[] := array['same_person','stage','code','qty_in_kg','qty_out_kg','verified_at','created_at','captured_at','grade','farmer','farmers',
+        step_ok constant text[] := array['lab','same_person','stage','code','qty_in_kg','qty_out_kg','verified_at','created_at','captured_at','grade','farmer','farmers',
                                          'village','source','readings','batch_code','destination','dispatched_on',
                                          'markets',    -- migration 53: the lab's verdict per market (names and verdicts only)
                                          'checked'];   -- migration 57: checked by another person (true or false)

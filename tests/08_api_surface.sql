@@ -24,6 +24,7 @@ insert into allowed values
   ('authenticated', 'withdraw_footprint'),
   -- Phase 4 (migration 23)
   ('anon', 'environment'), ('authenticated', 'environment'), ('authenticated', 'lot_markets'), ('authenticated', 'scope_activity'),
+  ('authenticated', 'export_journey'), ('authenticated', 'export_season'), ('authenticated', 'may_internal_copy'),       -- migration 60
   ('authenticated', 'client_waiting'), ('authenticated', 'client_farmers'), ('authenticated', 'doc_kind_word'),        -- migration 59
   ('authenticated', 'same_file_elsewhere'), ('authenticated', 'note_same_file'), ('authenticated', 'is_client_login'),
   ('authenticated', 'reset_login_allowed'), ('authenticated', 'report_client_error'), ('authenticated', 'check_ledger_now'),

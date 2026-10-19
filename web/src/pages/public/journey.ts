@@ -22,6 +22,8 @@ export interface JourneyStep {
   checked?: boolean;
   /** migration 59 (A2, Veda's brief of 19 Oct 2026): recorded and checked by the same person; the page says so */
   same_person?: boolean;
+  /** migration 60 (A5 on the public page): the lab of a QC step, its name and accreditation number */
+  lab?: { name: string; accreditation_no: string | null } | null;
 }
 export interface MarketLimit { param: string; operator: string; limit: number | [number, number] | string | boolean | null }
 export interface Journey {

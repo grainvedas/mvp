@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import readXlsxFile, { readSheetNames } from 'read-excel-file/node';
 import { signIn, signOut, expectNoSideScroll, openSlotAt, pickFarmer } from './helpers';
 
 // Phase 3 through the real screens: airplane-mode capture (PRD §12 edge check: 10 lots offline sync in order),
@@ -134,15 +135,18 @@ test('Dashboards: pipeline dots, sealed lots, flag log, season CSV, journey CSV;
     await signIn(page, who);
     await openBasti();
     await expect(page.getByTestId('stage-dots').locator('li.done')).not.toHaveCount(0);
+    // migration 60 (Part C): the season is one Excel file made on the server: a heading, a summary per stage, every record
     const dl = page.waitForEvent('download');
-    await page.getByTestId('season-csv').click();
-    const csv = readFileSync((await (await dl).path())!, 'utf8').replace(/^\uFEFF/, '');
-    // 4 Oct 2026 (capture time, migration 29): the time column is the time the work was recorded and is named so; the
-    // time the server stored it is a new last column. The other columns are where they were.
-    expect(csv.split('\r\n')[0]).toBe('code,stage,status,qty_in_kg,qty_out_kg,grade,lot_closed,farmer_id,farmer,village,batch_code,buyer,market,recorded_at,verified_at,warnings,received_by_server_at,happened_on,data_note');   // migration 48: the date it happened; migration 59: the old-data note, last
-    expect(csv).toMatch(/\r\nSUMMARY 1,procurement,/);
-    expect(csv).toMatch(/\r\nPRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4},procurement,verified,/);
-    expect(csv).toMatch(/\r\nPRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4},milling,/);
+    await page.getByTestId('season-xlsx').click();
+    const file = (await (await dl).path())!;
+    expect(await readSheetNames(file)).toEqual(['Heading', 'Summary', 'Records']);
+    const recs = (await readXlsxFile(file, { sheet: 'Records' })) as unknown[][];
+    expect(recs[0].slice(0, 4)).toEqual(['Step', 'Record', 'Stage', 'Status']);
+    expect(recs.some((r) => /^PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?P-\d{4}$/.test(String(r[1])) && r[2] === 'Procurement (farm-gate)')).toBe(true);
+    expect(recs.some((r) => /^PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?M-\d{4}$/.test(String(r[1])))).toBe(true);
+    expect(JSON.stringify(recs)).not.toMatch(/\+91\d{10}/);                                   // no phone in an export
+    const sum = (await readXlsxFile(file, { sheet: 'Summary' })) as unknown[][];
+    expect(String(sum[1][0])).toMatch(/^1\. /);                                              // the stages in the chain's order
     await signOut(page);
   }
   await signIn(page, VIEW);
@@ -152,7 +156,7 @@ test('Dashboards: pipeline dots, sealed lots, flag log, season CSV, journey CSV;
   const dl = page.waitForEvent('download');
   await page.getByTestId('trace-csv').click();
   const csv = readFileSync((await (await dl).path())!, 'utf8');
-  expect(csv).toContain('step,code,stage,status,farmer_id');
+  expect(csv).toContain('Step,Record,Stage,Status');                                       // migration 60: readable columns
   expect(csv).toMatch(/GV-[0-9A-F]{12}/);
   expect(csv).not.toMatch(/\+91\d{10}/);                                                // no farmer phones in exports
   await expect(page.getByRole('button', { name: 'Print / save as PDF' })).toBeVisible();

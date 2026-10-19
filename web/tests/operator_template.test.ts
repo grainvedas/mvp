@@ -58,8 +58,11 @@ describe('times in India\'s time, everywhere (fix 2)', () => {
     expect(istStamp(null)).toBe('');
   });
   it('every export writes its times through istStamp', () => {
-    for (const f of ['../src/pages/system/Ledger.tsx', '../src/pages/trace/LotTrace.tsx', '../src/pages/dashboard/ScopeDashboard.tsx'])
-      expect(readFileSync(join(__dirname, f), 'utf8'), f).toContain('istStamp(');
+    expect(readFileSync(join(__dirname, '../src/pages/system/Ledger.tsx'), 'utf8')).toContain('istStamp(');
+    // the journey and the season are made on the server since migration 60 (Part C): their times in IST there
+    const mig = readFileSync(join(__dirname, '../../supabase/migrations/20261104000100_exports.sql'), 'utf8');
+    for (const col of ['recorded_at', 'verified_at', 'sealed_at', 'received_at']) expect(mig).toMatch(new RegExp(`'${col}', [^\\n]*at time zone 'Asia/Kolkata'`));
+    expect(mig).toContain("'generated_at', to_char(now() at time zone 'Asia/Kolkata'");
   });
 });
 

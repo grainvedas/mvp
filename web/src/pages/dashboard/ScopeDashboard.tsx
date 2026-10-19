@@ -1,6 +1,6 @@
 // F13 pipeline view per scope (Client Manager, State Manager, Admin) and the Client View portal: the chain as stage
 // dots with quantities, sealed lots with their public page and journey export, the flag/query log, and the season
-// summary as CSV (F14), and what happened per day (PRD §9 "per-scope activity metrics", from the ledger).
+// season export (made on the server since migration 60, Part C: one Excel file, a shareable or an internal copy), and what happened per day (PRD §9 "per-scope activity metrics", from the ledger).
 // Everything is read through RLS: a Client View user sees only their own client's scopes.
 import { Link, useParams } from 'react-router-dom';
 import { rpc, q } from '../../lib/api';
@@ -8,10 +8,9 @@ import { supabase } from '../../lib/supabase';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
-import { downloadCsv } from '../../lib/csv';
-import { date, dateTime, humanise, istStamp, kg } from '../../lib/format';
+import { exportSeason, mayInternalCopy, seasonXlsx, type Copy } from '../../lib/exports';
+import { date, dateTime, humanise, kg } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Loading } from '../../shell/ui';
-import { isClientLogin } from '../../lib/rights';
 
 export interface PipeRow { stage: string; chain_pos: number; records: number; pending: number; verified: number; kg_out: number; kg_available: number }
 interface SealRow { qr_code: string; sealed_at: string; batch_codes: string[]; footprint_id: string;
@@ -19,23 +18,6 @@ interface SealRow { qr_code: string; sealed_at: string; batch_codes: string[]; f
 interface FlagRow { id: string; text: string; status: string; created_at: string; footprint_id: string;
   footprints: { footprint_code: string; stage_type: string; scope_id: string } }
 interface ActivityRow { day: string; saved: number; verified: number; sealed: number; supervisory: number }
-export interface SeasonRow { footprint_code: string; stage_type: string; status: string; qty_in: number; qty_out: number; grade: string | null;
-  lot_closed: boolean; warnings: string[]; created_at: string; captured_at?: string | null; verified_at: string | null; farmer_id: string | null; payload: Record<string, unknown>; happened_on?: string | null }
-
-/**
- * Columns of the season export. `recorded_at` is when the work was done: for a save that waited on the phone, the time
- * it was captured there. `received_by_server_at` is when the server stored it; it is the last column so that every
- * earlier column keeps its place. Until migration 29 the one time column was the server's and was named `created_at`.
- */
-export const SEASON_HEADER = ['code', 'stage', 'status', 'qty_in_kg', 'qty_out_kg', 'grade', 'lot_closed', 'farmer_id', 'farmer', 'village',
-  'batch_code', 'buyer', 'market', 'recorded_at', 'verified_at', 'warnings', 'received_by_server_at', 'happened_on', 'data_note'];   // data_note: migration 59 (A8)
-
-export function seasonRow(r: SeasonRow, f?: { farmer_code: string | null; name: string; village: string }, mark = '') {
-  return [r.footprint_code, r.stage_type, r.status, r.qty_in, r.qty_out, r.grade, r.lot_closed, f?.farmer_code, f?.name, f?.village,
-    r.payload.batch_code as string, r.payload.buyer as string, r.payload.market as string,
-    istStamp(r.captured_at ?? r.created_at), istStamp(r.verified_at), r.warnings.join(' | '), istStamp(r.created_at), r.happened_on ?? '', mark]; // times in IST (Veda, 15 Oct); migration 48: the date it happened; 59: old data
-}
-
 export function StageDots({ rows, stageLabel }: { rows: PipeRow[]; stageLabel: (s: string) => string }) {
   const { t } = useI18n();
   return (
@@ -71,21 +53,9 @@ export function ScopeDashboard() {
   const note = useAsync(async () => ((await q(supabase.from('scopes').select('data_note').eq('id', scopeId))) as unknown as { data_note: string | null }[])[0]?.data_note ?? null, [scopeId]);
   const oldData = note.data === 'practice_old_data';
 
-  const exportSeason = () => exp.run(async () => {
-    const rows = (await q(supabase.from('footprints')
-      .select('*')         // every column the server has: captured_at exists from migration 29 on, and naming it would fail before
-      .eq('scope_id', scopeId).order('created_at'))) as SeasonRow[];
-    const fids = [...new Set(rows.map((r) => r.farmer_id).filter(Boolean))] as string[];
-    // migration 59 (B3): the client's own login reads its farmers through app.client_farmers (the table is not its to read)
-    const farmers = !fids.length ? [] : (isClientLogin(ctx) ? await rpc<{ id: string; farmer_code: string | null; name: string; village: string }[]>('client_farmers', { p_ids: fids, p_limit: 500 })
-      : (await q(supabase.from('farmers').select('id,farmer_code,name,village').in('id', fids))) as { id: string; farmer_code: string | null; name: string; village: string }[]);
-    const fm = new Map(farmers.map((f) => [f.id, f]));
-    const mark = oldData ? 'Practice (old data)' : '';
-    const body = rows.map((r) => seasonRow(r, r.farmer_id ? fm.get(r.farmer_id) : undefined, mark));
-    const summary = (pipe.data ?? []).map((p) => [`SUMMARY ${p.chain_pos}`, p.stage, `${p.records} records, ${p.pending} pending`,
-      null, p.kg_out, null, null, null, null, null, null, null, null, null, null, `available ${p.kg_available} kg`, null, null, mark]);
-    downloadCsv(`grainveda-season-${scope?.season_code ?? ''}-${(scope?.geography ?? 'scope').replace(/\W+/g, '-')}.csv`, SEASON_HEADER, [...summary, ...body]);
-  });
+  // migration 60 (C4): the internal copy (names, prices) only for the scope's people and the client's own login
+  const internal = useAsync(() => mayInternalCopy(scopeId), [scopeId]);
+  const download = (copy: Copy) => exp.run(async () => seasonXlsx(await exportSeason(scopeId, copy), t));
 
   return (
     <div>
@@ -99,8 +69,10 @@ export function ScopeDashboard() {
         {pipe.loading ? <Loading /> : <ErrorBox error={pipe.error} onRetry={pipe.reload} />}
         {pipe.data && <StageDots rows={pipe.data} stageLabel={stageLabel} />}
         <div className="row no-print">
-          <button className="secondary" onClick={exportSeason} disabled={exp.busy} data-testid="season-csv">{t('dash.season_csv')}</button>
+          <button className="secondary" onClick={() => download('shareable')} disabled={exp.busy} data-testid="season-xlsx">{t('exp.season_shareable')}</button>
+          {internal.data === true && <button className="secondary" onClick={() => download('internal')} disabled={exp.busy} data-testid="season-xlsx-internal">{t('exp.season_internal')}</button>}
         </div>
+        {internal.data === true && <p className="small muted no-print" data-testid="season-copies">{t('exp.copies_note')}</p>}
         <ErrorBox error={exp.error} />
       </div>
 

@@ -457,6 +457,17 @@ select 'fixes and client reads only', case when to_regprocedure('app.is_client_l
                                       then 'NOT OK (the client login''s guard, the masked farmers and people, the same-file rule or the public page are not as migration 59 left them)'
                                       else 'OK a client login reads only; farmers and people masked; one file, one kind; units, labs and same person shown' end
 union all
+select 'exports',                  case when to_regprocedure('app.export_journey(uuid, text)') is null or to_regprocedure('app.export_season(uuid, text)') is null
+                                      then 'MISSING (push migration 60)'
+                                      when not has_function_privilege('authenticated', 'app.export_journey(uuid, text)', 'execute')
+                                        or has_function_privilege('anon', 'app.export_season(uuid, text)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.export_record(uuid, boolean, numeric)', 'execute')
+                                        or position('may_internal_copy' in pg_get_functiondef('app.export_season(uuid, text)'::regprocedure)) = 0
+                                        or position('export_downloaded' in pg_get_functiondef('app.export_journey(uuid, text)'::regprocedure)) = 0
+                                        or position('qc_lab' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
+                                      then 'NOT OK (the exports, who takes the internal copy, their Audit line or the public page''s lab are not as migration 60 left them)'
+                                      else 'OK journey and season exports made on the server, shareable or internal, each in the Audit log; the lab on the public page' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

@@ -409,6 +409,14 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   document needs a reason (`GVDUP`, `app.note_same_file`; photos are one kind). A batch code is given by the system: a typed one in use is
   refused for every path, the service role included; a scope with records of before is marked `data_note =
   'practice_old_data'`, shown on its screens and in its exports.
+- **Exports are made on the server, in a shareable or an internal copy** (migration 60, Veda's brief of 19 Oct 2026,
+  Part C). The journey and the season come only from `app.export_journey` and `app.export_season`; the browser writes
+  down what they return (`lib/exports.ts`: the columns' names in the reader's language, the values' words, the footer)
+  and never builds an export from what the screens read. A shareable copy has no person's or farmer's name, no buyer, no
+  price, no payment reference and no raw saved values: a new column that could carry one goes in the internal list only
+  (`internal()` in the migration's generator). The internal copy is for `app.may_internal_copy` (the scope's people and
+  the client's own login); every export writes its Audit line in the same call. A new column needs its `exp.c.*` words
+  (EN and HI) and a case in `tests/55_exports.sql`.
 - **Packs go in cartons; an order sets them aside; Reports to is a rule** (migration 58, Veda 16 Oct 2026, G24). A
   carton is made only by the packing save (`app.make_cartons` from `app.make_packs`, when the pack type has
   `packs_per_carton`); never insert, delete or renumber one; it is opened only by `app.void_pack`. What an order takes is
