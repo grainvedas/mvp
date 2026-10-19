@@ -2874,3 +2874,32 @@ as per best"). Migration `20261105000100_export_corrections.sql`, the app; run s
   its card and was changed), the trace and its print (names hidden, the closure's reason shown), the public page.
 - Not proved here: the staging run; the Hindi Excel file opened in Excel (the unit tests check the words); what S1b will
   list as crops without a shelf life on staging.
+
+## 20 October 2026, 00:10 IST: Phase 1 release 3 on staging (`staging-export-corrections.cmd`)
+
+Veda ran it. S0 (61 waiting, 169 app and function files the tested ones, the seven functions current), S1 pushed
+`20261105000100_export_corrections.sql`, S1b `functions=new granted=yes closure_line=yes prices_rule=yes purchases=yes
+shelf_rule=yes closures=1 no_shelf_life=Kalanamak Rice (AGTX): pouch; Kalanamak Rice (TCUP): pouch`, S2 smoke 58/59
+(statement logging standing), the new rules in place and the change log intact, one client and another `leaks=0 people=7
+tables=44 calls=12180 own_rows=2593 clients=3`, `closures=1 packs_without_best_before=813 exports_logged=2`, ledger audit
+NO FINDINGS (287 blocks, 68 records, 6 seals, 14 evidence files), no login without a person, functions current; S3 pushed
+ea57b03 (32 files). `RESULT: EXPORT CORRECTIONS ON STAGING`. Record:
+`release-evidence\staging-export-corrections-20261020-001016.log`.
+
+Run sheet, 20 Oct (Claude, the built-in browser, signed out; the new app `index-Dpj2KG4t.js` live):
+- Row 9 `/verify/TCUP-KNM-KH26-B0001-0150`: "Best before: not recorded (old data)". It still says "Genuine pack, sealed
+  record": E2.1 is release 4.
+- Row 8 `/verify/GV-8B1E15E15317`: "Collection Batch", "Bought from 2 farmers: 250 kg" — but **"2 farmers from 1 village"**
+  and **"village 1 100 %"** under a heading that says "Grown by 2 farmers in 2 villages" (`village1, district 1` 60 %,
+  `village 1, district 1` 40 %). Migration 61 counted villages by their letters only (`app.norm_place`), the heading by
+  the village as recorded. Fixed by migration 61b (below).
+
+## 20 October 2026: migration 61b (the village counts), local stack
+
+`20261105000200_village_counts.sql`: the public page's batch and purchases lines and the exports' villages column count
+villages by the village and district as recorded on the farmers, as the page's heading does. `tests/56` gains 2 checks
+(a farmer's village typed "bansi" beside "Bansi": the heading, the batch line and the purchases line all say 2 villages;
+the export says "bansi 60.0 %; Bansi 40.0 %"); both fail without 61b. Every `tests/NN_*.sql` on a template with 61b:
+**2,390 checks, no failure**; controls 15 of 15. The smoke row `export corrections` says "push migration 61b" on a database
+without it. `tests/run_local.sh`: ALL TESTS PASSED. On the local stack: `phase2`, `phase26`, `phase28`, `phase32`, `phase33`
+9 passed; REMOTE RLS PASSED; RESTORE DRILL PASSED. The app is unchanged.

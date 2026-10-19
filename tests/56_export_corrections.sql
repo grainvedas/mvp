@@ -131,6 +131,22 @@ select t.ok((select not exists (select 1 from jsonb_array_elements(j->'journey')
                     and position((select farmer1 from names) in j::text) = 0 and position((select farmer2 from names) in j::text) = 0 from pj),
             'E2.3: the batch says 2 farmers from 2 villages; no single purchase line; no farmer''s name');
 
+-- migration 61b (staging, 20 Oct): two villages whose names differ only in spelling ("bansi" and "Bansi", as typed) are
+-- counted on the new lines as the page's heading counts them, and so in the export
+select t.as_service();
+set local session_replication_role = replica;                      -- a farmer's village typed another way (test only)
+update public.farmers set village = 'bansi' where id = t.farmer('02');
+set local session_replication_role = origin;
+select t.as_anon();
+select t.ok((select jsonb_array_length(j->'villages') = 2
+                    and (select (s->>'villages_n')::int from jsonb_array_elements(j->'journey') s where s->>'stage' = 'village_batch') = 2
+                    and jsonb_array_length(j->'journey'->0->'villages') = 2
+               from (select app.public_lot_journey((select code from seal)) j) x),
+            'E2.3 (61b): one page, one count: the heading, the batch line and the purchases line all say 2 villages');
+select t.as_user(t.u('03'));
+select t.ok((select pg_temp.cell(e, pg_temp.c('B'), 'villages') = '"bansi 60.0 %; Bansi 40.0 %"'::jsonb from (select app.export_journey(pg_temp.f('R'), 'shareable') e) x),
+            'E2.3 (61b): the export counts them the same way');
+
 -- C4 · the trace page: the scope's heading for the print, each step's parts and its closure --------------------------------
 select t.as_user(t.u('03'));
 select t.ok((select tr->'scope'->>'client' is not null and tr->'scope'->>'season' is not null

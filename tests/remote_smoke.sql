@@ -479,6 +479,8 @@ select 'export corrections',       case when to_regprocedure('app.stage_balance(
                                         or position('''purchases''' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
                                         or position('set the shelf life for this crop' in pg_get_functiondef('app.reconcile(footprints, scopes)'::regprocedure)) = 0
                                       then 'NOT OK (the mass balance, the export columns, the prices rule, the closure line, the public purchases line or the shelf-life rule are not as migration 61 left them)'
+                                      when position('count(distinct (fa.village, fa.district))' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
+                                      then 'NOT OK (push migration 61b: the public page counts a batch''s villages two ways)'
                                       else 'OK floor loss without by-products; closures as their own line; prices only where recorded; the mass balance per stage; one line for a batch''s purchases; Packing needs a shelf life' end
 union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
