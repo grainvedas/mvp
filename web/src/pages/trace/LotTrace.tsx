@@ -5,6 +5,8 @@
 // log. "Print / save as PDF" prints the shareable content only: a heading, page numbers, no person's name.
 // Migration 59 (Veda's brief of 19 Oct 2026): units on every reading (A3), the lab with its accreditation number (A5),
 // a step recorded and checked by one person marked (A2), "Practice (old data)" (A8).
+// Migration 61: the printed heading names client, crop, season and place (C4); each step's by-products and floor loss
+// (E2.2) and a lot closed as floor loss (E2.5) are shown.
 import { capturedAt } from '../../engine/values';
 import { ForwardPanel } from './Forward';
 import { Link, useParams } from 'react-router-dom';
@@ -33,10 +35,27 @@ export interface TraceStep {
   /** migration 59: the lab (A5) and "recorded and checked by one person" (A2) */
   lab?: { name?: string; accreditation_no?: string; report_no?: string; report_date?: string } | null;
   same_person?: boolean;
+  /** migration 61 (E2.2): what the record's kilograms became; (E2.5) its closure as floor loss */
+  parts?: { in: number; out: number; by_products: number; other: number; floor_loss: number; transit_in: number; transit_up: number } | null;
+  closure?: { kg: number; at: string; reason: string; by: string | null } | null;
 }
 export interface Trace { footprint_id: string; generated_at: string; steps: TraceStep[];
   /** migration 59: each reading's unit (A3); "practice_old_data" for a scope with records of before system batch codes (A8) */
-  units?: Record<string, string>; data_note?: string | null }
+  units?: Record<string, string>; data_note?: string | null;
+  /** migration 61 (C4): the scope's heading for the printed journey */
+  scope?: { client: string; crop: string; gi_tag: string | null; season: string; geography: string; state: string | null } | null }
+
+/** Pure (migration 61, C4): the printed journey's heading line, "Test Client UP · Kalanamak rice · KH26 · Bansi". */
+export const printScope = (s: Trace['scope'], t: (k: string, v?: Record<string, string | number>) => string) =>
+  !s ? '' : t('exp.print_scope', { client: s.client, crop: s.crop, season: s.season, place: [s.geography, s.state].filter(Boolean).join(', ') });
+
+/** Pure (migration 61, E2.2): the step's by-products and floor loss, "By-products 106 kg · Floor loss 3 kg" (nothing for
+ *  a step that keeps all it took in). */
+export function partsLine(p: TraceStep['parts'], stage: string, t: (k: string, v?: Record<string, string | number>) => string): string {
+  if (!p || stage === 'procurement' || stage === 'lot_inward') return '';
+  const byp = Number(p.by_products ?? 0), loss = Number(p.floor_loss ?? 0);
+  return [byp > 0 ? t('trace.byp', { kg: kg(byp) }) : '', loss !== 0 ? t('trace.floor_loss', { kg: kg(loss) }) : ''].filter(Boolean).join(' · ');
+}
 
 /** Pure (migration 59, A3): the readings with their units, "moisture 11.8 % · aflatoxin 1.5 ppb". */
 export function readingsLine(readings: Record<string, unknown> | null | undefined, units: Record<string, string> | undefined,
@@ -70,6 +89,7 @@ export function LotTrace() {
       <p className="muted small no-print"><Link to={`/records/${tr.footprint_id}`}>{t('trace.back')}</Link></p>
       <div className="print-only trace-print-head" data-testid="trace-print-head">
         <strong>GrainVeda · {t('trace.title', { code: last?.seal?.qr_code ?? last?.code ?? '' })}</strong>
+        {tr.scope && <span data-testid="trace-print-scope">{printScope(tr.scope, t)}</span>}
         <span>{t('exp.print_head', { at: dateTime(tr.generated_at) })}</span>
       </div>
       <h1>{t('trace.title', { code: last?.seal?.qr_code ?? last?.code ?? '' })}</h1>
@@ -89,7 +109,10 @@ export function LotTrace() {
               {s.grade && <Badge value="verified" label={`Grade ${s.grade}`} />}</div>
             <dl className="kv">
               {s.farmer && <><dt>{t('trace.farmer')}</dt><dd><span className="no-print">{s.farmer.name} · </span>{s.farmer.village} <span className="mono small">{s.farmer.code}</span></dd></>}
-              <dt>{t('trace.qty')}</dt><dd>{kg(s.qty_in_kg)} → {kg(s.qty_out_kg)}</dd>
+              <dt>{t('trace.qty')}</dt><dd>{kg(s.qty_in_kg)} → {kg(s.qty_out_kg)}
+                {partsLine(s.parts, s.stage, t) && <span className="small muted" data-testid="trace-parts"> · {partsLine(s.parts, s.stage, t)}</span>}</dd>
+              {s.closure && <><dt>{t('trace.closure_label')}</dt><dd data-testid="trace-closure">{t('trace.closure', { kg: kg(s.closure.kg), date: dateTime(s.closure.at) })}
+                <span className="no-print"> · {s.closure.by ?? '—'}</span> · “{s.closure.reason}”</dd></>}
               <dt>{t('trace.recorded')}</dt><dd>{dateTime(capturedAt(s).at)}<span className="no-print"> · {s.created_by ?? '—'}</span>
                 {capturedAt(s).sentLater && <span className="muted small"> · {t('record.sent_later', { at: dateTime(s.created_at) })}</span>}</dd>
               <dt>{t('trace.verified')}</dt><dd>{s.verified_at ? <>{dateTime(s.verified_at)}<span className="no-print"> · {s.verified_by ?? '—'}</span></> : '—'}

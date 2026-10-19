@@ -75,7 +75,7 @@ export function PackLabels() {
           </div>)}
         {p && what === 'packs' && !sheet && (
           <div className="card stack" data-testid="labels-make">
-            <p>{t('pk.batch_line', { batch: p.batch_code ?? '—', n: p.packed })}{p.best_before ? ` · ${t('pk.best_before', { date: date(p.best_before) })}` : ''}</p>
+            <p>{t('pk.batch_line', { batch: p.batch_code ?? '—', n: p.packed })}{p.packed > 0 ? ` · ${p.best_before ? t('pk.best_before', { date: date(p.best_before) }) : t('pk.best_before_old')}` : ''}</p>
             {reprint && <div className="alert warn" data-testid="reprint-note">{t('pk.reprint_note', { n: p.prints })}</div>}
             {reprint && <Field label={`${t('pk.reprint_why')} *`} htmlFor="pk-why" hint={t('pk.min5')}>
               <input id="pk-why" value={why} maxLength={300} onChange={(e) => setWhy(e.target.value)} data-testid="reprint-why" /></Field>}
@@ -172,7 +172,7 @@ function Sheet({ sheet, page, setPage }: { sheet: LabelSheet; page: number; setP
               {sheet.gi_tag && sheet.gi_status === 'gi' && <div className="label-gi">{giLabel(sheet.gi_tag, t)}</div>}
               <div className="label-small">{seasonName(sheet.season)} · {sheet.geography}</div>
               <div className="label-small">{kg(pk.size_kg)} · {t('pk.packed_on', { date: date(pk.packed_on) })}</div>
-              {pk.best_before && <div className="label-small">{t('pk.best_before', { date: date(pk.best_before) })}</div>}
+              <div className="label-small">{pk.best_before ? t('pk.best_before', { date: date(pk.best_before) }) : t('pk.best_before_old')}</div>
               <div className="label-code mono">{pk.serial}</div>
               <div className="label-small">{t('pk.scan')}</div>
             </div>

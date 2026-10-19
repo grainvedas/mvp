@@ -51,8 +51,10 @@ describe('C2 · readable columns, in the reader\'s language', () => {
 describe('C4 · each copy says what it is', () => {
   it('the internal copy: for the client and the scope\'s people only, not to be forwarded, in the Audit log', () => {
     const f = footerLines(table(), T, 'https://example.test');
-    expect(f[0]).toMatch(/^INTERNAL COPY: .*For Test Client UP .* Do not forward it\. Made on 2026-10-19 18:30 IST\.$/);
-    expect(f[1]).toMatch(/Audit log/);
+    // migration 61: the brief's own words first
+    expect(f[0]).toBe('Internal: contains personal and commercial data. Do not forward.');
+    expect(f[1]).toMatch(/^For Test Client UP .* Made on 2026-10-19 18:30 IST\.$/);
+    expect(f[2]).toMatch(/Audit log/);
   });
   it('the shareable copy: no names, no prices; where to check a lot', () => {
     const f = footerLines(table({ copy: 'shareable' }), H, 'https://example.test');
@@ -67,9 +69,13 @@ describe('C4 · each copy says what it is', () => {
 
 describe('C1/C3 · the season: one Excel file, three sheets', () => {
   const season: SeasonExport = { ...table({ copy: 'shareable', columns: ['code', 'stage'], rows: [['X-P-0001', 'procurement']] }), kind: 'season',
-    summary: [{ stage: 'procurement', pos: 1, records: 2, pending: 0, verified: 2, kg_in: 300, kg_out: 300, loss_kg: 0 },
-              { stage: 'milling', pos: 2, records: 1, pending: 0, verified: 1, kg_in: 199, kg_out: 180, loss_kg: 19 }],
-    totals: { farmers: 2, kg_in: 300, gi_kg: 200, gi_pct: 66.7, farm_verified_kg: 300, loss_kg: 19, sealed_lots: 0, packs: 150, open_flags: 0, records: 3 },
+    // migration 61: the summary is the stage's mass balance
+    summary: [{ stage: 'procurement', pos: 1, records: 2, pending: 0, verified: 2, kg_in: 300, kg_out: 300, by_products_kg: 0, other_kg: 0, floor_loss_kg: 0,
+                transit_loss_kg: 0, closed_kg: 0, handed_on_kg: 199, left_kg: 101, difference_kg: 0, balanced: true, last: false },
+              { stage: 'milling', pos: 2, records: 1, pending: 0, verified: 1, kg_in: 199, kg_out: 180, by_products_kg: 0, other_kg: 0, floor_loss_kg: 19,
+                transit_loss_kg: 0, closed_kg: 0, handed_on_kg: 0, left_kg: 180, difference_kg: 0, balanced: true, last: false }],
+    totals: { farmers: 2, kg_in: 300, gi_kg: 200, gi_pct: 66.7, farm_verified_kg: 300, by_products: { broken_kg: 0, husk_kg: 0, bran_kg: 0, reject_kg: 0, foreign_matter_kg: 0 },
+              by_products_kg: 0, floor_loss_kg: 19, transit_loss_kg: 0, closed_kg: 0, differences: 0, sealed_lots: 0, packs: 150, open_flags: 0, records: 3 },
     batches: [{ batch_code: 'TCUP-KNM-KH26-B0004', packs: 150, void: 0, first: 'TCUP-KNM-KH26-B0004-0001', last: 'TCUP-KNM-KH26-B0004-0150' }] };
   it('heading, summary (stages, the season\'s totals, batches with serial ranges), records; each ends with the footer', () => {
     const { sheets, names } = seasonSheets(season, T);
@@ -78,9 +84,9 @@ describe('C1/C3 · the season: one Excel file, three sheets', () => {
     expect(text(sheets[0])).toContain('Client|Test Client UP');
     expect(text(sheets[0])).toContain('Copy|Shareable copy');
     expect(text(sheets[0])).toMatch(/Data note\|Practice \(old data\)/);
-    expect(text(sheets[1])).toContain('2. ' + (en['stage.milling'] ?? 'Milling') + '|1|0|1|199|180|19');
+    expect(text(sheets[1])).toContain('2. ' + (en['stage.milling'] ?? 'Milling') + '|1|0|1|199|180|0|0|19|0|0|0|180|0');
     expect(text(sheets[1])).toContain('From the GI area (kg, share)|200|66.7 %');
-    expect(text(sheets[1])).toContain('TCUP-KNM-KH26-B0004|150|0|TCUP-KNM-KH26-B0004-0001|TCUP-KNM-KH26-B0004-0150');
+    expect(text(sheets[1])).toContain('TCUP-KNM-KH26-B0004|150|0|TCUP-KNM-KH26-B0004-0001|TCUP-KNM-KH26-B0004-0150');   // by size, best before: none given
     for (const s of sheets) expect(text(s).trim().split('\n').at(-1)).toMatch(/verify/);
     expect(seasonSheets(season, H).names).toEqual(['शीर्षक', 'सारांश', 'रिकॉर्ड']);
   });

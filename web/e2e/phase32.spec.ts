@@ -43,14 +43,14 @@ test('the journey and the season: a shareable copy without names, an internal co
   expect(csv).not.toContain('Mohan Lal');
   expect(csv).not.toContain(cmName);
   expect(csv).not.toContain('Entered values');
-  expect(csv).toMatch(/Shareable copy made by GrainVeda on .* IST\. It holds no personal names and no prices\./);
+  expect(csv).toMatch(/Shareable copy made by GrainVeda on .* IST\. No prices, no farmers' names or phones, no internal IDs\./);   // migration 61: the brief's words
   dl = page.waitForEvent('download');
   await page.getByTestId('trace-csv-internal').click();
   csv = readFileSync((await (await dl).path())!, 'utf8');
   expect(csv).toContain('Mohan Lal');
   expect(csv).toContain('Recorded by');
-  expect(csv.split('\r\n')[0].replace(/^﻿/, '').split(',').at(-1)).toBe('Entered values (raw)');
-  expect(csv).toMatch(/INTERNAL COPY: .* Do not forward it\./);
+  expect(csv.split('\r\n')[0].replace(/^﻿/, '').split(',').at(-1)).toBe('Raw values (raw_values)');                  // migration 61 (C1.2)
+  expect(csv).toContain('Internal: contains personal and commercial data. Do not forward.');
 
   // the season, internal, as one Excel file
   await page.goto(`/dashboard/${S}`);

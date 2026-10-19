@@ -139,13 +139,15 @@ grant select on cn to anon, authenticated;
 select t.as_anon();
 create temp table pp as select app.public_pack((select code from bc) || '-0001') as j;
 select t.ok((select j = jsonb_build_object('released', false, 'crop', jsonb_build_object('name', (select name from cn)),
-                       'pack', jsonb_build_object('serial', (select code from bc) || '-0001', 'batch_code', (select code from bc), 'packed_on', (j->'pack'->>'packed_on'), 'void', false, 'copy_warning', false))
+                       'pack', jsonb_build_object('serial', (select code from bc) || '-0001', 'batch_code', (select code from bc), 'packed_on', (j->'pack'->>'packed_on'), 'void', false, 'copy_warning', false,
+                                                  'best_before', (j->'pack'->>'best_before')))                     -- migration 61 (E2.4)
                     and j->'pack'->>'packed_on' is not null from pp),
-            'A1: a pack before release: the crop, the batch code and the date packed, nothing else');
+            'A1: a pack before release: the crop, the batch code, the date packed and its best-before date, nothing else');
 select t.as_user(t.u('09')); select app.void_pack((select code from bc) || '-0003', 'pouch torn at the store (test)');
 select t.as_anon();
 select t.ok((select j = jsonb_build_object('released', false, 'crop', jsonb_build_object('name', (select name from cn)),
-                       'pack', jsonb_build_object('serial', (select code from bc) || '-0003', 'batch_code', (select code from bc), 'packed_on', (j->'pack'->>'packed_on'), 'void', true, 'copy_warning', false))
+                       'pack', jsonb_build_object('serial', (select code from bc) || '-0003', 'batch_code', (select code from bc), 'packed_on', (j->'pack'->>'packed_on'), 'void', true, 'copy_warning', false,
+                                                  'best_before', null))                                              -- migration 61: none on a voided pack
                     from (select app.public_pack((select code from bc) || '-0003') as j) x),
             'A1: a voided pack says it is voided, and nothing more');
 select t.as_service();

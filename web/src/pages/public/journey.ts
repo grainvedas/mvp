@@ -24,6 +24,10 @@ export interface JourneyStep {
   same_person?: boolean;
   /** migration 60 (A5 on the public page): the lab of a QC step, its name and accreditation number */
   lab?: { name: string; accreditation_no: string | null } | null;
+  /** migration 61 (E2.3): a collection batch: how many villages; its purchases step ("purchases"): farmers, purchases and
+   *  the villages' shares (never a name) */
+  villages_n?: number; farmers_n?: number; purchases_n?: number;
+  villages?: { village: string; district: string; farmers: number; qty_kg: number; share_pct: number }[];
 }
 export interface MarketLimit { param: string; operator: string; limit: number | [number, number] | string | boolean | null }
 export interface Journey {
@@ -55,7 +59,8 @@ export interface PackView { serial: string; batch_code: string; size_kg: number;
   /** migration 58: the carton it was packed in (its code only) */
   carton?: string | null }
 /** migration 59 (A1): before release the crop, the batch code and the date packed, nothing else */
-export interface PackBeforeRelease { pack: { serial: string; batch_code: string; packed_on: string; void?: boolean; copy_warning?: boolean }; released: false; crop: { name: string } }
+export interface PackBeforeRelease { pack: { serial: string; batch_code: string; packed_on: string; void?: boolean; copy_warning?: boolean;
+  /** migration 61 (E2.4): on the label, so on the page too; null for a pack of before (absent on older servers) */ best_before?: string | null }; released: false; crop: { name: string } }
 export type PublicPack = (Journey & { pack: PackView; released: true }) | PackBeforeRelease;
 export const loadPack = (serial: string) => rpc<PublicPack | null>('public_pack', { p_serial: serial });
 export interface ScanCount { counted?: boolean; copy_warning?: boolean }

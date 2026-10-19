@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
-import { exportSeason, mayInternalCopy, seasonXlsx, type Copy } from '../../lib/exports';
+import { exportSeason, mayInternalCopy, seasonXlsx, stageBalance, type Copy, type StageBalance } from '../../lib/exports';
 import { date, dateTime, humanise, kg } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Loading } from '../../shell/ui';
 
@@ -34,6 +34,33 @@ export function StageDots({ rows, stageLabel }: { rows: PipeRow[]; stageLabel: (
   );
 }
 
+/** Migration 61 (E2.5, Veda's brief of 19 Oct 2026): each stage's mass balance. Came in = went on + by-products (with
+ *  samples and water) + floor loss (with transit) + closed as floor loss + left; a difference shows in red. */
+export function MassBalance({ rows, stageLabel }: { rows: StageBalance[]; stageLabel: (s: string) => string }) {
+  const { t } = useI18n();
+  // one block per stage (a table of eight columns does not fit a phone): the stage and its verdict, then the figures
+  return (
+    <ul className="balance" data-testid="mass-balance">
+      {rows.map((b) => {
+        const n = (k: string, v: number) => t(k, { kg: kg(v) });
+        const parts = [
+          n('dash.bal_in', b.kg_in), n('dash.bal_on', b.handed_on_kg),
+          Number(b.by_products_kg) ? n('dash.bal_byp', b.by_products_kg) : '', Number(b.other_kg) ? n('dash.bal_other', b.other_kg) : '',
+          Number(b.floor_loss_kg) ? n('dash.bal_loss', b.floor_loss_kg) : '', Number(b.transit_loss_kg) ? n('dash.bal_transit', b.transit_loss_kg) : '',
+          Number(b.closed_kg) ? n('dash.bal_closed', b.closed_kg) : '', n('dash.bal_left', b.left_kg),
+        ].filter(Boolean);
+        return (
+          <li key={b.stage} data-testid="balance-row" data-stage={b.stage} data-balanced={b.balanced ? 'yes' : 'no'}>
+            <div className="row"><strong>{b.pos}. {stageLabel(b.stage)}</strong>
+              {b.balanced ? <Badge value="verified" label={t('exp.s.balanced')} />
+                : <strong className="text-danger" data-testid="balance-diff">{t('dash.balance_diff', { kg: kg(b.difference_kg) })}</strong>}</div>
+            <div className="small muted num" data-testid="balance-figures">{parts.join(' · ')}</div>
+          </li>);
+      })}
+    </ul>
+  );
+}
+
 export function ScopeDashboard() {
   const { scopeId = '' } = useParams();
   const { t } = useI18n();
@@ -48,6 +75,7 @@ export function ScopeDashboard() {
     .select('id,text,status,created_at,footprint_id,footprints!inner(footprint_code,stage_type,scope_id)')
     .eq('footprints.scope_id', scopeId).order('created_at', { ascending: false }))) as unknown as FlagRow[], [scopeId]);
   const activity = useAsync(() => rpc<ActivityRow[]>('scope_activity', { p_scope: scopeId, p_days: 14 }), [scopeId]);
+  const balance = useAsync(() => stageBalance(scopeId), [scopeId]);
   const exp = useAction();
   // migration 59 (A8): a scope with records of before system batch codes says so here and in its export
   const note = useAsync(async () => ((await q(supabase.from('scopes').select('data_note').eq('id', scopeId))) as unknown as { data_note: string | null }[])[0]?.data_note ?? null, [scopeId]);
@@ -74,6 +102,13 @@ export function ScopeDashboard() {
         </div>
         {internal.data === true && <p className="small muted no-print" data-testid="season-copies">{t('exp.copies_note')}</p>}
         <ErrorBox error={exp.error} />
+      </div>
+
+      <div className="card">
+        <h2>{t('dash.balance')}</h2>
+        {balance.loading ? <Loading /> : <ErrorBox error={balance.error} onRetry={balance.reload} />}
+        {balance.data && <MassBalance rows={balance.data} stageLabel={stageLabel} />}
+        <p className="small muted">{t('exp.s.balance_note')}</p>
       </div>
 
       <div className="card">

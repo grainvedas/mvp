@@ -112,7 +112,8 @@ test('a pack before its lot is released: "Packed, not yet released", the crop, t
     const text = await bp.getByTestId('public-pack').textContent();
     expect(text).toContain(pack.serial);
     expect(text).toContain(pack.batch_code);
-    expect(text).not.toMatch(/Sold by|Best before|Suresh|scans|Moisture/);
+    expect(text).not.toMatch(/Sold by|Suresh|scans|Moisture/);
+    expect(text).toContain('Best before');                                         // migration 61 (E2.4): it is on the label too
     await expectNoSideScroll(bp);
   }
   if (SHOTS) await bp.screenshot({ path: `${SHOTS}/p31-pack-not-released.png`, fullPage: true });

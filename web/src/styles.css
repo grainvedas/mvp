@@ -450,6 +450,8 @@ button.small-btn { min-height: 36px; padding: 2px 10px; font-size: .85rem; font-
 .confirm { border: 2px solid var(--yellow-border); background: var(--yellow-bg); }
 .confirm h3 { margin-top: 0; }
 .gap { color: var(--red); font-weight: 700; }
+.text-danger { color: var(--red); font-weight: 700; }   /* migration 61: a mass-balance difference */
+.balance { list-style: none; margin: 0; padding: 0; } .balance > li { padding: 8px 0; border-bottom: 1px solid var(--border); } .balance > li:last-child { border-bottom: 0; }
 tr.gap-row > td:first-child { border-left: 4px solid var(--red); }
 /* the joiner's checklist: big rows for a thumb */
 .checklist { list-style: none; padding: 0; margin: 0; }

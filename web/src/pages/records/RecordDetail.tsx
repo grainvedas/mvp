@@ -461,7 +461,8 @@ function PacksPanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: boolean
       <dl className="kv">
         <dt>{t('pk.batch')}</dt><dd className="mono" data-testid="batch-code">{p.batch_code ?? '—'}</dd>
         <dt>{t('pk.packs')}</dt><dd data-testid="packs-count">{t('pk.counts', { packed: p.packed, void: p.void })}</dd>
-        {p.best_before && <><dt>{t('pk.best_before_label')}</dt><dd>{date(p.best_before)}</dd></>}
+        {/* migration 61 (E2.4): packs of before without a best-before date say so */}
+        {p.packed > 0 && <><dt>{t('pk.best_before_label')}</dt><dd data-testid="packs-best-before">{p.best_before ? date(p.best_before) : t('exp.bb_old')}</dd></>}
         <dt>{t('pk.prints')}</dt><dd>{p.prints}</dd>
       </dl>
       {mayAct && p.packed > 0 && <p><Link className="btn" to={`/records/${r.footprint.id}/labels`} data-testid="print-labels">{t(p.prints > 0 ? 'pk.reprint' : 'pk.print')}</Link></p>}

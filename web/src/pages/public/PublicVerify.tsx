@@ -10,6 +10,9 @@
 // checked by the same person."); A3 each reading's unit comes from the server; A1 a pack serial opened here before its
 // lot is released shows "Packed, not yet released" (crop, batch code, date packed); "Code not found" only for a code
 // that is neither a sealed lot nor a pack.
+// Migration 61 (E2.3/E2.4): a collection batch's purchases as one line ("Bought from 2 farmers: 250 kg", the villages'
+// shares) and "2 farmers from 2 villages"; the best-before date on every pack page ("not recorded (old data)" for packs
+// of before).
 import { useEffect, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
@@ -128,7 +131,7 @@ export function Icon({ name, size = 20, width = 1.8 }: { name: keyof typeof P | 
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{P[name] ?? P.doc}</svg>;
 }
 const STAGE_ICON: Record<string, string> = {
-  procurement: 'wheat', lot_inward: 'truck', village_batch: 'truck', warehouse: 'store', cold_storage: 'store',
+  procurement: 'wheat', purchases: 'wheat', lot_inward: 'truck', village_batch: 'truck', warehouse: 'store', cold_storage: 'store',
   milling: 'gear', sorting: 'gear', grading: 'gear', drying: 'gear', popping: 'gear', cleaning: 'gear', blanching: 'gear',
   qc: 'flask', packing: 'box', commercial: 'doc', shipment: 'truck', qr_activation: 'check',
 };
@@ -229,9 +232,10 @@ function Step({ s, last }: { s: JourneyStep; last: boolean }) {
       <div className="pv-step-body">
         <span className="pv-meta">{meta}</span>
         <strong className="pv-step-title">{t(`pv.stage_${s.stage}`, undefined, pretty(s.stage))}</strong>
-        <span className="pv-detail">{[s.qty_out_kg && !gate ? kg(s.qty_out_kg) : '', s.grade ? `Grade ${s.grade}` : ''].filter(Boolean).join(' · ')}</span>
+        {s.stage !== 'purchases' && <span className="pv-detail">{[s.qty_out_kg && !gate ? kg(s.qty_out_kg) : '', s.grade ? `Grade ${s.grade}` : ''].filter(Boolean).join(' · ')}</span>}
+        {s.stage === 'purchases' && <PurchasesLine s={s} />}
         {s.farmer && <span className="pv-detail" data-testid="pv-grown-in">{t('pv.grown_in', { place: farmPlace(s.farmer) })}</span>}
-        {s.farmers && s.farmers.length > 0 && <span className="pv-detail">{t('pv.farmers_of', { n: s.farmers.length, village: s.village ?? '' })}</span>}
+        {s.farmers && s.farmers.length > 0 && <span className="pv-detail" data-testid="pv-batch-farmers">{farmersFrom(s, t)}</span>}
         {s.source && <span className="pv-detail">{t('pv.from_source', { name: s.source.name })}</span>}
         {typeof s.days_in_storage === 'number' && <span className="pv-detail" data-testid="pv-storage">{t('pv.days_in_storage', { n: s.days_in_storage })}</span>}
         {s.batch_code && <span className="pv-detail">{t('pv.batch')} <span className="mono">{s.batch_code}</span></span>}
@@ -242,6 +246,25 @@ function Step({ s, last }: { s: JourneyStep; last: boolean }) {
       </div>
     </li>
   );
+}
+
+/** Pure (migration 61, E2.3): "2 farmers from 2 villages", the real counts (the server's count of villages; from the
+ *  farmers' lines on an older server). */
+export function farmersFrom(s: Pick<JourneyStep, 'farmers' | 'villages_n'>, t: (k: string, v?: Record<string, string | number>) => string): string {
+  const n = s.farmers?.length ?? 0;
+  const v = s.villages_n ?? new Set((s.farmers ?? []).map((f) => `${f.village}|${f.district}`)).size;
+  return t(v === 1 ? 'pv.farmers_from_1v' : 'pv.farmers_from', { n, v });
+}
+
+/** Migration 61 (E2.3): all the purchases of a collection batch as one line, with the villages' shares (never a name). */
+function PurchasesLine({ s }: { s: JourneyStep }) {
+  const { t } = useI18n();
+  const n = s.farmers_n ?? 0;
+  return (<>
+    <span className="pv-detail" data-testid="pv-bought-from">{t(n === 1 ? 'pv.bought_from_1' : 'pv.bought_from', { n, kg: kg(s.qty_out_kg) })}</span>
+    {(s.villages ?? []).length > 0 && <span className="pv-detail" data-testid="pv-bought-villages">
+      {(s.villages ?? []).map((v) => `${v.village} ${Number(v.share_pct).toLocaleString('en-IN')} %`).join(' · ')}</span>}
+  </>);
 }
 
 function PackAlerts({ pack, warn }: { pack: PackView; warn: boolean }) {
@@ -277,7 +300,8 @@ function PackCard({ pack, lot }: { pack: PackView; lot?: Journey['packs'] }) {
         <dt>{t('pv.batch')}</dt><dd className="mono">{pack.batch_code}</dd>
         {pack.carton && <><dt>{t('pv.carton')}</dt><dd className="mono" data-testid="pv-carton">{pack.carton}</dd></>}
         <dt>{t('pv.packed')}</dt><dd>{pvDate(pack.packed_on)}</dd>
-        {pack.best_before && <><dt>{t('pv.best_before_label')}</dt><dd>{pvDate(pack.best_before)}</dd></>}
+        {/* migration 61 (E2.4): always; a pack of before without one says so */}
+        <dt>{t('pv.best_before_label')}</dt><dd data-testid="pv-best-before">{pack.best_before ? pvDate(pack.best_before) : t('pv.bb_old')}</dd>
         {pack.seller && <><dt>{t('pv.sold_by')}</dt><dd>{pack.seller}</dd></>}
       </dl>
       {lot && lot.n > 0 && <p className="small pv-muted" data-testid="pv-packs" style={{ margin: 0 }}>{t('pv.packs', { n: lot.n, on: pvDate(lot.packed_on) })}</p>}
@@ -313,6 +337,9 @@ export function PackNotReleased({ p, warn = false }: { p: PackBeforeRelease; war
           <dl className="pv-kv">
             <dt>{t('pv.batch')}</dt><dd className="mono">{p.pack.batch_code}</dd>
             <dt>{t('pv.packed')}</dt><dd>{pvDate(p.pack.packed_on)}</dd>
+            {/* migration 61 (E2.4): the best-before date is on the label, so here too (not on a voided pack) */}
+            {!p.pack.void && 'best_before' in p.pack && <><dt>{t('pv.best_before_label')}</dt>
+              <dd data-testid="pv-best-before">{p.pack.best_before ? pvDate(p.pack.best_before) : t('pv.bb_old')}</dd></>}
           </dl>
         </section>
       </div>

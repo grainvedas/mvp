@@ -2832,3 +2832,45 @@ Veda's combined brief of 19 Oct 2026, Part C ("release 2"). Migration `202611040
 - Not proved here: printing (the heading and page numbers use the browser's `@page` margin boxes: Chrome 131 and later;
   an older browser prints without page numbers), the Hindi Excel file opened in Excel (the unit test checks the words),
   the staging run.
+
+## 19 October 2026, 21:10 IST: Phase 1 release 2 on staging (`staging-exports.cmd`)
+
+Veda ran it. S0 (60 waiting, 168 app and function files the tested ones, the seven functions current), S1 pushed
+`20261104000100_exports.sql`, S1b `functions=new granted=yes internal_rule=yes audit=yes public_lab=yes`, S2 smoke 57/58
+(statement logging standing), the new rules in place and the change log intact, one client and another `leaks=0 people=7
+tables=44 calls=12040 own_rows=2593 clients=3`, `exports_logged=0 same_file_reasons=1 packs=813 ledger_head=287`, ledger
+audit NO FINDINGS (287 blocks, 68 records, 6 seals, 14 evidence files), no login without a person, functions current; S3
+pushed 9e24527 (29 files). `RESULT: EXPORTS ON STAGING`. Record: `release-evidence\staging-exports-20261019-211030.log`.
+Vercel had the new app at 21:14 IST. Run sheet row 7 (Claude, Chrome, no sign-in): `/verify/GV-8B1E15E15317` says
+"Tested by Practice lab (test) (accreditation TC-0000)." Rows 1–6: not yet.
+
+## 19 October 2026, late night: release 2's corrections, Phase 1 release 3 (migration 61, open item 57), local stack
+
+Veda's combined brief of 19 Oct 2026: Part C checked word by word, and the shown parts of E2.2 to E2.5 ("do what is left
+as per best"). Migration `20261105000100_export_corrections.sql`, the app; run sheet `docs/RUNSHEET_export_corrections.md`.
+- Database tests: every `tests/NN_*.sql` on a template built from the 64 migrations and the seeds (seed 09 now gives the
+  demo crops a shelf life): **2,388 checks, no failure**; the new `tests/56_export_corrections.sql` 34 checks (a
+  collection batch of two farmers with 4 kg closed: the mass balance per stage, the closure line, the batch's villages,
+  the season's totals, the public page's purchases line, the trace's heading; milling's by-products and floor loss
+  (3 kg, not 109); names not ids; packs by size; a column per field; empty columns left out; the shareable copy names
+  staff and the buyer, never the farmer, agent, driver's phone, price or raw values; prices in the internal copy only
+  with "Record price"; Packing refused without a shelf life (the material named); best-before on the pack page and
+  "not recorded" for packs of before; a forced 5 kg difference shown). `tests/55`, `54`, `08` brought to the new rules.
+  Negative controls: **15 of 15 caught**. `tests/run_local.sh`: ALL TESTS PASSED. The smoke check on the fresh build: 59
+  rows, the new `export corrections` OK.
+- Unit tests 700, all passed (`web/tests/release61.test.tsx` 11; `release60.test.tsx` brought to the new Summary and
+  footer); `tsc` clean.
+- End to end at 527 px on the local stack, the whole suite: 97 passed, 2 failed on purpose-changed words (`phase2`
+  expected "2 farmers of Naugarh, Bansi", `phase31` expected no best-before before release); both brought to the brief's
+  words and passed on a fresh demo stack (6 of 6 with the rest of their files). New `e2e/phase33.spec.ts`: two farmers
+  of two villages, a batch re-weighed 2 kg less, QC takes 195 kg, 3 kg closed, sealed; the trace shows the closure and
+  the batch's floor loss and carries the printed heading; the shareable CSV has the "Closed as floor loss" line and no
+  farmer; the dashboard's balance for the batch "Balanced"; the public page "Bought from 2 farmers: 200 kg", "Bansi 50 % ·
+  Domariyaganj 50 %", "2 farmers from 2 villages", "Collection Batch". The built app: 14 passed. `remote_rls.mjs --t1`:
+  REMOTE RLS PASSED. `remote_create_user.mjs`: CREATE-USER PASSED. The first day from nothing: 1 passed.
+- Restore drill: after the whole suite, HR documents 4 of 5 (as before); on a fresh stack after `phase26`, `phase28`,
+  `phase32`, `phase33`: **RESTORE DRILL PASSED**.
+- Looked at at 527 px: the dashboard's balance (one block per stage; a first version as a table scrolled sideways inside
+  its card and was changed), the trace and its print (names hidden, the closure's reason shown), the public page.
+- Not proved here: the staging run; the Hindi Excel file opened in Excel (the unit tests check the words); what S1b will
+  list as crops without a shelf life on staging.

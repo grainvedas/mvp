@@ -207,7 +207,8 @@ test('Village Batch: two farmer lots verified, batched, tested, sealed; public p
   await signIn(page, P.qr); const code = await seal(page, 'Bansi batch', q);
   await page.goto(`/verify/${code}`);
   const pub = page.getByTestId('public-journey');
-  await expect(pub).toContainText(/2 farmers of (Naugarh, Bansi|Bansi, Naugarh)/);   // migration 52: the villages from the lots
+  await expect(pub).toContainText('2 farmers from 2 villages');                     // migration 61 (E2.3): the real counts
+  await expect(pub).toContainText('Bought from 2 farmers: 282 kg');                  // both purchases, one line
   // migration 50 (Part D): each farmer's village and share, never the name
   await expect(pub).toContainText('Bansi, Siddharthnagar');
   await expect(pub).toContainText('Naugarh');

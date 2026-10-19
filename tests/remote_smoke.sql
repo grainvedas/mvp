@@ -468,6 +468,19 @@ select 'exports',                  case when to_regprocedure('app.export_journey
                                       then 'NOT OK (the exports, who takes the internal copy, their Audit line or the public page''s lab are not as migration 60 left them)'
                                       else 'OK journey and season exports made on the server, shareable or internal, each in the Audit log; the lab on the public page' end
 union all
+select 'export corrections',       case when to_regprocedure('app.stage_balance(uuid)') is null or to_regprocedure('app.record_parts(footprints)') is null
+                                      then 'MISSING (push migration 61)'
+                                      when not has_function_privilege('authenticated', 'app.stage_balance(uuid)', 'execute')
+                                        or has_function_privilege('anon', 'app.stage_balance(uuid)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.stage_balance_of(uuid)', 'execute')
+                                        or position('raw_values' in pg_get_functiondef('app.export_record(uuid, boolean, numeric)'::regprocedure)) = 0
+                                        or position('v_price' in pg_get_functiondef('app.export_record(uuid, boolean, numeric)'::regprocedure)) = 0
+                                        or position('floor_loss_closure' in pg_get_functiondef('app.export_table(uuid[], boolean, jsonb, text)'::regprocedure)) = 0
+                                        or position('''purchases''' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
+                                        or position('set the shelf life for this crop' in pg_get_functiondef('app.reconcile(footprints, scopes)'::regprocedure)) = 0
+                                      then 'NOT OK (the mass balance, the export columns, the prices rule, the closure line, the public purchases line or the shelf-life rule are not as migration 61 left them)'
+                                      else 'OK floor loss without by-products; closures as their own line; prices only where recorded; the mass balance per stage; one line for a batch''s purchases; Packing needs a shelf life' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

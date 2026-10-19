@@ -412,11 +412,16 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
 - **Exports are made on the server, in a shareable or an internal copy** (migration 60, Veda's brief of 19 Oct 2026,
   Part C). The journey and the season come only from `app.export_journey` and `app.export_season`; the browser writes
   down what they return (`lib/exports.ts`: the columns' names in the reader's language, the values' words, the footer)
-  and never builds an export from what the screens read. A shareable copy has no person's or farmer's name, no buyer, no
-  price, no payment reference and no raw saved values: a new column that could carry one goes in the internal list only
-  (`internal()` in the migration's generator). The internal copy is for `app.may_internal_copy` (the scope's people and
-  the client's own login); every export writes its Audit line in the same call. A new column needs its `exp.c.*` words
-  (EN and HI) and a case in `tests/55_exports.sql`.
+  and never builds an export from what the screens read. Since migration 61 (the brief's words) a shareable copy has no
+  price, no payment reference, no farmer's name or phone, no agent, no driver's phone, no id and no raw values; staff and
+  buyers are named. A new column that could carry one of those goes in the internal-only list of `app.export_table` (and
+  is added in `app.export_record` under `p_internal`); a price only under `v_price` (the scope's "Record price"). The
+  internal copy is for `app.may_internal_copy` (the scope's people and the client's own login); every export writes its
+  Audit line in the same call. A new column needs its `exp.c.*` words (EN and HI) and a case in
+  `tests/56_export_corrections.sql`. **Kilograms add up** (migration 61): a stage's by-products, samples and water are
+  never floor loss (`app.record_parts`, one rule for both exports, the journey page and `app.stage_balance`); a new
+  stage or a new worked-out by-product goes there first. A lot closed as floor loss is its own line; Packing needs the
+  crop's shelf life for the pack's material.
 - **Packs go in cartons; an order sets them aside; Reports to is a rule** (migration 58, Veda 16 Oct 2026, G24). A
   carton is made only by the packing save (`app.make_cartons` from `app.make_packs`, when the pack type has
   `packs_per_carton`); never insert, delete or renumber one; it is opened only by `app.void_pack`. What an order takes is

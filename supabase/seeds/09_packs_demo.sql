@@ -51,3 +51,8 @@ begin
     end if;
   end loop;
 end $seed54$;
+
+-- Migration 61 (E2.4, Veda's brief of 19 Oct 2026): Packing needs the crop's shelf life for the pack's material (the State
+-- Manager sets it). The demo crops get one: 12 months, 9 in a jute bag. A crop added later without one cannot be packed.
+update public.crops set shelf_life_days = 365, shelf_life_by_material = coalesce(shelf_life_by_material, '{}'::jsonb) || '{"jute": 270}'::jsonb
+ where shelf_life_days is null;

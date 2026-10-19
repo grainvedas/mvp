@@ -1,4 +1,5 @@
--- Migration 60 (Phase 1, release 2 of Veda's combined brief, 19 Oct 2026, Part C: the exports):
+-- Migration 60 (Phase 1, release 2 of Veda's combined brief, 19 Oct 2026, Part C: the exports); migration 61 corrected it
+-- (the shareable copy names staff, not farmers; prices only where the scope records them; floor loss without by-products):
 --   C1  the journey and the season are made on the server, in a shareable and an internal copy
 --   C2  readable columns, a reading per column, codes not ids; the raw saved values only in the internal copy, last
 --   C3  shares, GI and farm-verified, batch, packs and serial range, the lab, the same-person mark, the loss on the floor
@@ -25,6 +26,7 @@ create or replace function pg_temp.cell(e jsonb, p_code text, p_col text) return
    where r->(select (o - 1)::int from jsonb_array_elements_text(e->'columns') with ordinality c(k, o) where k = 'code') = to_jsonb(p_code) $$;
 grant execute on all functions in schema pg_temp to authenticated, anon;
 set local app.change_path = 'test setup';
+update public.scopes set record_price = true where id = t.scope('05');      -- migration 61 (C1.3): prices only where the scope records them
 
 with r as (insert into public.labs (state_id, name, accreditation_no, kind, location)
            values ('00000000-0000-4000-8000-000000000001', 'Gorakhpur Grain Lab', 'TC-5521', 'external', 'Gorakhpur') returning id)
@@ -45,7 +47,7 @@ insert into fx select 'Q', pg_temp.ins(t.scope('05'), 'qc', pg_temp.f('P'), t.u(
   jsonb_build_object('qty_kg', 200, 'sample_qty_kg', 1, 'readings', jsonb_build_object('moisture_pct', 11.8, 'broken_pct', 2, 'foreign_matter_pct', 0.2),
                      'lab_id', pg_temp.f('LAB'), 'report_no', 'GGL/2026/155', 'report_date', ((now() at time zone 'Asia/Kolkata')::date)::text, 'sample_id', 'S-55'));
 select t.as_user(t.u('08')); select app.verify_footprint(pg_temp.f('Q'));
-insert into fx select 'M', pg_temp.ins(t.scope('05'), 'milling', pg_temp.f('Q'), t.u('08'), '{"input_kg":199,"head_rice_kg":180,"broken_kg":5,"husk_kg":10,"bran_kg":4}');
+insert into fx select 'M', pg_temp.ins(t.scope('05'), 'milling', pg_temp.f('Q'), t.u('08'), '{"input_kg":199,"head_rice_kg":170,"broken_kg":5,"husk_kg":15,"bran_kg":6}');
 select t.as_user(t.u('09')); select app.verify_footprint(pg_temp.f('M'));
 insert into fx select 'K', pg_temp.ins(t.scope('05'), 'packing', pg_temp.f('M'), t.u('09'),
   format('{"input_kg":150,"packets":[{"sku_id":"%s","units":150,"size_kg":1}]}', pg_temp.f('SKU1'))::jsonb);
@@ -62,14 +64,15 @@ select t.as_user(t.u('03'));
 create temp table js as select app.export_journey(pg_temp.f('K'), 'shareable') as e;
 select t.ok((select e->>'kind' = 'journey' and e->>'copy' = 'shareable' and e->'lot'->>'code' = pg_temp.c('K') and e->'scope'->>'client' is not null from js),
             'C1: the journey of a lot, shareable, with its heading');
-select t.ok((select not (e->'columns' ?| array['farmer_name', 'recorded_by', 'verified_by', 'buyer', 'order_no', 'price_per_quintal', 'payment_ref',
-                                               'price_per_kg', 'total_value', 'entered_values']) from js),
-            'C1: the shareable copy has no column for a name, a buyer, a price or the raw saved values');
-select t.ok((select position((select farmer from names) in e::text) = 0 and position((select cm from names) in e::text) = 0
-                    and position((select qc from names) in e::text) = 0 and position('5217' in e::text) = 0 and position('UTR-55-TEST' in e::text) = 0 from js),
-            'C1: and none of them reaches the browser: no farmer''s or person''s name, no price, no payment reference');
-select t.ok((select e->'columns' @> '["code","stage","share_pct","gi_status","farm_verified","same_person","loss_kg","lab","lab_accreditation","report_no","batch_code","packs","serials","r:moisture_pct"]'::jsonb from js),
-            'C2/C3: readable columns, a reading per column; shares, GI, farm-verified, same person, loss, lab, batch, packs, serials');
+select t.ok((select not (e->'columns' ?| array['farmer_name', 'agent_name', 'driver_phone', 'price_per_quintal', 'payment_status', 'payment_ref',
+                                               'price_per_kg', 'currency', 'total_value', 'raw_values', 'entered_values']) from js),
+            'C1: the shareable copy has no column for a farmer''s name, a price, a payment or the raw saved values');
+select t.ok((select position((select farmer from names) in e::text) = 0 and position('5217' in e::text) = 0 and position('UTR-55-TEST' in e::text) = 0 from js),
+            'C1: and none of them reaches the browser: no farmer''s name, no price, no payment reference');
+select t.ok((select pg_temp.cell(e, pg_temp.c('Q'), 'recorded_by') = to_jsonb((select qc from names)) from js),
+            'C3 (migration 61, the brief''s words): the shareable copy names the staff who recorded each step');
+select t.ok((select e->'columns' @> '["code","stage","share_pct","gi_status","farm_verified","floor_loss_kg","head_rice_kg","broken_kg","husk_kg","bran_kg","lab","lab_accreditation","report_no","batch_code","packs","packs_by_size","serials","r:moisture_pct"]'::jsonb from js),
+            'C2/C3: readable columns, a reading per column; shares, GI, farm-verified, by-products, floor loss, lab, batch, packs by size, serials');
 select t.ok((select e->'units'->>'moisture_pct' = '%' from js), 'C2: each reading''s unit comes with the export');
 select t.ok((select pg_temp.cell(e, pg_temp.c('P'), 'share_pct') = '100.0'::jsonb and pg_temp.cell(e, pg_temp.c('P'), 'farm_verified') = '"yes"'::jsonb
                     and pg_temp.cell(e, pg_temp.c('P'), 'farmer_code') is not null and jsonb_typeof(pg_temp.cell(e, pg_temp.c('P'), 'gi_status')) = 'string' from js),
@@ -77,19 +80,19 @@ select t.ok((select pg_temp.cell(e, pg_temp.c('P'), 'share_pct') = '100.0'::json
 select t.ok((select pg_temp.cell(e, pg_temp.c('Q'), 'lab') = '"Gorakhpur Grain Lab"'::jsonb and pg_temp.cell(e, pg_temp.c('Q'), 'lab_accreditation') = '"TC-5521"'::jsonb
                     and pg_temp.cell(e, pg_temp.c('Q'), 'r:moisture_pct') = '11.8'::jsonb from js),
             'C3: the QC step: the lab, its accreditation number, the reading in its column');
-select t.ok((select pg_temp.cell(e, pg_temp.c('M'), 'loss_kg') = to_jsonb((select qty_in - qty_out from public.footprints where id = pg_temp.f('M')))
-                    and pg_temp.cell(e, pg_temp.c('P'), 'loss_kg') = 'null'::jsonb from js),
-            'C3: the loss on the floor of a step (in less out); none at the farm gate');
+select t.ok((select pg_temp.cell(e, pg_temp.c('M'), 'floor_loss_kg') = '3'::jsonb and pg_temp.cell(e, pg_temp.c('M'), 'husk_kg') = '15'::jsonb
+                    and pg_temp.cell(e, pg_temp.c('P'), 'floor_loss_kg') = 'null'::jsonb from js),
+            'E2.2: the floor loss of the mill is its input less head rice, broken, husk and bran (3 kg, not 29); none at the farm gate');
 select t.ok((select pg_temp.cell(e, pg_temp.c('K'), 'packs') = '150'::jsonb and pg_temp.cell(e, pg_temp.c('K'), 'batch_code') = to_jsonb((select code from bc))
                     and pg_temp.cell(e, pg_temp.c('K'), 'serials') = to_jsonb((select code from bc) || '-0001 to ' || (select code from bc) || '-0150') from js),
             'C3: the packing step: batch code, 150 packs, the serial range');
-select t.ok((select pg_temp.cell(e, pg_temp.c('Q'), 'same_person') = 'null'::jsonb and jsonb_array_length(e->'rows') = 4
+select t.ok((select coalesce(pg_temp.cell(e, pg_temp.c('Q'), 'same_person'), 'null'::jsonb) = 'null'::jsonb and jsonb_array_length(e->'rows') = 4
                     and (select bool_and(jsonb_array_length(r) = jsonb_array_length(e->'columns')) from jsonb_array_elements(e->'rows') r) from js),
-            'C3: no same-person mark where another checked it; one row per step, every row as long as the heading');
+            'C3: no same-person mark where another checked it (since migration 61 a column empty in every row is left out); one row per step, every row as long as the heading');
 
 -- C2/C4 · the internal copy ----------------------------------------------------------------------------------------------------
 create temp table ji as select app.export_journey(pg_temp.f('K'), 'internal') as e;
-select t.ok((select e->'columns' ?& array['farmer_name', 'recorded_by', 'verified_by', 'price_per_quintal', 'payment_ref'] and e->'columns'->>-1 = 'entered_values' from ji),
+select t.ok((select e->'columns' ?& array['farmer_name', 'recorded_by', 'verified_by', 'price_per_quintal', 'payment_ref'] and e->'columns'->>-1 = 'raw_values' from ji),
             'C2: the internal copy has the names and prices, and the raw saved values in its last column');
 select t.ok((select pg_temp.cell(e, pg_temp.c('P'), 'farmer_name') = to_jsonb((select farmer from names))
                     and pg_temp.cell(e, pg_temp.c('P'), 'price_per_quintal') = '5217'::jsonb and pg_temp.cell(e, pg_temp.c('P'), 'payment_ref') = '"UTR-55-TEST"'::jsonb
@@ -116,8 +119,8 @@ select t.ok((select e->>'kind' = 'season' and jsonb_array_length(e->'rows') = (s
                     and not (e->'columns' ? 'farmer_name') and position((select farmer from names) in e::text) = 0 and position('5217' in e::text) = 0 from ss),
             'C1: the season: every record of the scope, shareable: no name, no price');
 select t.ok((select (s->>'records')::int >= 2 and (s->>'kg_out')::numeric > 0 from ss, jsonb_array_elements(e->'summary') s where s->>'stage' = 'procurement')
-            and (select (s->>'loss_kg')::numeric = (select qty_in - qty_out from public.footprints where id = pg_temp.f('M')) from ss, jsonb_array_elements(e->'summary') s where s->>'stage' = 'milling'),
-            'C3: the summary per stage, in the chain''s order: records, kg, the loss on the floor');
+            and (select (s->>'floor_loss_kg')::numeric = 3 and (s->>'by_products_kg')::numeric = 26 from ss, jsonb_array_elements(e->'summary') s where s->>'stage' = 'milling'),
+            'C3/E2.2: the summary per stage, in the chain''s order: records, kg, by-products apart from the floor loss');
 select t.ok((select (e->'totals'->>'farmers')::int >= 2 and (e->'totals'->>'kg_in')::numeric = (select sum(qty_out) from public.footprints where scope_id = t.scope('05') and stage_type = 'procurement')
                     and (e->'totals'->>'packs')::int >= 150 and e->'totals' ? 'gi_pct' and e->'totals' ? 'farm_verified_kg' from ss),
             'C3: the season''s totals: farmers, kg in, GI share, farm-verified kg, packs');
