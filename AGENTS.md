@@ -264,7 +264,7 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   chain or a client's Client Manager keeps the `zy_requirements` triggers' effect (the lines follow), and a new line
   status or act writes its Audit line through `app.line_status`. One person may hold two stages in a row (Veda's
   decision): never bring back the "verified by its own creator" refusal; it is marked (ledger `same_person`, the public
-  page's approved words, `app.same_person_counts`), not refused.
+  page's step line `pv.same_person`, `app.same_person_counts`), not refused.
 - **A verified farmer is corrected by its Client Manager; Procurement proposes** (migration 47, Veda 14 October 2026).
   Good farming practice is the exception: Procurement and Village Batch answer it and it counts at once. Any other
   detail from them goes through `app.propose_farmer_change` and the CM's `app.decide_farmer_proposal`, which changes the
@@ -385,13 +385,30 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   HR and the admin see everyone. A new list of people for a Client Manager goes through `app.cm_seen_ids`. A new rule
   here needs a case in `tests/51_buyer_link_scans.sql` (or `tests/52_people_public_page_packs.sql`) and its plain words
   in `plainErrors.ts` (EN and HI).
-- **The public page claims only what happened** (migration 57, G21b, Veda 16 Oct: the same-person line "should not
-  appear"). It never says that one person recorded and checked a step, and claims a check only where the server says
-  so: a step's `checked`, the lot's `independent` (`pv.how`, else `pv.how_basic`). `same_person` stays in the ledger,
-  the State Manager's home and the Roster, never in the public data. The page's look is the design system's provenance
-  story (`.pv*` in `styles.css`): no emoji there (inline icons), gold only as a fill. A shipment of packs carries the codes
-  loaded, domestic too; the loader (`engine/PackCodes.tsx`) keeps the field's value the text of codes and the save
-  checks every code again (`app.reconcile`); it checks them as they come against `app.order_pack_codes`.
+- **The public page claims only what happened** (migration 57, G21b; changed by migration 59, Veda's brief of 19 Oct
+  2026, A2). It claims a check only where the server says so: a step's `checked`, the lot's `independent` (`pv.how`,
+  else `pv.how_basic`). A step recorded and checked by one person says so on that step, in the brief's words
+  (`pv.same_person`, "Recorded and checked by the same person."), from the step's own `same_person` (verified_by =
+  created_by, never the QR step); never a line for the whole lot. A pack before its lot is released shows only the
+  crop, its serial, its batch code and the date packed (`public_pack` with `released: false`), on `/p/<serial>` and on
+  `/verify/<serial>` alike. Units come from the server (`app.param_units`), the lab with its accreditation number
+  (`app.qc_lab`), the BL from `bills_of_lading` (`app.live_computed`), never from a saved `bl_pending` or a guessed
+  suffix. The page's look is the design system's provenance story (`.pv*` in `styles.css`): no emoji there (inline
+  icons), gold only as a fill. A shipment of packs carries the codes loaded, domestic too; the loader
+  (`engine/PackCodes.tsx`) keeps the field's value the text of codes and the save checks every code again
+  (`app.reconcile`); it checks them as they come against `app.order_pack_codes`.
+- **The client's own login reads only** (migration 59, Veda's brief of 19 Oct 2026, B1–B4). `app.is_client_login()`
+  (an `external` login) is refused every write by the trigger `a00_client_login_reads_only` on each table it could
+  reach, and by the `evidence_upload` storage policy: a new table a signed-in person can write gets the trigger too,
+  and a case in `tests/54_fixes_client_reads_only.sql`. It raises no flag (it tells its Client Manager). Its screens:
+  no `/work` pages (`NotForClientLogin`), no "Needs action", "Waiting on GrainVeda" (`app.client_waiting`) instead;
+  its farmers only through `app.client_farmers` (the phone as `••••••` and the last four digits, no guardian), never
+  the farmers table. A Client Manager sees no email of anyone, and a phone only of people on his own scopes' stages
+  (`app.cm_phone_ok`); `app_users` email and phone are not readable by a signed-in person (column grants): a new list
+  of people reads them through a definer function that masks them the same way. One file attached as two kinds of
+  document needs a reason (`GVDUP`, `app.note_same_file`; photos are one kind). A batch code is given by the system: a typed one in use is
+  refused for every path, the service role included; a scope with records of before is marked `data_note =
+  'practice_old_data'`, shown on its screens and in its exports.
 - **Packs go in cartons; an order sets them aside; Reports to is a rule** (migration 58, Veda 16 Oct 2026, G24). A
   carton is made only by the packing save (`app.make_cartons` from `app.make_packs`, when the pack type has
   `packs_per_carton`); never insert, delete or renumber one; it is opened only by `app.void_pack`. What an order takes is

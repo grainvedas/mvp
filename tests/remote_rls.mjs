@@ -45,6 +45,8 @@ function expectedScopes(u) {
 function expectedFarmers(u) {
   const accessibleClient = (cid) => u.role === 'admin' || (u.role === 'state_manager' && u.state_ids.includes(clientState[cid]))
     || (['client_manager', 'client_view'].includes(u.role) && u.client_id === cid);
+  // migration 59 (B3): the client's own login reads its farmers through app.client_farmers (phones masked), not the table
+  if (u.role === 'client_view') return 0;
   if (u.role !== 'operator') return farmers.data.filter((f) => accessibleClient(f.client_id)).length;
   const farmerSlot = slots.data.some((x) => x.user_id === u.id && ['procurement', 'village_batch'].includes(x.stage_type));
   return farmerSlot ? farmers.data.filter((f) => f.client_id === u.client_id).length : 0;
@@ -255,6 +257,12 @@ if (sessions['303']) {
 if (sessions['304']) {
   const r = await sessions['304'].pub.update('farmers', 'village=eq.Itwa', { village: 'Changed' });
   ok(refused(r), 'client view cannot edit a farmer', d(r));
+  // migration 59 (B3): its farmers through app.client_farmers, each phone masked to the last four digits
+  const row = users.data.find((x) => x.id === appUserId('304'));
+  const cf = await sessions['304'].app.rpc('client_farmers', { p_limit: 1000 });
+  const mine = farmers.data.filter((f) => f.client_id === row?.client_id).length;
+  ok(cf.ok && Array.isArray(cf.data) && cf.data.length === mine && cf.data.every((f) => f.phone == null || /^••••••\d{0,4}$/.test(f.phone)),
+     `client view reads its ${mine} farmer(s) through client_farmers, phones masked`, d(cf));
 }
 
 // ---- T1 through the API, as three different people --------------------------------------------------------

@@ -51,3 +51,7 @@ export const addsFarmers = (ctx: Ctx, clientId: string | null | undefined) =>
 /** Migration 48 (D3–D5): the clients whose account he holds (a Client Manager): his grouped menu, his client's ledger. */
 export const myClientAccounts = (ctx: Ctx): string[] => oversees(ctx) ? [] :
   [...new Set((ctx?.assignments ?? []).filter((a) => a.lens === 'client' && a.op_role === 'client_account' && a.client_id).map((a) => a.client_id as string))];
+
+/** Migration 59 (B1, Veda's brief of 19 Oct 2026): the client's own login reads only. No stage page, no "Work in this
+ *  scope", no flag, no file: the database refuses every write from it (trigger client_login_reads_only). */
+export const isClientLogin = (ctx: Ctx) => !!ctx?.user?.external;

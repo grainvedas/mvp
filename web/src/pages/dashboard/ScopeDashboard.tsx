@@ -11,6 +11,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { downloadCsv } from '../../lib/csv';
 import { date, dateTime, humanise, istStamp, kg } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Loading } from '../../shell/ui';
+import { isClientLogin } from '../../lib/rights';
 
 export interface PipeRow { stage: string; chain_pos: number; records: number; pending: number; verified: number; kg_out: number; kg_available: number }
 interface SealRow { qr_code: string; sealed_at: string; batch_codes: string[]; footprint_id: string;
@@ -27,12 +28,12 @@ export interface SeasonRow { footprint_code: string; stage_type: string; status:
  * earlier column keeps its place. Until migration 29 the one time column was the server's and was named `created_at`.
  */
 export const SEASON_HEADER = ['code', 'stage', 'status', 'qty_in_kg', 'qty_out_kg', 'grade', 'lot_closed', 'farmer_id', 'farmer', 'village',
-  'batch_code', 'buyer', 'market', 'recorded_at', 'verified_at', 'warnings', 'received_by_server_at', 'happened_on'];
+  'batch_code', 'buyer', 'market', 'recorded_at', 'verified_at', 'warnings', 'received_by_server_at', 'happened_on', 'data_note'];   // data_note: migration 59 (A8)
 
-export function seasonRow(r: SeasonRow, f?: { farmer_code: string | null; name: string; village: string }) {
+export function seasonRow(r: SeasonRow, f?: { farmer_code: string | null; name: string; village: string }, mark = '') {
   return [r.footprint_code, r.stage_type, r.status, r.qty_in, r.qty_out, r.grade, r.lot_closed, f?.farmer_code, f?.name, f?.village,
     r.payload.batch_code as string, r.payload.buyer as string, r.payload.market as string,
-    istStamp(r.captured_at ?? r.created_at), istStamp(r.verified_at), r.warnings.join(' | '), istStamp(r.created_at), r.happened_on ?? '']; // times in IST (Veda, 15 Oct); migration 48: the date it happened
+    istStamp(r.captured_at ?? r.created_at), istStamp(r.verified_at), r.warnings.join(' | '), istStamp(r.created_at), r.happened_on ?? '', mark]; // times in IST (Veda, 15 Oct); migration 48: the date it happened; 59: old data
 }
 
 export function StageDots({ rows, stageLabel }: { rows: PipeRow[]; stageLabel: (s: string) => string }) {
@@ -66,18 +67,23 @@ export function ScopeDashboard() {
     .eq('footprints.scope_id', scopeId).order('created_at', { ascending: false }))) as unknown as FlagRow[], [scopeId]);
   const activity = useAsync(() => rpc<ActivityRow[]>('scope_activity', { p_scope: scopeId, p_days: 14 }), [scopeId]);
   const exp = useAction();
+  // migration 59 (A8): a scope with records of before system batch codes says so here and in its export
+  const note = useAsync(async () => ((await q(supabase.from('scopes').select('data_note').eq('id', scopeId))) as unknown as { data_note: string | null }[])[0]?.data_note ?? null, [scopeId]);
+  const oldData = note.data === 'practice_old_data';
 
   const exportSeason = () => exp.run(async () => {
     const rows = (await q(supabase.from('footprints')
       .select('*')         // every column the server has: captured_at exists from migration 29 on, and naming it would fail before
       .eq('scope_id', scopeId).order('created_at'))) as SeasonRow[];
     const fids = [...new Set(rows.map((r) => r.farmer_id).filter(Boolean))] as string[];
-    const farmers = fids.length ? (await q(supabase.from('farmers').select('id,farmer_code,name,village').in('id', fids))) as
-      { id: string; farmer_code: string | null; name: string; village: string }[] : [];
+    // migration 59 (B3): the client's own login reads its farmers through app.client_farmers (the table is not its to read)
+    const farmers = !fids.length ? [] : (isClientLogin(ctx) ? await rpc<{ id: string; farmer_code: string | null; name: string; village: string }[]>('client_farmers', { p_ids: fids, p_limit: 500 })
+      : (await q(supabase.from('farmers').select('id,farmer_code,name,village').in('id', fids))) as { id: string; farmer_code: string | null; name: string; village: string }[]);
     const fm = new Map(farmers.map((f) => [f.id, f]));
-    const body = rows.map((r) => seasonRow(r, r.farmer_id ? fm.get(r.farmer_id) : undefined));
+    const mark = oldData ? 'Practice (old data)' : '';
+    const body = rows.map((r) => seasonRow(r, r.farmer_id ? fm.get(r.farmer_id) : undefined, mark));
     const summary = (pipe.data ?? []).map((p) => [`SUMMARY ${p.chain_pos}`, p.stage, `${p.records} records, ${p.pending} pending`,
-      null, p.kg_out, null, null, null, null, null, null, null, null, null, null, `available ${p.kg_available} kg`, null]);
+      null, p.kg_out, null, null, null, null, null, null, null, null, null, null, `available ${p.kg_available} kg`, null, null, mark]);
     downloadCsv(`grainveda-season-${scope?.season_code ?? ''}-${(scope?.geography ?? 'scope').replace(/\W+/g, '-')}.csv`, SEASON_HEADER, [...summary, ...body]);
   });
 
@@ -86,6 +92,7 @@ export function ScopeDashboard() {
       <p className="muted small"><Link to="/">{t('nav.home')}</Link>{scope && <> · {scope.client_name}</>}</p>
       <h1>{scope ? `${scope.crop_name} · ${scope.season_code} · ${scope.geography}` : t('dash.title')}</h1>
       {scope && <p><Badge value={scope.status} /></p>}
+      {oldData && <div className="alert warn" data-testid="old-data">{t('scope.old_data')}</div>}
 
       <div className="card">
         <h2>{t('dash.pipeline')}</h2>

@@ -15,6 +15,8 @@ create or replace function pg_temp.n(p_code text, p_key text) returns int langua
 create or replace function pg_temp.audits(p_action text) returns int language sql stable security definer as $$
   select count(*)::int from public.audit_log where action = p_action $$;
 create or replace function pg_temp.people() returns int language sql stable security definer as $$ select count(*)::int from public.app_users $$;
+-- migration 59 (B4): email is no longer readable from the table through the API; the test reads it as the service would
+create or replace function pg_temp.users_e() returns table (id uuid, email text) language sql stable security definer as $$ select id, email from public.app_users $$;
 create or replace function pg_temp.org(p uuid) returns public.employee_org language sql stable security definer as $$
   select * from public.employee_org where employee_id = p $$;
 create or replace function pg_temp.task(p_emp uuid, p_code text) returns uuid language sql stable security definer as $$
@@ -147,7 +149,7 @@ select t.fails(format($q$ select app.import_joiners(%L, true) $q$, pg_temp.j('ro
 select t.as_user(t.u('17'));
 select t.fails(format($q$ select app.import_joiners(%L, true) $q$, (select jsonb_agg(pg_temp.joiner(g)) from generate_series(1, 1001) g)),
                'at most 1000', 'import: at most 1000 rows per file');
-insert into fx (k, id) select 'imp' || row_number() over (order by u.email), u.id from public.app_users u where u.email like 'scale1__@example.com' and u.email <> 'scale108@example.com';
+insert into fx (k, id) select 'imp' || row_number() over (order by u.email), u.id from pg_temp.users_e() u where u.email like 'scale1__@example.com' and u.email <> 'scale108@example.com';
 
 -- C · invites: who may be invited (as the caller); the rest with the service key only ---------------------------------------
 insert into fx (k, j) values ('targets', app.invite_targets(array[pg_temp.f('op1'), t.u('18'), t.u('01'), t.u('17')]));
@@ -307,7 +309,7 @@ select t.as_user(t.u('17'));
 select t.ok(pg_temp.n('UP-OPR-001', 'assigned') = 5 and pg_temp.n('UP-OPR-001', 'ready') = 0, 'opening numbers: 5 assigned');
 
 -- "joined, waiting for their wave": Assam has no client yet, so its Client Manager waits; then a client comes
-insert into fx (k, id) select 'n108', id from public.app_users where email = 'scale108@example.com';
+insert into fx (k, id) select 'n108', id from pg_temp.users_e() where email = 'scale108@example.com';
 select t.ok((app.link_to_opening(array[pg_temp.f('n108')], pg_temp.f('o_as'))->'results'->0->>'ok')::boolean, 'link: a person added without an opening is linked to one');
 select t.as_service();
 update public.app_users set status = 'active' where id = pg_temp.f('n108');

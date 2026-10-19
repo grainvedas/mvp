@@ -330,7 +330,7 @@ test('A new person chooses an own password; HR resets a forgotten one; a suspend
   await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
   const api = await apiAs(page);
   for (const table of ['footprints', 'farmers', 'scopes', 'slot_assignments', 'ledger', 'onboarding_tasks']) expect(await api.rows(table), `${table} as a suspended person`).toHaveLength(0);
-  expect((await api.rows('app_users')).map((r) => r.display_name), 'a suspended person reads only the own row').toEqual([name]);
+  expect((await api.rows('app_users', 'select=id,display_name')).map((r) => r.display_name), 'a suspended person reads only the own row').toEqual([name]);
 });
 
 test('A manager gives a stage to a person and takes it away again', async ({ page }) => {

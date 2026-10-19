@@ -182,8 +182,9 @@ select t.fails(format($q$select pg_temp.ins(%L, 'shipment', %L, %L, %L)$q$, t.sc
 select t.as_service();
 -- the public pack page names its carton
 select t.as_anon();
-select t.ok(app.public_pack(pg_temp.pk(160))->'pack'->>'carton' = pg_temp.c(1) and app.public_pack(pg_temp.pk(301))->'pack'->>'carton' = pg_temp.c(8),
-            'a pack''s public data names its carton (its code only)');
+-- migration 59 (A1): before release a pack's page shows the crop, the batch and the date packed only, not its carton
+select t.ok(not (app.public_pack(pg_temp.pk(160))->'pack' ? 'carton') and app.public_pack(pg_temp.pk(301))->'pack'->>'batch_code' = pg_temp.batch(),
+            'a pack''s public data before release: no carton, the batch code');
 select t.as_service();
 
 -- 4 · People: Reports to, the buddy, the department ----------------------------------------------------------------------
@@ -271,6 +272,7 @@ create temp table imp as select app.import_joiners(jsonb_build_array(
 grant select on imp to authenticated;
 select t.ok((select x->'reasons' ? 'imp.reports_to_not_manager' and x->'reasons' ? 'imp.department_unknown' from imp, jsonb_array_elements(j->'rows') x where (x->>'row')::int = 1),
             'the import: an associate as manager and an unknown department are warned of');
+select t.as_service();   -- migration 59 (B4): email is read by the service, not through the API
 select t.ok((select o.reports_to is null and o.department is null from public.employee_org o join public.app_users u on u.id = o.employee_id where u.email = 'imp1@test.in')
             and (select o.reports_to = t.u('03') and o.department = 'Warehouse & Logistics' from public.employee_org o join public.app_users u on u.id = o.employee_id where u.email = 'imp2@test.in'),
             'and left out; a manager of the state and a listed department (any case) are kept');

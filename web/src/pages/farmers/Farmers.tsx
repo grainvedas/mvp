@@ -11,7 +11,7 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import type { Farmer } from '../../lib/types';
-import { actsAsStateManager, addsFarmers, holdsClientAccount, isStateManager, oversees, supervisesState, type Ctx } from '../../lib/rights';
+import { actsAsStateManager, addsFarmers, holdsClientAccount, isClientLogin, isStateManager, oversees, supervisesState, type Ctx } from '../../lib/rights';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { date, dateTime, humanise, kg } from '../../lib/format';
 import { gapMissing, type GapItem } from '../../lib/crops';
@@ -56,8 +56,10 @@ export function FarmerList() {
   const [tab, setTab] = useState<'draft' | 'under_review' | 'active' | 'inactive'>(params.get('gps') === 'missing' ? 'active' : isStateManager(ctx) ? 'under_review' : cm ? 'draft' : 'active');
   const [search, setSearch] = useState('');
   const [noGpsOnly, setNoGpsOnly] = useState(params.get('gps') === 'missing');   // migration 51: Needs my action opens this
+  const client = isClientLogin(ctx);   // migration 59 (B3): the client's login reads its farmers through app.client_farmers
   const list = useAsync(async () => {
     if (!clientId) return [] as FarmerRow[];
+    if (client) return (await rpc<FarmerRow[]>('client_farmers', { p_q: search.trim() || null })).filter((f) => f.status === tab);
     // migration 44: with the state farmer ID; a server before it has none to join (the list asks again without it)
     const ask = (withStateIds: boolean) => {
       let r = supabase.from('farmers').select('*,state:states(name),reviewer:app_users!farmers_reviewed_by_fkey(display_name)' + (withStateIds ? ',state_farmer:state_farmers(code)' : ''))
@@ -107,7 +109,7 @@ export function FarmerList() {
               <td>{f.name}<div className="muted small">{f.guardian_name}</div>
                 {typeof f.extra?.sent_back_reason === 'string' && <div className="small" style={{ color: 'var(--warn)' }}>{t('farmers.sent_back')}: {f.extra.sent_back_reason as string}</div>}</td>
               <td className="mono">{f.farmer_code ?? '—'}{'farm_lat' in f && f.farm_lat == null && f.status !== 'draft' && <div><span className="badge pending" data-testid="farmer-no-gps">{t('fl.no_gps')}</span></div>}{f.state_farmer?.code && <div className="small muted" data-testid="farmer-state-id">{f.state_farmer.code}</div>}</td><td>{f.village}</td><td className="hide-mobile">{f.phone}</td><td className="hide-mobile num">{f.land_area_acres} · {f.gi_land_acres ?? '—'}</td>
-              <td><FarmerActions farmer={f} canEdit={canEdit} onDone={list.reload} /></td>
+              <td>{!client && <FarmerActions farmer={f} canEdit={canEdit} onDone={list.reload} />}</td>
             </tr>
           ))}</tbody>
         </table></div>

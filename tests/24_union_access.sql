@@ -145,9 +145,9 @@ select t.as_service();
 -- 4 · those who read a whole scope without managing it --------------------------------------------------------------------------
 select t.as_user(t.u('04'));   -- the client's own login
 select t.ok((select count(*) from public.scopes) = 9, 'viewer: the client''s login reads all the client''s scopes, in both states');
-select t.ok((select count(*) from public.footprints where scope_id = t.scope('01')) = 2 and (select count(*) from public.farmers) = 5, 'viewer: their records and farmers');
+select t.ok((select count(*) from public.footprints where scope_id = t.scope('01')) = 2 and jsonb_array_length(app.client_farmers()) = 5, 'viewer: their records and farmers (farmers through app.client_farmers, migration 59)');
 select t.fails($q$ insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres)
-   values ('00000000-0000-4000-8000-000000000201','X','Y','Z','W','+919999999999','1') $q$, 'row-level security', 'viewer: writes no farmer');
+   values ('00000000-0000-4000-8000-000000000201','X','Y','Z','W','+919999999999','1') $q$, 'client login reads only', 'viewer: writes no farmer');
 select t.fails(format($q$ select app.withdraw_footprint(%L, 'no') $q$, pg_temp.f('q1')), 'only a manager', 'viewer: withdraws nothing');
 select t.ok((app.lot_trace(pg_temp.f('q1'))->'steps') is not null, 'viewer: may trace a lot');
 select t.ok((select count(*) from public.app_users) = 1 and (select count(*) from public.assignments) = 1, 'viewer: reads only its own row and its own assignment');

@@ -182,8 +182,11 @@ select t.ok((select city = 'New Delhi' and country = 'IN' and lat = 28.6 and lng
 select t.as_anon();
 select t.ok((app.record_scan_at((select s[1] from ser), 'Noida', 'UP', 'IN', 28.5355, 77.3910))->>'copy_warning' = 'false', 'near by (20 km): nothing');
 select t.ok((app.record_scan_at((select s[1] from ser), 'Rotterdam', 'ZH', 'NL', 51.9244, 4.4777))->>'copy_warning' = 'true', 'the same code in Rotterdam: the warning');
-select t.ok((app.public_pack((select s[1] from ser)))->'pack'->>'copy_warning' = 'true' and (app.public_pack((select s[1] from ser)))->'pack'->>'seller' = 'GrainVeda (Prasaadam trade scope)',
-            'the pack''s public page says so, and names the seller');
+-- migration 59 (A1, Veda's brief of 19 Oct 2026): before its release a pack's page shows the crop, the batch and the
+-- date packed, nothing else (no seller); the copy warning stays, and the copy is flagged for the managers
+select t.ok((select p->>'released' = 'false' and not (p->'pack' ? 'seller') and (p->'pack'->>'copy_warning')::boolean
+               from (select app.public_pack((select s[1] from ser)) p) x),
+            'before release the pack''s page shows the crop, batch and date, and the copy warning without the seller');
 select t.as_service();
 select t.ok((select count(*) = 1 and bool_and(kind = 'far_apart' and status = 'open' and (detail->>'km')::numeric > 6000 and scope_id = t.scope('05')
                      and detail->'places' @> '[{"city": "Rotterdam", "country": "NL"}]')

@@ -240,10 +240,10 @@ test('A client viewer gets no controls on a scope, and a first stage shows its r
   await expect(page.getByRole('button', { name: /Remove/ })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: /^Assign/ })).toHaveCount(0);
   await expect(page.getByTestId('slots')).toContainText('Procurement');
-  // a first stage, opened by someone who cannot record there: its records, not tabs with nothing under them
+  // migration 59 (B1, Veda's brief of 19 Oct 2026): the client's own login opens no stage page; it goes home
   await page.goto(`/work/${SCOPES.siddharthnagar}/procurement`);
-  await expect(page.getByRole('tab', { name: 'Records at this stage' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('main table').or(page.getByText('Nothing here yet.'))).toBeVisible();
+  await expect(page.getByTestId('client-waiting')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Records at this stage' })).toHaveCount(0);
   await signOut(page);
 });
 

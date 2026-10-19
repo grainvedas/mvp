@@ -415,7 +415,7 @@ select 'people public page packs', case when to_regprocedure('app.busy_for_other
                                       then 'MISSING (push migration 57)'
                                       when position('busy_for_other_client' in pg_get_functiondef('app.cm_seen_ids()'::regprocedure)) = 0
                                         or position('busy_for_other_client' in pg_get_functiondef('app.roster_pool(uuid, text)'::regprocedure)) = 0
-                                        or position('''same_person''' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) > 0
+                                        or position('''same_person'', v_same' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) > 0   -- 59: per step only
                                         or position('''checked''' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
                                         or position('''vehicle_no''' in pg_get_functiondef('app.buyer_content(uuid)'::regprocedure)) > 0
                                         or has_function_privilege('anon', 'app.order_pack_codes(uuid, uuid)', 'execute')
@@ -439,6 +439,23 @@ select 'cartons people choices', case when to_regclass('public.cartons') is null
                                         or not exists (select 1 from public.stage_definitions where stage_type = 'commercial' and form_schema @> '[{"key": "cartons", "type": "order_cartons"}]')
                                       then 'NOT OK (the cartons, the departments, the people''s choices or the Commercial form are not as migration 58 left them)'
                                       else 'OK cartons from the pack list; orders set them aside; Reports to, buddy and department from the rule' end
+union all
+select 'fixes and client reads only', case when to_regprocedure('app.is_client_login()') is null or to_regprocedure('app.client_farmers(text, uuid[], integer)') is null
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'scopes' and column_name = 'data_note')
+                                      then 'MISSING (push migration 59)'
+                                      when (select count(*) from pg_trigger where tgname = 'a00_client_login_reads_only') < 40
+                                        or has_column_privilege('authenticated', 'public.app_users', 'email', 'select')
+                                        or has_column_privilege('authenticated', 'public.app_users', 'phone', 'select')
+                                        or not has_column_privilege('authenticated', 'public.app_users', 'display_name', 'select')
+                                        or position('client_viewer' in pg_get_functiondef('app.farmer_read(uuid, uuid)'::regprocedure)) > 0
+                                        or position('same_file_elsewhere' in pg_get_functiondef('app.register_attachment(uuid, attachment_kind, text, text, text, text)'::regprocedure)) = 0
+                                        or position('same_person' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
+                                        or position('param_units' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
+                                        or position('live_computed' in pg_get_functiondef('app.incoming_lots(uuid, stage_type)'::regprocedure)) = 0
+                                        or has_function_privilege('anon', 'app.client_waiting(uuid)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.param_units(uuid)', 'execute')
+                                      then 'NOT OK (the client login''s guard, the masked farmers and people, the same-file rule or the public page are not as migration 59 left them)'
+                                      else 'OK a client login reads only; farmers and people masked; one file, one kind; units, labs and same person shown' end
 union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole

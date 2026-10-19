@@ -51,9 +51,10 @@ select t.ok((select count(*) from public.ledger) = 0,     'tenant isolation: oth
 -- Client view: reads everything of its client, writes nothing
 select t.as_user(t.u('04'));
 select t.ok((select count(*) from public.footprints) = 3, 'client_view: sees all 3 footprints of the client');
-select t.ok((select count(*) from public.farmers) = 5,    'client_view: sees farmers');
+select t.ok((select count(*) from public.farmers) = 0 and jsonb_array_length(app.client_farmers()) = 5,
+            'client_view: sees its 5 farmers through app.client_farmers, not the table (migration 59, B3: phones masked)');
 select t.fails($q$ insert into public.farmers (client_id, name, guardian_name, village, district, phone, land_area_acres)
-   values ('00000000-0000-4000-8000-000000000201','X','Y','Z','W','+91','1') $q$, 'row-level security', 'client_view: cannot insert a farmer');
+   values ('00000000-0000-4000-8000-000000000201','X','Y','Z','W','+91','1') $q$, 'client login reads only', 'client_view: cannot insert a farmer');
 select t.fails($q$ update public.footprints set lot_closed = true where stage_type = 'procurement' $q$, 'row-level security', 'client_view: cannot update footprints')
 where false;  -- UPDATE with USING false affects 0 rows silently rather than erroring; asserted below instead
 select t.ok((select count(*) from public.footprints where lot_closed) = (select count(*) from public.footprints where lot_closed), 'client_view: update policy yields no rows');

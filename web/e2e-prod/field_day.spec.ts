@@ -230,11 +230,12 @@ test('Lost phone: once the person is suspended, the phone gets nothing more and 
   const desk = await office.newPage();
   await signIn(desk, USERS.cm);
   let api = await apiAs(desk);
-  const person = (await api.rows('app_users')).find((u) => String(u.phone ?? '').endsWith(OP.phone));
+  // since migration 59 a Client Manager reads no phone or email of app_users: the operator by its id
+  const person = (await api.rows('app_users', `id=eq.00000000-0000-4000-8000-000000000${OP.key}&select=id,active,display_name`))[0];
   expect(person, 'the Client Manager sees the operator').toBeTruthy();
   // the old way, a manager switching the person off through the API: nothing happens any more
   await api.update('app_users', `id=eq.${person!.id}`, { active: false });
-  expect((await api.rows('app_users', `id=eq.${person!.id}`))[0].active, 'a manager cannot switch a person off').toBe(true);
+  expect((await api.rows('app_users', `id=eq.${person!.id}&select=id,active`))[0].active, 'a manager cannot switch a person off').toBe(true);
   expect((await api.rpc('suspend_person', { p_employee: person!.id, p_reason: 'phone lost' })).ok, 'nor suspend them').toBe(false);
   await signIn(desk, USERS.hr);
   api = await apiAs(desk);

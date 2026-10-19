@@ -19,7 +19,8 @@ import { useScope, useWide, worksInOneScope, type ScopeChoice } from '../shell/s
 import { JoinerHome, NoAssignment } from './onboarding/Onboarding';
 import { AdminOverview, ReadOnlyBanner } from './admin/Overview';
 import { LedgerHealth, Stat } from './dashboard/parts';
-import { actsAsStateManager, oversees } from '../lib/rights';
+import { actsAsStateManager, isClientLogin, oversees } from '../lib/rights';
+import { ClientWaitingCards } from './ClientWaiting';
 import { StateHome } from './state/StateHome';
 import { stageIcon } from '../engine/icons';
 import { kg, humanise, num } from '../lib/format';
@@ -224,6 +225,7 @@ function OverallHome() {
   const sum = (f: (x: ReturnType<typeof scopeFigures>) => number) => figures.reduce((n, x) => n + f(x), 0);
   const needs = sum((x) => x.pending) + (flags.data?.length ?? 0);
   const crops = new Set(scopes.map((s) => s.crop_name)).size;
+  const client = isClientLogin(ctx);                          // migration 59 (B1, B2): the client's login reads only
   return (
     <>
       <div className="band">
@@ -231,14 +233,16 @@ function OverallHome() {
           <div className="sub">{t('home.scopes_crops', { n: scopes.length, m: crops })}</div></div>
         <div className="side">{me.display_name}<br />{t(`role.${me.role}`)}</div>
       </div>
-      <NeedsMyAction always={cm} />
+      {!client && <NeedsMyAction always={cm} />}
       {(me.can?.assign ?? isManager(me.role)) && <LedgerHealth />}
       <div className="stats" data-testid="stats">
         <Stat value={String(live.length)} label={t('home.kpi_active')} sub={t('home.kpi_setup', { n: scopes.filter((s) => s.status === 'draft').length })} />
         <Stat value={pipes.data ? kg(sum((x) => x.procured)) : '…'} label={t('home.kpi_volume')} sub={t('home.kpi_volume_sub')} />
-        <Stat value={pipes.data ? String(needs) : '…'} label={t('home.kpi_needs')} sub={needs > 0 ? t('home.kpi_needs_sub') : t('home.all_clear')} />
+        {client ? <Stat value={pipes.data ? String(sum((x) => x.pending)) : '…'} label={t('cw.kpi')} sub={t('cw.kpi_sub')} />
+          : <Stat value={pipes.data ? String(needs) : '…'} label={t('home.kpi_needs')} sub={needs > 0 ? t('home.kpi_needs_sub') : t('home.all_clear')} />}
         <Stat value={pipes.data ? String(sum((x) => x.completed)) : '…'} label={t('home.kpi_qr')} sub={t('home.kpi_qr_sub')} />
       </div>
+      {client && <ClientWaitingCards />}
       <h2 className="section-title">{t('home.scopes')}</h2>
       {scopes.length === 0 ? <Empty /> : (
         <div className="scope-cards">{scopes.map((s) => {
@@ -254,7 +258,7 @@ function OverallHome() {
                 return c && n > 0 ? <p className="small" data-testid="scope-same-person"><span className="same-person">{t('sp.title')}</span> {t('sp.count', { v: c.verified_own, m: c.made_on_own })}</p> : null; })()}
               <div className="row">
                 {s.status === 'draft' ? <Link className="btn secondary" to={`/scopes/${s.scope_id}`}>{t('home.set_up')}</Link>
-                  : <button className="secondary" onClick={() => choose(s.scope_id)}>{t('home.work_in_scope')}</button>}
+                  : <button className="secondary" onClick={() => choose(s.scope_id)}>{t(client ? 'home.open_scope' : 'home.work_in_scope')}</button>}
                 {s.status !== 'draft' && <Link to={`/dashboard/${s.scope_id}`} data-testid="dashboard-link">{t('dash.open')}</Link>}
               </div>
             </div>);
@@ -277,6 +281,7 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
   const manager = scope.manage;                              // of THIS scope (a person may manage one and only read another)
   const watch = oversees(ctx);                               // the admin: the same screen, read-only, in the words of someone watching
   const draft = scope.status === 'draft';
+  const client = isClientLogin(ctx);                          // migration 59 (B1, B2): the client's login reads only
   const pipe = useAsync(() => draft ? Promise.resolve([] as PipeRow[]) : rpc<PipeRow[]>('pipeline_summary', { p_scope: scope.id }), [scope.id, draft]);
   const flags = useAsync(() => q(supabase.from('flags').select('id,footprints!inner(scope_id)').eq('status', 'open').eq('footprints.scope_id', scope.id)) as unknown as Promise<{ id: string }[]>, [scope.id]);
   // Who holds which stage: asked of the roster (the names of people are no longer readable client by client).
@@ -304,7 +309,7 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
       </div>
       {watch ? <ReadOnlyBanner text={t('ov.viewing', { name: `${scope.client_name} · ${scope.label}` })} onExit={() => choose(null)} />
         : scopes.length > 1 && <p><button className="secondary" onClick={() => choose(null)}>{t('home.back_overall')}</button></p>}
-      {!watch && <NeedsMyAction />}
+      {!watch && !client && <NeedsMyAction />}
       {manager && <LedgerHealth />}
       {draft ? (
         <div className="card"><p>{t('home.in_setup')}</p><Link className="btn" to={`/scopes/${scope.id}`}>{t(watch || actsAsStateManager(ctx) ? 'ov.scope_details' : 'home.set_up')}</Link></div>
@@ -317,7 +322,7 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
             <Stat value={pipe.data ? (f.yieldPct === null ? '—' : `${f.yieldPct} %`) : '…'} label={t('home.kpi_yield')} sub={t('home.kpi_yield_sub')} />
             <Stat value={pipe.data ? String(f.completed) : '…'} label={t('home.kpi_completed')} sub={t('home.kpi_completed_sub')} />
           </div>
-          {queue.length > 0 ? (
+          {client ? <ClientWaitingCards scopeId={scope.id} /> : queue.length > 0 ? (
             <div className="card queue" data-testid="action-queue">
               <h2>{t(watch ? 'ov.queue_title' : 'home.queue_title', { n: queueTotal })}</h2>
               {queue.map((x) => <div className="queue-row" key={x.key}><span>{x.text}</span><Link className="btn secondary" to={x.to}>{x.action}</Link></div>)}
@@ -335,7 +340,7 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
           <ol className="flow" data-testid="season-flow">{scope.chain.map((s) => {
             const r = by(s);
             return (
-              <li key={s}><Link to={`/work/${scope.id}/${s}?tab=records`} className={r && Number(r.pending) > 0 ? 'has-pending' : ''}>
+              <li key={s}><Link to={client ? `/dashboard/${scope.id}` : `/work/${scope.id}/${s}?tab=records`} className={r && Number(r.pending) > 0 ? 'has-pending' : ''}>
                 <span className="flow-icon" aria-hidden="true">{stageIcon(s)}</span>
                 <span className="flow-name">{label(s)}</span>
                 {!r || Number(r.records) === 0 ? <span className="muted small">{t('home.no_records')}</span> : (

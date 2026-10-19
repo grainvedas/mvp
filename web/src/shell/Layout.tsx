@@ -203,7 +203,8 @@ function Frame() {
   // The scope the frame shows: the one this page belongs to (a stage page, a scope's dashboard), else the chosen one.
   const shown = shownScope(scopes, current, pathname);
   // Operations: the stages of that scope. Whoever reads it whole gets its chain; whoever holds stages there, those.
-  const stages = !shown || !me ? [] : !shown.whole
+  // migration 59 (B1): the client's own login gets no stage pages (it reads its scopes through the dashboard)
+  const stages = !shown || !me || me.external ? [] : !shown.whole
     ? ctx!.slots.filter((s) => s.scope_id === shown.id).map((s) => s.stage_type)
     : shown.status === 'draft' ? [] : shown.chain;
   const single = worksInOneScope(scopes);                  // only holds stages: one scope at a time, no "Overall"

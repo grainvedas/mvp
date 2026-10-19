@@ -24,6 +24,8 @@ insert into allowed values
   ('authenticated', 'withdraw_footprint'),
   -- Phase 4 (migration 23)
   ('anon', 'environment'), ('authenticated', 'environment'), ('authenticated', 'lot_markets'), ('authenticated', 'scope_activity'),
+  ('authenticated', 'client_waiting'), ('authenticated', 'client_farmers'), ('authenticated', 'doc_kind_word'),        -- migration 59
+  ('authenticated', 'same_file_elsewhere'), ('authenticated', 'note_same_file'), ('authenticated', 'is_client_login'),
   ('authenticated', 'reset_login_allowed'), ('authenticated', 'report_client_error'), ('authenticated', 'check_ledger_now'),
   -- migration 34: the admin's dashboard and the whole ledger (both refuse anyone but the admin)
   ('authenticated', 'platform_overview'), ('authenticated', 'ledger_page'), ('authenticated', 'hr_seat_filled'), ('authenticated', 'acts_as_hr'), ('authenticated', 'admin_trends'),

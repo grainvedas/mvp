@@ -16,7 +16,8 @@ const CLIENT = '00000000-0000-4000-8000-000000000201';
 const S = SCOPES.bastiMill;
 const B = SCOPES.bansiBatch;
 const id = (n: string) => `00000000-0000-4000-8000-000000000${n}`;
-const PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
+// its own bytes: since migration 59 one file attached as two kinds of document (another spec's POD) asks a reason
+const PDF = Buffer.from(`%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n% phase28 lab report ${Date.now()}\ntrailer<</Root 1 0 R>>\n%%EOF\n`);
 const ok = (r: { ok: boolean; data: unknown }) => expect(r.ok, JSON.stringify(r.data)).toBe(true);
 const idOf = (r: { ok: boolean; data: unknown }) => { ok(r); return String((r.data as { id: string }[])[0].id); };
 
@@ -172,7 +173,9 @@ test('Part F and D5–D6: a buyer link (what it shows, every view, revoked); a c
   await expect(sf.getByTestId('sf-text')).toContainText('New Delhi, IN and Rotterdam, NL');
   await expectNoSideScroll(page);
   await bp.goto(`/p/${serial}`);
-  await expect(bp.getByTestId('pv-copy-warning')).toContainText('GrainVeda (Prasaadam trade scope) is checking it');
+  // migration 59 (A1): the lot is not released yet, so the page names no seller; the warning stays
+  await expect(bp.getByTestId('pv-copy-warning')).toContainText('It may be a copy');
+  await expect(bp.getByTestId('pv-copy-warning')).not.toContainText('GrainVeda');
   await expectNoSideScroll(bp);
   // cleared with a reason: the warning goes
   await sf.getByTestId('sf-decide').click();

@@ -25,7 +25,7 @@ export function PublicPack() {
       <ErrorBox error={p.error} onRetry={p.reload} />
       {!p.loading && !p.error && !d && <div className="card"><h1>{t('pv.not_found')}</h1><p>{t('pv.pack_not_found', { code: serial })}</p></div>}
       {d && d.released && <JourneyView j={d} pack={d.pack} warn={warn} />}
-      {d && !d.released && <PackNotReleased pack={d.pack} warn={warn} crop={d.crop} season={d.season} geography={d.geography} gi={d.gi_status === 'gi'} />}
+      {d && !d.released && <PackNotReleased p={d} warn={warn} />}
     </PublicFrame>
   );
 }

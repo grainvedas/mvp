@@ -147,6 +147,7 @@ export const enPublic: Record<string, string> = {
   'pv.where_grown': 'Where it was grown',
   'pv.journey_to_you': 'Its journey to you',
   'pv.checked': 'Checked by another person',
+  'pv.same_person': 'Recorded and checked by the same person.',   // migration 59 (A2)
   'pv.lab': 'Lab results',
   'pv.limit': 'at most {v}',
   'pv.this_pack': 'This pack',
@@ -313,6 +314,7 @@ export const hiPublic: Record<string, string> = {
   'pv.where_grown': 'कहाँ उगाया गया',
   'pv.journey_to_you': 'आप तक इसकी यात्रा',
   'pv.checked': 'दूसरे व्यक्ति ने जाँचा',
+  'pv.same_person': 'एक ही व्यक्ति ने दर्ज किया और जाँचा।',
   'pv.lab': 'लैब के नतीजे',
   'pv.limit': 'सीमा {v} तक',
   'pv.this_pack': 'यह पैक',

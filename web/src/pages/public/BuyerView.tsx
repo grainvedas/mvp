@@ -37,6 +37,7 @@ export interface BuyerContent {
     port_loading: string | null; port_discharge: string | null; bl_no: string | null; kg: number; pack_codes: number | null;
     delivery: { on: string; received_kg: number; note: string | null } | null }[];
   lab: { code: string; on: string | null; lab: string | null; report_no: string | null; report_date: string | null; readings: Record<string, number> | null;
+    /** migration 59 (A5, A3): the lab's accreditation number; each reading's unit */ accreditation_no?: string | null; units?: Record<string, string>;
     domestic: string; export: string; released_on_acceptance: boolean; markets: { name: string; verdict: string; failed: string[] }[] }[];
   documents: { doc: string; status: string; note: string | null }[];
   chain: { stage: string; code: string; on: string | null; verified: boolean }[];
@@ -47,8 +48,9 @@ export interface BuyerContent {
 type View = { state: 'loading' } | { state: 'gone' } | { state: 'error' } | { state: 'ok'; expires_at: string; content: BuyerContent };
 
 /** Pure: a reading with its unit, from its key (moisture_pct 12.5 → "12.5 %", aflatoxin_ppb 1.5 → "1.5 ppb"). */
-export function readingText(key: string, v: number): string {
-  const unit = key.endsWith('_pct') ? ' %' : key.endsWith('_ppb') ? ' ppb' : key.endsWith('_ppm') ? ' ppm' : '';
+export function readingText(key: string, v: number, units?: Record<string, string>): string {
+  const u = units?.[key];                                       // migration 59 (A3): the unit the server gives
+  const unit = u ? ` ${u}` : key.endsWith('_pct') ? ' %' : key.endsWith('_ppb') ? ' ppb' : key.endsWith('_ppm') ? ' ppm' : '';
   return `${v}${unit}`;
 }
 
@@ -140,11 +142,12 @@ export default function BuyerView() {
             <h2>{t('bv.lab')}</h2>
             {c.lab.map((l) => (
               <div key={l.code} className="stack">
-                <p className="small muted">{[l.lab, l.report_no ? t('bv.report', { no: l.report_no }) : null, date(l.report_date ?? l.on ?? '')].filter(Boolean).join(' · ')}</p>
+                <p className="small muted" data-testid="bv-lab-line">{[l.lab, l.accreditation_no ? t('lab.accreditation', { no: l.accreditation_no }) : null,
+                  l.report_no ? t('bv.report', { no: l.report_no }) : null, date(l.report_date ?? l.on ?? '')].filter(Boolean).join(' · ')}</p>
                 <ul data-testid="bv-markets">{l.markets.map((m) => <li key={m.name}>{m.name}: <Badge value={m.verdict} />{m.failed.length ? ` (${m.failed.join(', ')})` : ''}</li>)}</ul>
                 {l.released_on_acceptance && <p className="small">{t('bv.on_acceptance')}</p>}
                 {l.readings && <div className="table-wrap"><table><tbody>{Object.entries(l.readings).map(([k, x]) => (
-                  <tr key={k}><td>{t(`qp.${k}`, undefined, humanise(k.replace(/_(pct|ppb|ppm)$/, '')))}</td><td className="mono">{readingText(k, x)}</td></tr>))}</tbody></table></div>}
+                  <tr key={k}><td>{t(`qp.${k}`, undefined, humanise(k.replace(/_(pct|ppb|ppm)$/, '')))}</td><td className="mono">{readingText(k, x, l.units)}</td></tr>))}</tbody></table></div>}
               </div>))}
           </section>)}
         {c.documents.length > 0 && (

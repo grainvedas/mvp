@@ -315,7 +315,8 @@ export async function apiAs(page: Page) {
     /** The same question of any store (the private HR documents are in `hr-docs`). */
     signedUrlIn: (bucket: string, path: string) => storage('POST', `object/sign/${bucket}/${path}`, JSON.stringify({ expiresIn: 60 })),
     rows: async (table: string, query = '') => {
-      const r = await call('GET', `${table}?select=*${query ? `&${query}` : ''}`);
+      // a query that names its columns keeps them (since migration 59 app_users' email and phone are not readable)
+      const r = await call('GET', `${table}?${/(^|&)select=/.test(query) ? query : `select=*${query ? `&${query}` : ''}`}`);
       if (!r.ok) throw new Error(`reading ${table} failed: ${r.status} ${JSON.stringify(r.data)}`);
       return r.data as Record<string, unknown>[];
     },

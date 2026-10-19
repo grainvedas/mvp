@@ -343,8 +343,9 @@ begin
   perform t.ok(n = 0, 'an operator cannot resolve a flag (0 rows: managers only)');
 
   perform t.as_user(t.u('04'));
-  insert into public.flags (footprint_id, raised_by, text) values (p, t.u('04'), 'buyer asks: which village?') returning * into r;
-  perform t.ok(r.status = 'open', 'Client View may raise a query (PRD §4: flags are universal)');
+  -- migration 59 (B1, Veda's brief of 19 Oct 2026): the client's login reads only; it asks its Client Manager instead
+  perform t.fails(format($q$insert into public.flags (footprint_id, raised_by, text) values (%L, %L, 'buyer asks: which village?')$q$, p, t.u('04')),
+                  'client login reads only', 'Client View raises no flag (migration 59: a client login reads only)');
 
   perform t.as_user(t.u('03'));
   perform t.fails(format('update public.flags set text = ''nothing wrong'' where id = %L', fl), 'cannot be edited', 'L1 a manager cannot rewrite the text of a flag');

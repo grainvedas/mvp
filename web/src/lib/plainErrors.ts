@@ -348,6 +348,10 @@ export const PLAIN_RULES: PlainRule[] = [
   { re: /a scan flag is cleared or confirmed/i, key: 'err.sf_outcome' },
   { re: /scan flag: say why/i, key: 'err.sf_reason' },
   { re: /the isolation probe is run by the database owner/i, key: 'err.probe_owner' },
+  // migration 59 (Veda's brief of 19 Oct 2026): a client login reads only (B1); one file, two kinds (A6); a typed batch code (A8)
+  { re: /a client login reads only/i, key: 'err.client_reads_only' },
+  { re: /same file: this exact file is already attached as (.+?) on (\S+)/i, key: 'err.same_file', vars: ['doc', 'code'] },
+  { re: /batch code (\S+) is in use already/i, key: 'err.batch_in_use', vars: ['code'] },
   // the database's inside words, in general
   { re: /violates not-null constraint|null value in column/i, key: 'err.missing_value' },
   { re: /invalid input syntax for type (numeric|integer|bigint|real|double precision)/i, key: 'err.not_number' },
@@ -372,7 +376,8 @@ export function plainWords(raw: string, t: (k: string, v?: Record<string, string
     const vars: Record<string, string> = {};
     (r.vars ?? []).forEach((name, i) => {
       const v = m[i + 1] ?? '';
-      vars[name] = ['stage', 'expected', 'got'].includes(name) && /^[a-z_]+$/.test(v) ? stageWord(v) : v;
+      vars[name] = ['stage', 'expected', 'got'].includes(name) && /^[a-z_]+$/.test(v) ? stageWord(v)
+        : name === 'doc' ? t(`dockind.${v.trim().replace(/\s+/g, '_')}`, undefined, v) : v;      // migration 59: a kind of document
     });
     return t(r.key, vars);
   }

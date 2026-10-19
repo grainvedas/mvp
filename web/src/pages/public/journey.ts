@@ -20,6 +20,8 @@ export interface JourneyStep {
     /** migration 57: the market profile's limits ({param, operator, limit}) */ limits?: MarketLimit[] | null }[];
   /** migration 57 (G21): checked by someone other than who recorded it; absent on older servers (then nothing is said) */
   checked?: boolean;
+  /** migration 59 (A2, Veda's brief of 19 Oct 2026): recorded and checked by the same person; the page says so */
+  same_person?: boolean;
 }
 export interface MarketLimit { param: string; operator: string; limit: number | [number, number] | string | boolean | null }
 export interface Journey {
@@ -37,6 +39,8 @@ export interface Journey {
   /** migration 50: the release's status (a recall shows on every pack) and the packs' dates */
   release?: { status: 'active' | 'under_investigation' | 'recalled'; reason?: string | null; at?: string };
   packs?: { n: number; packed_on: string | null; best_before: string | null } | null;
+  /** migration 59 (A3): each reading's unit, from the crop's quality schema (absent on older servers: guessed from the key) */
+  units?: Record<string, string>;
 }
 /** app.public_pack (migration 50): one pack; before release only what the label says */
 export interface PackView { serial: string; batch_code: string; size_kg: number; packed_on: string; best_before: string | null; void: boolean;
@@ -48,8 +52,9 @@ export interface PackView { serial: string; batch_code: string; size_kg: number;
   scans?: { n: number; first_city: string | null; first_country: string | null };
   /** migration 58: the carton it was packed in (its code only) */
   carton?: string | null }
-export type PublicPack = (Journey & { pack: PackView; released: true })
-  | { pack: PackView; released: false; crop: Journey['crop']; season: string; geography: string; gi_status?: Journey['gi_status'] };
+/** migration 59 (A1): before release the crop, the batch code and the date packed, nothing else */
+export interface PackBeforeRelease { pack: { serial: string; batch_code: string; packed_on: string; void?: boolean; copy_warning?: boolean }; released: false; crop: { name: string } }
+export type PublicPack = (Journey & { pack: PackView; released: true }) | PackBeforeRelease;
 export const loadPack = (serial: string) => rpc<PublicPack | null>('public_pack', { p_serial: serial });
 export interface ScanCount { counted?: boolean; copy_warning?: boolean }
 /** Every scan is counted (time and code, and since migration 56 the approximate place the host saw: city, region,

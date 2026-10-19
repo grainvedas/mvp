@@ -23,7 +23,7 @@ begin
   perform t.as_user(t.u('06'));
   perform t.fails(format('select app.seal_source(%L)', q), 'may not create at stage qr_activation', 'seal: the QC technician who tested the lot cannot seal it');
   perform t.as_user(t.u('04'));
-  perform t.fails(format('select app.seal_source(%L)', q), 'may not create', 'seal: Client View cannot seal');
+  perform t.fails(format('select app.seal_source(%L)', q), 'client login reads only', 'seal: Client View cannot seal');
 
   -- the sealer, while the QC record is still unverified and a flag is open
   perform t.as_user(t.u('07'));

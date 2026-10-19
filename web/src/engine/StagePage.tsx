@@ -20,6 +20,7 @@ import { Widget, buildPayload, missingRequired, missingFiles, withScopeRules, wi
 import { SamplesPanel } from '../pages/records/Samples';
 import { SECTION_ICON, stageIcon } from './icons';
 import { uploadEvidence, UPLOAD_WAIT_MS } from './evidence';
+import { isSameFile } from './DupFile';
 import { offlinePreview, paymentProblem, type OfflinePreview, type OfflineRules } from './offlinePreview';
 import { localiseForm } from './localise';
 import { waitingSplit } from '../lib/waiting';
@@ -615,7 +616,8 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
         // No connection for the photo: it waits on the phone under the same save id. The outbox finds the record that
         // was just made (it is not made twice) and attaches the photo when the network is back.
         if (isNetworkError(e) && !editing) { await queue(me); return; }
-        setPhotoError(errorText(toAppError(e), t));
+        // migration 59 (A6): the same file is attached elsewhere as another kind: the record page asks for the reason
+        setPhotoError(errorText(toAppError(e), t) + (isSameFile(e) ? ` ${t('dup.on_record_page')}` : ''));
       }
     }
     try {

@@ -2708,3 +2708,63 @@ Veda's decision G24 ("proceed with 58"). Built and checked on the local stack; n
 - Not proved here: printing on a real label printer (the page sets `@page` to 100 mm × 150 mm; the printer's own
   driver must be set to that size), the camera reading a carton label (the same QR reader as packs), and a lot of
   1 lakh packs (the checks are on sets; no load test was run at that size).
+
+## 17 October 2026, 11:40 IST: release 11 on staging (`staging-cartons-people.cmd`)
+
+Veda ran it. S0 (58 waiting, the seven functions current, 163 app and function files the tested ones), S1 pushed
+`20261102000100_cartons_reports_departments.sql`, S1b `commercial_form=new stages=17 tables=new departments=9 rule=yes`,
+S2 smoke 55/56 (statement logging standing), the new rules in place and the change log intact, one client and another
+`leaks=0 people=7 tables=44 calls=11205 own_rows=2405 clients=3`, `cartons=0 departments=9 packs=769 ledger_head=259`,
+ledger audit NO FINDINGS (259 blocks, 61 records, 5 seals, 10 evidence files), no login without a person, functions
+current; S3 pushed 760bcfa (33 files). `RESULT: CARTONS AND PEOPLE CHOICES ON STAGING`. Record:
+`release-evidence\staging-cartons-people-20261017-114037.log`.
+
+Run-sheet checks, 17 Oct about 11:45–12:15 IST (Lucky, then Minal, signed in by Veda; Claude drove them in Chrome; practice
+data, KH26 Bansi). The lot for them was made through the API as Lucky: VB-0002 checked in at Milling, M-0002 (61 kg in,
+45 head rice), sample M-0002-S1 to Practice lab (test), QC-0002 (44 kg) with a one-line PDF marked "PRACTICE LAB REPORT
+(test), not a real report", PK-0002 (44 × 1 kg pouch) with its net weight check (5 packs at 1,004 g).
+- Row 1: Set-up lists → Packs, 1 kg pouch: 0 and 1001 refused ("Packs per carton is a whole number from 1 to 1,000."); 20 saved.
+- Row 2: PK-0002 made cartons B0003-C0001 (0001–0020), C0002 (0021–0040), C0003 (0041–0044, 4 packs); the labels page
+  "Carton labels (3)", A4 two across and 100 × 150 mm both shown, each with its QR. Print preview not opened.
+- Row 3: CM-0003 (domestic, PO-TEST-58, 40 packs, INR 120/kg) through the form, C0002 chosen: "20 of the 40 packs in the
+  cartons chosen"; review "Set aside: 2 cartons (40 packs)"; saved units C0002, C0001.
+- Row 4: SH-0003 through the form: C0003 "Not set aside for this order" with Remove; C0002 + C0001 "40 of 40 packs loaded ·
+  2 cartons"; saved, `serials_count` 40, `cartons_count` 2.
+- Row 5 (release 10's rows 5–6): a buyer link for SH-0003 opened (in the same tab): the order, LR-TEST-58 and the e-way
+  bill; no vehicle number, no price. Revoked with a reason.
+- Row 6 (Minal): "Seed Production (test)" added, then retired ("Retired", "Bring back"); not offered in Add joiner.
+- Row 7: Add joiner, not saved: Uttar Pradesh → Reports to: head office (Veda · Admin), Uttar Pradesh (Agrima · Client
+  Manager, Associate; Lucky · Client Manager, Executive; Ram · State Manager, Manager); no operator; Delhi → Minal ·
+  HR Admin, Manager; Bihar and Uttarakhand → head office only. Buddy: the state's colleagues. Department: the nine.
+- Row 8: Ram's record → Edit: Department "OPERATION (typed before; not on the list)" kept; Reports to "Minal (chosen
+  before; not a choice now)"; saved unchanged.
+Found: "1 cartons" in the loader (no `.one` form); the packs-per-carton hint reads unclearly. Questions for Veda: whether
+the HR Admin (based in Delhi) should count as head office for every state, and whether a Client Manager seat below band
+Manager should be offered as Reports to.
+
+## 19 October 2026: fixes and the client login reads only, Phase 1 release 1 (migration 59, open item 54), local stack
+
+Veda's combined brief of 19 Oct 2026, Parts A and B; "ok start" to the plan's twelve defaults. Migration
+`20261103000100_fixes_client_reads_only.sql`, the app; run sheet `docs/RUNSHEET_fixes_client_reads_only.md`.
+- Database tests: every `tests/NN_*.sql` on a template built from the 62 migrations: **2,328 checks, no failure**; the new
+  `tests/54_fixes_client_reads_only.sql` 53 checks (A1 to A8, B1 to B4; the client login's writes by direct calls on 40
+  tables, the evidence store, flags). Negative controls: **17 of 17 caught** (each breaks one rule of 59 on a copy).
+  `tests/run_local.sh`: ALL TESTS PASSED.
+- Unit tests 683 (`web/tests/release59.test.tsx` 14); `tsc` clean.
+- End to end at 527 px on the local stack, the whole suite: **97 passed** (new `e2e/phase31.spec.ts`: the client
+  login's home, "Waiting on GrainVeda", no stage page, masked farmer phones, a refused flag; a pack before release on
+  `/p/` and `/verify/`; the Client Manager's People with no email). The built app (`playwright.prod.config.ts`): 14
+  passed. `remote_rls.mjs --t1`: REMOTE RLS PASSED (the client view reads 0 farmers from the table and its 15 through
+  `client_farmers`, phones masked). `remote_create_user.mjs`: CREATE-USER PASSED. The first day from nothing: 1 passed.
+- Restore drill: after the whole suite, HR documents 4 of 5 (one HR record of an e2e without its file, as after releases
+  9 and 10's suites); on a fresh stack after `phase26`, `phase28`, `phase31`: **RESTORE DRILL PASSED**.
+- Found and fixed while testing (each with a check and a control): a voided pack showed "Packed, not yet released"
+  instead of "voided"; a code scanned far apart lost its copy warning before release (now kept, without the seller);
+  the same photo as a loading photo and a photo of the bags asked a reason (photos are now one kind); People & access
+  for a Client Manager took 15 s with 230 people (`app.cm_seen_ids` once a row through `app.may_offer_assign`), now
+  about 3 s (open item 55 for the rest). Tests updated for the new rules: `e2e/phase3` (the season CSV's `data_note`),
+  `phase4`, `phase9`, `e2e-prod/field_day` (no `app_users` email or phone through the API), `phase5` (the client
+  login goes home from a stage page), `phase28` (its own lab-report bytes; the copy warning without the seller),
+  `phase11`, `tests/51`, `tests/remote_rls.mjs`.
+- Not proved here: the staging run (Veda's), the scopes marked "Practice (old data)" on staging (S1b lists them), the
+  GI badge on a practice lot of a Siddharthnagar farmer (run sheet rows 8 and 9), PDF exports (release 2 and 3).

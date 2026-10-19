@@ -34,7 +34,8 @@ export function Labels() {
             {img && <img src={img} alt={`QR ${code}`} />}
             <div>
               <div className="label-crop">{d.crop.name}</div>
-              {d.crop.gi_tag && <div className="label-gi">{d.crop.gi_tag}</div>}
+              {/* migration 59 (A7): the GI tag only on a lot whose every source is from the GI area */}
+              {d.crop.gi_tag && d.gi_status === 'gi' && <div className="label-gi" data-testid="label-gi">{d.crop.gi_tag}</div>}
               <div className="label-small">{seasonName(d.season)} · {d.geography}</div>
               {d.batch_codes.length > 0 && <div className="label-small mono">Batch {d.batch_codes.join(', ')}</div>}
               <div className="label-code mono">{code}</div>

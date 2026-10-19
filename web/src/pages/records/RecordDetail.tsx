@@ -8,10 +8,11 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { kg, date, dateTime, humanise, num, shortHash, todayIST } from '../../lib/format';
-import { oversees, managesScope, isStateManager } from '../../lib/rights';
+import { oversees, managesScope, isStateManager, isClientLogin } from '../../lib/rights';
 import { type Footprint, type FootprintDetail, type QualityParam, type StageForm, type Withdrawal } from '../../lib/types';
 import { Badge, ErrorBox, Loading, Field, plainText } from '../../shell/ui';
 import { uploadEvidence } from '../../engine/evidence';
+import { ErrorOrSameFile, useDupReason } from '../../engine/DupFile';
 import { EVIDENCE_ACCEPT } from '../../engine/widgets';
 import { ComputedRows, EnteredRows, capturedAt, paramName } from '../../engine/values';
 import { localiseForm } from '../../engine/localise';
@@ -60,8 +61,11 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
   const senderReturned = !!openReturn && f.created_by === me.id && !watch;
   return (
     <div>
-      <p className="muted small"><Link to={`/work/${f.scope_id}/${f.stage_type}`}>{t(`stage.${f.stage_type}`, undefined, r.stage_label)}</Link></p>
+      {/* migration 59 (B1): the client's login has no stage page */}
+      <p className="muted small">{isClientLogin(ctx) ? <Link to="/">{t('nav.home')}</Link>
+        : <Link to={`/work/${f.scope_id}/${f.stage_type}`}>{t(`stage.${f.stage_type}`, undefined, r.stage_label)}</Link>}</p>
       <h1 className="mono">{t('record.title', { code: f.footprint_code })}</h1>
+      {r.data_note === 'practice_old_data' && <div className="alert warn" data-testid="old-data">{t('scope.old_data')}</div>}
       <div className="card">
         <div className="row"><Badge value={f.status} />{f.lot_closed && <Badge value="closed" label={t('record.lot_closed')} />}{f.grade && <Badge value="verified" label={t('record.grade', { grade: f.grade })} />}</div>
         <dl className="kv" style={{ marginTop: 12 }}>
@@ -73,6 +77,9 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
           <dt>{t('record.available')}</dt><dd>{kg(r.available_kg)}</dd>
           {/* migration 54: a bill of lading added after the ship sailed is no longer "to come" */}
           <ComputedRows computed={r.bill_of_lading ? { ...f.computed, bl_pending: false } : f.computed} t={t} />
+          {/* migration 59 (A5): the lab with its accreditation number, wherever its report number is shown */}
+          {r.lab?.name && <><dt>{t('trace.lab')}</dt><dd data-testid="record-lab">{r.lab.name}{r.lab.accreditation_no ? ` · ${t('lab.accreditation', { no: r.lab.accreditation_no })}` : ''}
+            {r.lab.report_no ? ` · ${t('bv.report', { no: r.lab.report_no })}` : ''}</dd></>}
           {r.bill_of_lading && <><dt>{t('field.bl_no')}</dt><dd className="mono" data-testid="record-bl">{r.bill_of_lading.bl_no} · {date(r.bill_of_lading.added_at)}</dd></>}
           {f.happened_on && <><dt>{t('on.label')}</dt><dd data-testid="record-on">{date(f.happened_on)}</dd></>}
           {f.manager_reason && <><dt>{t('mgr.recorded_by_manager')}</dt><dd data-testid="record-manager-reason">“{f.manager_reason}”</dd></>}
@@ -126,7 +133,7 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
       {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && !watch && <FinishSeal f={f} onDone={reload} />}
       {r.attachments.length > 0 && <Attachments detail={r} />}
       {me.role !== 'client_view' && !watch && f.status !== 'superseded' && <AddEvidence f={f} onDone={reload} />}
-      <Flags detail={r} onChange={reload} canResolve={boss} canRaise />
+      <Flags detail={r} onChange={reload} canResolve={boss} canRaise={!isClientLogin(ctx)} />
       <div className="card">
         <h2>{t('record.ledger')}</h2>
         <div className="table-wrap"><table>
@@ -363,10 +370,11 @@ function QcPanel({ detail, onChange, canOverride, params, asksNames }: { detail:
   const hasAcceptance = detail.attachments.some((a) => a.label === 'acceptance');
   const [acceptance, setAcceptance] = useState<File | null>(null);
   const act = useAction();
+  const dup = useDupReason();
   // migration 53 (C5): who at the client accepted it, their title, the date of the acceptance
   const [person, setPerson] = useState(''); const [title, setTitle] = useState(''); const [accOn, setAccOn] = useState('');
   const override = () => act.run(async () => {
-    if (!hasAcceptance && acceptance) await uploadEvidence(detail.footprint, acceptance, 'acceptance');
+    if (!hasAcceptance && acceptance) await uploadEvidence(detail.footprint, acceptance, 'acceptance', dup.value);
     const named = { client_person: person.trim(), client_title: title.trim(), accepted_on: accOn };
     await q(supabase.from('qc_verdicts').update({ override: { market: 'export', reason, authoriser: ctx!.user!.id,
       ...Object.fromEntries(Object.entries(named).filter(([, x]) => x !== '')) } })
@@ -399,7 +407,7 @@ function QcPanel({ detail, onChange, canOverride, params, asksNames }: { detail:
           <Field label={`${t('ov.client_person')}${asksNames ? ' *' : ''}`} htmlFor="ov-person"><input id="ov-person" value={person} onChange={(e) => setPerson(e.target.value)} data-testid="ov-person" /></Field>
           <Field label={`${t('ov.client_title')}${asksNames ? ' *' : ''}`} htmlFor="ov-title"><input id="ov-title" value={title} onChange={(e) => setTitle(e.target.value)} data-testid="ov-title" /></Field>
           <Field label={`${t('ov.accepted_on')}${asksNames ? ' *' : ''}`} htmlFor="ov-on"><input id="ov-on" type="date" value={accOn} max={todayIST()} onChange={(e) => setAccOn(e.target.value)} data-testid="ov-on" /></Field>
-          <ErrorBox error={act.error} />
+          <ErrorOrSameFile error={act.error} reason={dup.reason} setReason={dup.setReason} retry={override} busy={act.busy} />
           <button className="danger" disabled={!reason.trim() || act.busy || (!hasAcceptance && !acceptance) || (asksNames && (person.trim().length < 2 || title.trim().length < 2 || !accOn))} onClick={override}>{t('record.override')}</button>
         </div>
       )}
@@ -482,8 +490,9 @@ function DeliveryPanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: bool
   const [pod, setPod] = useState<File | null>(null);
   const hasPod = r.attachments.some((a) => a.label === 'pod');
   const act = useAction();
+  const dup = useDupReason();
   const confirm = () => act.run(async () => {
-    if (pod && !hasPod) await uploadEvidence(f, pod, 'pod');
+    if (pod && !hasPod) await uploadEvidence(f, pod, 'pod', dup.value);
     await rpc('confirm_delivery', { p_shipment: f.id, p_received_kg: Number(got), p_received_on: on, p_note: note.trim() || null });
     onDone();
   });
@@ -510,7 +519,7 @@ function DeliveryPanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: bool
         {!hasPod && <Field label={t('dl.pod')} htmlFor="dl-pod" hint={t('dl.pod_hint')}><input id="dl-pod" type="file" accept={EVIDENCE_ACCEPT} onChange={(e) => setPod(e.target.files?.[0] ?? null)} data-testid="delivery-pod" /></Field>}
       </div>
       {got !== '' && Number.isFinite(n) && n <= Number(f.qty_in) && <p data-testid="delivery-loss-preview">{t('dl.loss_preview', { kg: kg(Math.max(Number(f.qty_in) - n, 0)) })}</p>}
-      <ErrorBox error={act.error} />
+      <ErrorOrSameFile error={act.error} reason={dup.reason} setReason={dup.setReason} retry={confirm} busy={act.busy} />
       <button disabled={act.busy || got === '' || !Number.isFinite(n) || !on} onClick={confirm} data-testid="delivery-confirm">{t('dl.confirm')}</button>
     </div>
   );
@@ -539,10 +548,11 @@ function ExportDocsPanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: bo
   const docs = r.export_docs ?? [];
   const [edit, setEdit] = useState<{ doc: string; status: string; note: string; file: File | null } | null>(null);
   const act = useAction();
+  const dup = useDupReason();
   const save = () => act.run(async () => {
     let att: string | null = null;
     if (edit!.status === 'received' && edit!.file) {
-      const path = await uploadEvidence(f, edit!.file, 'export_doc');
+      const path = await uploadEvidence(f, edit!.file, 'export_doc', dup.value);
       att = ((await q(supabase.from('attachments').select('id').eq('footprint_id', f.id).eq('storage_path', path).single())) as unknown as { id: string }).id;
     }
     await rpc('set_export_doc', { p_fp: f.id, p_doc: edit!.doc, p_status: edit!.status, p_attachment: att, p_note: edit!.note.trim() || null });
@@ -567,7 +577,7 @@ function ExportDocsPanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: bo
                 <input id={`xd-file-${i}`} type="file" accept={EVIDENCE_ACCEPT} onChange={(e) => setEdit({ ...edit, file: e.target.files?.[0] ?? null })} data-testid={`export-doc-file-${i}`} /></Field>}
               {edit.status === 'not_required' && <Field label={`${t('xd.why')} *`} htmlFor={`xd-note-${i}`}>
                 <input id={`xd-note-${i}`} value={edit.note} maxLength={300} onChange={(e) => setEdit({ ...edit, note: e.target.value })} data-testid={`export-doc-note-${i}`} /></Field>}
-              <ErrorBox error={act.error} />
+              <ErrorOrSameFile error={act.error} reason={dup.reason} setReason={dup.setReason} retry={save} busy={act.busy} />
               <div className="row"><button onClick={save} data-testid={`export-doc-save-${i}`}
                 disabled={act.busy || (edit.status === 'received' && !edit.file && !d.attachment_id) || (edit.status === 'not_required' && edit.note.trim().length < 5)}>{t('common.save')}</button>
                 <button className="secondary" onClick={() => setEdit(null)}>{t('common.cancel')}</button></div>
@@ -668,20 +678,21 @@ function AddEvidence({ f, onDone }: { f: Footprint; onDone: () => void }) {
   const [done, setDone] = useState(false);
   const [round, setRound] = useState(0);
   const act = useAction();
+  const dup = useDupReason();
   const attach = () => act.run(async () => {
     setDone(false);
-    await uploadEvidence(f, file!);
-    setFile(null); setRound((n) => n + 1); setDone(true); onDone();
+    await uploadEvidence(f, file!, null, dup.value);
+    setFile(null); setRound((n) => n + 1); setDone(true); dup.setReason(''); onDone();
   });
   return (
     <div className="card">
       <h2>{t('record.add_evidence')}</h2>
       <div className="row">
         <input key={round} aria-label={t('record.add_evidence')} type="file" accept={EVIDENCE_ACCEPT} style={{ flex: '1 1 220px', width: 'auto', minWidth: 0, maxWidth: '100%' }}
-          onChange={(e) => { setFile(e.target.files?.[0] ?? null); setDone(false); }} data-testid="evidence-file" />
+          onChange={(e) => { setFile(e.target.files?.[0] ?? null); setDone(false); dup.setReason(''); }} data-testid="evidence-file" />
         <button className="secondary" disabled={!file || act.busy} onClick={attach} data-testid="evidence-attach">{t('record.attach')}</button>
       </div>
-      <ErrorBox error={act.error} />
+      <ErrorOrSameFile error={act.error} reason={dup.reason} setReason={dup.setReason} retry={attach} busy={act.busy} />
       {done && <div className="alert ok" data-testid="evidence-attached">{t('record.attached')}</div>}
     </div>
   );

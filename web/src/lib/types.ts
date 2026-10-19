@@ -215,6 +215,9 @@ export interface Farmer {
 
 export interface FootprintDetail {
   footprint: Footprint;
+  /** migration 59: the lab of a lab record with its accreditation number (A5); each reading's unit (A3); old data (A8) */
+  lab?: { name?: string; accreditation_no?: string; kind?: string; report_no?: string; report_date?: string } | null;
+  units?: Record<string, string>; data_note?: string | null;
   stage_label: string;
   created_by_name: string | null;
   verified_by_name: string | null;

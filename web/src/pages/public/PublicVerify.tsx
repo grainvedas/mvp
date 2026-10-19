@@ -6,12 +6,16 @@
 // appear"): the provenance story of the GrainVeda design system (a deep green hero, the villages by share, the journey
 // step by step, the lab readings beside each market's limit, the pack's scans). It never says that one person recorded
 // and checked a step: a step says "checked by another person" only where the server says so.
+// Migration 59 (Veda's brief of 19 Oct 2026): A2 a step recorded and checked by one person says so ("Recorded and
+// checked by the same person."); A3 each reading's unit comes from the server; A1 a pack serial opened here before its
+// lot is released shows "Packed, not yet released" (crop, batch code, date packed); "Code not found" only for a code
+// that is neither a sealed lot nor a pack.
 import { useEffect, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { ErrorBox, Loading } from '../../shell/ui';
-import { countScan, loadJourney, seasonName, type Journey, type JourneyStep, type MarketLimit, type PackView, stepDate } from './journey';
+import { countScan, loadJourney, loadPack, seasonName, type Journey, type JourneyStep, type MarketLimit, type PackBeforeRelease, type PackView, stepDate } from './journey';
 import { giLabel } from '../../lib/gi';
 
 export const pvDate = (s?: string | null) => (s ? new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }) : '');   // India's time (Veda, 15 Oct)
@@ -35,7 +39,7 @@ export interface ReadingRow { key: string; label: string; value: number | string
   /** the bar's length, 0 to 100 (null: no bar) */ pct: number | null; within: boolean | null }
 /** Pure (migration 57): the lab readings of the lot, each beside the strictest upper limit among the markets it was
  *  judged against (a bar for "at most"; other kinds of limit show no bar). */
-export function readingRows(steps: JourneyStep[]): ReadingRow[] {
+export function readingRows(steps: JourneyStep[], units?: Record<string, string>): ReadingRow[] {
   const rows: ReadingRow[] = [];
   for (const s of steps) {
     if (!s.readings) continue;
@@ -46,7 +50,7 @@ export function readingRows(steps: JourneyStep[]): ReadingRow[] {
       const limit = ups.length ? Math.min(...ups) : null;
       const v = typeof value === 'number' ? value : Number.NaN;
       const pct = limit !== null && limit > 0 && Number.isFinite(v) ? Math.max(2, Math.min(100, Math.round((v / limit) * 100))) : null;
-      rows.push({ key, label: pretty(key), value, unit: readingUnit(key), limit, pct, within: limit !== null && Number.isFinite(v) ? v <= limit : null });
+      rows.push({ key, label: pretty(key), value, unit: units?.[key] ?? readingUnit(key), limit, pct, within: limit !== null && Number.isFinite(v) ? v <= limit : null });
     }
   }
   return rows;
@@ -71,16 +75,23 @@ export function PublicFrame({ children }: { children: ReactNode }) {
 export function PublicVerify() {
   const { code = '' } = useParams();
   const { t } = useI18n();
-  const j = useAsync(() => loadJourney(code), [code]);
+  // migration 59 (A1): a code that is no sealed lot may be a pack's serial (a label read by another app, or typed)
+  const j = useAsync(async () => {
+    const lot = await loadJourney(code);
+    return { lot, pack: lot ? null : await loadPack(code) };
+  }, [code]);
   useEffect(() => { if (code) void countScan(code); }, [code]);
+  const lot = j.data?.lot ?? null, pk = j.data?.pack ?? null;
   return (
     <PublicFrame>
       {j.loading && <Loading />}
       <ErrorBox error={j.error} onRetry={j.reload} />
-      {!j.loading && !j.error && !j.data && (
+      {!j.loading && !j.error && !lot && !pk && (
         <div className="card"><h1>{t('pv.not_found')}</h1><p>{t('pv.not_found_body', { code })}</p></div>
       )}
-      {j.data && <JourneyView j={j.data} />}
+      {lot && <JourneyView j={lot} />}
+      {pk && pk.released && <JourneyView j={pk} pack={pk.pack} warn={pk.pack.copy_warning === true} />}
+      {pk && !pk.released && <PackNotReleased p={pk} />}
     </PublicFrame>
   );
 }
@@ -126,7 +137,7 @@ export function JourneyView({ j, pack, warn }: { j: Journey; pack?: PackView; wa
   const { t } = useI18n();
   const villages = j.villages ?? [];
   const gi = !!j.crop.gi_tag && j.gi_status !== 'non_gi' && j.gi_status !== 'unknown';
-  const rows = readingRows(j.journey);
+  const rows = readingRows(j.journey, j.units);
   const markets = j.journey.flatMap((s) => s.markets ?? []);
   return (
     <div data-testid="public-journey">
@@ -225,6 +236,7 @@ function Step({ s, last }: { s: JourneyStep; last: boolean }) {
         {s.destination && <span className="pv-detail">{t('pv.shipped_to', { place: s.destination })}{s.dispatched_on ? ` · ${date(s.dispatched_on)}` : ''}</span>}
         {gate && <span className="pv-detail">{t('pv.sealed_step')}</span>}
         {s.checked === true && <span className="pv-checked" data-testid="pv-checked"><Icon name="people" size={14} width={2} />{t('pv.checked')}</span>}
+        {s.same_person === true && <span className="pv-detail" data-testid="pv-same-person">{t('pv.same_person')}</span>}
       </div>
     </li>
   );
@@ -271,20 +283,29 @@ function PackCard({ pack, lot }: { pack: PackView; lot?: Journey['packs'] }) {
   );
 }
 
-/** A pack that is not released yet: what the label says, in the same look. */
-export function PackNotReleased({ pack, warn, crop, season, geography, gi }: { pack: PackView; warn: boolean; crop: Journey['crop']; season: string; geography: string; gi: boolean }) {
+/** A pack that is not released yet (migration 59, A1): "Packed, not yet released", the crop, the batch code and the
+ *  date packed; nothing else. */
+/** A pack before its lot is released (migration 59, A1): the crop, serial, batch code and date packed. A voided pack says
+ *  so; a code scanned far apart or very often is warned of, without the seller's name. */
+export function PackNotReleased({ p, warn = false }: { p: PackBeforeRelease; warn?: boolean }) {
   const { t } = useI18n();
   return (
     <div data-testid="public-pack">
       <section className="pv-hero">
-        <h1>{crop.name}</h1>
-        <p className="pv-lede">{seasonName(season)} · {geography}</p>
-        <div className="pv-chips"><span className="pv-chip mono">{pack.serial}</span>{gi && crop.gi_tag && <span className="pv-chip">{giLabel(crop.gi_tag, t)}</span>}</div>
+        <h1>{p.crop.name}</h1>
+        <div className="pv-chips"><span className="pv-chip mono">{p.pack.serial}</span></div>
       </section>
       <div className="pv-body">
-        <PackAlerts pack={pack} warn={warn} />
-        {!pack.void && <div className="alert info" data-testid="pv-not-released">{t('pv.not_released')}</div>}
-        <PackCard pack={pack} />
+        {p.pack.void ? <div className="alert error" role="alert" data-testid="pv-void">{t('pv.pack_void')}</div>
+          : <div className="alert info" data-testid="pv-not-released">{t('pv.not_released')}</div>}
+        {!p.pack.void && (warn || p.pack.copy_warning === true) && <div className="pv-warn" role="alert" data-testid="pv-copy-warning"><Icon name="alert" size={22} width={2} />
+          <span>{t('pv.copy_warning_plain')}</span></div>}
+        <section className="pv-card sand" data-testid="pv-pack">
+          <dl className="pv-kv">
+            <dt>{t('pv.batch')}</dt><dd className="mono">{p.pack.batch_code}</dd>
+            <dt>{t('pv.packed')}</dt><dd>{pvDate(p.pack.packed_on)}</dd>
+          </dl>
+        </section>
       </div>
     </div>
   );

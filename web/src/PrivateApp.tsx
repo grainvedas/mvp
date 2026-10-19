@@ -51,6 +51,13 @@ export function AdminOnly({ children }: { children: ReactNode }) {
   return ctx?.user?.can?.admin ? <>{children}</> : <Navigate to="/" replace />;
 }
 
+/** Migration 59 (B1, Veda's brief of 19 Oct 2026): the client's own login reads only; no stage page opens for it (the
+ *  database refuses its writes anyway). */
+export function NotForClientLogin({ children }: { children: ReactNode }) {
+  const { ctx } = useAuth();
+  return ctx?.user?.external ? <Navigate to="/" replace /> : <>{children}</>;
+}
+
 /** HR's screens open only for HR (and the admin while the HR Admin seat is empty): brief 2.2. Anyone else goes home. */
 export function HrOnly({ children, orAdmin }: { children: ReactNode; orAdmin?: boolean }) {
   const { ctx } = useAuth();
@@ -76,7 +83,7 @@ function Private() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<Home />} />
-        <Route path="work/:scopeId/:stage" element={<StagePage />} />
+        <Route path="work/:scopeId/:stage" element={<NotForClientLogin><StagePage /></NotForClientLogin>} />
         <Route path="records/:id" element={<RecordDetail />} />
         <Route path="records/:id/labels" element={<PackLabels />} />   {/* migration 50: one label per pack */}
         <Route path="records/:id/receipt" element={<Receipt />} />   {/* migration 52: the farmer's receipt */}

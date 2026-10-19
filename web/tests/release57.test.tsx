@@ -43,7 +43,8 @@ describe('G21 · the public page never says one person recorded and checked a st
     expect(howKey(true)).toBe('pv.how');
     expect(howKey(false)).toBe('pv.how_basic');
     expect(howKey(undefined)).toBe('pv.how_basic');
-    for (const d of [enPublic, hiPublic]) expect(Object.keys(d).filter((k) => /same_person|how_mixed/.test(k))).toEqual([]);
+    // migration 59 (A2, Veda's brief of 19 Oct 2026): a STEP recorded and checked by one person says so; no lot-wide line
+    for (const d of [enPublic, hiPublic]) expect(Object.keys(d).filter((k) => /how_same_person|how_mixed/.test(k))).toEqual([]);
   });
   it('each step says "checked by another person" only where the server says so', () => {
     const j = journey([step({ code: 'P1', checked: true, farmer: { village: 'Bansi', district: 'Siddharthnagar' } }),

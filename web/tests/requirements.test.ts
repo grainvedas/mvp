@@ -65,7 +65,8 @@ describe('one person on two stages in a row (section E)', () => {
     for (const d of [enPublic, hiPublic]) {
       expect(d['pv.how_same_person']).toBeUndefined();
       expect(d['pv.how_mixed']).toBeUndefined();
-      expect(Object.values(d).join(' ')).not.toMatch(/same person|एक ही व्यक्ति/);
+      // migration 59 (A2, Veda's brief of 19 Oct 2026): only the step's own sentence, never a lot-wide one
+      expect(Object.entries(d).filter(([k, v]) => k !== 'pv.same_person' && /same person|एक ही व्यक्ति/.test(v)).map(([k]) => k)).toEqual([]);
     }
   });
   it('the warning says who and what it means, in English and Hindi', () => {

@@ -12,8 +12,9 @@ export const MAX_EVIDENCE_BYTES = 15 * 1024 * 1024;
  *  field uplink needs about three minutes; a link that is dead needs forever). */
 export const UPLOAD_WAIT_MS = 240_000;
 
-/** label (migration 50): what the file is for: lab_report, acceptance, pod, loading_photo or document. */
-export async function uploadEvidence(rec: Pick<Footprint, 'id' | 'client_id' | 'scope_id'>, file: File, label?: string | null) {
+/** label (migration 50): what the file is for: lab_report, acceptance, pod, loading_photo or document.
+ *  reason (migration 59, A6): why the same file is attached again as another kind of document (asked after a refusal). */
+export async function uploadEvidence(rec: Pick<Footprint, 'id' | 'client_id' | 'scope_id'>, file: File, label?: string | null, reason?: string | null) {
   if (file.size > MAX_EVIDENCE_BYTES) throw new Error(`file is larger than ${MAX_EVIDENCE_BYTES / 1024 / 1024} MB`);
   const hash = await sha256Hex(file);
   const ext = (file.name.split('.').pop() ?? 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
@@ -23,8 +24,9 @@ export async function uploadEvidence(rec: Pick<Footprint, 'id' | 'client_id' | '
   if (up.error && !/already exists|duplicate/i.test(up.error.message)) throw new Error(up.error.message);
   const kind = (file.type || 'image/jpeg').startsWith('image/') ? 'photo' : 'document';
   try {
-    if (label) await rpc('register_labelled_attachment', { p_footprint: rec.id, p_kind: kind, p_path: path, p_sha256: hash, p_label: label });
-    else await rpc('register_attachment', { p_footprint: rec.id, p_kind: kind, p_path: path, p_sha256: hash });
+    const why = reason ? { p_reason: reason } : {};
+    if (label) await rpc('register_labelled_attachment', { p_footprint: rec.id, p_kind: kind, p_path: path, p_sha256: hash, p_label: label, ...why });
+    else await rpc('register_attachment', { p_footprint: rec.id, p_kind: kind, p_path: path, p_sha256: hash, ...why });
   }
   catch (e) {
     // 23505 on the path: an earlier attempt did register it and only the answer was lost. The file is in the ledger.

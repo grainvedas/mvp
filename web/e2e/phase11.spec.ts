@@ -102,7 +102,7 @@ test('Onboarding at scale: 205 joiners from one spreadsheet to 40 on a stage, th
   await expect(page.getByTestId('imp-n-skipped')).toHaveText('205');
   await expect(page.getByTestId('imp-n-ready')).toHaveText('0');
   await expect(page.getByTestId('imp-commit')).toHaveCount(0);
-  expect((await api.rows('employee_org', `opening_id=eq.${op.id}&select=id`)).length).toBe(205);
+  expect((await api.rows('employee_org', `opening_id=eq.${op.id}`)).length).toBe(205);
   await page.goto('/hr/openings');
   expect(await n('joining')).toBe(205);
   expect(await n('vacant')).toBe(0);
