@@ -1,5 +1,5 @@
-# Phase 2 releases 2 and 3 (migrations 65 and 66): a client in several states, its status, its sourcing, tested 22 Oct 2026
-# SHA-256 of the text with line ends as LF (a font or an image: its bytes). Read by scripts/staging_sourcing_hooks.ps1 (step S0). Do not edit by hand.
+# Wording fixes (FIX_LIST 63, after the Phase 2 checks on staging), tested 22 Oct 2026
+# SHA-256 of the text with line ends as LF (a font or an image: its bytes). Read by scripts/staging_wording_fixes.ps1 (step S0). Do not edit by hand.
 ad11e4e0ad6777fa9c689ab392cac74c19cb92c4d987580167f4b2e4b71cd26d  web/index.html
 617e7271fd45e5572060bfe5cc02058bfe11130d36174069859039bf6f733ccb  web/package-lock.json
 145ee7bcb166b4a16e19182e1023bc6b6e00ed24358046fb94e1cb6c41774296  web/package.json
@@ -57,8 +57,8 @@ fe4961c2884f2908dc278bd495ff2e8d4341f0d420498df254a269f1fc126a2a  web/src/lib/ex
 c95b6e80ce5332d1d584b6799b2938dc0565172097017f832d442fca04a72993  web/src/lib/farmers.ts
 1aed1502485a3361c785eb8f5712bca25d22ae5943c86f676ea20d4345a8a549  web/src/lib/format.ts
 eea9f07ab6418d8caf92974c45aa0372ec7f560698dd5d571d5c0ef504cceec1  web/src/lib/gi.ts
-e6e466d8f3f66b46e033d25470e6a6f5fd1b8e972cd6de29b4374e72d678100f  web/src/lib/i18n.en.ts
-7191d3fc859802bf023836ee4b4cf09e91b1b2f06c49f3030e209db339e25170  web/src/lib/i18n.hi.ts
+328ec72c628e23f9099039a31cc06524a008b9eb938dcc11d1552eb0bf5ee5d8  web/src/lib/i18n.en.ts
+edf65800044b9f1505c2c321a38fe12399225b4146e5e0926b7b3a953920dff3  web/src/lib/i18n.hi.ts
 5bebcd2ab11af94f866a1ae56b35c26dc953e03aa348fce1d5569d569018f5fb  web/src/lib/i18n.public.ts
 6de6e8130b05021c691fe8a294c2e43d00ba7c5be9b8c5567df1e2849118195f  web/src/lib/i18n.tsx
 52812e432ee089d7a24250ddcf8cd894e3745dc3cd0056abdb94f2b15b16238c  web/src/lib/idNumbers.ts
@@ -92,7 +92,7 @@ e8b44f8d5f47fc1d07073727ef4c4a3deee7b894cc998fa3892ce2e0709a54f3  web/src/pages/
 55e5bbfb6af489096b71b02120eb268be126a91e30b8485c564aea155752159d  web/src/pages/admin/Admin-1.tsx
 6ae4180469c01e593db1a887a5d1d16e84cec804456b911364f8e44622444d9d  web/src/pages/admin/Admin.tsx
 c8399d54b638957746d8d2e76f09d193cc73faf0c1cb5b7a4ed06426a6d93409  web/src/pages/admin/Health.tsx
-6db39312c8fbb05bfd87d101a36977ad032e9a46d27dd9a1e7540173d179a36f  web/src/pages/admin/Overview.tsx
+151b4ca70f091c6ac4ad60693e77e71f938b735c3e384b1a5b79ffbc9d48ef24  web/src/pages/admin/Overview.tsx
 d26504588ce7c58bb2fad32b5aaf397124f4653d56e0d936c2c48336b673edc1  web/src/pages/admin/Pipeline.tsx
 b40c62e8409d6b56cd17ba1097d8e9cbbfef9749ba366cd88cd6c3abfe68e604  web/src/pages/admin/charts.tsx
 0fc10a91f55133d57320a794428fc83ffa436ce645727361dd0456d093a17831  web/src/pages/clients/Clients.tsx
@@ -126,7 +126,7 @@ d33868c576526c60c7c565f79d9169989a05a19cb3ba896c1800c1024f4bfb40  web/src/pages/
 3a288c7e21f0891f15b37675e1c70235ac62de3bba5cd91fa2f44a978b6085c0  web/src/pages/records/Samples.tsx
 7a16180d46c73dae40fe868d8c86c938907707f1d9e64a94a1e9781c1f6aa217  web/src/pages/records/Warehouse.tsx
 65680232ce9defdafbf58d6665a5a15eacfb2decbeb50ae072a4fde604c334e0  web/src/pages/scopes/ScopeRequirement.tsx
-2a98f10362791256d4b75407e1bb1a6eebf1ec2128a019f44126a27038acb41c  web/src/pages/scopes/Scopes.tsx
+9253ee3a569ca166015913fa5a01284a8a76c8013f312caeb518ab95f8823e68  web/src/pages/scopes/Scopes.tsx
 48976b89c73c5bc3c62339316225e50e4e69182a25464a3dd74b85c43a3e430d  web/src/pages/setup/SetupLists.tsx
 8f9984230fcf04e513bef006ab6d4355f5076c7048a3a0382ec0b3b22d9d6c4d  web/src/pages/setup/data.ts
 fe44ebdae1681d28e0049aed23551f2f9c1dd2f157b9bbf5ddafe523f37a7779  web/src/pages/state/StateHome.tsx
@@ -179,7 +179,7 @@ b0843ebada50fc1347d5991464e1903242b22649cf540539d60ff433915a0ee3  web/tests/rele
 1aad92a378be5e348b59d9628d94216ae4a6cd808e476831ef7ae48675ebf054  web/tests/release63.test.tsx
 1866268b50b0ee429180f706476b543f9968bd64ec3f7f9ed84560e6139b7722  web/tests/release64.test.tsx
 e70d578b4245de48b46fdcf47bf75dad51d28a96b05025b179dc5a5adf2a2733  web/tests/release65.test.tsx
-f43a13fa193a6cf25f3e924b86ee3f5b9a3465d0218cb0aa3e067685205b89d6  web/tests/release66.test.tsx
+a8254105eaeed44a77cea68c4cd63697d60ab461bbe18cd945ef9bc3ff55aca4  web/tests/release66.test.tsx
 2227a0a291895bb10c4c5dc854c4a474de9b8382dffe1a95975927a01fd74883  web/tests/requirements.test.ts
 3fc460d02375570d0d985290873efa3f487ae86daa7e52d23eb5dce34896a428  web/tests/rules_and_ids.test.ts
 c3b9c00010cdf47b46057acf8576d09ecfe103afecacedaf280d238b50ec8613  web/tests/safeguards.test.ts

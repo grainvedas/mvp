@@ -3229,3 +3229,105 @@ script made again; every staging script of Phase 1 and 2 is now parsed by PowerS
 copy fails that check, the fixed one passes), and the fixed script was run on the local copy up to its tested-files
 check: `migrations 65 and 66, the smoke check and the ledger audit are the tested files; the app's and functions' 190
 files are the tested ones`.
+
+## 22 October 2026, 01:24 IST: Phase 2 releases 2 and 3 on staging (`staging-sourcing-hooks.cmd`)
+
+Veda ran it (after the parenthesis fix). S0: 190 app and function files the tested ones; waiting
+`20261109000100_client_states_status.sql` + `20261110000100_sourcing_partners_hooks.sql`; functions current; typed
+SOURCING. S1 pushed both. S1b `tables=new columns=new functions=new closed=yes status_rule=19 public_pages=yes clients:
+AGTX=active@UP, DMC1=active@UP, TCUP=active@UP`; S1b66 `tables=new closed=yes farm_verified=yes
+entry_points=farmer_procurement procured_through_field=yes buyers=3 linked=2` (one buyer has neither a GSTIN nor an
+importer ID: nothing to link it by, as designed). S2 smoke 63/64 (statement logging standing), the rules in place, the
+change log intact, `leaks=0 people=7 tables=45 calls=14000 clients=3`, `scope_partners=0 memberships=0 buyers_linked=2
+not_farm_verified=0 suspended=0`, ledger audit NO FINDINGS (322 blocks), no login without a person, functions current.
+S3 pushed 1c29c03 (40 files). `RESULT: CLIENT STATUS AND SOURCING ON STAGING`. Record:
+`release-evidence\staging-sourcing-hooks-20261022-012439.log`. The run sheets' Afterwards rows wait for Veda's check.
+
+## 22 October 2026, 01:30–02:30 IST: the run sheets' checks of Phase 2 releases 2 and 3, on staging (Claude, in the browser)
+
+Done by Claude in the app's own screens, in a browser at 527 × 900 px. Each person signed in themselves when Veda said
+"signed in". Claude typed no password. Only practice data and fake numbers were used. Bundle `index-Dg5AQONG.js` (commit
+1c29c03). No screen scrolled sideways.
+
+**Release 2 (`docs/RUNSHEET_client_status.md`):**
+
+1. Ram suspended Test Client UP in Uttar Pradesh ("Practice: payment check"). The card said Suspended, gave the reason
+   and showed the note.
+2. Signed out, `/verify/GV-4DF57E696C42` said "Verification paused" above the journey.
+3. Optional; not done.
+4. Ram resumed it ("Practice: payment received"). The paused line went away.
+5. On Test Client UP's state details, Ram ticked "name on the pack" and saved a fake FSSAI number (`10099999000001`)
+   expiring 21 Nov 2026. The Clients list showed "Expiring soon · Within 60 days · FSSAI licence · expires in 30
+   days". The run sheet names the release-1 test client; staging has no such client, so Test Client UP was used.
+6. As tcup, the notices named the suspension and the resumption without Ram's reason, and the login had no status
+   buttons. A practice Master Services Agreement renewal (a one-page PDF; signed 22 Oct 2026, term ends 21 Oct 2029)
+   showed "waiting for the State Manager".
+7. Ram's notice ("a renewed Master Services Agreement uploaded by tcup") opened the client. Accept → "accepted"; the
+   agreement on file became the new one and its gate item was ticked.
+8. The admin saw all three notices (with Ram's reasons) and marked them read. They stayed gone after a reload.
+
+**Release 3 (`docs/RUNSHEET_sourcing_hooks.md`), on the Bansi scope, where Lucky is the Client Manager and holds every
+stage:**
+
+1. On the scope's page, Lucky registered "Practice FPO (test)" (Cooperative, fake PAN `ZZZAB1234C`), shown masked
+   `ZZZAB****C`. He ticked "Partner agrees to be named publicly" and added it; the card showed "named on the public
+   page".
+2. On farmer 3's page (TCUP-F-0004), Lucky set Member of → Practice FPO (test) and saved.
+3. At Procurement, "Procured through" was already Practice FPO (test). "Practice FPO (test) members" left one village
+   with farmer 3 only.
+4. The lot went through every stage:
+   - P-0006, 100 kg;
+   - VB-0003;
+   - M-0003, with its sample drawn and a practice lab report;
+   - QC-0003, passed for both markets;
+   - PK-0003, 58 packs of 1 kg, net weight check passed;
+   - CM-0004, a domestic order to the practice buyer;
+   - SH-0004, three cartons C0001…C0003;
+   - sealed as **GV-ACD1EE587CEC**. Its summary said GI, one farmer, and 58 packs going live.
+5. With the public key alone (no sign-in), `public_lot_journey` returned
+   `sourced_through = ["Practice FPO (test)"]`, `farm_verified = true`, GI and one farmer, and no farmer's name. The
+   page said "Sourced through Practice FPO (test)" and showed no farmer's name or ID.
+6. "Do not name it": the card said "not named publicly". The same call returned `sourced_through = []`, and the page
+   no longer named it.
+7. As the admin: the overview, the Clients list and the scope pages offered nothing about partners.
+
+A slip of Claude's, caught before saving: on Commercial Clearance, the first try matched the older lot
+`TCUP-KNM-KH26-PK-0003` (775 kg) instead of `…-BNS-PK-0003`. The form showed the wrong source and was left unsaved. The
+older lot had already been checked in, so nothing changed on it.
+
+**Found (FIX_LIST item 63):**
+
+- Ram's overview titled the "Same person, next stage" card "Sourcing partners", with the partners' help text. An
+  operator's home showed the same wrong title. Release 3 had reused the text keys `sp.title` and `sp.note`, in English
+  and Hindi.
+- The admin's overview showed a client's type as "Fpo".
+
+**Fixed on the local copy (app only):**
+
+- `web/tests/release66.test.tsx` has two new checks. Each failed with the old words (run as controls) and passes now.
+- The type check is clean. Unit tests: **743**.
+- On the local stack, the e2e tests `phase5`, `phase6`, `phase37` and `phase38` passed **19 of 19**. A first run had
+  17 failures because the local database was not running; it was started and the run repeated.
+- The built app passed **14 of 14**.
+- `scripts/tested_app_files.txt` was sealed again: 190 files.
+- The release script `staging-wording-fixes.cmd` (`scripts/staging_wording_fixes.ps1`) pushes the app only. Its phrase
+  is `WORDING`. It parses cleanly under PowerShell 7.4. Not yet run; it waits for Veda's say-so.
+
+## 22 October 2026, 02:51 IST: `staging-wording-fixes.cmd` stopped at S0 (Veda's run)
+
+The tested-files check reported the four Devanagari font files as changed: `S0 STOPPED`. Nothing was changed on the
+project and nothing was pushed (record: `release-evidence\staging-wording-fixes-20261022-025158.log`).
+
+The fonts were not changed. The script's file-hash function was copied from an older app-only script, and that
+function read every file as text. `scripts/tested_app_files.txt` hashes a font or an image by its bytes, as the
+release-3 script does.
+
+**Fixed:** the script now takes the release-3 script's hash function (bytes for fonts and images).
+
+That check, taken out of the script and run with PowerShell 7.4 on the local copy:
+
+- `files=190 diff=0`;
+- with Windows line ends added to a text file: still `diff=0`;
+- with one byte added to a font: `diff=1`, naming the font.
+
+The script parses cleanly.

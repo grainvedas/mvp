@@ -236,7 +236,7 @@ function ClientCard({ c, onOpen }: { c: OverviewClient; onOpen: () => void }) {
   return (
     <div className={`card scope-card ${Number(c.scopes_active) > 0 ? 'active' : ''}`} data-testid="ov-client" data-client={c.code}>
       <div className="row" style={{ justifyContent: 'space-between' }}><strong>{c.name}</strong><span className="mono small">{c.code}</span></div>
-      <div className="muted small">{humanise(c.type)}</div>
+      <div className="muted small">{t(`ctype.${c.type}`, undefined, humanise(c.type))}</div>
       <dl className="ov-facts">
         <div><dt>{t('ov.f_scopes')}</dt><dd>{t('ov.of', { a: c.scopes_active, b: c.scopes_total })}</dd></div>
         <div><dt>{t('ov.f_volume')}</dt><dd>{kg(c.kg)}</dd></div>
@@ -266,7 +266,7 @@ export function ClientView({ c, d, onExit }: { c: OverviewClient; d: { attention
         <div className="stat"><div className="stat-val">{num(c.qr, 0)}</div><div className="stat-label">{t('ov.f_qr')}</div></div>
         <div className="stat"><div className="stat-val">{num(c.people, 0)}</div><div className="stat-label">{t('ov.f_people')}</div></div>
       </div>
-      <p className="small muted">{c.state_name ?? '—'} · {humanise(c.type)} · <span className="mono">{c.code}</span>{!c.has_manager && <> · <Badge value="pending" label={t('ov.no_manager')} /></>}</p>
+      <p className="small muted">{c.state_name ?? '—'} · {t(`ctype.${c.type}`, undefined, humanise(c.type))} · <span className="mono">{c.code}</span>{!c.has_manager && <> · <Badge value="pending" label={t('ov.no_manager')} /></>}</p>
       <h2 className="section-title">{t('ov.client_scopes')}</h2>
       {scopes.length === 0 ? <Empty /> : (
         <div className="scope-cards">{scopes.map((s) => (

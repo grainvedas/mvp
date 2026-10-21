@@ -4,6 +4,8 @@
 // its picker (pre-filled with the scope's one partner); the season warning in the brief's words; the refusals in plain
 // words; every new word in Hindi.
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { JourneyView } from '../src/pages/public/PublicVerify';
@@ -83,6 +85,19 @@ describe('E4 · the season across clients, in the brief\'s words; the refusals; 
     expect(plainWords('a scope\'s sourcing partners are set by its Client Manager', T)).toBe(en['err.partner_who']);
     expect(plainWords('sourcing partner: the client itself is not its own sourcing partner', T)).toBe(en['err.partner_rule']);
     expect(plainWords('entry point: only farmer procurement for now (a lot received from another client or a supplier comes later)', T)).toBe(en['err.entry_point']);
+  });
+  it('the sourcing partners card has its own words; the "same person, next stage" card keeps its own (staging, 22 Oct 2026)', () => {
+    expect(en['sp.title']).toBe('Same person, next stage');
+    expect(en['sp.note']).toMatch(/^One person may hold two stages in a row/);
+    expect(hi['sp.title']).toBe('वही व्यक्ति, अगला चरण');
+    expect(en['sp.partners_title']).toBe('Sourcing partners');
+    expect(en['sp.partners_note']).toMatch(/^An FPO or aggregator this scope buys through/);
+  });
+  it('the admin overview names a client\'s type in words ("FPO", not "Fpo"; staging, 22 Oct 2026)', () => {
+    const src = readFileSync(join(__dirname, '../src/pages/admin/Overview.tsx'), 'utf8');
+    expect(src).not.toContain('humanise(c.type)}<');
+    expect(src.match(/t\(`ctype\.\$\{c\.type\}`/g)?.length).toBe(2);
+    expect(en['ctype.fpo']).toBe('FPO');
   });
   it('Hindi for every new word', () => {
     const prefixes = ['field.procured_through', 'pick.partner', 'widget.members_of', 'widget.all_farmers', 'widget.no_partner', 'widget.direct_from_farmer', 'fm.', 'sp.',

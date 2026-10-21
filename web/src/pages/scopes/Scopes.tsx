@@ -321,8 +321,8 @@ function ScopePartners({ scopeId, manage }: { scopeId: string; manage: boolean }
   });
   return (
     <div className="card" data-testid="scope-partners">
-      <h3>{t('sp.title')}</h3>
-      <p className="small muted">{t('sp.note')}</p>
+      <h3>{t('sp.partners_title')}</h3>
+      <p className="small muted">{t('sp.partners_note')}</p>
       {rows.length === 0 && <p className="small" data-testid="sp-none">{t('sp.none')}</p>}
       <ul className="small" style={{ listStyle: 'none', paddingLeft: 0 }}>{rows.map((r) => (
         <li key={r.entity_id} data-testid="sp-row" data-named={r.named_publicly ? 'yes' : 'no'}>
