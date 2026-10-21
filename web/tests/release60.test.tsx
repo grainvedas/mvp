@@ -86,7 +86,7 @@ describe('C1/C3 · the season: one Excel file, three sheets', () => {
     expect(text(sheets[0])).toMatch(/Data note\|Practice \(old data\)/);
     expect(text(sheets[1])).toContain('2. ' + (en['stage.milling'] ?? 'Milling') + '|1|0|1|199|180|0|0|19|0|0|0|180|0');
     expect(text(sheets[1])).toContain('From the GI area (kg, share)|200|66.7 %');
-    expect(text(sheets[1])).toContain('TCUP-KNM-KH26-B0004|150|0|TCUP-KNM-KH26-B0004-0001|TCUP-KNM-KH26-B0004-0150');   // by size, best before: none given
+    expect(text(sheets[1])).toContain('TCUP-KNM-KH26-B0004|150||||0|TCUP-KNM-KH26-B0004-0001|TCUP-KNM-KH26-B0004-0150');   // by size, best before: none given
     for (const s of sheets) expect(text(s).trim().split('\n').at(-1)).toMatch(/verify/);
     expect(seasonSheets(season, H).names).toEqual(['शीर्षक', 'सारांश', 'रिकॉर्ड']);
   });

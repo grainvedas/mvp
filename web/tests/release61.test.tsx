@@ -79,7 +79,7 @@ describe('C2/E2.5 · the season\'s Summary is the mass balance', () => {
     // head rice is the main product: its own line, never under the by-products (staging, 20 Oct)
     expect(text(sheets[1])).toContain('Head rice (kg)|150\nBy-products of the season (kg)\nBroken rice (kg)|20\nHusk (kg)|50\nBran (kg)|20\nFloor loss, all stages (kg)|6');
     expect(text(sheets[1])).toContain('Closed as floor loss, all stages (kg)|4');
-    expect(text(sheets[1])).toContain('B1|150|0|B1-0001|B1-0150|150 × 1 kg pouch|not recorded');
+    expect(text(sheets[1])).toContain('B1|150||||0|B1-0001|B1-0150|150 × 1 kg pouch|not recorded');
     expect(text(sheets[0])).toContain('Made by|Lucky');
   });
 });

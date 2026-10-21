@@ -28,7 +28,8 @@ export interface SeasonExport extends ExportTable { kind: 'season'; summary: Sea
     by_products: { head_rice_kg?: number; broken_kg: number; husk_kg: number; bran_kg: number; reject_kg: number; foreign_matter_kg: number };
     by_products_kg: number; other_kg?: number; floor_loss_kg: number; transit_loss_kg: number; closed_kg: number; differences: number;
     sealed_lots: number; packs: number; open_flags: number; records: number };
-  batches: { batch_code: string; packs: number; void: number; first: string; last: string; by_size?: string | null; best_before?: string | null }[] }
+  batches: { batch_code: string; packs: number; void: number; first: string; last: string; by_size?: string | null; best_before?: string | null;
+    /** migration 62 (E2.1) */ released?: number; released_old?: number; held?: number }[] }
 
 export const exportJourney = (fp: string, copy: Copy) => rpc<JourneyExport>('export_journey', { p_fp: fp, p_copy: copy });
 export const exportSeason = (scope: string, copy: Copy) => rpc<SeasonExport>('export_season', { p_scope: scope, p_copy: copy });
@@ -137,9 +138,11 @@ export function seasonSheets(e: SeasonExport, t: T) {
     [cell(t('exp.s.open_flags')), cell(tt.open_flags)],
     [cell(t('exp.s.records_all')), cell(tt.records)],
     [],
-    [t('exp.c.batch_code'), t('exp.c.packs'), t('exp.s.void'), t('exp.s.first'), t('exp.s.last'), t('exp.s.by_size'), t('exp.s.best_before')].map(bold),
-    ...e.batches.map((b) => [cell(b.batch_code), cell(b.packs), cell(b.void), cell(b.first), cell(b.last), cell(b.by_size ?? null),
-      cell(cellValue('best_before', b.best_before ?? null, t))]),
+    [t('exp.c.batch_code'), t('exp.c.packs'), t('exp.s.released'), t('exp.s.released_old'), t('exp.s.held'), t('exp.s.void'), t('exp.s.first'), t('exp.s.last'),
+     t('exp.s.by_size'), t('exp.s.best_before')].map(bold),
+    // migration 62 (E2.1): each batch's packs released, released without codes (old data), not yet released
+    ...e.batches.map((b) => [cell(b.batch_code), cell(b.packs), cell(b.released ?? null), cell(b.released_old ?? null), cell(b.held ?? null), cell(b.void),
+      cell(b.first), cell(b.last), cell(b.by_size ?? null), cell(cellValue('best_before', b.best_before ?? null, t))]),
     [], ...foot];
   const { header, rows } = tableOf(e, t);
   const records = [header.map(bold), ...rows.map((r) => r.map(cell)), [], ...foot];

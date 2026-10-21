@@ -97,6 +97,11 @@ test('T4: procure → QC → mill → pack → two buyers → ship → seal → 
   await page.getByRole('button', { name: /Record Shipment/ }).click();
   await expect(page.getByLabel(/^Shipped/)).toHaveValue('79');
   await expect(page.getByLabel(/Transit loss/)).toHaveCount(0);    // migration 50 (G12): recorded at delivery
+  // migration 62 (E2.1): a packed lot ships by its codes, even when sold by the kilogram: the 79 packs of 1 kg loaded
+  await page.getByTestId('pc-range').click();
+  await page.getByTestId('pc-from').fill(`${batch}-0001`); await page.getByTestId('pc-to').fill(`${batch}-0079`);
+  await page.getByTestId('pc-range-add').click();
+  await expect(page.getByTestId('serials-count')).toContainText('79');
   await page.getByLabel(/Vehicle/).fill('MSKU1234567');
   await page.getByLabel(/Dispatch date/).fill('2026-11-20'); await page.getByLabel(/Destination/).fill('Rotterdam');
   await expect(page.getByTestId('preview-ok')).toContainText('79 kg');

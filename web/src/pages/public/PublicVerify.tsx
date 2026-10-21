@@ -159,7 +159,7 @@ export function JourneyView({ j, pack, warn }: { j: Journey; pack?: PackView; wa
         </div>
         <div className="pv-seal">
           <span className="pv-seal-dot"><Icon name="check" size={22} width={2.4} /></span>
-          <div><strong>{t(pack ? 'pv.sealed_title_pack' : 'pv.sealed_title')}</strong>
+          <div><strong data-testid="pv-seal-title">{t(pack ? (pack.old_data ? 'pv.sealed_title_pack_old' : 'pv.sealed_title_pack') : 'pv.sealed_title')}</strong>
             <span>{t('pv.sealed_line', { date: date(j.sealed_at), client: j.client.name })}</span></div>
         </div>
       </section>
@@ -207,6 +207,7 @@ export function JourneyView({ j, pack, warn }: { j: Journey; pack?: PackView; wa
             </div>))}
         </section>
 
+        {!pack && j.packs?.old_data && <section className="pv-card sand"><p className="small" data-testid="pv-packs-old">{t('pv.packs_old')}</p></section>}
         {pack ? <PackCard pack={pack} lot={j.packs} /> : j.packs && j.packs.n > 0 && (
           <section className="pv-card sand"><p className="small" data-testid="pv-packs">{t('pv.packs', { n: j.packs.n, on: pvDate(j.packs.packed_on) })}
             {j.packs.best_before ? ` · ${t('pv.best_before', { date: pvDate(j.packs.best_before) })}` : ''}</p>

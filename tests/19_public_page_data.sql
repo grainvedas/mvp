@@ -33,7 +33,7 @@ begin
   perform t.as_user(t.u('14')); perform app.verify_footprint(ex);
   insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload)
   values (s, c, 'shipment', ex, t.u('14'), '{"shipped_kg":129,"transit_loss_kg":0.5,"vehicle_or_container":"MSKU7654321",
-          "dispatch_date":"2026-11-20","destination":"Rotterdam"}') returning id into sh;
+          "dispatch_date":"2026-11-20","destination":"Rotterdam"}'::jsonb || jsonb_build_object('serials', t.codes(pk))) returning id into sh;   -- migration 62: the codes loaded
   perform t.as_user(t.u('07')); perform app.verify_footprint(sh);
   insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload)
   values (s, c, 'qr_activation', sh, t.u('07'), '{}') returning id into qr;

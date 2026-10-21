@@ -87,7 +87,7 @@ test('batch code, one label per pack, reprint and void, delivery, the summary be
   await verifyIncoming(page, pk);
   await page.getByRole('button', { name: /Record Commercial Clearance/ }).click();
   await page.getByLabel(/^Buyer/).fill('Amira Foods BV'); await page.getByLabel(/^Market/).selectOption('export');
-  await page.getByLabel(/Quantity to this buyer/).fill('129');
+  await page.getByLabel(/Quantity to this buyer/).fill('128.5');                    // the 157 packs left after the void
   const cm = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?CM-\d{4}/); await signOut(page);
 
   // 3 · G12: the shipment asks no transit loss; the delivery records what arrived (export: the proof first)
@@ -96,13 +96,18 @@ test('batch code, one label per pack, reprint and void, delivery, the summary be
   await verifyIncoming(page, cm);
   await page.getByRole('button', { name: /Record Shipment/ }).click();
   await expect(page.getByLabel(/Transit loss/)).toHaveCount(0);
+  // migration 62 (E2.1): a packed lot ships by its codes; the voided pack is not added
+  await page.getByTestId('pc-range').click();
+  await page.getByTestId('pc-from').fill(`${batch}-0001`); await page.getByTestId('pc-to').fill(`${batch}-0158`);
+  await expect(page.getByTestId('pc-range-n')).toContainText('157');
+  await page.getByTestId('pc-range-add').click();
   await page.getByLabel(/Vehicle/).fill('MSKU7654321');
   await page.getByLabel(/Dispatch date/).fill(new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10));
   await page.getByLabel(/Destination/).fill('Rotterdam');
   const sh = await reviewAndSave(page, /PRSDM-KNM-KH26-(?:[A-Z]{2,4}-)?SH-\d{4}/);
   await page.getByRole('link', { name: `Open ${sh}` }).click();
   const dl = page.getByTestId('delivery-panel');
-  await dl.getByTestId('delivery-kg').fill('128.5');
+  await dl.getByTestId('delivery-kg').fill('128');
   await expect(dl.getByTestId('delivery-loss-preview')).toHaveText('Lost in transit: 0.5 kg');
   await dl.getByTestId('delivery-confirm').click();
   await expect(dl.locator('.alert.error')).toContainText('For export, attach the proof of delivery first.');
@@ -118,7 +123,7 @@ test('batch code, one label per pack, reprint and void, delivery, the summary be
   await verifyIncoming(page, sh);
   const sum = page.getByTestId('release-summary');
   await expect(sum).toContainText('Every step verified');
-  await expect(sum).toContainText(`Packs: 157 (batch ${batch})`);
+  await expect(sum).toContainText(`Packs that go live with this seal: 157 (batch ${batch}). Not yet released: 0.`);   // migration 62 (E2.1)
   await expect(sum).toContainText('Farmers in the lot: 1');
   await expect(page.getByTestId('seal-button')).toBeDisabled();
   await page.getByTestId('release-read').check();

@@ -31,6 +31,8 @@ export interface FieldDef {
   shown_if?: Record<string, string>;
   /** migration 54: on the form only where the lot has packs by type (with_packs), or only where it has none (hidden_when_packs) */
   with_packs?: boolean; hidden_when_packs?: boolean;
+  /** migration 62 (E2.1): on the form, and required, wherever the lot is packed at all (Shipment: the pack codes loaded) */
+  when_packed?: boolean;
 }
 
 export interface StageDefinition {

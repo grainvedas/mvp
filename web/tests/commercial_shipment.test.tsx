@@ -63,8 +63,8 @@ describe('C7 · the Commercial form', () => {
 describe('C8 · the Shipment form', () => {
   const s = form('shipment').form_schema;
   it('a domestic order asks the vehicle, the LR and the e-way bill; an export order the container, seal, shipping bill; both the pack codes (migration 57)', () => {
-    const d = keys(withLotRules(withScopeRules(s, on), { market: 'domestic', packs: true }));
-    const x = keys(withLotRules(withScopeRules(s, on), { market: 'export', packs: true }));
+    const d = keys(withLotRules(withScopeRules(s, on), { market: 'domestic', packs: true, packed: true }));
+    const x = keys(withLotRules(withScopeRules(s, on), { market: 'export', packs: true, packed: true }));
     expect(d).toEqual(expect.arrayContaining(['vehicle_no', 'transporter', 'driver_phone', 'lr_no', 'eway_bill_no', 'invoice_no', 'packs']));
     expect(d).not.toEqual(expect.arrayContaining(['container_no'])); expect(d).toContain('serials'); expect(d).not.toContain('shipping_bill_no');
     expect(x).toEqual(expect.arrayContaining(['container_no', 'seal_no', 'shipping_bill_no', 'bl_no', 'vessel', 'port_loading', 'serials', 'invoice_no']));
@@ -75,6 +75,9 @@ describe('C8 · the Shipment form', () => {
     const b = keys(withLotRules(withScopeRules(s, off), { market: 'domestic', packs: false }));
     expect(b).toEqual(expect.arrayContaining(['shipped_kg', 'vehicle_or_container', 'dispatch_date', 'destination']));
     expect(b).not.toContain('invoice_no'); expect(b).not.toContain('serials');
+    // migration 62 (E2.1): a packed lot is shipped by its codes in such a scope too, and they are required
+    const pk = withLotRules(withScopeRules(s, off), { market: 'domestic', packs: false, packed: true });
+    expect(pk.find((f) => f.key === 'serials')?.required).toBe(true); expect(keys(pk)).toContain('shipped_kg');
   });
   it('every section is one block, and every section has its words and pictogram', () => {
     const blocks = groupSections(s).map((g) => g.section);

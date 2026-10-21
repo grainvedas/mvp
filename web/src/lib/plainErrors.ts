@@ -283,6 +283,7 @@ export const PLAIN_RULES: PlainRule[] = [
   { re: /shipment: give the invoice number/i, key: 'err.sh_invoice' },
   { re: /shipment: the export documents of order (\S+) are not complete \((.*?)\)/i, key: 'err.sh_docs', vars: ['code', 'docs'] },
   { re: /shipment: scan or type the codes of the packs loaded/i, key: 'err.sh_codes' },
+  { re: /shipment: the packs loaded weigh ([\d.]+) kg, the shipment ([\d.]+) kg/i, key: 'err.sh_codes_kg', vars: ['packs', 'kg'] },   // migration 62
   { re: /shipment: a pack code is there twice/i, key: 'err.sh_twice' },
   { re: /shipment: (.*?) not a pack of this order's batch/i, key: 'err.sh_not_batch', vars: ['codes'] },
   { re: /shipment: (.*?) shipped already/i, key: 'err.sh_shipped', vars: ['codes'] },

@@ -419,7 +419,8 @@ select 'people public page packs', case when to_regprocedure('app.busy_for_other
                                         or position('''checked''' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
                                         or position('''vehicle_no''' in pg_get_functiondef('app.buyer_content(uuid)'::regprocedure)) > 0
                                         or has_function_privilege('anon', 'app.order_pack_codes(uuid, uuid)', 'execute')
-                                        or not exists (select 1 from public.stage_definitions where stage_type = 'shipment' and form_schema @> '[{"key": "serials", "with_packs": true}]')
+                                        or not exists (select 1 from public.stage_definitions where stage_type = 'shipment' and (form_schema @> '[{"key": "serials", "with_packs": true}]'
+                                                                                                         or form_schema @> '[{"key": "serials", "when_packed": true}]'))   -- migration 62: when_packed
                                         or exists (select 1 from public.stage_definitions d, jsonb_array_elements(d.form_schema) f
                                                     where d.stage_type = 'shipment' and f->>'key' = 'serials' and f ? 'for_market')
                                       then 'NOT OK (another client''s people, the public page''s same-person line, the buyer''s vehicle number or the Shipment form is not as migration 57 left it)'
@@ -482,6 +483,17 @@ select 'export corrections',       case when to_regprocedure('app.stage_balance(
                                       when position('count(distinct (fa.village, fa.district))' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
                                       then 'NOT OK (push migration 61b: the public page counts a batch''s villages two ways)'
                                       else 'OK floor loss without by-products; closures as their own line; prices only where recorded; the mass balance per stage; one line for a batch''s purchases; Packing without a shelf life warns' end
+union all
+select 'shipped packs',            case when to_regprocedure('app.pack_release(text)') is null or to_regprocedure('app.lot_released_packs(uuid)') is null
+                                      then 'MISSING (push migration 62)'
+                                      when has_function_privilege('anon', 'app.pack_release(text)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.lot_released_packs(uuid)', 'execute')
+                                        or position('pack_release' in pg_get_functiondef('app.public_pack(text)'::regprocedure)) = 0
+                                        or position('v_packed' in pg_get_functiondef('app.reconcile(footprints, scopes)'::regprocedure)) = 0
+                                        or not exists (select 1 from public.stage_definitions d, jsonb_array_elements(d.form_schema) f
+                                                        where d.stage_type = 'shipment' and f->>'key' = 'serials' and f ? 'when_packed')
+                                      then 'NOT OK (a pack''s release, the Shipment codes rule or its form field are not as migration 62 left them)'
+                                      else 'OK a pack goes live only with a sealed shipment that carries it; shipments of before say "serials not recorded"; every shipment of a packed lot gives its codes' end
 union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole

@@ -423,6 +423,14 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   stage or a new worked-out by-product goes there first. A lot closed as floor loss is its own line. The crop's shelf life
   for the pack's material gives each pack its best-before date; it is **not mandatory** (Veda, 20 Oct 2026, migration
   61c): without one Packing saves with a warning and the packs say "Best before: not recorded".
+- **Only shipped packs are released** (migration 62, the brief's E2.1). Whether a pack is live is `app.pack_release`
+  only (`released`, `old_data`, `not_released`, `void`): a pack goes live when a sealed shipment carries its code or its
+  carton's (`app.lot_released_packs` over `app.lot_shipments`); a lot whose shipment recorded no codes is `old_data`
+  ("Released, serials not recorded (old data)", never "Genuine pack"; no code is guessed); a lot with no shipment in its
+  chain is released whole by its seal. Never decide it from the batch or the seal alone, on any page, export or count.
+  Every shipment of a packed lot carries its codes (`v_packed` in `app.reconcile`: by packs or by the kilogram, whatever
+  `stage_details_required`; by the kilogram the codes weigh what is shipped); the form's field is `when_packed`. A test
+  that ships a packed lot gives its codes (`t.codes(packing, n, size)` in `tests/01_helpers.sql`).
 - **Packs go in cartons; an order sets them aside; Reports to is a rule** (migration 58, Veda 16 Oct 2026, G24). A
   carton is made only by the packing save (`app.make_cartons` from `app.make_packs`, when the pack type has
   `packs_per_carton`); never insert, delete or renumber one; it is opened only by `app.void_pack`. What an order takes is

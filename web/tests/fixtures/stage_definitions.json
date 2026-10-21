@@ -1290,8 +1290,7 @@
                 "label": "Pack codes loaded",
                 "section": "quantity",
                 "required": false,
-                "shown_when": "stage_details_required",
-                "with_packs": true
+                "when_packed": true
             },
             {
                 "key": "vehicle_or_container",

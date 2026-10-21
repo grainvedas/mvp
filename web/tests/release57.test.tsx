@@ -150,9 +150,11 @@ describe('Shipment · the pack codes', () => {
   it('asked for a domestic shipment too, where the order\'s lot has packs; the words in both languages', () => {
     const f = defs.find((d) => d.stage_type === 'shipment')!.form_schema.find((x) => x.key === 'serials')! as FieldDef & { for_market?: string; with_packs?: boolean };
     expect(f.for_market).toBeUndefined();
-    expect(f.with_packs).toBe(true);
-    expect(withLotRules([f], { market: 'domestic', packs: true })).toHaveLength(1);
-    expect(withLotRules([f], { market: 'domestic', packs: false })).toHaveLength(0);
+    // migration 62 (E2.1): wherever the lot is packed at all (by packs or by kilograms, details asked or not)
+    expect(f.when_packed).toBe(true);
+    expect(withLotRules([f], { market: 'domestic', packs: true, packed: true })).toHaveLength(1);
+    expect(withLotRules([f], { market: 'domestic', packs: false, packed: true })).toHaveLength(1);
+    expect(withLotRules([f], { market: 'domestic', packs: false, packed: false })).toHaveLength(0);
     expect(plainWords('shipment: scan or type the codes of the packs loaded', t)).toMatch(/Scan or type the codes/);
     const src = read('web/src/engine/PackCodes.tsx');
     for (const k of [...new Set([...src.matchAll(/t\('(pc\.[a-z_]+)'/g)].map((m) => m[1]))]) { expect(en[k], k).toBeTruthy(); expect(hi[k], k).toBeTruthy(); }

@@ -372,7 +372,7 @@ function ReleaseSummary({ p, loading, read, onRead }: { p: ReleasePreview | null
     <div className="stack" data-testid="release-summary">
       <h3>{t('rel.summary', { code: p.source.code })}</h3>
       <ul className="sys-checks">{p.checks.map((c) => (
-        <li key={c.key} data-ok={c.ok} className={c.ok ? 'ok' : 'not'}><span aria-hidden="true">{c.ok ? '✓' : '✗'}</span> {t(c.key === 'lab_verdict' && (c.vars as Record<string, unknown>).released ? 'rel.lab_verdict_released' : `rel.${c.key}`, relVars(c.vars, t), c.key)}</li>))}</ul>
+        <li key={c.key} data-ok={c.ok} className={c.ok ? 'ok' : 'not'}><span aria-hidden="true">{c.ok ? '✓' : '✗'}</span> {t(c.key === 'lab_verdict' && (c.vars as Record<string, unknown>).released ? 'rel.lab_verdict_released' : c.key === 'packs' && Number((c.vars as Record<string, unknown>).old ?? 0) > 0 ? 'rel.packs_old' : `rel.${c.key}`, relVars(c.vars, t), c.key)}</li>))}</ul>
       {!p.ready && <div className="alert warn" data-testid="release-not-ready">{t('rel.not_ready')}</div>}
       <label className="check"><input type="checkbox" checked={read} onChange={(e) => onRead(e.target.checked)} data-testid="release-read" />{t('rel.read')}</label>
     </div>
@@ -442,9 +442,9 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
   const online = useOnline();
   // migration 54 (C7, C8): what the lot this record is made from decides: the order's market (Shipment: its papers) and
   // whether it has packs by type (the packs are chosen, not the kilograms)
-  const lotRuled = form.stage.form_schema.some((fd) => fd.for_market || fd.with_packs || fd.hidden_when_packs);
+  const lotRuled = form.stage.form_schema.some((fd) => fd.for_market || fd.with_packs || fd.hidden_when_packs || fd.when_packed);
   const lotId = source?.id ?? editing?.prev_footprint_id ?? replaces?.prev_footprint_id ?? undefined;
-  const [lot, setLot] = useState<{ market: string | null; packs: boolean }>({ market: null, packs: false });
+  const [lot, setLot] = useState<{ market: string | null; packs: boolean; packed?: boolean }>({ market: null, packs: false });
   useEffect(() => {
     if (!lotRuled || !lotId) return;
     let live = true;
@@ -453,7 +453,11 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
       const c = known ?? (await cached(`lot_computed:${lotId}`, async () => ((await q(supabase.from('footprints').select('computed').eq('id', lotId).single())) as unknown as { computed: Record<string, unknown> | null }).computed).catch(() => null));
       const packs = form.scope.stage_details_required === true
         ? (await cached(`packs_left:${lotId}`, () => rpc<PackLeft[]>('packs_left', { p_fp: lotId })).catch(() => [])).length > 0 : false;
-      if (live) setLot({ market: typeof c?.market === 'string' ? c.market : null, packs });
+      // migration 62 (E2.1): is the order's lot packed at all (any pack of its batch not void)? Then the codes are asked
+      const packed = form.stage.form_schema.some((fd) => fd.when_packed)
+        ? (await cached(`order_pack_codes:${lotId}:${editing?.id ?? ''}`, () => rpc<{ void: boolean }[]>('order_pack_codes', { p_fp: lotId, ...(editing?.id ? { p_except: editing.id } : {}) }))
+            .catch(() => [])).some((p) => !p.void) : false;
+      if (live) setLot({ market: typeof c?.market === 'string' ? c.market : null, packs, packed });
     })();
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps

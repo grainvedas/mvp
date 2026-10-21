@@ -507,9 +507,11 @@ export function withScopeRules(fields: FieldDef[], scope: object): FieldDef[] {
 /** Migration 54: fields that follow the lot this record is made from. `for_market` is on the form only for an order of
  *  that market (Shipment: the domestic papers or the export papers); `with_packs` only where the lot has packs by type
  *  (packed from the client's pack list) and the scope asks the details, `hidden_when_packs` the kilograms instead. */
-export function withLotRules(fields: FieldDef[], lot: { market?: string | null; packs: boolean }): FieldDef[] {
+export function withLotRules(fields: FieldDef[], lot: { market?: string | null; packs: boolean; packed?: boolean }): FieldDef[] {
   return fields.filter((f) => (!f.for_market || !lot.market || f.for_market === lot.market)
-    && (!f.with_packs || lot.packs) && (!f.hidden_when_packs || !lot.packs));
+    && (!f.with_packs || lot.packs) && (!f.hidden_when_packs || !lot.packs) && (!f.when_packed || lot.packed === true))
+    // migration 62 (E2.1): every shipment of a packed lot says which packs it carries
+    .map((f) => (f.when_packed && lot.packed ? { ...f, required: true } : f));
 }
 
 /** Migration 55: a field marked `shown_if` is on the form only while another field of the form has that value (a

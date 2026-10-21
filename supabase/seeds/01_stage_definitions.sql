@@ -283,7 +283,7 @@ end $seed54$;
 update public.stage_definitions set form_schema = '[
   {"key": "packs", "type": "order_packs", "label": "Packs shipped", "section": "quantity", "required": false, "shown_when": "stage_details_required", "with_packs": true},
   {"key": "shipped_kg", "type": "number", "unit": "kg", "label": "Shipped", "section": "quantity", "required": true, "hidden_when_packs": true},
-  {"key": "serials", "type": "serials", "label": "Pack codes loaded", "section": "quantity", "required": false, "shown_when": "stage_details_required", "with_packs": true},
+  {"key": "serials", "type": "serials", "label": "Pack codes loaded", "section": "quantity", "required": false, "when_packed": true},
   {"key": "vehicle_or_container", "type": "text", "label": "Vehicle / container", "section": "transport", "required": true, "hidden_when": "stage_details_required"},
   {"key": "vehicle_no", "type": "text", "label": "Vehicle number", "section": "transport", "required": false, "shown_when": "stage_details_required", "required_when": "stage_details_required", "for_market": "domestic"},
   {"key": "transporter", "type": "text", "label": "Transporter", "section": "transport", "required": false, "shown_when": "stage_details_required", "for_market": "domestic"},

@@ -2953,3 +2953,46 @@ with 61c: **2,390 checks, no failure**; controls 15 of 15 (the shelf-life contro
 `phase32`, `phase33`: 15 passed; the built app 14 passed; REMOTE RLS PASSED; RESTORE DRILL PASSED. The smoke row `export
 corrections` reads NOT OK on a database without 61c. `staging-shelf-life-optional.cmd` replaces
 `staging-season-summary-fix.cmd` (not run; it would refuse: the app is no longer the one it tested).
+
+## 20 October 2026, 01:13 IST: release 3c on staging (`staging-shelf-life-optional.cmd`)
+
+Veda ran it. S0 (61c waiting, 169 app and function files the tested ones), S1 pushed `20261105000300_shelf_life_optional.sql`,
+S1b `shelf_warning=yes refusal=no villages_rule=yes`, S2 smoke 58/59 (statement logging standing), the rules in place,
+`leaks=0 people=7 tables=44 calls=12180 clients=3`, ledger audit NO FINDINGS (287 blocks), S3 pushed 088986f (18 files).
+`RESULT: SHELF LIFE OPTIONAL ON STAGING`. Record: `release-evidence\staging-shelf-life-optional-20261020-011328.log`.
+The new app (`index-DQDIMYyk.js`) live: `/verify/TCUP-KNM-KH26-B0001-0150` reads "Best before: not recorded". Run sheet:
+rows 2–9 passed (row 1 dropped by Veda's decision); row 10 (tcup) not yet.
+Row 10, 20 Oct about 01:25 IST (tcup signed in by Veda): the journey page offers both downloads ("Download journey
+(shareable)" and "Internal copy"), the dashboard both season downloads and the mass balance (8 stages). Through the same
+server calls (no file downloaded; 4 Audit lines as tcup): journey shareable 10 lines without farmer names or
+`raw_values`, internal with both; season shareable and internal, 34 lines each; "made by tcup". **Passed.** Release 3's
+run sheet is done (row 1 dropped by Veda). Release 2's rows 1–5 are covered by these checks; its row 6 (the admin offered
+the shareable copy only) is not yet checked on staging.
+
+## 21 October 2026: release 4 (migration 62, only shipped packs are released), local stack
+
+Veda's combined brief, E2.1, "ok proceed"; default (a) for records of before. `20261106000100_shipped_packs_release.sql`:
+`app.lot_shipments`, `app.lot_released_packs`, `app.pack_release`, `app.scope_pack_states`; the pack page, the lot page
+data, the QR step's summary, the season export and Shipment's save rules replaced; the Shipment form's pack codes field
+`when_packed` (seed 01 too). New `tests/57_shipped_packs.sql`: a pack of a sealed batch that no shipment carried is "not
+yet released"; a carton's code releases its packs; a packed lot sold by the kilogram is refused without codes and with
+codes that weigh less ("the packs loaded weigh 15 kg, the shipment 20 kg"); a code of another batch, a void pack, a code
+already shipped refused; a shipment of before with no codes (made with the codes stripped under `replica`, no rule
+fired) gives "old data" for its batches' packs; the lot page, the QR summary (3 go live, 19 held, another seal's 5
+counted) and the season (8 released, 19 held, 1 void; 4 without codes) count them. `tests/12`, `tests/19`, `tests/44`
+ship their packed lots with codes (`t.codes` in `tests/01`; `tests/44` ships 127 kg, one pack voided). Every
+`tests/NN_*.sql`: **2,405 checks, no failure**; controls 9 of 9 (`the held count forgets other seals` added).
+**Found while testing**: the QR step's summary asked each pack's state one at a time (18 s for one batch of 158 on the
+local stack: the summary said "Loading…" past the e2e's 10 s); now one pass over the sets (about 0.5 s cold), and
+`app.lot_released_packs` joins the codes by index instead of scanning every pack. The release script's S1b counts the
+packs per state through `app.scope_pack_states` (0.25 s), not pack by pack. The smoke row `people public page packs`
+(migration 57) looked for `with_packs` on the form's codes field and read NOT OK with 62; it now takes `when_packed` too.
+`tests/run_local.sh` (after that fix): ALL TESTS PASSED. Unit 706 (new `release62.test.tsx` 6), tsc clean. On the local stack the whole e2e suite **100 of 100** (new `phase34`
+at 527 px: a packed lot sold by the kilogram, 40 kg; the form asks the codes in a scope that asks no details; 39 codes
+refused in plain words; From/To; "Packs that go live with this seal: 40 (batch …). Not yet released: 118."; after the
+seal `-0040` "Genuine pack, sealed record", `-0041` "Packed, not yet released"; `phase2`, `phase22`, `phase29` give
+their codes; `phase22`'s export is 128.5 kg, the 157 packs left after a void); the built app 14; REMOTE RLS PASSED;
+CREATE-USER PASSED; restore drill after the whole suite HR documents 4 of 5 (as in releases 9 and 10), on a fresh stack
+RESTORE DRILL PASSED; fresh start passed. Release script `staging-shipped-packs.cmd` (type `PACKS`): its S1b, rule and
+after queries run on the local stack (`functions=new codes_rule=yes form_field=yes packs: released=424 old_data=0
+not_released=1354 void=3`; `rule62=OK`).

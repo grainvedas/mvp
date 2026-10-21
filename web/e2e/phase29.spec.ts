@@ -34,9 +34,11 @@ test('the public pack page, new look: villages, the journey checked where true, 
   await signIn(page, USERS.procurement);
   const p = await procure(page, S, 'Suresh Yadav', '104', '2', '2');
   await signOut(page);
-  const step = async (who: typeof USERS.qc, verify: string, stage: string, payload: Record<string, unknown>) => {
+  type Payload = Record<string, unknown>;
+  const step = async (who: typeof USERS.qc, verify: string, stage: string, given: Payload | ((api: Awaited<ReturnType<typeof apiAs>>, prev: string) => Promise<Payload>)) => {
     await signIn(page, who);
     const api = await apiAs(page);
+    const payload = typeof given === 'function' ? await given(api, (await footprint(page, verify)).id) : given;
     ok(await api.rpc('verify_footprint', { p_fp: (await footprint(page, verify)).id }));
     const r = await api.insert('footprints', { scope_id: S, client_id: CLIENT, stage_type: stage, prev_footprint_id: (await footprint(page, verify)).id, created_by: id(who.key), payload });
     ok(r);
@@ -50,7 +52,14 @@ test('the public pack page, new look: villages, the journey checked where true, 
   const m = await step(USERS.mill, q, 'milling', { input_kg: 99, head_rice_kg: 70, broken_kg: 4, husk_kg: 20, bran_kg: 5 });
   const k = await step(USERS.sorting, m, 'packing', { input_kg: 70, packets: [{ sku_id: kg1, units: 69, size_kg: 1 }] });
   const c = await step(USERS.commercial, k, 'commercial', { buyer: 'e2e57 Typed Buyer', market: 'domestic', qty_kg: 69 });
-  const sh = await step(USERS.shipment, c, 'shipment', { shipped_kg: 69, vehicle_or_container: 'UP53AB1234', dispatch_date: new Date().toISOString().slice(0, 10), destination: 'Delhi Azadpur' });
+  // migration 62 (E2.1): a packed lot ships by its codes, also when sold by the kilogram
+  // (the codes as the Shipment form has them: app.order_pack_codes of the order)
+  const sh = await step(USERS.shipment, c, 'shipment', async (api, order) => {
+    const r = await api.rpc('order_pack_codes', { p_fp: order }); ok(r);
+    const serials = (r.data as { serial: string; void: boolean }[]).filter((x) => !x.void).map((x) => x.serial).sort();
+    expect(serials).toHaveLength(69);
+    return { shipped_kg: 69, vehicle_or_container: 'UP53AB1234', dispatch_date: new Date().toISOString().slice(0, 10), destination: 'Delhi Azadpur', serials };
+  });
   await step(USERS.qr, sh, 'qr_activation', {});
   await signIn(page, USERS.cm);
   const cm2 = await apiAs(page);

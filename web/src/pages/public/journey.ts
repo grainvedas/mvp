@@ -44,7 +44,8 @@ export interface Journey {
   journey: JourneyStep[];
   /** migration 50: the release's status (a recall shows on every pack) and the packs' dates */
   release?: { status: 'active' | 'under_investigation' | 'recalled'; reason?: string | null; at?: string };
-  packs?: { n: number; packed_on: string | null; best_before: string | null } | null;
+  packs?: { n: number; packed_on: string | null; best_before: string | null;
+    /** migration 62 (E2.1): released by a shipment of before that recorded no codes */ old_data?: boolean } | null;
   /** migration 59 (A3): each reading's unit, from the crop's quality schema (absent on older servers: guessed from the key) */
   units?: Record<string, string>;
 }
@@ -57,7 +58,9 @@ export interface PackView { serial: string; batch_code: string; size_kg: number;
   /** migration 57: how often this pack was scanned, and the first place (a city; nothing about anyone) */
   scans?: { n: number; first_city: string | null; first_country: string | null };
   /** migration 58: the carton it was packed in (its code only) */
-  carton?: string | null }
+  carton?: string | null;
+  /** migration 62 (E2.1): released by a shipment of before that recorded no codes: "Released, serials not recorded (old data)" */
+  old_data?: boolean }
 /** migration 59 (A1): before release the crop, the batch code and the date packed, nothing else */
 export interface PackBeforeRelease { pack: { serial: string; batch_code: string; packed_on: string; void?: boolean; copy_warning?: boolean;
   /** migration 61 (E2.4): on the label, so on the page too; null for a pack of before (absent on older servers) */ best_before?: string | null }; released: false; crop: { name: string } }

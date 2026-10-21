@@ -70,10 +70,10 @@ select t.ok(pg_temp.packs(pg_temp.f('K')) = 155, 'a pack voided with its reason'
 
 -- 3 · the rest of the chain; Release after a summary; its status ------------------------------------------------------------
 select t.as_user(t.u('11')); select app.verify_footprint(pg_temp.f('K'));
-insert into fx select 'C', pg_temp.ins(t.scope('05'), 'commercial', pg_temp.f('K'), t.u('11'), '{"buyer":"Delhi Wholesaler","market":"domestic","qty_kg":128}');
+insert into fx select 'C', pg_temp.ins(t.scope('05'), 'commercial', pg_temp.f('K'), t.u('11'), '{"buyer":"Delhi Wholesaler","market":"domestic","qty_kg":127}');   -- migration 62: the 127 kg of packs left (one voided)
 select t.as_user(t.u('14')); select app.verify_footprint(pg_temp.f('C'));
 insert into fx select 'SH', pg_temp.ins(t.scope('05'), 'shipment', pg_temp.f('C'), t.u('14'),
-  '{"shipped_kg":128,"vehicle_or_container":"UP53 AT 1234","dispatch_date":"2026-10-15","destination":"Delhi"}');
+  '{"shipped_kg":127,"vehicle_or_container":"UP53 AT 1234","dispatch_date":"2026-10-15","destination":"Delhi"}'::jsonb || jsonb_build_object('serials', t.codes(pg_temp.f('K'))));   -- migration 62: every pack left, by its code
 -- a pack scanned before release
 select t.as_anon();
 select t.ok(app.public_pack('NO-SUCH-SERIAL') is null
@@ -114,9 +114,9 @@ select t.ok((app.public_pack(pg_temp.v('BC') || '-0300'))->'release'->>'status' 
 -- 4 · G12: transit loss at delivery --------------------------------------------------------------------------------------
 select t.as_user(t.u('14'));
 select t.fails(format($$select app.confirm_delivery(%L, 130, (now() at time zone 'Asia/Kolkata')::date)$$, pg_temp.f('SH')), 'between 0 and', 'more than was shipped is refused');
-select app.confirm_delivery(pg_temp.f('SH'), 127.5, (now() at time zone 'Asia/Kolkata')::date, 'two packs damp');
-select t.ok((select transit_loss_kg from public.deliveries where shipment_id = pg_temp.f('SH')) = 0.5, 'delivered 127.5 of 128 kg: 0.5 kg lost in transit, recorded at delivery');
-select t.fails(format($$select app.confirm_delivery(%L, 127, (now() at time zone 'Asia/Kolkata')::date)$$, pg_temp.f('SH')), 'already', 'confirmed once');
+select app.confirm_delivery(pg_temp.f('SH'), 126.5, (now() at time zone 'Asia/Kolkata')::date, 'two packs damp');   -- migration 62: 127 kg shipped
+select t.ok((select transit_loss_kg from public.deliveries where shipment_id = pg_temp.f('SH')) = 0.5, 'delivered 126.5 of 127 kg: 0.5 kg lost in transit, recorded at delivery');
+select t.fails(format($$select app.confirm_delivery(%L, 126, (now() at time zone 'Asia/Kolkata')::date)$$, pg_temp.f('SH')), 'already', 'confirmed once');
 
 -- 5 · C5: the lab report ----------------------------------------------------------------------------------------------------
 select t.as_service();

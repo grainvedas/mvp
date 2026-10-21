@@ -1,5 +1,5 @@
-# Tested 20 Oct 2026 (release 3c of Phase 1, migration 61c: the shelf life optional; head rice apart): DB 2,390, unit 700, e2e 15 of the export and packing files, the built app 14
-# SHA-256 of the text with line ends as LF. Read by scripts/staging_shelf_life_optional.ps1 (step S0). Do not edit by hand.
+# Tested 21 Oct 2026 (release 4 of Phase 1, migration 62: only shipped packs are released): DB 2,405, unit 706, e2e the whole suite, the built app
+# SHA-256 of the text with line ends as LF. Read by scripts/staging_shipped_packs.ps1 (step S0). Do not edit by hand.
 ad11e4e0ad6777fa9c689ab392cac74c19cb92c4d987580167f4b2e4b71cd26d  web/index.html
 b715cea12d7d05f45a22b630d4607b06818befdbbb1f3f921be62a63e1c65bf4  web/package-lock.json
 7e38e126c135678cf35a9e5d0dd05c0c886e0f21738e86ff0f5eef3c6eaf7810  web/package.json
@@ -34,37 +34,37 @@ e96ce9d66018a0139663445eae2636d70afbbcfb1edd8dcc125707d37394e36e  web/src/auth/A
 3bafc10bf321b608d1d07e57fac8d77be20d467f5c7cab3c548bd120546d1afa  web/src/engine/DupFile.tsx
 fd4ec12e407d7472ad625928669ce1934eec7c08bb01821c28ab4b8348669512  web/src/engine/OrderCartons.tsx
 2ec91cf273ac5a9b5c41b9cad9f6263aec85004e69465705d610724b16cdfc27  web/src/engine/PackCodes.tsx
-9c5306ff3d73d6eefd7ce50218e55d55bf8c7730fcda20426d22844bcb1ddd64  web/src/engine/StagePage.tsx
+aeb0a465c8be78d921aa9a4b548d90a499680562193c4c79e3559beae78cac6c  web/src/engine/StagePage.tsx
 88ede06d5baf8635f1a48ed61c56288d51839e67eb89f32d046480d2c0d001de  web/src/engine/evidence.ts
 c6f7500c2485f9e7707cfdea1c98b4a7b1997666c604a7a451da77e5b744e3b6  web/src/engine/icons.ts
 85e3582bc7b6bb68f70cdeb2c8f7c5c1a444c50a7291bf5d8b909aa530d3193d  web/src/engine/localise.ts
 cdd2e93dddc61f2d0c67a572e95f9ab3f72d31146ff8f4a76bb288861fc454ae  web/src/engine/offlinePreview.ts
 eff2b65384df7969e19cfd24594a8fb70950bca4daf77507e13898ba754bdc01  web/src/engine/values.tsx
-86ba4e571c0d259d13d79c75a5948297c6fae6c00fe1d7510db698dc0ddb60f6  web/src/engine/widgets.tsx
+e08852f4016f4d4a18e65ff86d0f1ce1835a8b28e3fd84c9edaa8514661bff32  web/src/engine/widgets.tsx
 52004b549c2d98e66bb3657dd212cccaac71f3c7d42b7d8d56003ef45d350557  web/src/lib/api.ts
 014b475f0f25533b7005f4aa96e6331294f175f69b80ed1386607cd47fcd30c9  web/src/lib/crops.ts
 c622615a0bf932fb7e03407398c976c241a17d8d016840483885e8ed1dc1d496  web/src/lib/csv.ts
 1e274e78f6645009d36335d17991fb9f4b976d8b39c517ed0ef8aa0110b98f65  web/src/lib/environment.ts
 40d3fb486d5f27ac7cb8b76a2a39939b7723f1f5fc033ff3708b8e59d5918c28  web/src/lib/errorLog.ts
 bbbce81ba805b2c7cbcaa8bb1743203b974b71b28389afb0c029bef1c36bd6d0  web/src/lib/errors.ts
-aef7defaa9b677d28b394b81235dbed9c72bf5d07d203198a26634cece47f338  web/src/lib/exports.ts
+14bce98ea03d21b674cb070d06fc30e2ec5a817cf6f480f564e18976d7873310  web/src/lib/exports.ts
 c95b6e80ce5332d1d584b6799b2938dc0565172097017f832d442fca04a72993  web/src/lib/farmers.ts
 1aed1502485a3361c785eb8f5712bca25d22ae5943c86f676ea20d4345a8a549  web/src/lib/format.ts
 eea9f07ab6418d8caf92974c45aa0372ec7f560698dd5d571d5c0ef504cceec1  web/src/lib/gi.ts
-1ed6ee8f50648715a4cbf4c20d81d642ca0908fc5ab69fbf41a91ac30dcf0ee2  web/src/lib/i18n.en.ts
-a0a67bb6e5a5931e31d27fcdf88f26e88ecebb660bfe11a3e8557fccf8af60ea  web/src/lib/i18n.hi.ts
-6397bccbf0c10bc97b24ed6a835aeaff60f5af87873b95f8a69b33087ebe2efa  web/src/lib/i18n.public.ts
+5d167bfc8776a0cf9c63ac3966df27d3c72753e51fb0c91bb98aea150a43b0b6  web/src/lib/i18n.en.ts
+4264cac22007294286a8769fdbb7dcf05afcc66e50417f3a7fad9d5ed7be2e21  web/src/lib/i18n.hi.ts
+452e79de2bcdd29cb425c6fd4e2af4f606737f2622aeed917761bd96b3edfeaf  web/src/lib/i18n.public.ts
 6de6e8130b05021c691fe8a294c2e43d00ba7c5be9b8c5567df1e2849118195f  web/src/lib/i18n.tsx
 52812e432ee089d7a24250ddcf8cd894e3745dc3cd0056abdb94f2b15b16238c  web/src/lib/idNumbers.ts
 62233811fe5d295373d5a0e7c0093cd5c7b33da5cd09a947534b068866f031e0  web/src/lib/keptLogin.ts
 6780d47e053618b34f8acfe11f5c279c9365a66f26b568a6e922cbe1461940d9  web/src/lib/people.ts
-c96215f6ebdac9e35c5023f3c8ba5ee836a215e7f0cd7a39227b4f76bb6ad772  web/src/lib/plainErrors.ts
+04ad47a3be8a95d1141d179d52909a9bb139de4b51665ba9141e07f8f8365cdc  web/src/lib/plainErrors.ts
 563f0349d24bab9123cf4498c9420a2da583a217099961de61783d53c200344d  web/src/lib/requirements.ts
 3ab128d98a6cdbaf115079f2bf4da60ba6cedd6e57c5f46c5ef5d7a5e4234e7c  web/src/lib/rights.ts
 6b1fe2c620c2f66bb8c580891247f3f07b535bd621b3ed52dd95de2ae49fa900  web/src/lib/scale.ts
 e49b863d77b1fcc054ef95b1580bbcc3efdfce2069fa371273ad5fd5b2a536ae  web/src/lib/setup.ts
 e2d77b06a56474df8fb45f149879aa20c46521bfd3084f44f73420b9b007d464  web/src/lib/supabase.ts
-d989dd1ee1a9b833e6534a50254e995c7c7ea86a4c943df8af4fa338a77f3f43  web/src/lib/types.ts
+176c311cc063f5fa3a41f1e9e941be4dd9896ab6a076618e035a42229c19ca3b  web/src/lib/types.ts
 34ce72fb8fb1379814d3932528b63c9139212b540d08689afbfe77e481babcc6  web/src/lib/useAsync.ts
 6e270bb4d7ff61c67dd5941a80bc5bad4d9f65fb3c96ed20f90f0485233524e4  web/src/lib/waiting.ts
 7c8af7dad7c9b42ffd398cd93b129429a93c8a751f915ee9b4c07c4904a00216  web/src/main.tsx
@@ -103,8 +103,8 @@ bc83c92601a946135c5353cfe824da95077c63deb46db29fb14477ab66ccc6c7  web/src/pages/
 080170534811defbda900d7a8ab6038152755f70ea2c90600d7486dc45780d25  web/src/pages/public/Invite.tsx
 3eedc7e163a11c66b6752452d0bccf6cd8dc4e912fe027d639a9a4386ce085cc  web/src/pages/public/Labels.tsx
 bcb30e3100437f1bbf4a78169aed81ec508879421f0280bd7239e08a3421cfab  web/src/pages/public/PublicPack.tsx
-c31c1076eec8017952b174acd9981fb75561e199ffe453bf04c6d875c0385de3  web/src/pages/public/PublicVerify.tsx
-c56a8b73111e030e989e3b12d15194bc6546aa70ea22d98336065805a11686a3  web/src/pages/public/journey.ts
+830ad77cba4d3ae8e2cc1ee5afb206a921b0b751b891a5e4c34a5b0643be74aa  web/src/pages/public/PublicVerify.tsx
+79a606c58b12ee3bc530b9394215b565cee0a16e94dbe5b61e145c18766270ca  web/src/pages/public/journey.ts
 8d305eff852e6969a0ac90483691515ba51310d196c94f9092162b66959c709c  web/src/pages/records/BuyerShare.tsx
 6490c3f337091ea93de906c58d0d78970e79afc86143a511dc1f0e003728f662  web/src/pages/records/PackLabels.tsx
 8ec813ab83df4c9f6e60ab46d33fdb6e7e9f6ed37ce2bed1f73f489e4b349f0d  web/src/pages/records/Receipt.tsx
@@ -132,7 +132,7 @@ b9150121dc6b3019afc499eb7a8d57a05941a2caca4e4219ee39613549b371b1  web/src/shell/
 8b321512f2271155e536b2f533bbf1440e4ffec7d2bedb18684fbab3ae27fa7b  web/tests/admin_oversight.test.ts
 ddedc6d153ccf512a78e13e271642d62c3b1d28ecae5c6c427aac595ac8d0f35  web/tests/admin_two_jobs.test.ts
 0f47711197c7e7651c0726cf7e989890f72f447bfae8316566cf452edd9a806e  web/tests/buyer_link_scans.test.tsx
-f97b8e4dbf2c2d9c49acdaab004fe10f1b9db73e0f5250e0f40f81a3b7369e98  web/tests/commercial_shipment.test.tsx
+f609efd77d97021be35269fb37afc0d40b70beca2380fdf186899cb1ceeb2ca3  web/tests/commercial_shipment.test.tsx
 337c92066fb7a56d135dcba8d93a51622d4ef296e7c8465f1023bdbf962f513c  web/tests/crop_registry.test.ts
 a4b3f4247976dac8cebb8b07e7239fb04412e0477cebd35cb9789581e3182a89  web/tests/engine.test.tsx
 0f80c7866d25e89f91958754670eef2a0c0e48c74fd6cb982df366ecdeaa40a0  web/tests/farmer_proposals.test.ts
@@ -140,7 +140,7 @@ a4b3f4247976dac8cebb8b07e7239fb04412e0477cebd35cb9789581e3182a89  web/tests/engi
 4c13ee40e1470381c9133929367eb7cf317d29727eb41ccf9208615936f7102f  web/tests/faults_oct4.test.tsx
 40dc9ed01738b175c2e8a73c57189a9cb8727138dd5a448306bcea9dea823d8b  web/tests/field_day.test.ts
 2d194d1a3b52d2dfa44e2697f222177e543986b1c7d3815cdb2c5294816ad95f  web/tests/fixes34.test.ts
-f5ccb088dbedde7ef09b3254c8acb069e3a36ffd3d94ab4ceddb6142bacb7977  web/tests/fixtures/stage_definitions.json
+8863741e97d8622fccf282f3ca0d9ac7abb244e9a99e1147aa74d4b98f99b851  web/tests/fixtures/stage_definitions.json
 f80af8db3e38e931f88b7b8e79ab96d8d4c432dc7586456049f9253d2eb6920b  web/tests/functions.test.ts
 1c116af284f0b85b2faaab67a3a084392fe7dd48ac474ce00b642b105938c56c  web/tests/hr_admin_joined.test.ts
 8ec1d45c06c1a12581a6bfccf7be77ee133d11433588ccf04c49f59c4106463f  web/tests/i18n_split.test.ts
@@ -154,11 +154,12 @@ b3ed7806bbd9dc361fbdf794cd8fd4f1155d955f8d14b10c8dd8c35611a280bb  web/tests/pack
 7e4e7a9077a8538365ea9c96ff04d20534cefe3b3f8a88f7c5f63ad5e8aea2e0  web/tests/phase3.test.ts
 816ef0e13f43686fc2f553db7bf1f2029245df0cc53f1d65d1a7b8bb3d08347d  web/tests/phase4.test.tsx
 6859807beec16cc6b73a29108d721da13d9ae95792d98e32ee6a5d159bf8d320  web/tests/procurement_batch.test.ts
-bdbe911cefd122a8086b91e5228bf992550b8b983f4c2c2d99a31086de104004  web/tests/release57.test.tsx
+f5efbb1fc8078b0ab9ef8f11898ec68d87cd6b4dfb15972a942e4339d1c53aeb  web/tests/release57.test.tsx
 438131a375d13d11dce544a307509c6bb4077184a2c086f6e16968a5759dd757  web/tests/release58.test.tsx
 7268d54c10a5dc0a9ee9ad49c41be306eb787702ba2555bd4a543d5ded9e5c9a  web/tests/release59.test.tsx
-e97d2b3b30f1c2495b192dbe5e724d7c57a9b895f8b8c15da6e9465a6e98d213  web/tests/release60.test.tsx
-353cd7726f62e7119fd3dfdb46c9e22ba88f36f2cb6839be2e347a7929dd8dc6  web/tests/release61.test.tsx
+5ba108c60e07d1c06b87fa69f9bd872f2479c69502d4d27988376cdb2360e9fd  web/tests/release60.test.tsx
+08abace98d8d1d581fc20d18955c127b3b5e588fde2b8c948d724a870a712b2a  web/tests/release61.test.tsx
+b0843ebada50fc1347d5991464e1903242b22649cf540539d60ff433915a0ee3  web/tests/release62.test.tsx
 2227a0a291895bb10c4c5dc854c4a474de9b8382dffe1a95975927a01fd74883  web/tests/requirements.test.ts
 3fc460d02375570d0d985290873efa3f487ae86daa7e52d23eb5dce34896a428  web/tests/rules_and_ids.test.ts
 c3b9c00010cdf47b46057acf8576d09ecfe103afecacedaf280d238b50ec8613  web/tests/safeguards.test.ts

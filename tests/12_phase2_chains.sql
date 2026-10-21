@@ -40,7 +40,7 @@ begin
   perform t.as_user(t.u('14')); perform app.verify_footprint(ex);
   insert into public.footprints (scope_id, client_id, stage_type, prev_footprint_id, created_by, payload)
   values (s, c, 'shipment', ex, t.u('14'), '{"shipped_kg":79,"transit_loss_kg":0.5,"vehicle_or_container":"MSKU1234567",
-          "dispatch_date":"2026-11-20","destination":"Rotterdam"}') returning * into r;
+          "dispatch_date":"2026-11-20","destination":"Rotterdam"}'::jsonb || jsonb_build_object('serials', t.codes(pk, 79, 1))) returning * into r;   -- migration 62: the codes loaded
   sh := r.id;
   perform t.ok(r.qty_out = 78.5, 'T4 shipment: 79 kg shipped, 0.5 kg transit loss carried forward');
   perform t.as_user(t.u('07')); perform app.verify_footprint(sh);

@@ -109,3 +109,12 @@ begin
           f.created_by, p_label);
 end $$;
 grant execute on function t.attach(uuid, text) to anon, authenticated;
+
+-- Migration 62 (E2.1): a shipment of a packed lot carries its pack codes. The first n packed codes of a packing record
+-- (of one size where given), as the loader would send them. Test-only.
+create or replace function t.codes(p_packing uuid, p_n int default null, p_size numeric default null) returns jsonb
+language sql stable security definer as $$
+  select coalesce(jsonb_agg(serial order by serial), '[]'::jsonb) from (
+    select serial from public.packs where footprint_id = p_packing and status = 'packed' and (p_size is null or size_kg = p_size)
+     order by serial limit p_n) x $$;
+grant execute on function t.codes(uuid, int, numeric) to anon, authenticated;
