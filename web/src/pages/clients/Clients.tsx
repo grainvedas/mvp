@@ -4,7 +4,10 @@
 //   /clients/:id    the record: the shared identity for another state's State Manager; the full record by state for the
 //                   client's State Managers (they fill the gates), the admin (approves the first Active, edits the
 //                   national identity), the client's own login and its Client Manager (read)
-// Every rule is the server's (tests/59_client_registry.sql).
+// Migration 65 (release 2, Parts C and D): "Add [my state] to this client"; the status per state (suspend, resume, end,
+// return; the admin also for every state at once); the warnings before a licence or the MSA expires; the renewals the
+// client's own login uploads for its State Manager to accept.
+// Every rule is the server's (tests/59_client_registry.sql, tests/60_client_states_status.sql).
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { q } from '../../lib/api';
@@ -16,9 +19,11 @@ import { useAuth } from '../../auth/AuthProvider';
 import { isStateManager, myStateIds, oversees } from '../../lib/rights';
 import { Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import {
-  ENTITY_TYPES, NATIONAL_DOCS, PAN_LETTER, addDocument, clientView, clientsPage, createClient, decideActivation, docAccept,
-  editIdentity, gateCount, kycTick, lookupPan, moveClient, nextMove, normId, openDocument, panProblem, regKind, saveDetails, setPan,
-  type ClientStatus, type ClientView, type Doc, type DocKind, type EntityType, type Gates, type Lookup, type StateRow,
+  ENTITY_TYPES, NATIONAL_DOCS, PAN_LETTER, addClientState, addDocument, clientExpiries, clientRenewals, clientView, clientsPage,
+  createClient, decideActivation, decideRenewal, docAccept, editIdentity, gateCount, kycTick, lookupPan, moveClient, nextMove, normId,
+  openDocument, openPath, panProblem, proposeRenewal, regKind, saveDetails, setClientStatus, setPan, statusMoves,
+  type ClientStatus, type ClientView, type Doc, type DocKind, type EntityType, type Expiry, type Gates, type Lookup, type RenewalKind,
+  type StateRow, type StatusMove,
 } from '../../lib/clients';
 
 export function StatusBadge({ s }: { s: ClientStatus }) {
@@ -42,6 +47,7 @@ export function Clients() {
     <div><h1><span aria-hidden="true">🏢 </span>{t('clients.title')}</h1>
       {sm && <p><Link className="button" to="/clients/new" data-testid="client-new">{t('cl.new')}</Link></p>}
       {!sm && <p className="small muted" data-testid="clients-readonly">{t(oversees(ctx) ? 'cl.admin_note' : 'clients.sm_only')}</p>}
+      {(sm || oversees(ctx)) && <ExpiryCard />}
       {list.loading ? <Loading /> : <ErrorBox error={list.error} onRetry={list.reload} />}
       {list.data?.length === 0 && <Empty />}
       <ul className="stack" style={{ listStyle: 'none', padding: 0 }}>
@@ -111,7 +117,8 @@ export function NewClient() {
         <div className="card" data-testid="already-registered">
           <div className="alert warn"><strong>{t('cl.already')}</strong></div>
           <SharedIdentity id={found.identity} />
-          <p className="small muted">{found.in_my_state ? t('cl.already_mine') : t('cl.add_state_next')}</p>
+          {found.in_my_state && <p className="small muted">{t('cl.already_mine')}</p>}
+          <AddStates client={found.identity.client_id} states={found.add_states ?? []} />
           <Link to={`/clients/${found.identity.client_id}`}>{t('cl.open')}</Link>
         </div>)}
 
@@ -177,10 +184,14 @@ export function ClientPage() {
       <div className="row wrap" style={{ gap: 6 }}><StatusBadge s={idn.status} /><Flags panPending={idn.pan_pending} ownBrand={idn.own_brand} /></div>
       {idn.own_brand && <p className="small" data-testid="own-brand-note">{t('cl.own_brand_note')}</p>}
       {d.shared_only ? (
-        <div className="card"><SharedIdentity id={idn} /><p className="small muted" data-testid="shared-only">{t('cl.shared_only')}</p></div>
+        <div className="card"><SharedIdentity id={idn} /><p className="small muted" data-testid="shared-only">{t('cl.shared_only')}</p>
+          <AddStates client={idn.client_id} states={d.may.add_states ?? []} after={v.reload} /></div>
       ) : <>
+        {(d.may.set_status || d.may.approve) && <ClientExpiries client={idn.client_id} />}
         <IdentityCard d={d} reload={v.reload} />
+        {!!d.may.add_states?.length && <div className="card"><AddStates client={idn.client_id} states={d.may.add_states} after={v.reload} /></div>}
         {d.states.map((s) => <StateCard key={s.state_id} d={d} s={s} reload={v.reload} />)}
+        {(d.may.renew || d.may.set_status || d.may.approve) && <Renewals d={d} reload={v.reload} />}
       </>}
     </div>
   );
@@ -213,6 +224,7 @@ function IdentityCard({ d, reload }: { d: ClientView; reload: () => void }) {
         {d.may.set_pan && <button className="secondary" onClick={() => setPanning(!panning)} data-testid="set-pan-open">{t('cl.set_pan')}</button>}
         {d.may.edit_identity && <button className="secondary" onClick={() => setEditing(!editing)} data-testid="edit-identity-open">{t('cl.edit_identity')}</button>}
       </div>
+      {d.may.approve && d.states.length > 1 && <StatusActions client={idn.client_id} state={null} status={idn.status} reload={reload} />}
       {panning && <SetPanForm client={idn.client_id} type={idn.entity_type} done={() => { setPanning(false); reload(); }} />}
       {editing && <IdentityForm d={d} done={() => { setEditing(false); reload(); }} />}
     </div>
@@ -268,7 +280,8 @@ function DocList({ docs, title }: { docs: Doc[]; title: string }) {
     <div><h3>{title}</h3>
       <ul className="small" data-testid="doc-list">{docs.map((x) => (
         <li key={x.id} data-testid="doc" data-kind={x.kind}>
-          <button type="button" className="linkish" onClick={() => void act.run(() => openDocument(x))}>{t(`cdoc.${x.kind}`)}</button>
+          {x.path ? <button type="button" className="linkish" onClick={() => void act.run(() => openDocument(x))}>{t(`cdoc.${x.kind}`)}</button>
+            : <span data-testid="doc-on-file">{t(`cdoc.${x.kind}`)}: {t('cl.on_file')}</span>}
           {x.signed_on && <> · {t('cl.signed', { on: date(x.signed_on) })}</>}
           {x.term_end && <> · {t('cl.term_end', { on: date(x.term_end) })}</>}
           {x.expires_on && <> · {t('cl.expires', { on: date(x.expires_on) })}</>}
@@ -313,6 +326,8 @@ function StateCard({ d, s, reload }: { d: ClientView; s: StateRow; reload: () =>
       <div className="row wrap" style={{ justifyContent: 'space-between' }}><h2>{s.state}</h2><StatusBadge s={s.status} /></div>
       {s.legacy && <p className="small muted" data-testid="legacy-note">{t('cl.legacy')}</p>}
       {s.activation_requested_at && <div className="alert info" data-testid="awaiting-approval">{t('cl.awaiting_approval_since', { at: dateTime(s.activation_requested_at) })}</div>}
+      {s.status === 'suspended' && <div className="alert warn" data-testid="status-note">{t('cl.suspended_note')}{s.status_reason && <> · {s.status_reason}</>}</div>}
+      {s.status === 'ended' && <div className="alert info" data-testid="status-note">{t('cl.ended_note', { on: date(s.ended_on ?? null) })}{s.status_reason && <> · {s.status_reason}</>}</div>}
       <dl className="kv small">
         <dt>GSTIN</dt><dd className="mono" data-testid="gstin">{s.gstin ? (s.gstin.value ?? s.gstin.masked) : s.gst_not_registered_reason ? t('cl.no_gst', { why: s.gst_not_registered_reason }) : '—'}</dd>
         {(s.signatory.name || s.signatory.designation) && <><dt>{t('cl.signatory')}</dt><dd>{[s.signatory.name, s.signatory.designation].filter(Boolean).join(', ')}</dd></>}
@@ -325,7 +340,7 @@ function StateCard({ d, s, reload }: { d: ClientView; s: StateRow; reload: () =>
       {s.gates && <Checklist g={s.gates} />}
       {!!s.documents.length && <DocList docs={s.documents} title={t('cl.state_docs')} />}
 
-      {mine && s.status !== 'active' && s.status !== 'suspended' && s.status !== 'ended' && <DetailsForm d={d} s={s} reload={reload} />}
+      {mine && s.status !== 'suspended' && s.status !== 'ended' && <DetailsForm d={d} s={s} reload={reload} />}
       {mine && s.status !== 'suspended' && s.status !== 'ended' && <Uploads d={d} s={s} reload={reload} />}
 
       {mine && nx.to && (
@@ -344,6 +359,8 @@ function StateCard({ d, s, reload }: { d: ClientView; s: StateRow; reload: () =>
           {declining && <div className="row wrap"><input aria-label={t('cl.reason')} value={why} onChange={(e) => setWhy(e.target.value)} data-testid="decline-why" />
             <button disabled={act.busy || why.trim().length < 10} data-testid="decline-go" onClick={() => run(() => decideActivation(d.identity.client_id, s.state_id, false, why))}>{t('cl.decline')}</button></div>}
         </div>)}
+      {(mine || d.may.approve) && (!s.status_by_admin || d.may.approve || (s.status !== 'suspended' && s.status !== 'ended')) &&
+        <StatusActions client={d.identity.client_id} state={s.state_id} status={s.status} reload={reload} />}
       <ErrorBox error={act.error} />
       {!!s.events.length && <details className="small"><summary>{t('cl.history')}</summary><ul data-testid="client-events">{s.events.map((e, i) => (
         <li key={i}>{dateTime(e.at)} · {t(`cev.${e.act}`, undefined, e.act)}{e.to && e.from !== e.to && <> · {t(`cst.${e.to}`)}</>}{e.by && <> · {e.by}</>}{e.reason && <> · {e.reason}</>}</li>))}</ul></details>}
@@ -433,7 +450,7 @@ const DOC_FIELDS: Record<DocKind, ('signed_on' | 'term_end' | 'expires_on' | 'am
 function Uploads({ d, s, reload }: { d: ClientView; s: StateRow; reload: () => void }) {
   const { t } = useI18n();
   const needed = (s.gates?.gates.flatMap((g) => g.items) ?? []).filter((i) => i.needed).map((i) => i.key);
-  const kinds = (Object.keys(DOC_FIELDS) as DocKind[]).filter((k) => needed.includes(k));
+  const kinds = (Object.keys(DOC_FIELDS) as DocKind[]).filter((k) => needed.includes(k) && (d.may.national_docs !== false || !NATIONAL_DOCS.includes(k)));
   const [kind, setKind] = useState<DocKind | ''>(''); const [file, setFile] = useState<File | null>(null);
   const [meta, setMeta] = useState<Record<string, string>>({});
   const act = useAction();
@@ -459,3 +476,130 @@ function Uploads({ d, s, reload }: { d: ClientView; s: StateRow; reload: () => v
   );
 }
 
+
+// ── migration 65 ─────────────────────────────────────────────────────────────────────────────────────────────────────
+/** Part C: "Add [my state] to this client", one button per state of his own the client is not in yet. */
+function AddStates({ client, states, after }: { client: string; states: { id: string; name: string }[]; after?: () => void }) {
+  const { t } = useI18n();
+  const nav = useNavigate();
+  const act = useAction();
+  if (!states.length) return null;
+  return (
+    <div className="stack" data-testid="add-states">
+      <p className="small muted">{t('cl.add_state_note')}</p>
+      <div className="row wrap">{states.map((x) => (
+        <button key={x.id} disabled={act.busy} data-testid="add-state" data-state={x.name}
+          onClick={() => void act.run(async () => { await addClientState(client, x.id); if (after) after(); else nav(`/clients/${client}`); })}>
+          {t('cl.add_state', { state: x.name })}</button>))}</div>
+      <ErrorBox error={act.error} />
+    </div>
+  );
+}
+
+/** Part D: suspend, resume, end, return — in one state (its State Manager, the admin) or in every state (the admin). */
+function StatusActions({ client, state, status, reload }: { client: string; state: string | null; status: ClientStatus; reload: () => void }) {
+  const { t } = useI18n();
+  const act = useAction();
+  const [move, setMove] = useState<StatusMove | null>(null); const [why, setWhy] = useState('');
+  const moves: StatusMove[] = state ? statusMoves(status) : ['suspended', 'active', 'ended'];
+  const pre = state ? 'status' : 'national';
+  const go = () => void act.run(async () => { await setClientStatus(client, state, move!, why); setMove(null); setWhy(''); reload(); });
+  return (
+    <div className="stack" data-testid={`${pre}-actions`}>
+      {!state && <p className="small muted">{t('cl.all_states_note')}</p>}
+      <div className="row wrap">{moves.map((m) => (
+        <button key={m} type="button" className={m === 'ended' || m === 'suspended' ? 'secondary danger' : 'secondary'} data-testid={`${pre}-${m}`}
+          aria-pressed={move === m} onClick={() => setMove(move === m ? null : m)}>{t(`cl.move_${m}${state ? '' : '_all'}`)}</button>))}</div>
+      {move && <div className="row wrap">
+        <input aria-label={t('cl.reason')} value={why} onChange={(e) => setWhy(e.target.value)} data-testid={`${pre}-why`} placeholder={t('cl.reason_10')} />
+        <button disabled={act.busy || why.trim().length < 10} data-testid={`${pre}-go`} onClick={go}>{t(`cl.move_${move}${state ? '' : '_all'}`)}</button></div>}
+      <ErrorBox error={act.error} />
+    </div>
+  );
+}
+
+function ExpiryLine({ x, showClient }: { x: Expiry; showClient: boolean }) {
+  const { t } = useI18n();
+  return (
+    <li data-testid="expiry" data-kind={x.kind} data-level={x.level} data-client={x.code}>
+      <span className={`badge ${x.level === 'expired' ? 'open' : 'pending'}`}>{t(`exp.${x.level}`)}</span>{' '}
+      {showClient && <><Link to={`/clients/${x.client_id}`}>{x.name}</Link> · </>}
+      {t(`exp.kind_${x.kind}`)}{x.state && <> · {x.state}</>} · {x.level === 'expired' ? t('exp.expired_on', { on: date(x.expires_on) }) : t('exp.expires_in', { n: x.days_left, on: date(x.expires_on) })}
+    </li>
+  );
+}
+/** The warnings before a licence or the MSA expires (60 and 15 days ahead, and after): renew, or suspend. */
+function ExpiryCard() {
+  const { t } = useI18n();
+  const ex = useAsync(() => clientExpiries().catch(() => [] as Expiry[]), []);
+  if (!ex.data?.length) return null;
+  return (
+    <div className="card" data-testid="expiries"><h2>{t('exp.title')}</h2>
+      <ul className="small" style={{ listStyle: 'none', paddingLeft: 0 }}>{ex.data.map((x) => <ExpiryLine key={`${x.client_id}-${x.kind}-${x.state_id ?? ''}`} x={x} showClient />)}</ul>
+      <p className="small muted">{t('exp.note')}</p>
+    </div>
+  );
+}
+function ClientExpiries({ client }: { client: string }) {
+  const { t } = useI18n();
+  const ex = useAsync(() => clientExpiries().catch(() => [] as Expiry[]), [client]);
+  const mine = (ex.data ?? []).filter((x) => x.client_id === client);
+  if (!mine.length) return null;
+  return (
+    <div className="alert warn" role="alert" data-testid="client-expiries">
+      <strong>{t('exp.title')}</strong>
+      <ul className="small" style={{ listStyle: 'none', paddingLeft: 0, margin: '4px 0' }}>{mine.map((x) => <ExpiryLine key={`${x.kind}-${x.state_id ?? ''}`} x={x} showClient={false} />)}</ul>
+      <span className="small">{t('exp.note')}</span>
+    </div>
+  );
+}
+
+const RENEWAL_FIELDS: Record<RenewalKind, ('signed_on' | 'term_end' | 'expires_on')[]> = { fssai: ['expires_on'], rcmc: ['expires_on'], msa: ['signed_on', 'term_end'] };
+/** B5: the client's own login uploads a renewed licence or agreement; its State Manager accepts it (or declines, with a reason). */
+function Renewals({ d, reload }: { d: ClientView; reload: () => void }) {
+  const { t } = useI18n();
+  const client = d.identity.client_id;
+  const list = useAsync(() => clientRenewals(client).catch(() => []), [client]);
+  const act = useAction();
+  const [kind, setKind] = useState<RenewalKind | ''>(''); const [state, setState] = useState(''); const [file, setFile] = useState<File | null>(null);
+  const [meta, setMeta] = useState<Record<string, string>>({});
+  const [declining, setDeclining] = useState<string | null>(null); const [why, setWhy] = useState('');
+  const owner = !!d.may.renew;                       // the client's own login (the server says so)
+  const rows = list.data ?? [];
+  if (!owner && !rows.length) return null;
+  const submit = (e: FormEvent) => { e.preventDefault(); if (!kind || !file) return; void act.run(async () => {
+    await proposeRenewal(client, kind === 'fssai' ? state : null, kind, file, Object.fromEntries(Object.entries(meta).filter(([, v]) => v !== '')));
+    setKind(''); setFile(null); setMeta({}); setState(''); list.reload();
+  }); };
+  const decide = (id: string, ok: boolean) => void act.run(async () => { await decideRenewal(id, ok, ok ? undefined : why); setDeclining(null); setWhy(''); list.reload(); reload(); });
+  return (
+    <div className="card" data-testid="renewals"><h2>{t('rn.title')}</h2>
+      {rows.length > 0 && <ul className="small" style={{ listStyle: 'none', paddingLeft: 0 }}>{rows.map((r) => (
+        <li key={r.id} data-testid="renewal" data-kind={r.kind} data-state={r.state ?? ''} data-decided={r.decided_at ? (r.accepted ? 'accepted' : 'declined') : 'waiting'}>
+          <button type="button" className="linkish" onClick={() => void act.run(() => openPath(r.path))}>{t(`cdoc.${r.kind}`)}</button>
+          {r.state && <> · {r.state}</>}
+          {r.expires_on && <> · {t('cl.expires', { on: date(r.expires_on) })}</>}{r.term_end && <> · {t('cl.term_end', { on: date(r.term_end) })}</>}
+          {' · '}{r.decided_at ? (r.accepted ? t('rn.accepted') : t('rn.declined', { why: r.reason ?? '' })) : t('rn.waiting')}
+          {r.may_decide && <div className="row wrap" style={{ marginTop: 4 }}>
+            <button disabled={act.busy} data-testid="renewal-accept" onClick={() => decide(r.id, true)}>{t('rn.accept')}</button>
+            <button className="secondary" data-testid="renewal-decline-open" onClick={() => setDeclining(declining === r.id ? null : r.id)}>{t('cl.decline')}</button>
+            {declining === r.id && <><input aria-label={t('cl.reason')} value={why} onChange={(e) => setWhy(e.target.value)} data-testid="renewal-why" />
+              <button disabled={act.busy || why.trim().length < 10} data-testid="renewal-decline" onClick={() => decide(r.id, false)}>{t('cl.decline')}</button></>}
+          </div>}
+        </li>))}</ul>}
+      {owner && <form className="stack" onSubmit={submit} data-testid="renewal-form">
+        <p className="small muted">{t('rn.note')}</p>
+        <Field label={t('cl.document')} htmlFor="rn-kind"><select id="rn-kind" value={kind} onChange={(e) => { setKind(e.target.value as RenewalKind); setMeta({}); }} required>
+          <option value="">—</option>{(['fssai', 'rcmc', 'msa'] as RenewalKind[]).map((k) => <option key={k} value={k}>{t(`cdoc.${k}`)}</option>)}</select></Field>
+        {kind === 'fssai' && <Field label={t('lens.state')} htmlFor="rn-state"><select id="rn-state" value={state} onChange={(e) => setState(e.target.value)} required>
+          <option value="">—</option>{d.states.map((x) => <option key={x.state_id} value={x.state_id}>{x.state}</option>)}</select></Field>}
+        {kind && RENEWAL_FIELDS[kind].map((m) => (
+          <Field key={m} label={t(`cl.meta_${m}`)} htmlFor={`rn-${m}`}>
+            <input id={`rn-${m}`} type="date" value={meta[m] ?? ''} required onChange={(e) => setMeta({ ...meta, [m]: e.target.value })} /></Field>))}
+        <Field label={t('cl.file')} htmlFor="rn-file"><input id="rn-file" type="file" accept={docAccept} onChange={(e) => setFile(e.target.files?.[0] ?? null)} required /></Field>
+        <button disabled={act.busy || !kind || !file || (kind === 'fssai' && !state)} data-testid="renewal-save">{t('rn.upload')}</button>
+      </form>}
+      <ErrorBox error={act.error} />
+    </div>
+  );
+}

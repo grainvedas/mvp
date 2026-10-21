@@ -192,6 +192,16 @@ export const enPublic: Record<string, string> = {
   'dv.c.internal': 'internal copy',
   'dv.how': 'A file is the one GrainVeda issued when its SHA-256 matches the line above.',
   'dv.footer': 'This statement records what GrainVeda verified under its published protocol. It is not a quality, residue or Geographical Indication certificate.',
+  // migration 65 (Part D): verification paused or ended; the lifetime rule
+  'pv.verification_paused': 'Verification paused',
+  'pv.verification_paused_note': 'GrainVeda has paused verification for this seller. What was released before stays as recorded.',
+  'pv.verification_ended': 'Verification ended on {date}',
+  'pv.verification_ended_note': 'This page stays live, read only, until {date}.',
+  'pv.expired': 'This page is no longer live: verification ended on {date}, and the time it stays live has passed.',
+  // migration 66 (Part F, G2, E3): own brand, farm-verified, sourced through
+  'pv.own_brand': 'Operated by GrainVeda (own brand)',
+  'pv.sourced_through': 'Sourced through {names}',
+  'pv.not_farm_verified': 'Received from supplier, not farm-verified by GrainVeda',
 };
 
 export const hiPublic: Record<string, string> = {
@@ -395,4 +405,14 @@ export const hiPublic: Record<string, string> = {
   'dv.c.internal': 'आंतरिक प्रति',
   'dv.how': 'कोई फ़ाइल वही है जो GrainVeda ने जारी की, जब उसका SHA-256 ऊपर की पंक्ति से मेल खाता है।',
   'dv.footer': 'यह विवरण दर्ज करता है कि GrainVeda ने अपने प्रकाशित प्रोटोकॉल के अंतर्गत क्या सत्यापित किया। यह गुणवत्ता, अवशेष या भौगोलिक संकेत (GI) का प्रमाणपत्र नहीं है।',
+  // migration 65 (Part D): verification paused or ended; the lifetime rule
+  'pv.verification_paused': 'सत्यापन रुका हुआ है',
+  'pv.verification_paused_note': 'GrainVeda ने इस विक्रेता के लिए सत्यापन रोक दिया है। पहले रिलीज़ हुआ जैसा दर्ज है वैसा ही रहता है।',
+  'pv.verification_ended': 'सत्यापन {date} को समाप्त हुआ',
+  'pv.verification_ended_note': 'यह पेज {date} तक केवल पढ़ने के लिए चालू रहता है।',
+  'pv.expired': 'यह पेज अब चालू नहीं है: सत्यापन {date} को समाप्त हुआ, और इसके चालू रहने का समय बीत गया।',
+  // migration 66 (Part F, G2, E3): own brand, farm-verified, sourced through
+  'pv.own_brand': 'GrainVeda द्वारा संचालित (अपना ब्रांड)',
+  'pv.sourced_through': '{names} के माध्यम से खरीदा',
+  'pv.not_farm_verified': 'आपूर्तिकर्ता से प्राप्त, GrainVeda द्वारा खेत पर सत्यापित नहीं',
 };

@@ -16,6 +16,7 @@ import { RosterEditor } from '../people/People';
 import { assembleChain, offeredForScope, splitChain, type CropFull } from '../../lib/crops';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { plainWords } from '../../lib/plainErrors';
+import { clientScopeStates } from '../../lib/clients';
 
 interface ScopeRow { id: string; client_id: string; crop_id: string; season_code: string; geography: string; chain: StageType[]; status: string; activated_at: string | null;
   /** migration 48 (E4): in the scope's record numbers */ short_code?: string | null;
@@ -92,6 +93,8 @@ export function ScopeWizard() {
   const [checkError, setCheckError] = useState<AppError | null>(null);
   const act = useAction();
   const placed = useRef<string | null>(null);           // the scope whose first step was chosen (14 Oct: a save sent it back)
+  // migration 65 (Part C): the client's states and its status in each (a server before 65: none, the home state as before)
+  const cstates = useAsync(() => clientId ? clientScopeStates(clientId).catch(() => null) : Promise.resolve(null), [clientId]);
 
   useEffect(() => {
     const s = existing.data;
@@ -148,6 +151,7 @@ export function ScopeWizard() {
       </div>}
     </div>);
   const homeState = clients.data?.find((c) => c.id === clientId)?.state_id ?? '';
+  // migration 65 (Part C): a client in several states: the scope is made in one where it is Diagnostic or Active
   const crop = crops.data?.find((c) => c.id === cropId);
   const processing = (defs.data ?? []).filter((d) => d.is_processing && crop?.allowed_stages.includes(d.stage_type));
   const label = (x: StageType) => defs.data?.find((d) => d.stage_type === x)?.label ?? humanise(x);
@@ -186,6 +190,7 @@ export function ScopeWizard() {
       })}</ol>
       {frozen && <div className="alert info">{t('wizard.activate_warning')}</div>}
       {s && s.chain.includes('procurement') && <ProcurementSettings s={s} onSaved={(x) => existing.setData(x)} />}
+      {s && s.chain.includes('procurement') && <ScopePartners scopeId={s.id} manage={buildsScope(ctx, s.id) && s.status !== 'closed'} />}
       {s && s.chain.some((x) => x === 'milling' || x === 'qc' || x === 'packing') && <StageSettings s={s} onSaved={(x) => existing.setData(x)} />}
 
       {step === 1 && !frozen && (
@@ -199,9 +204,15 @@ export function ScopeWizard() {
             <input id="wz-short" value={short} maxLength={4} onChange={(e) => setShort(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))} data-testid="wz-short" /></Field>
           <label className="check"><input type="checkbox" checked={labReport} onChange={(e) => setLabReport(e.target.checked)} data-testid="wz-lab-report" />{t('scope.qc_report')}</label>
           <p className="hint">{t('scope.qc_report_hint')}</p>
-          {/* migration 41 (Veda, 13 Oct): a new scope is in its client's own state; a scope made earlier elsewhere keeps its state */}
-          <p className="small" data-testid="wz-state">{t('lens.state')}: <strong>{states.data?.find((x) => x.id === (stateId || homeState))?.name ?? '—'}</strong>
-            <span className="muted"> · {t('wizard.state_home_only')}</span></p>
+          {/* migration 41 (Veda, 13 Oct): a new scope is in its client's own state; a scope made earlier elsewhere keeps its state.
+              migration 65 (Part C): a client added to other states: one of its states where it is Diagnostic or Active */}
+          {(cstates.data?.length ?? 0) > 1 ? (
+            <Field label={t('lens.state')} hint={t('wizard.state_client')} htmlFor="wz-state-pick">
+              <select id="wz-state-pick" data-testid="wz-state-pick" value={stateId || homeState} onChange={(e) => { setStateId(e.target.value); setCropId(''); }}>
+                {cstates.data!.map((x) => <option key={x.id} value={x.id} disabled={x.status !== 'diagnostic' && x.status !== 'active'}>
+                  {x.name} · {t(`cst.${x.status}`)}</option>)}</select></Field>
+          ) : <p className="small" data-testid="wz-state">{t('lens.state')}: <strong>{states.data?.find((x) => x.id === (stateId || homeState))?.name ?? '—'}</strong>
+            <span className="muted"> · {t('wizard.state_home_only')}</span></p>}
           <Field label={t('wizard.season_end')} hint={t('wizard.season_end_hint')} htmlFor="wz-end"><input id="wz-end" type="date" value={seasonEnd} onChange={(e) => setSeasonEnd(e.target.value)} /></Field>
           <button disabled={!clientId || !/^[A-Z]{2}[0-9]{2}$/.test(season) || !geo.trim() || (short !== '' && short.length < 2)} onClick={() => setStep(2)}>{t('common.next')}</button>
         </div>
@@ -287,6 +298,64 @@ export function activationLacks(m: ActivationMissing | null, label: (x: StageTyp
 
 /** Migration 52 (C1): how this scope's farm-gate form works. The Client Manager changes these at any time, also once the
  *  scope is active: they decide what the next lots ask, not what was recorded. */
+/** migration 66 (Part E3): the scope's sourcing partners (an FPO or aggregator its lots are procured through), from the
+ *  registry; a new one registered by its PAN. "Partner agrees to be named publicly": only then does the public page say
+ *  "Sourced through …". Its Client Manager sets them; the scope's people read them. */
+type PartnerRow = { entity_id: string; name: string; pan_masked: string | null; named_publicly: boolean };
+const PARTNER_TYPES = ['cooperative', 'company', 'society', 'firm', 'llp', 'trust', 'individual', 'huf', 'government'];
+function ScopePartners({ scopeId, manage }: { scopeId: string; manage: boolean }) {
+  const { t } = useI18n();
+  const list = useAsync(() => rpc<PartnerRow[]>('scope_partners', { p_scope: scopeId }).catch(() => null), [scopeId]);
+  const reg = useAsync(() => manage ? rpc<{ entity_id: string; name: string; pan_masked: string | null }[]>('sourcing_partners').catch(() => []) : Promise.resolve([]), [manage]);
+  const act = useAction();
+  const [pick, setPick] = useState(''); const [named, setNamed] = useState(false);
+  const [adding, setAdding] = useState(false); const [pan, setPan] = useState(''); const [ptype, setPtype] = useState('cooperative'); const [pname, setPname] = useState('');
+  const [removing, setRemoving] = useState<string | null>(null); const [why, setWhy] = useState('');
+  if (list.data === null) return null;                                     // a server from before migration 66
+  const rows = list.data ?? [];
+  const offer = (reg.data ?? []).filter((x) => !rows.some((r) => r.entity_id === x.entity_id));
+  const add = () => void act.run(async () => { list.setData(await rpc<PartnerRow[]>('set_scope_partner', { p_scope: scopeId, p_entity: pick, p_named: named })); setPick(''); setNamed(false); });
+  const register = () => void act.run(async () => {
+    const r = await rpc<{ entity_id: string }>('register_sourcing_partner', { p_pan: pan.trim().toUpperCase(), p_type: ptype, p_name: pname });
+    reg.reload(); setPick(r.entity_id); setAdding(false); setPan(''); setPname('');
+  });
+  return (
+    <div className="card" data-testid="scope-partners">
+      <h3>{t('sp.title')}</h3>
+      <p className="small muted">{t('sp.note')}</p>
+      {rows.length === 0 && <p className="small" data-testid="sp-none">{t('sp.none')}</p>}
+      <ul className="small" style={{ listStyle: 'none', paddingLeft: 0 }}>{rows.map((r) => (
+        <li key={r.entity_id} data-testid="sp-row" data-named={r.named_publicly ? 'yes' : 'no'}>
+          <strong>{r.name}</strong>{r.pan_masked && <span className="mono"> · {r.pan_masked}</span>} · {t(r.named_publicly ? 'sp.named' : 'sp.not_named')}
+          {manage && <> <button type="button" className="linkish" data-testid="sp-toggle-named"
+            onClick={() => void act.run(async () => list.setData(await rpc<PartnerRow[]>('set_scope_partner', { p_scope: scopeId, p_entity: r.entity_id, p_named: !r.named_publicly })))}>
+            {t(r.named_publicly ? 'sp.unname' : 'sp.name')}</button>
+            {' · '}<button type="button" className="linkish" data-testid="sp-remove-open" onClick={() => setRemoving(removing === r.entity_id ? null : r.entity_id)}>{t('sp.remove')}</button></>}
+          {removing === r.entity_id && <div className="row wrap"><input aria-label={t('cl.reason')} value={why} onChange={(e) => setWhy(e.target.value)} data-testid="sp-why" />
+            <button type="button" disabled={act.busy || why.trim().length < 10} data-testid="sp-remove"
+              onClick={() => void act.run(async () => { list.setData(await rpc<PartnerRow[]>('remove_scope_partner', { p_scope: scopeId, p_entity: r.entity_id, p_reason: why })); setRemoving(null); setWhy(''); })}>{t('sp.remove')}</button></div>}
+        </li>))}</ul>
+      {manage && <div className="stack">
+        <Field label={t('sp.add')} htmlFor="sp-pick"><select id="sp-pick" value={pick} onChange={(e) => setPick(e.target.value)} data-testid="sp-pick">
+          <option value="">—</option>{offer.map((x) => <option key={x.entity_id} value={x.entity_id}>{x.name}{x.pan_masked ? ` · ${x.pan_masked}` : ''}</option>)}</select></Field>
+        <label className="check"><input type="checkbox" checked={named} onChange={(e) => setNamed(e.target.checked)} data-testid="sp-named" />{t('sp.agrees')}</label>
+        <div className="row wrap">
+          <button type="button" disabled={act.busy || !pick} onClick={add} data-testid="sp-add">{t('sp.add_go')}</button>
+          <button type="button" className="secondary" onClick={() => setAdding(!adding)} data-testid="sp-register-open">{t('sp.register')}</button>
+        </div>
+        {adding && <div className="stack" data-testid="sp-register">
+          <Field label={t('cl.entity_type')} htmlFor="sp-type"><select id="sp-type" value={ptype} onChange={(e) => setPtype(e.target.value)}>
+            {PARTNER_TYPES.map((x) => <option key={x} value={x}>{t(`etype.${x}`)}</option>)}</select></Field>
+          <Field label="PAN" htmlFor="sp-pan"><input id="sp-pan" className="mono" maxLength={10} value={pan} onChange={(e) => setPan(e.target.value.toUpperCase())} /></Field>
+          <Field label={t('cl.legal_name')} hint={t('sp.name_hint')} htmlFor="sp-name"><input id="sp-name" value={pname} maxLength={200} onChange={(e) => setPname(e.target.value)} /></Field>
+          <button type="button" disabled={act.busy || pan.trim().length !== 10} onClick={register} data-testid="sp-register-go">{t('sp.register_go')}</button>
+        </div>}
+      </div>}
+      <ErrorBox error={act.error} />
+    </div>
+  );
+}
+
 function ProcurementSettings({ s, onSaved }: { s: ScopeRow; onSaved: (x: ScopeRow) => void }) {
   const { t } = useI18n();
   const act = useAction();

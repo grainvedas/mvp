@@ -401,6 +401,7 @@ export function FarmerForm() {
             {status === 'draft' && cm && <button type="button" disabled={act.busy || !!giProblem || !!gpsBad || noGps || districtOff || (needReason && !why.trim())} onClick={(e) => submit(e as unknown as FormEvent, true)} data-testid="farmer-save-verify">{t('farmers.save_verify')}</button>}
           </div>)}
       </form>
+      {id && clientId && cm && <FarmerMembership farmerId={id} />}
       {id && clientId && <FarmerGap farmerId={id} clientId={clientId} stateId={stateId} />}
       {id && hasIds && <FarmerHistory farmerId={id} tick={tick} onAccepted={() => setTick(tick + 1)} />}
     </div>
@@ -583,4 +584,28 @@ function GiAreaNote({ farmerId, tick }: { farmerId: string; tick: number }) {
   const out = (g.data ?? []).filter((x) => x.status === 'outside');
   if (out.length === 0) return null;
   return <div className="alert warn small" data-testid="farmer-gi-outside">{t('fl.gi_outside', { crops: out.map((x) => x.crop).join(', ') })}</div>;
+}
+
+/** migration 66 (Part E2): "Member of" — the farmer's FPO or aggregator, a sourcing partner of the registry. Set by his
+ *  client's Client Manager; the procurement form filters by it ("ABFPO members"). Nothing else follows from it. */
+export function FarmerMembership({ farmerId }: { farmerId: string }) {
+  const { t } = useI18n();
+  const cur = useAsync(() => rpc<string | null>('farmer_member', { p_farmer: farmerId }).catch(() => null), [farmerId]);
+  const list = useAsync(() => rpc<{ entity_id: string; name: string; pan_masked: string | null }[]>('sourcing_partners').catch(() => []), []);
+  const [v, setV] = useState<string | null>(null);
+  const act = useAction();
+  const value = v ?? cur.data ?? '';
+  if (!list.data?.length && !cur.data) return null;
+  return (
+    <div className="card" data-testid="farmer-membership">
+      <Field label={t('fm.member_of')} hint={t('fm.member_hint')} htmlFor="farmer-member">
+        <select id="farmer-member" value={value} onChange={(e) => setV(e.target.value)} data-testid="farmer-member">
+          <option value="">{t('fm.none')}</option>
+          {(list.data ?? []).map((x) => <option key={x.entity_id} value={x.entity_id}>{x.name}{x.pan_masked ? ` · ${x.pan_masked}` : ''}</option>)}
+        </select></Field>
+      <ErrorBox error={act.error} />
+      <button type="button" className="secondary" disabled={act.busy || value === (cur.data ?? '')} data-testid="farmer-member-save"
+        onClick={() => void act.run(async () => { await rpc('set_farmer_member', { p_farmer: farmerId, p_entity: value || null }); setV(null); cur.reload(); })}>{t('common.save')}</button>
+    </div>
+  );
 }

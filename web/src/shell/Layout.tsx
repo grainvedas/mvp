@@ -10,6 +10,7 @@ import { humanise } from '../lib/format';
 import { NO_RIGHTS, type Can, type Role } from '../lib/types';
 import { useOutbox } from '../offline/useOutbox';
 import { stageIcon } from '../engine/icons';
+import { Notices } from './Notices';
 import { CrashCard, ErrorBoundary } from './ErrorBoundary';
 import { ScopeProvider, shownScope, useScope, useWide, worksInOneScope } from './scope';
 import { myClientAccounts, oversees } from '../lib/rights';
@@ -268,7 +269,7 @@ function Frame() {
             ...(me ? [item('/account', '🔑', t('nav.account'))] : []),
           ])}
         </nav>)}
-        <main><ErrorBoundary key={pathname} fallback={(_e, retry) => <CrashCard retry={retry} />}><Outlet /></ErrorBoundary></main>
+        <main>{me && <Notices />}<ErrorBoundary key={pathname} fallback={(_e, retry) => <CrashCard retry={retry} />}><Outlet /></ErrorBoundary></main>
       </div>
     </>
   );

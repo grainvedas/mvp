@@ -457,6 +457,23 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   case in `tests/59_client_registry.sql`. A scope follows its client's status in its state (`scopes_a1b_client_gate`).
   Another state's State Manager sees the shared identity only (`app.client_identity`). Test numbers are fake and
   format-valid (`ZZZC…`); never a real company's.
+- **A client is in several states, each with its own status** (migration 65, Phase 2 Parts C and D). A state is added
+  only by its State Manager (`app.add_client_state`); a status moves only through `app.client_set_status` (suspend,
+  resume, end, return; a reason every time; the admin's status moved back by the admin). What a suspended or ended
+  client may still write is the trigger `a02_client_status` (`app.client_status_guard`): a new table of a scope's records
+  gets it too (with `a01_closed_scope`), and a case in `tests/60_client_states_status.sql`. The public pages carry the
+  client's status through `app.public_verification` / `app.client_verification` only (paused; ended and the lifetime
+  rule). Who is told is `app.notify_client`; a new kind of notice needs its `note.*` words (EN and HI). The national
+  documents are the home state's State Manager's; another state reads them "on file".
+- **Sourcing is split at the farmer; partners are named only with their agreement; the hooks stay closed** (migration
+  66, Phase 2 Parts E–G). A scope buys only its own client's farmers (`footprints_a04_partner`); "Procured through" is one
+  of the scope's partners (`scope_partners`, written only by `app.set_scope_partner` / `app.remove_scope_partner`); the
+  public page names a partner only where `named_publicly`. The season check counts every record of one state farmer
+  and never names a client. `footprints.farm_verified` is the server's (a person's insert is set true; an update is
+  refused) and `app.lot_gi_status` gives GI only to a farm-verified lot: a future outside supplier's lot is false there,
+  never by a screen. Buyers are linked to the registry only by `app.link_buyer` (trigger) into the closed
+  `buyer_entities`: never read it on a screen or in an export. `scopes.entry_point` accepts only `farmer_procurement`
+  until the handoff is designed. A case for any new rule here in `tests/61_sourcing_partners_hooks.sql`.
 - **Packs go in cartons; an order sets them aside; Reports to is a rule** (migration 58, Veda 16 Oct 2026, G24). A
   carton is made only by the packing save (`app.make_cartons` from `app.make_packs`, when the pack type has
   `packs_per_carton`); never insert, delete or renumber one; it is opened only by `app.void_pack`. What an order takes is

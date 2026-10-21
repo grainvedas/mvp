@@ -33,7 +33,7 @@ export interface WidgetProps {
 export const SUPPORTED = new Set(['number', 'integer', 'number[3]', 'text', 'select', 'date', 'boolean', 'attachment', 'readings', 'farmer',
   'breakdown', 'packets[]', 'footprint[]', 'collection_point', 'gps',
   'mill', 'lab', 'packing_unit', 'qc_sample', 'sku_packs',
-  'buyer', 'market_profile', 'order_packs', 'serials', 'order_cartons']);   // migration 58: the cartons an order chooses                                // migration 54: Commercial and Shipment                         // migration 53: Milling, QC, Packing   // migration 52: where the lot was weighed, and its GPS
+  'buyer', 'market_profile', 'order_packs', 'serials', 'order_cartons', 'partner']);   // migration 66: "Procured through"   // migration 58: the cartons an order chooses                                // migration 54: Commercial and Shipment                         // migration 53: Milling, QC, Packing   // migration 52: where the lot was weighed, and its GPS
 
 /** Field types that take the whole width of a two-column form (lists, pickers, files, groups of inputs). */
 export const FULL_WIDTH = new Set(['number[3]', 'attachment', 'readings', 'farmer', 'breakdown', 'packets[]', 'footprint[]', 'boolean', 'gps',
@@ -131,6 +131,8 @@ export function Widget(p: WidgetProps) {
     }
     case 'farmer':
       return <FarmerPicker id={id} clientId={p.clientId} scopeId={p.scopeId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
+    case 'partner':
+      return <PartnerPicker id={id} scopeId={p.scopeId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
     case 'collection_point':
       return <CollectionPointPicker id={id} clientId={p.clientId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
     case 'gps': {
@@ -200,6 +202,18 @@ function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; 
   const [loaded, setLoaded] = useState(false);   // migration 56: "no farmer yet" only once the list has come
   const [village, setVillage] = useState('');
   const [picked, setPicked] = useState<Farmer | null>(null);
+  // migration 66 (Part E2): "show ABFPO members": the scope's sourcing partners and which of this client's farmers belong to each
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [members, setMembers] = useState<{ farmer_id: string; entity_id: string }[]>([]);
+  const [member, setMember] = useState('');
+  useEffect(() => {
+    if (!scopeId) return;
+    let live = true;
+    void cached(`partners:${scopeId}`, () => rpc<Partner[]>('scope_partners', { p_scope: scopeId })).then((l) => { if (live) setPartners(l); }).catch(() => undefined);
+    void cached(`members:${scopeId}`, () => rpc<{ farmer_id: string; entity_id: string }[]>('scope_farmer_members', { p_scope: scopeId }))
+      .then((l) => { if (live) setMembers(l); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [scopeId]);
   useEffect(() => {
     let live = true;
     void cached(`farmers:${clientId}`, async () => {
@@ -211,9 +225,12 @@ function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; 
     return () => { live = false; };
   }, [clientId]);
   useEffect(() => { if (value && picked?.id !== value) setPicked(all.find((f) => f.id === value) ?? null); }, [value, picked?.id, all]);
-  const groups = villageGroups(all);
+  const memberOf = new Set(members.filter((m) => m.entity_id === member).map((m) => m.farmer_id));
+  const shown = member ? all.filter((f) => memberOf.has(f.id)) : all;
+  const withMembers = partners.filter((x) => members.some((m) => m.entity_id === x.entity_id));
+  const groups = villageGroups(shown);
   const vk = village || (groups.length === 1 ? groups[0].key : '');
-  const inVillage = all.filter((f) => ((f.village ?? '').toLowerCase().replace(/[^a-z]/g, '') || '-') === vk);
+  const inVillage = shown.filter((f) => ((f.village ?? '').toLowerCase().replace(/[^a-z]/g, '') || '-') === vk);
   if (picked && value) {
     return (
       <div className="stack">
@@ -227,6 +244,11 @@ function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; 
   }
   return (
     <div className="stack">
+      {withMembers.length > 0 && <select aria-label={t('widget.members_of')} value={member} data-testid="pick-member"
+        onChange={(e) => { setMember(e.target.value); setVillage(''); }}>
+        <option value="">{t('widget.all_farmers')}</option>
+        {withMembers.map((x) => <option key={x.entity_id} value={x.entity_id}>{t('widget.members_of_x', { name: x.name })}</option>)}
+      </select>}
       <select id={id} aria-label={t('widget.farmer_village')} value={vk} onChange={(e) => setVillage(e.target.value)} data-testid="pick-village">
         <option value="">{t('widget.farmer_village')}</option>
         {groups.map((g) => <option key={g.key} value={g.key}>{g.village} ({g.n})</option>)}
@@ -240,6 +262,27 @@ function FarmerPicker({ id, clientId, scopeId, value, onChange }: { id: string; 
         : <p className="small muted" data-testid="farmers-loading">{t('widget.farmers_loading')}</p>)}
     </div>
   );
+}
+
+/** migration 66 (Part E3): one of the scope's sourcing partners (app.scope_partners), pre-filled when it has just one. */
+interface Partner { entity_id: string; name: string; named_publicly: boolean }
+function PartnerPicker({ id, scopeId, value, onChange }: { id: string; scopeId?: string; value: string; onChange: (v: string) => void }) {
+  const { t } = useI18n();
+  const [opts, setOpts] = useState<Partner[] | null>(null);
+  useEffect(() => {
+    if (!scopeId) { setOpts([]); return; }
+    let live = true;
+    void cached(`partners:${scopeId}`, () => rpc<Partner[]>('scope_partners', { p_scope: scopeId }))
+      .then((l) => { if (live) setOpts(l); }).catch(() => { if (live) setOpts([]); });
+    return () => { live = false; };
+  }, [scopeId]);
+  useEffect(() => { if (opts && opts.length === 1 && !value) onChange(opts[0].entity_id); }, [opts, value, onChange]);
+  if (opts && !opts.length) return <p className="small muted" id={id} data-testid="no-partner">{t('widget.no_partner')}</p>;
+  return (
+    <select id={id} name="procured_through" value={value} onChange={(e) => onChange(e.target.value)} data-testid="pick-procured_through">
+      <option value="">{t('widget.direct_from_farmer')}</option>
+      {(opts ?? []).map((o) => <option key={o.entity_id} value={o.entity_id}>{o.name}</option>)}
+    </select>);
 }
 
 type Row = Record<string, string>;

@@ -355,3 +355,15 @@ update public.stage_definitions d
                                        order by n)
                         from jsonb_array_elements(d.form_schema) with ordinality as x(f, n))
  where d.stage_type = 'commercial' and exists (select 1 from jsonb_array_elements(d.form_schema) f where f->>'key' = 'market_code' and f ? 'shown_if');
+
+-- Migration 66 (Phase 2, Part E): "Procured through" on the procurement form, after "Where" (the same edit as the
+-- migration, so a database built from nothing has it): one of the scope's sourcing partners, pre-filled.
+update public.stage_definitions d
+   set form_schema = (select jsonb_agg(f order by n) from (
+          select f, n::numeric as n from jsonb_array_elements(d.form_schema) with ordinality as x(f, n)
+          union all
+          select '{"key": "procured_through", "type": "partner", "label": "Procured through", "section": "where", "required": false}'::jsonb,
+                 (select n + 0.5 from jsonb_array_elements(d.form_schema) with ordinality as y(g, n) where g->>'key' = 'collection_point_id')) z)
+ where d.stage_type = 'procurement'
+   and exists (select 1 from jsonb_array_elements(d.form_schema) f where f->>'key' = 'collection_point_id')
+   and not exists (select 1 from jsonb_array_elements(d.form_schema) f where f->>'key' = 'procured_through');

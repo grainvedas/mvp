@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { useAsync } from '../../lib/useAsync';
 import { ErrorBox, Loading } from '../../shell/ui';
-import { loadJourney, seasonName } from './journey';
+import { isExpired, loadJourney, seasonName } from './journey';
 import { useI18n } from '../../lib/i18n';
 
 export function Labels() {
@@ -18,7 +18,7 @@ export function Labels() {
   const url = `${window.location.origin}/verify/${code}`;
   useEffect(() => { void QRCode.toDataURL(url, { margin: 1, width: 320, errorCorrectionLevel: 'M' }).then(setImg); }, [url]);
   if (j.loading) return <Loading />;
-  if (j.error || !j.data) return <ErrorBox error={j.error} />;
+  if (j.error || !j.data || isExpired(j.data)) return <ErrorBox error={j.error} />;   // migration 65: no labels for a page no longer live
   const d = j.data;
   return (
     <div>

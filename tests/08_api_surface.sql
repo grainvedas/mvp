@@ -38,6 +38,12 @@ insert into allowed values
   ('authenticated', 'edit_client_identity'), ('authenticated', 'set_client_pan'), ('authenticated', 'clients_page'),
   ('authenticated', 'client_approvals'), ('authenticated', 'may_write_client_object'), ('authenticated', 'may_read_client_file'),
   ('authenticated', 'client_in_my_states'),
+  ('authenticated', 'my_notifications'), ('authenticated', 'read_notifications'), ('authenticated', 'add_client_state'),   -- migration 65
+  ('authenticated', 'client_scope_states'), ('authenticated', 'client_set_status'), ('authenticated', 'client_expiries'),
+  ('authenticated', 'propose_client_renewal'), ('authenticated', 'client_renewals'), ('authenticated', 'decide_client_renewal'),
+  ('authenticated', 'register_sourcing_partner'), ('authenticated', 'sourcing_partners'), ('authenticated', 'set_scope_partner'),   -- migration 66
+  ('authenticated', 'remove_scope_partner'), ('authenticated', 'scope_partners'), ('authenticated', 'set_farmer_member'),
+  ('authenticated', 'scope_farmer_members'), ('authenticated', 'farmer_member'),
   ('authenticated', 'client_waiting'), ('authenticated', 'client_farmers'), ('authenticated', 'doc_kind_word'),        -- migration 59
   ('authenticated', 'same_file_elsewhere'), ('authenticated', 'note_same_file'), ('authenticated', 'is_client_login'),
   ('authenticated', 'reset_login_allowed'), ('authenticated', 'report_client_error'), ('authenticated', 'check_ledger_now'),

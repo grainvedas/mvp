@@ -37,7 +37,7 @@ export interface Journey {
   /** migration 46 sent same_person; migration 57 (G21) no longer does, and the page never shows it */
   /** migration 57: the villages by share of the lot's weight, with how many farmers (never a name) */
   villages?: { village: string; district: string; share_pct: number; farmers: number }[];
-  crop: { name: string; gi_tag: string | null; origin: string | null }; client: { name: string; type: string };
+  crop: { name: string; gi_tag: string | null; origin: string | null }; client: { name: string; type: string; /** migration 66 (F) */ own_brand?: boolean };
   /** migration 49: distinct farmers in the sealed lot, and its GI status (GI only when every source is from the GI area) */
   farmer_count?: number; gi_status?: 'gi' | 'non_gi' | 'unknown';
   verdict: { domestic: string; export: string; overridden: boolean };
@@ -48,7 +48,16 @@ export interface Journey {
     /** migration 62 (E2.1): released by a shipment of before that recorded no codes */ old_data?: boolean } | null;
   /** migration 59 (A3): each reading's unit, from the crop's quality schema (absent on older servers: guessed from the key) */
   units?: Record<string, string>;
+  /** migration 65 (Part D): the client suspended ("Verification paused") or its contract ended in the scope's state */
+  verification?: Verification | null;
+  /** migration 66 (G2): every source farm-verified (all lots today); (E3) the sourcing partners that agreed to be named */
+  farm_verified?: boolean; sourced_through?: string[];
 }
+/** migration 65: paused while the client is suspended; ended (with the day) once its contract ended, live until live_until */
+export interface Verification { status: 'paused' | 'ended'; ended_on?: string | null; live_until?: string | null }
+/** migration 65 (Part F): an ended client's page after the longer of best-before + 12 months and 24 months after the end */
+export interface ExpiredPage { expired: true; verification: Verification; crop: { name: string | null } }
+export const isExpired = (x: unknown): x is ExpiredPage => !!x && typeof x === 'object' && (x as { expired?: unknown }).expired === true;
 /** app.public_pack (migration 50): one pack; before release only what the label says */
 export interface PackView { serial: string; batch_code: string; size_kg: number; packed_on: string; best_before: string | null; void: boolean;
   /** migration 56 (D6): this code was scanned far apart or very often and is being checked (or was found copied) */
@@ -63,8 +72,9 @@ export interface PackView { serial: string; batch_code: string; size_kg: number;
   old_data?: boolean }
 /** migration 59 (A1): before release the crop, the batch code and the date packed, nothing else */
 export interface PackBeforeRelease { pack: { serial: string; batch_code: string; packed_on: string; void?: boolean; copy_warning?: boolean;
-  /** migration 61 (E2.4): on the label, so on the page too; null for a pack of before (absent on older servers) */ best_before?: string | null }; released: false; crop: { name: string } }
-export type PublicPack = (Journey & { pack: PackView; released: true }) | PackBeforeRelease;
+  /** migration 61 (E2.4): on the label, so on the page too; null for a pack of before (absent on older servers) */ best_before?: string | null }; released: false; crop: { name: string };
+  verification?: Verification | null }
+export type PublicPack = (Journey & { pack: PackView; released: true; expired?: undefined }) | (PackBeforeRelease & { expired?: undefined }) | ExpiredPage;
 export const loadPack = (serial: string) => rpc<PublicPack | null>('public_pack', { p_serial: serial });
 export interface ScanCount { counted?: boolean; copy_warning?: boolean }
 /** Every scan is counted (time and code, and since migration 56 the approximate place the host saw: city, region,
@@ -78,7 +88,7 @@ export async function countScan(code: string): Promise<ScanCount | null> {
   try { await rpc('record_scan', { p_code: code }); } catch { /* never stops the page */ }
   return null;
 }
-export const loadJourney = (code: string) => rpc<Journey | null>('public_lot_journey', { p_qr_code: code });
+export const loadJourney = (code: string) => rpc<Journey | ExpiredPage | null>('public_lot_journey', { p_qr_code: code });
 
 export const SEASONS: Record<string, string> = { KH: 'Kharif', RB: 'Rabi', ZD: 'Zaid' };
 export const seasonName = (code: string) => `${SEASONS[code.slice(0, 2)] ?? code.slice(0, 2)} 20${code.slice(2)}`;

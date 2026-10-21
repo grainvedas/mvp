@@ -63,6 +63,13 @@
                 "required_when": "procurement_details_required"
             },
             {
+                "key": "procured_through",
+                "type": "partner",
+                "label": "Procured through",
+                "section": "where",
+                "required": false
+            },
+            {
                 "key": "gps",
                 "type": "gps",
                 "label": "GPS where the lot was weighed",

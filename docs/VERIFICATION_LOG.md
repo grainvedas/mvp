@@ -3153,3 +3153,79 @@ as GrainVeda Private Limited, own brand, through the gates and the admin's appro
 `staging-client-registry.cmd` (type `REGISTRY`): its S1b, rule and after queries run on the upgraded database
 (`tables=new functions=new closed=yes scope_rule=yes bucket=yes states_without_gst_code=none clients: DEMOX=active/PAN
 pending@UP, PRSDM=active/PAN pending/own brand@AS, PRSDM=active/PAN pending/own brand@UP`; `rule64=OK`).
+
+## 21 October 2026, 21:16 IST: Phase 2 release 1 on staging (`staging-client-registry.cmd`)
+
+Veda ran it. S0 (64 waiting, 187 app and function files the tested ones; typed REGISTRY), S1 pushed
+`20261108000100_client_registry.sql`, S1b `tables=new functions=new closed=yes scope_rule=yes bucket=yes
+states_without_gst_code=none clients: AGTX=active/PAN pending@UP, DMC1=active/PAN pending@UP, TCUP=active/PAN
+pending@UP`, S2 smoke 61/62 (statement logging standing), the rules in place, the change log intact, `leaks=0 people=7
+tables=45 calls=13300 clients=3`, `entities=3 pan_pending=3`, ledger audit NO FINDINGS (322 blocks), S3 pushed 281c0f3
+(29 files). `RESULT: CLIENT REGISTRY ON STAGING`. Record: `release-evidence\staging-client-registry-20261021-211647.log`.
+Afterwards (Claude, nobody signed in, nothing saved): the live app `index-tLqZod9j.js`, its private chunk has the new
+Clients screens. The run sheet's rows wait for Veda's check after Phase 2 (her words: "I'll check everything after
+completion"). The three practice clients are kept Active with "PAN pending": AGTX, DMC1 and TCUP, all in Uttar Pradesh.
+
+## 21 October 2026, local stack: Phase 2 release 2 (migration 65: a client in several states, its status)
+
+Migration `20261109000100_client_states_status.sql`, generated from a database built to migration 64: every replaced
+function (`public_lot_journey`, `public_pack`, `buyer_view`, `may_assign`, `client_view`, `lookup_pan`,
+`add_client_document`, `may_read_client_file`, `may_write_client_object`) is its `pg_get_functiondef` text with counted,
+named replacements, never retyped. Applied to a copy of the release-64 database with its data, and built from nothing.
+Database tests on a rebuilt template: **2,626** checks, no failure (new `tests/60_client_states_status.sql` **78**:
+Uttarakhand added to ABC Exim, the notices, each State Manager his own state, the owner's portfolio, the Client
+Manager by either state; suspended: no procurement, Packing of work in progress, no sale or release, "Verification
+paused" on the released page; the admin's national moves and the lock; ended: read only, "Verification ended on",
+the lifetime rule both ways, the return through Gate 3; the warnings at 61/60/15 days and after; the renewals; the
+closed tables). **19 of 19** negative controls caught (each breaks one rule of migration 65 on a copy). The isolation
+probe on the upgraded database: `leaks=0 people=15 tables=44 calls=1455`. The release script's S1b, rule, after and
+probe queries run on the upgraded database (`tables=new columns=new functions=new closed=yes status_rule=18
+public_pages=yes`; `rule65=OK`) and say OLD on a database at 64. The smoke row `client status` reads OK at 65, MISSING
+at 64. Unit **733** (new `release65.test.tsx` 7; its "on file" case fails with the link put back), tsc clean.
+`tests/run_local.sh`: ALL TESTS PASSED. The whole e2e suite **103 of 103** (new `phase37` at 527 px: Ram given Assam for
+the test, "Add Assam to this client" from the PAN check, a UP GSTIN refused for Assam, Assam's gates and Active on his
+KYC tick with no second approval, the FSSAI warning, client 201 suspended and its released page "Verification paused",
+resumed, the admin's notice, the client's login uploads a renewed MSA, Ram accepts it; Ram's Assam seat ended at the
+end). The built app 14 of 14; REMOTE RLS PASSED; CREATE-USER PASSED; restore drill after the whole suite HR documents 4
+of 5 (standing, as before), on a fresh stack after `phase22`, `phase29`, `phase34`–`phase37` (8 of 8) RESTORE DRILL
+PASSED; fresh start passed. Pictures at 390 and 1366 px of the client record (two states, the national moves, the
+warning), the Clients list, a suspended state, the public page paused, the notices: nothing wider than the screen.
+
+## 22 October 2026, local stack: Phase 2 release 3 (migration 66: sourcing partners, own brand, the hooks)
+
+Migration `20261110000100_sourcing_partners_hooks.sql`, generated from a database built to migration 65: the replaced
+functions (`public_lot_journey`, `lot_gi_status`, `procurement_crop_checks`) are their `pg_get_functiondef` text with
+counted, named replacements. Applied to a release-64 database with data after 65, and built from nothing. Database
+tests on a rebuilt template **2,678**, no failure (new `tests/61_sourcing_partners_hooks.sql` **52**: ABFPO a client and,
+by its PAN, a sourcing partner on the same record; on ITC's scope by ITC's Client Manager only; read by the scope's
+people only; "Member of" and the farm-gate filter; a farmer of ABFPO only refused for ITC; "Procured through" checked;
+1,200 kg across both clients against a plausible 1,000: a warning with the totals only; each login blind to the other's
+procurement and scopes; "Sourced through" only after the partner agreed; "own brand" on GrainVeda's lot; farm-verified
+set by the server, a forced false lot never GI and the flag passed on; the entry point; buyers linked by GSTIN and by
+importer ID, one entity for two clients, closed; `tests/19` knows the two new keys of the public page). **15 of 15**
+negative controls caught (one control first missed: the importer ID's upper case is kept by the key itself, so the
+test now types an ID with a space). The isolation probe: `leaks=0 people=15 tables=44 calls=1500`, on the template and
+on a release-64 database upgraded by 65 and 66, where the release script's S1b, rule and probe queries also read as
+expected (`status_rule=19`, `fix66: tables=new closed=yes farm_verified=yes entry_points=farmer_procurement
+procured_through_field=yes`, `rule66=OK`). **Found while testing**: `tests/run_local.sh` stopped at the smoke row
+`close scope report`, which counted the tables under the closed-scope guard as exactly 18; the scope's partners are a
+19th: the row now asks at least 18 (run again: ALL TESTS PASSED). Unit **741** (new `release66.test.tsx` 8), tsc clean;
+the form fixture refreshed (one new field). The whole e2e suite **104 of 104** (new `phase38` at 527 px: the Client
+Manager registers an FPO by PAN on Siddharthnagar's scope with "agrees to be named", marks Ram Achal a member; at the
+farm gate "Procured through" is pre-filled and the members' filter leaves one village; the sealed lot's public page:
+"Operated by GrainVeda (own brand)", "Sourced through" the FPO, no farmer's name). The built app 14 of 14; REMOTE RLS
+PASSED; CREATE-USER PASSED; restore drill after the whole suite HR documents 4 of 5 (standing), on a fresh stack after
+`phase22`, `phase29`, `phase34`–`phase38` (9 of 9) RESTORE DRILL PASSED; fresh start passed. Pictures at 390 and 1366 px
+of the scope's partners card, the farmer's "Member of", the farm-gate form and the public page: nothing wider than the
+screen. Release 2's script `staging-client-status.cmd` is superseded by `staging-sourcing-hooks.cmd` (65 and 66 in one
+run; type `SOURCING`).
+
+## 22 October 2026: the release script would not start (Veda's run of `staging-sourcing-hooks.cmd`)
+
+PowerShell stopped before S0: line 200 of `scripts/staging_sourcing_hooks.ps1` lacked a closing parenthesis
+("Missing closing ')' in expression"), made by the script's generator for the "This will" lines. Nothing ran; nothing
+changed on the project. The scripts had been checked only by their generator, never parsed. Fixed in the generator,
+script made again; every staging script of Phase 1 and 2 is now parsed by PowerShell 7.4 before delivery (the faulty
+copy fails that check, the fixed one passes), and the fixed script was run on the local copy up to its tested-files
+check: `migrations 65 and 66, the smoke check and the ledger audit are the tested files; the app's and functions' 190
+files are the tested ones`.

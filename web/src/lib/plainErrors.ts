@@ -285,6 +285,26 @@ export const PLAIN_RULES: PlainRule[] = [
   { re: /shipment: scan or type the codes of the packs loaded/i, key: 'err.sh_codes' },
   { re: /shipment: the packs loaded weigh ([\d.]+) kg, the shipment ([\d.]+) kg/i, key: 'err.sh_codes_kg', vars: ['packs', 'kg'] },   // migration 62
   // migration 63 (Part D): closing a scope and the season report
+  // migration 66: sourcing partners, the farmer's client, the entry point
+  { re: /this farmer is not registered with this scope's client/i, key: 'err.farmer_other_client' },
+  { re: /procured through: one of this scope's sourcing partners/i, key: 'err.procured_through' },
+  { re: /sourcing partner is registered by a State Manager|sourcing partners are set by its Client Manager|membership is set by the Client Manager|the registry is GrainVeda's/i, key: 'err.partner_who' },
+  { re: /sourcing partner: (register it first|the client itself|not on this scope)|member of: an FPO or aggregator/i, key: 'err.partner_rule' },
+  { re: /entry point: only farmer procurement/i, key: 'err.entry_point' },
+  // migration 65: a client in several states; its status; the renewals
+  { re: /this client is suspended in this state: no new procurement/i, key: 'err.client_suspended_entry' },
+  { re: /this client is suspended in this state: no sale, shipment or release/i, key: 'err.client_suspended_release' },
+  { re: /this client's contract has ended in this state/i, key: 'err.client_ended' },
+  { re: /the admin (suspended|ended) this client here/i, key: 'err.client_status_admin' },
+  { re: /status: a client \w+ cannot be|status: no state of this client can be|status: suspend, resume, end or return/i, key: 'err.client_status_move' },
+  { re: /suspended or ended in every state at once by the admin|status in a state is changed by that state's State Manager or the admin/i, key: 'err.client_status_who' },
+  { re: /a state is added to a client by that state's State Manager/i, key: 'err.client_add_state_who' },
+  { re: /this client is already in this state/i, key: 'err.client_state_exists' },
+  { re: /national documents are kept by the State Manager of the client's home state/i, key: 'err.client_national_docs' },
+  { re: /renewal is uploaded by the client's own login|renewal is accepted by the State Manager|renewal: the FSSAI licence, the RCMC or the MSA|renewal: the FSSAI licence of one/i, key: 'err.client_renewal_who' },
+  { re: /renewal: the number is not on file yet/i, key: 'err.client_renewal_number' },
+  { re: /this renewal was decided already|a renewal is decided once/i, key: 'err.client_renewal_decided' },
+  { re: /this client is (suspended|ended|suspended or ended) in this state/i, key: 'err.client_not_open' },
   // migration 64: the client registry
   { re: /already registered with GrainVeda/i, key: 'err.client_registered' },
   { re: /belongs to another business in the registry/i, key: 'err.client_number_taken' },

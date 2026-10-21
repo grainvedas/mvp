@@ -15,8 +15,8 @@ import { rpc } from '../../lib/api';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../../lib/supabase';
 import { date, humanise } from '../../lib/format';
 import { Badge, Loading } from '../../shell/ui';
-import { PublicFrame } from './PublicVerify';
-import { seasonName } from './journey';
+import { PublicFrame, VerificationNotice } from './PublicVerify';
+import { seasonName, type Verification } from './journey';
 
 registerDictionary('en', en);
 registerDictionary('hi', hi);
@@ -45,7 +45,7 @@ export interface BuyerContent {
   release: { status: string; reason?: string | null } | null; qr_code: string | null;
   files: { id: string; label: string; record: string; sha256: string; at: string }[];
 }
-type View = { state: 'loading' } | { state: 'gone' } | { state: 'error' } | { state: 'ok'; expires_at: string; content: BuyerContent };
+type View = { state: 'loading' } | { state: 'gone' } | { state: 'error' } | { state: 'ok'; expires_at: string; content: BuyerContent; verification?: Verification | null };
 
 /** Pure: a reading with its unit, from its key (moisture_pct 12.5 → "12.5 %", aflatoxin_ppb 1.5 → "1.5 ppb"). */
 export function readingText(key: string, v: number, units?: Record<string, string>): string {
@@ -76,8 +76,8 @@ export default function BuyerView() {
   useEffect(() => {
     if (!token || asked.current) return;
     asked.current = true;
-    rpc<{ ok: boolean; expires_at?: string; content?: BuyerContent }>('buyer_view', { p_token: token })
-      .then((r) => setV(r.ok && r.content && r.expires_at ? { state: 'ok', expires_at: r.expires_at, content: r.content } : { state: 'gone' }))
+    rpc<{ ok: boolean; expires_at?: string; content?: BuyerContent; verification?: Verification | null }>('buyer_view', { p_token: token })
+      .then((r) => setV(r.ok && r.content && r.expires_at ? { state: 'ok', expires_at: r.expires_at, content: r.content, verification: r.verification } : { state: 'gone' }))
       .catch(() => setV({ state: 'error' }));
   }, [token]);
   if (v.state === 'loading') return <PublicFrame><Loading /></PublicFrame>;
@@ -109,6 +109,7 @@ export default function BuyerView() {
           {c.crop.gi_tag && c.gi_status === 'gi' && <p><span className="badge gi">{c.crop.gi_tag}</span> {c.crop.origin}</p>}
           <p className="muted">{seasonName(c.season)} · <span className="mono">{c.code}</span></p>
           <p className="small muted" data-testid="bv-expires">{t('bv.expires', { date: date(v.expires_at) })}</p>
+          <VerificationNotice v={v.verification} />
           {c.release && c.release.status !== 'active' && <div className="alert error" role="alert" data-testid="bv-release">{t(`bv.release_${c.release.status}`)}{c.release.reason ? ` (“${c.release.reason}”)` : ''}</div>}
         </section>
         <section className="card" data-testid="bv-order">

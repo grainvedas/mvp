@@ -8,8 +8,8 @@ import { useParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { ErrorBox, Loading } from '../../shell/ui';
-import { countScan, loadPack } from './journey';
-import { JourneyView, PackNotReleased, PublicFrame } from './PublicVerify';
+import { countScan, isExpired, loadPack } from './journey';
+import { ExpiredView, JourneyView, PackNotReleased, PublicFrame } from './PublicVerify';
 
 export function PublicPack() {
   const { serial = '' } = useParams();
@@ -18,14 +18,15 @@ export function PublicPack() {
   const [scanWarn, setScanWarn] = useState(false);
   useEffect(() => { if (serial) void countScan(serial).then((r) => setScanWarn(r?.copy_warning === true)); }, [serial]);
   const d = p.data;
-  const warn = scanWarn || d?.pack.copy_warning === true;
+  const warn = scanWarn || (!!d && !isExpired(d) && d.pack.copy_warning === true);
   return (
     <PublicFrame>
       {p.loading && <Loading />}
       <ErrorBox error={p.error} onRetry={p.reload} />
       {!p.loading && !p.error && !d && <div className="card"><h1>{t('pv.not_found')}</h1><p>{t('pv.pack_not_found', { code: serial })}</p></div>}
-      {d && d.released && <JourneyView j={d} pack={d.pack} warn={warn} />}
-      {d && !d.released && <PackNotReleased p={d} warn={warn} />}
+      {d && isExpired(d) && <ExpiredView p={d} />}
+      {d && !isExpired(d) && d.released && <JourneyView j={d} pack={d.pack} warn={warn} />}
+      {d && !isExpired(d) && !d.released && <PackNotReleased p={d} warn={warn} />}
     </PublicFrame>
   );
 }

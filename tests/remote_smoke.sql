@@ -503,7 +503,7 @@ select 'close scope report',       case when to_regclass('public.scope_closures'
                                         or has_function_privilege('authenticated', 'app.issue_report(uuid, boolean, uuid)', 'execute')
                                         or has_function_privilege('authenticated', 'app.season_report_data(uuid, boolean)', 'execute')
                                         or has_table_privilege('authenticated', 'public.reports', 'select')
-                                        or (select count(*) from pg_trigger where tgname = 'a01_closed_scope') <> 18
+                                        or (select count(*) from pg_trigger where tgname = 'a01_closed_scope') < 18   -- 66: and the scope's partners (19)
                                         or position('app.scope_close' in pg_get_functiondef('app.scopes_guard()'::regprocedure)) = 0
                                         or (to_regclass('storage.buckets') is not null and not exists (select 1 from storage.buckets where id = 'reports'))
                                       then 'NOT OK (the close, the reports or their read rules are not as migration 63 left them)'
@@ -524,6 +524,40 @@ select 'client registry',          case when to_regclass('public.entities') is n
                                         or (to_regclass('storage.buckets') is not null and not exists (select 1 from storage.buckets where id = 'client-docs'))
                                       then 'NOT OK (the registry, its closed tables or the scope rule are not as migration 64 left them)'
                                       else 'OK one PAN one client; numbers only in the closed registry; three gates per state; the first Active approved by the admin' end
+union all
+select 'client status',            case when to_regprocedure('app.client_set_status(uuid, uuid, public.client_status, text)') is null
+                                        or to_regclass('public.notifications') is null or to_regclass('public.client_renewals') is null
+                                      then 'MISSING (push migration 65)'
+                                      when has_table_privilege('authenticated', 'public.notifications', 'select')
+                                        or has_table_privilege('authenticated', 'public.client_renewals', 'select')
+                                        or has_function_privilege('authenticated', 'app.notify_client(text, uuid, uuid, jsonb)', 'execute')
+                                        or has_function_privilege('anon', 'app.client_set_status(uuid, uuid, public.client_status, text)', 'execute')
+                                        or not has_function_privilege('anon', 'app.public_lot_journey(text)', 'execute')
+                                        or not has_function_privilege('anon', 'app.public_pack(text)', 'execute')
+                                        or (select count(*) from pg_trigger where tgname = 'a02_client_status') < 18
+                                        or not exists (select 1 from pg_trigger where tgname = 'scopes_a1c_client_ended')
+                                        or position('public_verification' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
+                                        or position('public_verification' in pg_get_functiondef('app.public_pack(text)'::regprocedure)) = 0
+                                        or position('client_verification' in pg_get_functiondef('app.buyer_view(text)'::regprocedure)) = 0
+                                      then 'NOT OK (the status rules, the public pages'' line or the closed tables are not as migration 65 left them)'
+                                      else 'OK a client in several states; suspend, end and return per state; the public pages say paused or ended' end
+union all
+select 'sourcing and hooks',       case when to_regclass('public.scope_partners') is null or to_regclass('public.buyer_entities') is null
+                                        or to_regclass('public.farmer_memberships') is null or to_regprocedure('app.lot_farm_verified(uuid)') is null
+                                      then 'MISSING (push migration 66)'
+                                      when has_table_privilege('authenticated', 'public.scope_partners', 'select')
+                                        or has_table_privilege('authenticated', 'public.buyer_entities', 'select')
+                                        or has_table_privilege('authenticated', 'public.farmer_memberships', 'select')
+                                        or has_function_privilege('authenticated', 'app.link_buyer(uuid)', 'execute')
+                                        or has_function_privilege('anon', 'app.scope_partners(uuid)', 'execute')
+                                        or not exists (select 1 from pg_trigger where tgname = 'footprints_a04_partner')
+                                        or not exists (select 1 from pg_trigger where tgname = 'footprints_a03_farm_verified')
+                                        or not exists (select 1 from pg_trigger where tgname = 'buyers_z1_registry')
+                                        or position('lot_farm_verified' in pg_get_functiondef('app.lot_gi_status(uuid)'::regprocedure)) = 0
+                                        or position('sourced_through' in pg_get_functiondef('app.public_lot_journey(text)'::regprocedure)) = 0
+                                        or (xpath('/row/n/text()', query_to_xml('select count(*) as n from public.scopes where entry_point <> ''farmer_procurement''', false, true, '')))[1]::text <> '0'
+                                      then 'NOT OK (the partners, the farm-verified flag, the buyers'' link or the entry point are not as migration 66 left them)'
+                                      else 'OK sourcing partners on scopes; the season across clients; farm-verified before GI; buyers linked to the registry, unseen' end
 union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole

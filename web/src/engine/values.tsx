@@ -94,6 +94,7 @@ export function showEntered(fd: FieldDef | undefined, key: string, v: unknown, t
   if (type === 'date' && typeof v === 'string') return fmtDate(v);
   if (type === 'collection_point') return v === 'farm' ? t('cp.at_farm') : t('cp.a_point');   // its name is with the worked-out values
   if (type === 'mill' || type === 'packing_unit' || type === 'lab' || type === 'qc_sample' || type === 'buyer') return t(`pick.${type}`);    // migration 53: likewise
+  if (type === 'partner') return t('pick.partner');                                                                        // migration 66
   if (type === 'serials' && Array.isArray(v)) return t('ship.codes_n', { n: v.length });                                   // migration 54
   if (type === 'gps' && typeof v === 'object' && !Array.isArray(v)) { const g = v as { lat?: unknown; lng?: unknown }; return `${String(g.lat ?? '')}, ${String(g.lng ?? '')}`; }
   if (typeof v === 'number') return number(key, v, fd?.unit);

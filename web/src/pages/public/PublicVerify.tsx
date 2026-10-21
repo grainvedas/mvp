@@ -18,7 +18,7 @@ import { useParams } from 'react-router-dom';
 import { useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { ErrorBox, Loading } from '../../shell/ui';
-import { countScan, loadJourney, loadPack, seasonName, type Journey, type JourneyStep, type MarketLimit, type PackBeforeRelease, type PackView, stepDate } from './journey';
+import { countScan, isExpired, loadJourney, loadPack, seasonName, type ExpiredPage, type Journey, type JourneyStep, type MarketLimit, type PackBeforeRelease, type PackView, type Verification, stepDate } from './journey';
 import { giLabel } from '../../lib/gi';
 
 export const pvDate = (s?: string | null) => (s ? new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }) : '');   // India's time (Veda, 15 Oct)
@@ -92,10 +92,34 @@ export function PublicVerify() {
       {!j.loading && !j.error && !lot && !pk && (
         <div className="card"><h1>{t('pv.not_found')}</h1><p>{t('pv.not_found_body', { code })}</p></div>
       )}
-      {lot && <JourneyView j={lot} />}
-      {pk && pk.released && <JourneyView j={pk} pack={pk.pack} warn={pk.pack.copy_warning === true} />}
-      {pk && !pk.released && <PackNotReleased p={pk} />}
+      {lot && (isExpired(lot) ? <ExpiredView p={lot} /> : <JourneyView j={lot} />)}
+      {pk && isExpired(pk) && <ExpiredView p={pk} />}
+      {pk && !isExpired(pk) && pk.released && <JourneyView j={pk} pack={pk.pack} warn={pk.pack.copy_warning === true} />}
+      {pk && !isExpired(pk) && !pk.released && <PackNotReleased p={pk} />}
     </PublicFrame>
+  );
+}
+
+/** migration 65 (Part D): "Verification paused" while the client is suspended (the page stays live); "Verification ended
+ *  on …" once its contract ended (the page lives for the longer of best-before + 12 months and 24 months after). */
+export function VerificationNotice({ v }: { v?: Verification | null }) {
+  const { t } = useI18n();
+  if (!v) return null;
+  return (
+    <div className={`alert ${v.status === 'paused' ? 'warn' : 'info'}`} role="status" data-testid="pv-verification" data-status={v.status}>
+      <strong>{v.status === 'paused' ? t('pv.verification_paused') : t('pv.verification_ended', { date: pvDate(v.ended_on ?? null) })}</strong>
+      <div className="small">{v.status === 'paused' ? t('pv.verification_paused_note') : t('pv.verification_ended_note', { date: pvDate(v.live_until ?? null) })}</div>
+    </div>
+  );
+}
+/** migration 65 (Part F): the page is no longer live; nothing of the lot is shown. */
+export function ExpiredView({ p }: { p: ExpiredPage }) {
+  const { t } = useI18n();
+  return (
+    <div className="card" data-testid="pv-expired">
+      <h1>{p.crop.name ?? t('pv.not_found')}</h1>
+      <p>{t('pv.expired', { date: pvDate(p.verification.ended_on ?? null) })}</p>
+    </div>
   );
 }
 
@@ -145,6 +169,8 @@ export function JourneyView({ j, pack, warn }: { j: Journey; pack?: PackView; wa
   return (
     <div data-testid="public-journey">
       <ReleaseNotice r={j.release} />
+      <VerificationNotice v={j.verification} />
+      {j.farm_verified === false && <div className="alert warn" role="status" data-testid="pv-not-farm-verified">{t('pv.not_farm_verified')}</div>}
       <section className="pv-hero" data-testid="pv-hero">
         <p className="pv-kicker"><Icon name="shield" size={18} width={2} /> {t(gi ? 'pv.kicker_gi' : 'pv.kicker')}</p>
         <h1>{j.crop.name}</h1>
@@ -162,6 +188,10 @@ export function JourneyView({ j, pack, warn }: { j: Journey; pack?: PackView; wa
           <div><strong data-testid="pv-seal-title">{t(pack ? (pack.old_data ? 'pv.sealed_title_pack_old' : 'pv.sealed_title_pack') : 'pv.sealed_title')}</strong>
             <span>{t('pv.sealed_line', { date: date(j.sealed_at), client: j.client.name })}</span></div>
         </div>
+        {/* migration 66 (Part F): GrainVeda's own grain is never mistaken for independently verified third-party grain */}
+        {j.client.own_brand && <p className="pv-lede" data-testid="pv-own-brand">{t('pv.own_brand')}</p>}
+        {/* migration 66 (E3): only a partner that agreed to be named */}
+        {(j.sourced_through?.length ?? 0) > 0 && <p className="pv-lede" data-testid="pv-sourced">{t('pv.sourced_through', { names: j.sourced_through!.join(', ') })}</p>}
       </section>
 
       <div className="pv-body">
@@ -330,6 +360,7 @@ export function PackNotReleased({ p, warn = false }: { p: PackBeforeRelease; war
         <div className="pv-chips"><span className="pv-chip mono">{p.pack.serial}</span></div>
       </section>
       <div className="pv-body">
+        <VerificationNotice v={p.verification} />
         {p.pack.void ? <div className="alert error" role="alert" data-testid="pv-void">{t('pv.pack_void')}</div>
           : <div className="alert info" data-testid="pv-not-released">{t('pv.not_released')}</div>}
         {!p.pack.void && (warn || p.pack.copy_warning === true) && <div className="pv-warn" role="alert" data-testid="pv-copy-warning"><Icon name="alert" size={22} width={2} />
