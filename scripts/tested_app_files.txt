@@ -1,5 +1,5 @@
-# release 5 (migrations 63a and 63): close a scope and the season report, tested 21 Oct 2026
-# SHA-256 of the text with line ends as LF (a font or an image: its bytes). Read by scripts/staging_close_scope_report.ps1 (step S0). Do not edit by hand.
+# release 5b (the app only): the report's signs, the dashboard after a close, tested 21 Oct 2026
+# SHA-256 of the text with line ends as LF (a font or an image: its bytes). Read by scripts/staging_report_fixes.ps1 (step S0). Do not edit by hand.
 ad11e4e0ad6777fa9c689ab392cac74c19cb92c4d987580167f4b2e4b71cd26d  web/index.html
 617e7271fd45e5572060bfe5cc02058bfe11130d36174069859039bf6f733ccb  web/package-lock.json
 145ee7bcb166b4a16e19182e1023bc6b6e00ed24358046fb94e1cb6c41774296  web/package.json
@@ -66,7 +66,7 @@ b38ff23678884a9d820ebc5400f4f4cff42fef35dc0715381be509bcf555eaf0  web/src/lib/i1
 5948c2b0fc9c3493160d1fdc79e1f1a82e6b6312ae616cf5fe590c02174a9ef4  web/src/lib/plainErrors.ts
 8537c6dbfe979400e9a44a1b633014dd2077683c3d591d64c978fafcf4e2648f  web/src/lib/reportFiles.ts
 5cba64929434c03f64946da7dcb96ad900e052486e9e26067d361045f8f80b7e  web/src/lib/reportModel.ts
-04cadcfaa641aa132f5a97bf2549ca1ef41144951a490461ad6fc4ca3efe2d24  web/src/lib/reportPdf.ts
+2c49a5b96dc1f3436676e5a4b32ead04b21be8a6c881db46d6363759ceddf948  web/src/lib/reportPdf.ts
 7d6564e01c31302fc97863aaf01cd40f91804970a635f14014a2cd4f78f1bb2b  web/src/lib/reportXlsx.ts
 ff98dff186a124df21bafb55188ff341e6e1dd7601f96e8467e68059aac3fcca  web/src/lib/reports.ts
 563f0349d24bab9123cf4498c9420a2da583a217099961de61783d53c200344d  web/src/lib/requirements.ts
@@ -95,8 +95,8 @@ c8399d54b638957746d8d2e76f09d193cc73faf0c1cb5b7a4ed06426a6d93409  web/src/pages/
 d26504588ce7c58bb2fad32b5aaf397124f4653d56e0d936c2c48336b673edc1  web/src/pages/admin/Pipeline.tsx
 b40c62e8409d6b56cd17ba1097d8e9cbbfef9749ba366cd88cd6c3abfe68e604  web/src/pages/admin/charts.tsx
 0e140576d1b61974714818cd75b605e07f24a48ac496b47c9f2639869dbcd24c  web/src/pages/crops/CropRegistry.tsx
-064b29fd6d2b2d49dfea8644986a4648ecdbfed9a12159d4be4284551dd8802c  web/src/pages/dashboard/ScopeDashboard.tsx
-fcdafa5e58e31b82d49f570ac17d17c301016938e01e8c1d2a8df7f0853cd050  web/src/pages/dashboard/SeasonReport.tsx
+9daabce300d453f17a97be15f4d29dc3a9ae6d62468c8d7392fde9e1fe836553  web/src/pages/dashboard/ScopeDashboard.tsx
+c84ac1a9c9993aaa86da1295ff2fa0229b031ff1188782d23837b03d9329f323  web/src/pages/dashboard/SeasonReport.tsx
 959794c0e1b53d926b10b48b1428e2108aa9fbff5dd2d0d55f47b33d5f91dbd2  web/src/pages/dashboard/parts.tsx
 aaaece2effb58355c708b171b73be9512a9b9d58a7c608434ea713941d070948  web/src/pages/farmers/FarmerImport.tsx
 e6fef7280096a40aa2bc504740645d126c7812147315e6d2419ac5da719684f1  web/src/pages/farmers/FarmerPractice.tsx
@@ -173,7 +173,7 @@ f5efbb1fc8078b0ab9ef8f11898ec68d87cd6b4dfb15972a942e4339d1c53aeb  web/tests/rele
 db9742f1674632e8b71661e650f24454254b0f3a1f95b949a5ede64a14bff1f4  web/tests/release60.test.tsx
 13967d6b466cd3187f0709390d6bd713033ef2c0d38082e1db38f0d27257224b  web/tests/release61.test.tsx
 b0843ebada50fc1347d5991464e1903242b22649cf540539d60ff433915a0ee3  web/tests/release62.test.tsx
-f9d8530f7f920641cc97461d7206536af360388f35758a7615a1185c8e10686b  web/tests/release63.test.tsx
+1aad92a378be5e348b59d9628d94216ae4a6cd808e476831ef7ae48675ebf054  web/tests/release63.test.tsx
 2227a0a291895bb10c4c5dc854c4a474de9b8382dffe1a95975927a01fd74883  web/tests/requirements.test.ts
 3fc460d02375570d0d985290873efa3f487ae86daa7e52d23eb5dce34896a428  web/tests/rules_and_ids.test.ts
 c3b9c00010cdf47b46057acf8576d09ecfe103afecacedaf280d238b50ec8613  web/tests/safeguards.test.ts

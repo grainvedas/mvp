@@ -73,3 +73,12 @@ requester confirming, a pack voided or a flag raised on a closed scope, a recall
 Nothing was deleted or rewritten. A scope closed by mistake is reopened by its State Manager with a reason. A report
 that is wrong is withdrawn by the State Manager (the verify page says "Withdrawn"). Files not made ("Make the files" on a
 report) are made by the Client Manager or the State Manager from the report's data as it was issued.
+
+## Release 5b (the app only), 21 October 2026
+
+Found at rows 2 and 5: the PDF printed "1.5 ?g/kg" (the fonts have no µ), and the dashboard's mass balance kept "left
+120 kg" after the close until the page was reloaded. Double-click **`staging-report-fixes.cmd`** and type `FIXES`. S1 is
+skipped (63a and 63 are in place); S1b, S2 and S3 as above. Last line: `RESULT: REPORT FIXES ON STAGING`.
+
+Afterwards (Claude, nobody signed in, nothing saved): the live app is the pushed one (its PDF writer has the plain
+signs). The next report made on staging prints "mcg/kg"; the files already issued stay as they were issued.

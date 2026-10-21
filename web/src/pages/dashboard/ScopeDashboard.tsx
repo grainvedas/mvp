@@ -108,7 +108,7 @@ export function ScopeDashboard() {
 
       <div className="card" data-testid="season-report-card">
         <h2>{t('srep.title')}</h2>
-        <SeasonReport scopeId={scopeId} />
+        <SeasonReport scopeId={scopeId} onChanged={() => { balance.reload(); flags.reload(); pipe.reload(); }} />
       </div>
 
       <div className="card">

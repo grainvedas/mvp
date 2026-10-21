@@ -35,7 +35,7 @@ export function runs(text: string): { deva: boolean; s: string }[] {
 }
 /** Pure: the few signs the fonts do not have, in words or plain signs. */
 export function plainSigns(s: string) {
-  return s.replace(/≤/g, '<=').replace(/≥/g, '>=').replace(/→/g, '->').replace(/✓/g, '').replace(/✗/g, 'x').replace(/[   ]/g, ' ');
+  return s.replace(/≤/g, '<=').replace(/≥/g, '>=').replace(/→/g, '->').replace(/✓/g, '').replace(/✗/g, 'x').replace(/[µμ]/g, 'mc').replace(/±/g, '+/-').replace(/²/g, '2').replace(/³/g, '3').replace(/½/g, '1/2').replace(/¼/g, '1/4').replace(/←/g, '<-').replace(/[   ]/g, ' ');
 }
 
 interface Fonts { l: PDFFont; lb: PDFFont; d: PDFFont; db: PDFFont; lset: Set<number>; dset: Set<number> }

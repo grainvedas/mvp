@@ -125,7 +125,8 @@ function ReportRow({ r, internal, mayStore, sm, onMake, onWithdraw, busy }: { r:
   );
 }
 
-export function SeasonReport({ scopeId }: { scopeId: string }) {
+// onChanged: the dashboard's other cards (the mass balance shows a write-off, flags carried over) read again after a close or a reopen.
+export function SeasonReport({ scopeId, onChanged }: { scopeId: string; onChanged?: () => void }) {
   const { t } = useI18n();
   const state = useAsync(() => closeState(scopeId), [scopeId]);
   const reports = useAsync(() => scopeReports(scopeId), [scopeId]);
@@ -136,7 +137,7 @@ export function SeasonReport({ scopeId }: { scopeId: string }) {
   const [note, setNote] = useState('');
   const [progress, setProgress] = useState<string | null>(null);
   const s = state.data;
-  const reload = () => { state.reload(); reports.reload(); };
+  const reload = () => { state.reload(); reports.reload(); onChanged?.(); };
 
   const make = async (id: string, have: Record<string, unknown>) => {
     const { makeReportFiles } = await import('../../lib/reportFiles');

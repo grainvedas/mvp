@@ -76,6 +76,8 @@ test('close a scope: the check, the request, the confirmation, the final report 
   await page.goto(`/dashboard/${S}`);
   await card(page).getByTestId('close-confirm').click();
   await expect(card(page).getByTestId('scope-closed')).toBeVisible({ timeout: 30_000 });
+  // the mass balance reads again at once (staging, 21 Oct: it kept "left 120 kg" until the page was reloaded)
+  await expect(page.getByTestId('mass-balance').locator('[data-stage="lot_inward"]').getByTestId('balance-figures')).toContainText('written off 100 kg');
   const row = card(page).getByTestId('report-row').first();
   await expect(row).toHaveAttribute('data-status', 'valid');
   const ref = (await row.getAttribute('data-ref'))!;

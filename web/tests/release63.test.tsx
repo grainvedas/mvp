@@ -83,6 +83,7 @@ describe('D3 · the files: PDF (A4, English and Hindi), Excel (one sheet per sec
     expect(isDeva('₹'.codePointAt(0)!)).toBe(true);
     expect(runs('सीज़न रिपोर्ट: GV-SR-000001')).toEqual([{ deva: true, s: 'सीज़न रिपोर्ट' }, { deva: false, s: ': GV-SR-000001' }]);
     expect(plainSigns('a ≤ b → c ✓')).toBe('a <= b -> c ');
+    expect(plainSigns('1.5 µg/kg ± 0.2, 5 m³')).toBe('1.5 mcg/kg +/- 0.2, 5 m3');                                   // staging, 21 Oct: the fonts have no µ (it printed "?g/kg")
   });
   it('the PDF of each language: A4 pages, the fonts embedded, the Hindi text kept as Devanagari glyphs', async () => {
     vi.stubGlobal('fetch', async (url: string) => {

@@ -3059,3 +3059,41 @@ RESTORE DRILL PASSED; fresh start passed. The release script's hashes take a fon
 first binary files of the app). Release script `staging-close-scope-report.cmd` (type `REPORTS`): its S1b, rule and
 after queries run on a local database after test 58 (`tables=new functions=new guard=yes bucket=yes closed_scopes=1
 reports=3`; `rule63=OK`).
+
+## 21 October 2026, 14:25 IST: release 5 on staging (`staging-close-scope-report.cmd`)
+
+Veda ran it. S0 (63a and 63 waiting, 184 app and function files the tested ones; typed REPORTS), S1 pushed
+`20261107000090_close_scope_events.sql` and `20261107000100_close_scope_season_report.sql`, S1b `tables=new
+functions=new guard=yes bucket=yes closed_scopes=0 reports=0`, S2 smoke 60/61 (statement logging standing), the rules in
+place, the change log intact, `leaks=0 people=7 tables=45 calls=12880 clients=3`, ledger audit NO FINDINGS (293 blocks),
+logins and functions OK, S3 pushed 74d88f2 (49 files). `RESULT: CLOSE AND SEASON REPORT ON STAGING`. Record:
+`release-evidence\staging-close-scope-report-20261021-142509.log`. The new app (`index-DvWHtOzi.js`) live: `/d/GV-SR-000001`
+said "Document not found" before any report.
+Run sheet, 21 Oct (Claude drove the built-in browser at 527 px; each person signed in by Veda; Veda approved each save):
+row 1 passed (Lucky, Bansi: "Generate interim report"; `GV-SR-000001` Valid, its 8 files made in the browser in under a
+minute; no sideways scroll). Row 2 passed with one fault: both shareable PDFs re-made here from the report's data came
+out byte for byte the stored files (SHA-256 `2ff016b6…`, `188790ca…`), so they were read page by page: A4, 4 pages,
+"Interim: season not closed" on every page, the brief's title and footer, sold 1,002 kg ≤ procured 2,298.2 kg printed,
+no farmer's name or price, the Hindi joined; **fault: the aflatoxin readings printed "1.5 ?g/kg"** (the fonts have no µ).
+Row 3 passed (nobody signed in: Valid, issued to Test Client UP, the 8 files' SHA-256; the cover's QR decodes to
+`https://mvp-beta-one.vercel.app/d/GV-SR-000001`). Row 4 passed (Lucky, Practice godown, chosen by Veda): the check
+listed `PRC-M-0001` pending and the flag `PRC-WH-0001`; Lucky verified M-0001 (then 120 kg left on it, listed); Veda's
+reasons typed (the flag carried over; the 120 kg written off); "Nothing blocks the close"; requested (ledger 304); no
+Confirm for Lucky. Row 5 passed (Ram): confirmed; ledger 305 lot closed, 306 `write_off` 120 kg, 307–312 the seats ended,
+313 `scope_close`, 314 report issued, 315–322 one block per file; `GV-SR-000002` "Final, version 1", Valid, 8 files; the
+report's open items carry both reasons; **fault: the dashboard's mass balance said "left 120 kg" until the page was
+reloaded** (then "written off 120 kg · left 0 kg"). Row 6 passed (tcup): both reports listed, all 16 files fetched in the
+page (nothing saved to the computer), each SHA-256 the registered one, each an Audit line; no Close, Reopen, interim or
+Withdraw. Row 7 passed (the admin): Overview "Season reports issued" 2026-10 · Test Client UP · 1 final · 1 interim;
+the report offered in the shareable copy only, the internal copy refused by the server (its content 403, its download
+"record not found", the stored file 400); the shareable PDF fetched. **Release 2's row 6 passed too** (the admin is
+offered "Season export, Excel (shareable)" only). Row 8 not done (Veda: leave Practice godown closed; reopen, version 2
+and Superseded are the tests'). Both faults fixed in the app: release 5b.
+
+## 21 October 2026: release 5b (the app only: the report's signs, the dashboard after a close), local stack
+
+The PDF writer writes the signs its fonts lack plainly (`plainSigns`: µ → "mc", so "1.5 mcg/kg"; ± "+/-", ² "2", ³ "3",
+½ "1/2", ¼ "1/4", ← "<-"; the fonts were checked for these with fontkit); the Season report card tells the dashboard
+to read its mass balance, flags and stages again after a close or a reopen. The files already issued stay as issued.
+`release63.test.tsx` checks the signs; `e2e/phase35` checks "written off 100 kg" in the mass balance right after the
+confirmation, without a reload. Unit **719**, tsc clean; on the local stack `phase35` and `phase14` 2 of 2, `phase1` 6 of 6, the built app 14 of 14. No database change: the release script `staging-report-fixes.cmd` (type `FIXES`) skips S1 when nothing is waiting and reads S1b and S2 back as release 5's does.
