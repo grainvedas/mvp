@@ -6,7 +6,8 @@
 //   a manager gives that person an assignment: a scope and stages, a client's account, or a state.
 // The old "Users" page (one form: role + client + state + login) is gone; `/users` now lands on People & access.
 import { test, expect } from '@playwright/test';
-import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, fillLabReport, USERS, fillFarmerPlace, fillWhere, pickFarmer } from './helpers';
+import { signIn, signInWith, signOut, setOwnPassword, freshEmail, freshPhone, addJoiner, markJoined, todayIST, fillLabReport, USERS, fillFarmerPlace, fillWhere, pickFarmer,
+  fakePan, onboardClient, approveClient } from './helpers';
 
 const uniq = () => String(Date.now()).slice(-6);
 
@@ -77,13 +78,15 @@ test('Server functions left behind: the Add joiner page says so, and a failed sa
 // allowed for your role or stage." for the admin. No client had ever been created from the screen: the demo clients
 // come from a seed. The read rule on clients could not see a row in the statement that inserts it (migration 30).
 // Since migration 34 (Veda, 10 October 2026) the State Manager onboards clients, in a state they hold; the admin reads.
-test('A State Manager adds a client from the screen, in the own state; the admin is offered no form', async ({ page }) => {
+// Since migration 64 (Phase 2, the registry) the State Manager types the PAN first; the code is made by the system; a PAN
+// already registered gives "Already registered with GrainVeda" and no second client (e2e/phase36 has the gates).
+test('A State Manager adds a client from the screen, PAN first, in the own state; the admin is offered no form', async ({ page }) => {
   test.setTimeout(120_000);
-  const u = uniq(); const code = `C${u.slice(-4)}`; const name = `Terai Exports ${u}`;
+  const u = uniq(); const name = `Terai Exports ${u}`; const pan = fakePan();
   await signIn(page, USERS.admin);
   await page.goto('/clients');
   await expect(page.getByTestId('clients-readonly')).toBeVisible();
-  await expect(page.getByTestId('client-form')).toHaveCount(0);
+  await expect(page.getByTestId('client-new')).toHaveCount(0);
   // the old one-form "Users" page is gone: its address lands on People & access, which creates nobody
   await page.goto('/users');
   await expect(page.getByRole('heading', { name: /People & access/ })).toBeVisible();
@@ -92,33 +95,37 @@ test('A State Manager adds a client from the screen, in the own state; the admin
 
   await signIn(page, USERS.sm);
   await page.goto('/clients');
-  const form = page.locator('form');
-  await expect(form.getByLabel('State').locator('option', { hasText: 'Assam' })).toHaveCount(0);   // only the states the manager holds
-  await form.getByLabel('Name').fill(name);
-  await form.getByLabel('Code').fill(code.toLowerCase());                       // typed small: stored in capitals
-  await form.getByLabel('Type').selectOption('exporter');
-  await form.getByLabel('State').selectOption({ label: 'Uttar Pradesh' });
-  await form.getByRole('button', { name: 'Create' }).click();
+  await page.getByTestId('client-new').click();
+  await page.getByLabel('Entity type').selectOption('company');
+  await page.getByLabel(/^PAN/).fill(pan.toLowerCase());                         // typed small: stored in capitals
+  await page.getByLabel(/^Legal name/).fill(name);
+  await page.getByTestId('pan-check').click();
+  const g1 = page.getByTestId('gate1-form');
+  await expect(g1.getByLabel('State it starts in').locator('option', { hasText: 'Assam' })).toHaveCount(0);   // only the states the manager holds
+  await g1.getByLabel('State it starts in').selectOption({ label: 'Uttar Pradesh' });
+  await g1.getByLabel('Name', { exact: true }).fill('Ravi Shukla');
+  await g1.getByLabel('Designation').fill('Director');
+  await g1.getByLabel('Phone').fill('9000012345');
+  await g1.getByLabel('Email').fill('ravi@terai.test');
+  await g1.getByTestId('crops-of-interest').getByLabel('Kalanamak rice').check();
+  await g1.getByTestId('client-create').click();
   await expect.soft(page.getByText('Not allowed for your role or stage.')).toHaveCount(0);
-  const row = page.getByRole('row').filter({ hasText: name });
-  await expect(row).toBeVisible();
-  await expect(row).toContainText(code);
-  await expect(row).toContainText('Uttar Pradesh');
-  await expect(form.getByLabel('Name')).toHaveValue('');                      // the form is ready for the next one
-  // the same code again is refused in plain words, and nothing is added twice
-  await form.getByLabel('Name').fill(`${name} again`);
-  await form.getByLabel('Code').fill(code);
-  await form.getByLabel('State').selectOption({ label: 'Uttar Pradesh' });
-  await form.getByRole('button', { name: 'Create' }).click();
-  await expect(form.getByRole('alert')).toContainText('This already exists');
-  await expect(page.getByRole('row').filter({ hasText: code })).toHaveCount(1);
-  await form.getByLabel('Name').fill(`Purvanchal FPO ${u}`);
-  await form.getByLabel('Code').fill(`F${u.slice(-4)}`);
-  await form.getByLabel('Type').selectOption('fpo');
-  await form.getByLabel('State').selectOption({ label: 'Uttar Pradesh' });
-  await form.getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByRole('row').filter({ hasText: `Purvanchal FPO ${u}` })).toBeVisible();
-  await expect(page.getByRole('row').filter({ hasText: name })).toBeVisible();   // the first one, same state
+  await expect(page.getByTestId('client-page')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(name);
+  await expect(page.getByTestId('client-state-card').filter({ hasText: 'Uttar Pradesh' })).toHaveAttribute('data-status', 'prospect');
+  const code = (await page.getByRole('heading', { level: 1 }).locator('.mono').textContent())!.trim();
+  expect(code).toMatch(/^[A-Z]{3,5}$/);
+  // the same PAN again: "Already registered with GrainVeda", and nothing is added twice
+  await page.goto('/clients/new');
+  await page.getByLabel('Entity type').selectOption('company');
+  await page.getByLabel(/^PAN/).fill(pan);
+  await page.getByLabel(/^Legal name/).fill(`${name} again`);
+  await page.getByTestId('pan-check').click();
+  await expect(page.getByTestId('already-registered')).toContainText('Already registered with GrainVeda');
+  await expect(page.getByTestId('shared-identity')).toContainText(`${pan.slice(0, 5)}****${pan.slice(9)}`);
+  await expect(page.getByTestId('gate1-form')).toHaveCount(0);
+  await page.goto('/clients');
+  await expect(page.getByTestId('client-row').filter({ hasText: code })).toHaveCount(1);
   await signOut(page);
 });
 
@@ -129,7 +136,7 @@ test('A State Manager adds a client from the screen, in the own state; the admin
 // stages; a farmer verified by that manager and then by the State Manager; the first lot to its public page.
 test('A brand-new client from nothing: HR adds the people, managers give them access, the first lot is sealed', async ({ page }) => {
   test.setTimeout(420_000);
-  const u = uniq(); const code = `N${u.slice(-4)}`; const client = `Naya Client ${u}`;
+  const u = uniq(); const client = `Naya Client ${u}`; let code = '';
   const reviewSave = async (pattern: RegExp) => {
     await expect(page.getByTestId('preview-ok')).toBeVisible();
     await page.getByRole('button', { name: 'Review' }).click();
@@ -145,14 +152,16 @@ test('A brand-new client from nothing: HR adds the people, managers give them ac
     await expect(page.locator('.alert.ok', { hasText: 'Verified' })).toBeVisible();
   };
 
-  // 1. the State Manager: the client
+  // 1. the State Manager: the client, through its three gates (migration 64; the screens are e2e/phase36's), and the
+  //    admin's approval of its first Active
   await signIn(page, USERS.sm);
+  const reg = await onboardClient(page, { name: client });
+  code = reg.code;
   await page.goto('/clients');
-  await page.locator('form').getByLabel('Name').fill(client);
-  await page.locator('form').getByLabel('Code').fill(code);
-  await page.locator('form').getByLabel('State').selectOption({ label: 'Uttar Pradesh' });
-  await page.locator('form').getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByRole('row').filter({ hasText: client })).toBeVisible();
+  await expect(page.getByTestId('client-row').filter({ hasText: client })).toContainText('waiting for the admin');
+  await signOut(page);
+  await signIn(page, USERS.admin);
+  await approveClient(page, reg.id);
   await signOut(page);
 
   // 2. HR: four people, once each, as identities. The form has no field that could give access to anything.

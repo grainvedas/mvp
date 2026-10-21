@@ -140,10 +140,12 @@ begin
   perform t.as_user(t.u('01'));
   perform t.fails(format($q$ insert into public.clients (name, code, type, state_id) values ('Oversight Client', 'OVCL', 'fpo', %L) $q$,
                   (select state_id from public.clients where id = '00000000-0000-4000-8000-000000000201')),
-                  'row-level security', 'clients: the admin creates none');
-  update public.clients set name = 'Renamed by the admin' where id = '00000000-0000-4000-8000-000000000201';
-  get diagnostics n = row_count;
-  perform t.ok(n = 0, 'clients: nor renames one');
+                  'permission denied', 'clients: the admin creates none (migration 64: nobody writes the table directly)');
+  perform t.fails($q$ update public.clients set name = 'Renamed by the admin' where id = '00000000-0000-4000-8000-000000000201' $q$,
+                  'permission denied', 'clients: nor renames one');
+  perform t.fails($q$ select app.create_client('{"pan":"ZZZCA0028A","entity_type":"company","legal_name":"Oversight Client","state_id":"00000000-0000-4000-8000-000000000001",
+    "contact":{"name":"O","designation":"O","phone":"9000000028","email":"o@o.test"},"crops_of_interest":["00000000-0000-4000-8000-000000000101"]}') $q$,
+                  'State Manager of the state', 'clients: nor through the registry''s function');
   -- crops: the State Manager's now
   perform t.as_user(t.u('01'));
   perform t.fails($q$ insert into public.crops (name, code, primary_unit) values ('Admin Crop', 'ADMC', 'kg') $q$,
@@ -216,7 +218,10 @@ begin
                'nor a state the admin holds: the admin is no State Manager by it');
   perform t.fails($q$ insert into public.clients (name, code, type, state_id) values ('Through a state', 'THST', 'fpo',
                       (select state_id from public.clients where id = '00000000-0000-4000-8000-000000000201')) $q$,
-                  'row-level security', 'and makes no client through it');
+                  'permission denied', 'and makes no client through it');
+  perform t.fails($q$ select app.create_client('{"pan":"ZZZCA0029A","entity_type":"company","legal_name":"Through a state","state_id":"00000000-0000-4000-8000-000000000001",
+    "contact":{"name":"O","designation":"O","phone":"9000000029","email":"o@o.test"},"crops_of_interest":["00000000-0000-4000-8000-000000000101"]}') $q$,
+                  'State Manager of the state', 'nor through the registry''s function');
   perform t.as_service();
   perform set_config('app.assigning', 'on', true);
   perform t.as_user(t.u('01'));

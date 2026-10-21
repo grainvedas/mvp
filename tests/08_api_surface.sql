@@ -32,6 +32,12 @@ insert into allowed values
   ('authenticated', 'scope_reports'), ('authenticated', 'scope_close_state'), ('authenticated', 'withdraw_report'),
   ('authenticated', 'reports_issued'), ('authenticated', 'public_document'), ('anon', 'public_document'),
   ('authenticated', 'may_read_report_file'), ('authenticated', 'may_write_report_object'),
+  ('authenticated', 'lookup_pan'), ('authenticated', 'create_client'), ('authenticated', 'client_identity'),            -- migration 64
+  ('authenticated', 'client_view'), ('authenticated', 'save_client_details'), ('authenticated', 'add_client_document'),
+  ('authenticated', 'client_kyc'), ('authenticated', 'client_move'), ('authenticated', 'decide_client_activation'),
+  ('authenticated', 'edit_client_identity'), ('authenticated', 'set_client_pan'), ('authenticated', 'clients_page'),
+  ('authenticated', 'client_approvals'), ('authenticated', 'may_write_client_object'), ('authenticated', 'may_read_client_file'),
+  ('authenticated', 'client_in_my_states'),
   ('authenticated', 'client_waiting'), ('authenticated', 'client_farmers'), ('authenticated', 'doc_kind_word'),        -- migration 59
   ('authenticated', 'same_file_elsewhere'), ('authenticated', 'note_same_file'), ('authenticated', 'is_client_login'),
   ('authenticated', 'reset_login_allowed'), ('authenticated', 'report_client_error'), ('authenticated', 'check_ledger_now'),

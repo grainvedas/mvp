@@ -247,7 +247,8 @@ export function FarmerForm() {
   // The states the client works in (its home state and its scopes' states): a farmer belongs to one of them.
   const states = useAsync(async () => {
     if (!clientId) return [] as { id: string; name: string }[];
-    const c = await q(supabase.from('clients').select('state_id,states(id,name)').eq('id', clientId).maybeSingle()) as unknown as { state_id: string; states: { id: string; name: string } | null } | null;
+    // migration 64: client_states also links clients and states, so the link is named
+    const c = await q(supabase.from('clients').select('state_id,states!clients_state_id_fkey(id,name)').eq('id', clientId).maybeSingle()) as unknown as { state_id: string; states: { id: string; name: string } | null } | null;
     const sc = await q(supabase.from('scopes').select('states(id,name)').eq('client_id', clientId)) as unknown as { states: { id: string; name: string } | null }[];
     const all = [c?.states, ...sc.map((x) => x.states)].filter((x): x is { id: string; name: string } => !!x);
     return [...new Map(all.map((x) => [x.id, x])).values()];

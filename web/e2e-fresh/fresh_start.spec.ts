@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { addJoiner, apiAs, markJoined, freshEmail, setOwnPassword, signInWith, signOut, fillFarmerPlace, fillWhere, pickFarmer, addPlace } from '../e2e/helpers';
+import { addJoiner, apiAs, markJoined, freshEmail, setOwnPassword, signInWith, signOut, fillFarmerPlace, fillWhere, pickFarmer, addPlace, onboardClient } from '../e2e/helpers';
 
 // THE FIRST DAY OF A PILOT, from a system with nothing in it: no state, no crop, no client, no person but one admin.
 // Every other suite starts from demo rows a seed put in place; this one starts where scripts/staging_fresh_start.ps1
@@ -22,6 +22,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   test.setTimeout(600_000);
   const admin = adminLogin();
   const main = page.locator('main');
+  let CODE = '';                                       // the client code, made by the system (migration 64)
   const reviewSave = async (pattern: RegExp) => {
     await expect(page.getByTestId('preview-ok')).toBeVisible();
     await page.getByRole('button', { name: 'Review' }).click();
@@ -194,12 +195,13 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await expect(page.getByTestId('limit-row').nth(2).getByLabel('export limit')).toHaveValue('0.5');
   await page.getByRole('button', { name: 'Cancel' }).click();
 
-  await page.goto('/clients');
-  await page.locator('form').getByLabel('Name').fill('Prasaadam');
-  await page.locator('form').getByLabel('Code').fill('prsdm');
-  await page.locator('form').getByLabel('State').selectOption({ label: 'Uttar Pradesh' });
-  await page.locator('form').getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByRole('row').filter({ hasText: 'Prasaadam' })).toContainText('PRSDM');
+  // migration 64 (Phase 2, Part F): Prasaadam, GrainVeda's own brand, is a client like any other: GrainVeda Private
+  // Limited, through the three gates (their screens are e2e/phase36's), its first Active approved by the admin below
+  const prs = await onboardClient(page, { name: 'GrainVeda Private Limited', tradeName: 'Prasaadam', clientType: 'grainveda' });
+  CODE = prs.code;
+  await page.goto(`/clients/${prs.id}`);
+  await expect(page.getByTestId('own-brand-note')).toContainText('Operated by GrainVeda (own brand)');
+  await expect(page.getByTestId('legal-name')).toHaveText('GrainVeda Private Limited');
 
   await page.goto(`/people/${made.manager.id}`);
   await page.getByTestId('give-assignment').click();
@@ -207,6 +209,14 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.getByLabel('Client', { exact: true }).selectOption({ label: 'Prasaadam' });
   await page.getByTestId('assign-save').click();
   await expect(page.getByTestId('assignment')).toContainText('Prasaadam');
+  await signOut(page);
+
+  // 5b. The admin approves the client's first Active (it starts the contract and billing)
+  await signInWith(page, admin.email, PW.admin);
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await page.getByTestId('ov-approval').filter({ hasText: 'Prasaadam' }).getByRole('link', { name: 'Prasaadam' }).click();
+  await page.getByTestId('approve').click();
+  await expect(page.getByTestId('client-state-card').filter({ hasText: 'Uttar Pradesh' })).toHaveAttribute('data-status', 'active');
   await signOut(page);
 
   // 6. The Client Manager: a scope with the shortest chain, a person at each stage, activate
@@ -260,7 +270,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await expect(row).toContainText(`Verified by Client Lead ${u}`);
   await row.getByTestId('farmer-step2').click();
   await page.getByRole('tab', { name: 'Active', exact: true }).click();
-  await expect(page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` })).toContainText('PRSDM-F-0001');
+  await expect(page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` })).toContainText(`${CODE}-F-0001`);
   await expect(page.getByTestId('farmer-row').filter({ hasText: `Ramkali ${u}` }).getByTestId('farmer-state-id')).toHaveText('F-UP-00001');   // migration 44: the first state farmer ID
   await signOut(page);
 
@@ -274,7 +284,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.getByLabel(/Tare per bag/).fill('1');
   for (const i of [1, 2, 3]) await page.getByLabel(`Moisture (3 readings) ${i}`).fill('11.7');
   await fillWhere(page);                                                       // migration 52: a new scope asks where, GPS, who
-  const lot = await reviewSave(/PRSDM-KNM-[A-Z0-9]+-(?:[A-Z]{2,4}-)?P-0001/);
+  const lot = await reviewSave(new RegExp(`${CODE}-KNM-[A-Z0-9]+-(?:[A-Z]{2,4}-)?P-0001`));
   await signOut(page);
 
   await signInWith(page, who.lab.email, made.lab.temp);
@@ -293,7 +303,7 @@ test('From an empty system to the first sealed lot, in Veda\'s order: state, HR 
   await page.getByLabel('Report number *', { exact: true }).fill(`R-${u}`);
   await page.getByLabel('Report date *', { exact: true }).fill(new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10));
   await page.getByLabel('Lab report (PDF or photo) *', { exact: true }).setInputFiles({ name: 'report.pdf', mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4\n% lab report ${u}\n%%EOF\n`) });
-  const tested = await reviewSave(/PRSDM-KNM-[A-Z0-9]+-(?:[A-Z]{2,4}-)?QC-0001/);
+  const tested = await reviewSave(new RegExp(`${CODE}-KNM-[A-Z0-9]+-(?:[A-Z]{2,4}-)?QC-0001`));
   await signOut(page);
 
   await signInWith(page, who.seal.email, made.seal.temp);

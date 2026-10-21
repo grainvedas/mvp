@@ -11,6 +11,7 @@ export interface CropFull {
   quality_params: QualityParam[]; allowed_stages: StageType[]; state_id?: string | null;
   yield_per_acre_kg?: number | null; recommended_chain?: StageType[]; gap_items?: GapItem[];
   harvest_from?: number | null; harvest_to?: number | null; export_docs?: string[];
+  apeda_scheduled?: boolean;                                       // migration 64: its export needs the APEDA RCMC
   retired_at?: string | null; retire_reason?: string | null;
   /** migration 49: the GI area (districts), and the crop's own thresholds (milling outturn ceiling, runs to learn from) */
   gi_districts?: string[]; thresholds?: { milling_outturn_ceiling_pct?: number; learn_after_runs?: number };

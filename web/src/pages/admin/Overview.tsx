@@ -9,10 +9,11 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { reportsIssued } from '../../lib/reports';
+import { clientApprovals } from '../../lib/clients';
 import { rpc } from '../../lib/api';
 import { useAsync } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
-import { date, humanise, kg, num } from '../../lib/format';
+import { date, dateTime, humanise, kg, num } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Loading } from '../../shell/ui';
 import { RoleGuide } from '../../shell/RoleGuide';
 import { useScope } from '../../shell/scope';
@@ -165,6 +166,7 @@ export function AdminOverview() {
               <div className="scope-cards" data-testid="ov-clients">{g.clients.map((c) => <ClientCard key={c.id} c={c} onOpen={() => openClient(c.id)} />)}</div>
             </div>))}
 
+          <ClientApprovals />   {/* migration 64: the first Active of a client waits for the admin */}
           <ReportsIssued />
 
           <div className="ov-grid">
@@ -178,6 +180,21 @@ export function AdminOverview() {
 
 /** Migration 63 (Part D4): the billing count, season reports issued per client per month (the standard season report is
  *  in the subscription; an interim report counts too). No invoicing here. */
+function ClientApprovals() {
+  const { t } = useI18n();
+  const r = useAsync(() => clientApprovals(), []);
+  if (r.data && r.data.length === 0) return null;
+  return (
+    <div className="card" data-testid="ov-approvals">
+      <h2>{t('ov.approvals_title')}</h2>
+      <p className="small muted">{t('ov.approvals_sub')}</p>
+      {r.loading && !r.data ? <Loading /> : <ErrorBox error={r.error} onRetry={() => void r.reload()} />}
+      <ul>{r.data?.map((x) => <li key={`${x.client_id}-${x.state_id}`} data-testid="ov-approval">
+        <Link to={`/clients/${x.client_id}`}>{x.name}</Link> <span className="mono small">{x.code}</span> · {x.state} · {t('ov.approvals_by', { by: x.requested_by ?? '—', at: dateTime(x.requested_at) })}</li>)}</ul>
+    </div>
+  );
+}
+
 function ReportsIssued() {
   const { t } = useI18n();
   const r = useAsync(() => reportsIssued(12), []);

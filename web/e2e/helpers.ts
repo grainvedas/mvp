@@ -438,3 +438,66 @@ export async function pickFromPool(page: Page, select: string, name: string) {
   await expect(opt).toBeAttached();
   await sel.selectOption((await opt.getAttribute('value'))!);
 }
+
+// ── migration 64 (Phase 2, release 1): the client registry ─────────────────────────────────────────────────────────────
+/** A fake, format-valid PAN for a company (4th letter C), different each run: ZZZC + a letter + 4 digits + a letter. */
+export function fakePan(seed = Date.now()): string {
+  const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const n = String(seed).slice(-4).padStart(4, '0');
+  return `ZZZC${L[Math.floor(seed / 10000) % L.length]}${n}${L[Math.floor(seed / 7) % L.length]}`;
+}
+/** A one-page PDF to upload as a client's document (the store checks only that it is a PDF). */
+export const TINY_PDF = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Count 1/Kids[3 0 R]>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n');
+
+/**
+ * THROUGH THE API, as the signed-in State Manager: a client made with its PAN and taken through Gates 1–3 in his state
+ * (the documents uploaded to the client-docs store), the KYC ticked and its first Active requested. The admin's approval
+ * is the caller's (approveClient, signed in as the admin). The screens are e2e/phase36's; this is for tests that need an
+ * Active client to start from. Returns the client's id and its code (made by the system).
+ */
+export async function onboardClient(page: Page, o: { name: string; tradeName?: string; clientType?: string; pan?: string; stateId?: string; cropId?: string; exports?: boolean }) {
+  const api = await apiAs(page);
+  const cfg = supabaseConfig();
+  const token = await page.evaluate(() => (JSON.parse(localStorage.getItem('grainveda-auth') ?? '{}') as { access_token?: string }).access_token ?? '');
+  const pan = o.pan ?? fakePan();
+  // the demo's Uttar Pradesh and Kalanamak rice by default (on a fresh system their ids are new: found by name)
+  const state = o.stateId ?? String((await api.rows('states', 'select=id&name=eq.Uttar%20Pradesh'))[0]?.id ?? '00000000-0000-4000-8000-000000000001');
+  const crop = o.cropId ?? String((await api.rows('crops', 'select=id&name=ilike.Kalanamak*&order=created_at.asc&limit=1'))[0]?.id ?? '00000000-0000-4000-8000-000000000101');
+  const ok = (r: { ok: boolean; data: unknown }, what: string) => { if (!r.ok) throw new Error(`${what}: ${refusal(r)}`); return r.data as Record<string, unknown>; };
+  const made = ok(await api.rpc('create_client', { p: { pan, entity_type: 'company', legal_name: o.name, trade_name: o.tradeName ?? null, client_type: o.clientType ?? 'exporter', state_id: state,
+    contact: { name: 'Test Contact', designation: 'Director', phone: '9000000099', email: 'contact@client.test' },
+    crops_of_interest: [crop] } }), 'create_client');
+  const id = String(made.client_id);
+  const doc = async (kind: string, meta: Record<string, unknown> = {}) => {
+    const path = `${id}/${crypto.randomUUID()}.pdf`;
+    const up = await fetch(`${cfg.url}/storage/v1/object/client-docs/${path}`, { method: 'POST',
+      headers: { apikey: cfg.anon, authorization: `Bearer ${token}`, 'content-type': 'application/pdf' }, body: TINY_PDF });
+    if (!up.ok) throw new Error(`upload ${kind}: ${up.status} ${await up.text()}`);
+    const sha = (await import('node:crypto')).createHash('sha256').update(TINY_PDF).digest('hex');
+    ok(await api.rpc('add_client_document', { p_client: id, p_state: state, p_kind: kind, p_path: path, p_sha256: sha, p_bytes: TINY_PDF.length,
+      p_file_name: `${kind}.pdf`, p_meta: meta }), `document ${kind}`);
+  };
+  const gst = (await api.rows('states', `select=gst_code&id=eq.${state}`))[0]?.gst_code ?? '09';
+  ok(await api.rpc('save_client_details', { p_client: id, p_state: state, p: { gstin: `${gst}${pan}1Z5`,
+    reg_office: { address: '1 Test Road', city: 'Gorakhpur', state: 'Uttar Pradesh' }, reg_number: 'U01100UP2025PTC123456',
+    signatory: { name: 'Test Signatory', designation: 'Director' }, billing: { contact: 'Accounts', email: 'accounts@client.test' },
+    ...(o.exports === false ? {} : { iec: pan, rcmc: { number: 'RCMC/TEST/0001', expires_on: '2030-03-31' } }) } }), 'details');
+  await doc('diagnostic_order', { signed_on: '2026-10-01', amount: 10000 });
+  await doc('incorporation');
+  ok(await api.rpc('client_move', { p_client: id, p_state: state, p_to: 'diagnostic' }), 'to Diagnostic');
+  await doc('msa', { signed_on: '2026-10-01', term_end: '2029-09-30' });
+  await doc('consent_addendum', { signed_on: '2026-10-01' });
+  await doc('signatory_authority');
+  if (o.exports !== false) { await doc('iec'); await doc('rcmc', { expires_on: '2030-03-31' }); }
+  ok(await api.rpc('client_kyc', { p_client: id, p_state: state }), 'KYC');
+  ok(await api.rpc('client_move', { p_client: id, p_state: state, p_to: 'active' }), 'request Active');
+  const code = String((await api.rows('clients', `select=code&id=eq.${id}`))[0]?.code ?? '');
+  return { id, code, pan };
+}
+/** As the signed-in admin: approve a client's first Active in a state. */
+export async function approveClient(page: Page, clientId: string, stateId?: string) {
+  const api = await apiAs(page);
+  stateId ??= String((await api.rows('states', 'select=id&name=eq.Uttar%20Pradesh'))[0]?.id ?? '00000000-0000-4000-8000-000000000001');
+  const r = await api.rpc('decide_client_activation', { p_client: clientId, p_state: stateId, p_approve: true, p_reason: null });
+  if (!r.ok) throw new Error(`approve: ${refusal(r)}`);
+}

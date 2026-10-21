@@ -3097,3 +3097,59 @@ The PDF writer writes the signs its fonts lack plainly (`plainSigns`: µ → "mc
 to read its mass balance, flags and stages again after a close or a reopen. The files already issued stay as issued.
 `release63.test.tsx` checks the signs; `e2e/phase35` checks "written off 100 kg" in the mass balance right after the
 confirmation, without a reload. Unit **719**, tsc clean; on the local stack `phase35` and `phase14` 2 of 2, `phase1` 6 of 6, the built app 14 of 14. No database change: the release script `staging-report-fixes.cmd` (type `FIXES`) skips S1 when nothing is waiting and reads S1b and S2 back as release 5's does.
+
+## 21 October 2026, 17:52 IST: release 5b on staging (`staging-report-fixes.cmd`)
+
+Veda ran it. S0 (nothing waiting, 184 app and function files the tested ones; typed FIXES), S1 not run (63a and 63 in
+place), S1b `tables=new functions=new guard=yes bucket=yes closed_scopes=1 reports=2`, S2 smoke 60/61 (statement logging
+standing), the rules in place, `leaks=0 people=7 tables=45 calls=12880 clients=3`, ledger audit NO FINDINGS (322 blocks),
+S3 pushed 4a1db4c (11 files). `RESULT: REPORT FIXES ON STAGING`. Record: `release-evidence\staging-report-fixes-20261021-175225.log`.
+Afterwards (Claude, nobody signed in, nothing saved): the live app `index-BfpzvEUy.js`; its PDF writer
+`reportPdf-Dj-StCB4.js` has the plain signs (µ, ±); `/d/GV-SR-000002` Valid, "Final, version 1". **Phase 1 built and on
+staging.**
+
+## 21 October 2026: Phase 2 release 1 (migration 64, the client registry), local stack
+
+Veda's combined brief, Phase 2 Parts A and B; "yes, I'll check everything after completion". `20261108000100_client_registry.sql`:
+`entities`, `entity_roles`, `entity_ids` (closed), `client_states`, `client_documents`, `client_status_events`, the
+columns of `clients`, `states.gst_code` (filled from the name; a trigger for states added later), `crops.apeda_scheduled`
+(rice marked), the bucket `client-docs`; `app.lookup_pan`, `app.create_client`, `app.client_identity`, `app.client_view`,
+`app.save_client_details`, `app.add_client_document`, `app.client_kyc`, `app.client_move`,
+`app.decide_client_activation`, `app.edit_client_identity`, `app.set_client_pan`, `app.clients_page`,
+`app.client_approvals`; the trigger `scopes_a1b_client_gate`; `app.scopes_place`, `app.client_states`,
+`app.can_access_client`, `app.manages_client` and the clients' read rule replaced; direct writes to `clients` closed.
+New `tests/59_client_registry.sql`, **80 checks** (fake numbers `ZZZ…`): the PAN's format and 4th letter, a GSTIN of
+another PAN or of another state refused, CIN/LLPIN/FSSAI formats, masks; Ram creates "ABC Exim Ltd", the Assam State
+Manager typing its PAN gets "Already registered" and the shared identity only, and cannot create it (nor insert
+directly); a similar name with another PAN is a soft warning; a business known as a buyer becomes a client on the same
+record; the audit log holds the masked PAN and a keyed hash, the change log no number, the fingerprint is keyed; the
+registry's tables and `app.id_hash` closed; a Client Manager of another client gets nothing; Prospect: no scope;
+Diagnostic: a draft, no activation; the checklist "0 of 6"; IEC and RCMC only with an export scope of rice, FSSAI only
+with the name on the pack; the KYC tick after the files and undone by a change; the first Active waits for the admin,
+whom the State Manager cannot replace; after Active the scope's activation is no longer refused for the client, the
+legal name is the admin's, the code is not changed; a kept client "Active, PAN pending", GrainVeda's own brand; the PAN
+typed once and a PAN of another business refused; who lists what (Uttarakhand's State Manager, the client's login, the
+admin); the documents' store. `tests/22` and `tests/28` now expect direct writes to `clients` refused and use
+`app.create_client`; `tests/08` lists the new functions. Every `tests/NN_*.sql`: **2,548 checks, no failure**; controls
+**14 of 14**. `tests/remote_smoke.sql` row `client registry` (62 rows): OK on 64 (built from nothing and upgraded from a
+release-5 database with data), MISSING on 63. `app.isolation_probe` on the upgraded database: `leaks=[]`, 1,425 calls.
+The app: Clients (PAN first, Gate 1, the record by role, the gates' checklist, the details form, the documents, KYC, the
+moves, the admin's approval and identity edit), the Overview's "Clients waiting for your approval", States' GST code,
+Crops' APEDA tick; words EN and HI; refusals in plain words. Unit **726** (new `release64.test.tsx` 7), tsc clean.
+`tests/run_local.sh`: ALL TESTS PASSED. The whole e2e suite on the local stack **102 of 102** (new `phase36` at 527 px:
+PAN first with the type checked as typed, the gates on the screens, a GSTIN of Uttarakhand refused in plain words, five
+documents uploaded, Diagnostic, KYC, the first Active asked and approved by the admin from the Overview, the same PAN
+again "Already registered", a kept client's PAN typed once, the Client Manager without files, the client's login;
+`phase7` now makes its clients PAN first and through the gates).
+**Found while testing**: (1) the farmer form's district list was empty (a text box instead): `client_states` is a second
+link between `clients` and `states`, so the embedded read `states(id,name)` became ambiguous; the read now names the link
+(`states!clients_state_id_fkey`), `phase23` holds it. (2) The restore drill replays the migrations on a database where
+pgcrypto lives in `extensions`: the key's `gen_random_bytes` was not found; the migration now sets its search path for
+that statement (a hosted `db push` would have stopped there too). (3) The fresh-start test went to the Overview before
+the admin's sign-in had finished; it now waits for the menu. The built app 14; REMOTE RLS PASSED (193); CREATE-USER
+PASSED (95); restore drill after the whole suite HR documents 4 of 5 (standing, as before), on a fresh stack after
+`phase22`, `phase29`, `phase34`, `phase35`, `phase36` (7 of 7) RESTORE DRILL PASSED; fresh start passed (Prasaadam made
+as GrainVeda Private Limited, own brand, through the gates and the admin's approval). Release script
+`staging-client-registry.cmd` (type `REGISTRY`): its S1b, rule and after queries run on the upgraded database
+(`tables=new functions=new closed=yes scope_rule=yes bucket=yes states_without_gst_code=none clients: DEMOX=active/PAN
+pending@UP, PRSDM=active/PAN pending/own brand@AS, PRSDM=active/PAN pending/own brand@UP`; `rule64=OK`).

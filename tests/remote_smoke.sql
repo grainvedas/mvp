@@ -509,6 +509,22 @@ select 'close scope report',       case when to_regclass('public.scope_closures'
                                       then 'NOT OK (the close, the reports or their read rules are not as migration 63 left them)'
                                       else 'OK a scope closes through its request and confirmation, read only after; reports issued, verified by reference' end
 union all
+select 'client registry',          case when to_regclass('public.entities') is null or to_regclass('public.client_states') is null
+                                        or to_regprocedure('app.create_client(jsonb)') is null
+                                      then 'MISSING (push migration 64)'
+                                      when has_table_privilege('authenticated', 'public.entity_ids', 'select')
+                                        or has_table_privilege('authenticated', 'public.entities', 'select')
+                                        or has_table_privilege('authenticated', 'public.clients', 'insert')
+                                        or has_table_privilege('authenticated', 'public.clients', 'update')
+                                        or has_function_privilege('authenticated', 'app.id_hash(text, text)', 'execute')
+                                        or has_function_privilege('anon', 'app.lookup_pan(text, text, public.entity_type)', 'execute')
+                                        or not exists (select 1 from pg_trigger where tgname = 'scopes_a1b_client_gate')
+                                        or (xpath('/row/n/text()', query_to_xml('select count(*) as n from public.clients c where c.entity_id is null
+                                              or not exists (select 1 from public.client_states cs where cs.client_id = c.id)', false, true, '')))[1]::text <> '0'
+                                        or (to_regclass('storage.buckets') is not null and not exists (select 1 from storage.buckets where id = 'client-docs'))
+                                      then 'NOT OK (the registry, its closed tables or the scope rule are not as migration 64 left them)'
+                                      else 'OK one PAN one client; numbers only in the closed registry; three gates per state; the first Active approved by the admin' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

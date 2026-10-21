@@ -57,6 +57,11 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
       (migration 37). Never add a column, a log line, an error text, an outbox entry or a request that carries the full
       number; `web/tests/id_numbers.test.ts` and `e2e/phase10.spec.ts` (a search of everything the stack wrote) hold it.
       Duplicates are refused by unique fingerprints; never compare numbers any other way.
+      **Business numbers are the one exception** (migration 64, plan default 8): a client's PAN, GSTIN, CIN, LLPIN, IEC,
+      FSSAI and RCMC are kept in full only in `public.entity_ids` (no grant to anyone; read through `app.client_view` by
+      the admin and the client's own State Managers), masked everywhere else (`app.mask_id`), and an audit line carries
+      only `app.id_trace` (masked + keyed hash; the key in `app.registry_secret`, read only by `app.id_hash`). A
+      personal number (Aadhaar, a bank account) is never stored, here or anywhere.
       HR documents live in the private store `hr-docs`, readable by HR only (the admin only while the HR Admin seat
       is empty: `app.acts_as_hr`, migration 35).
     - The once-a-day sign-in code is built and **off**. `app.current_user_id()` is gated by it: use that function
@@ -443,6 +448,15 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   made in the browser from that data and stored by `app.register_report_file`. The words: "Verified traceability
   statement: season report", the brief's footer, never "certificate" otherwise; the shareable copy carries no farmer's
   name or phone and no price.
+- **A client is a registered business: one PAN, one record, three gates** (migration 64, Phase 2 Part A and B). Nobody
+  writes `public.clients` directly (no grant): a State Manager creates one with `app.create_client` (PAN first; a PAN
+  already a client is refused, "already registered") and fills his state's gates with `app.save_client_details` and
+  `app.add_client_document`; the moves are `app.client_kyc`, `app.client_move`, and the admin's
+  `app.decide_client_activation` (the first Active) and `app.edit_client_identity`. A client's status is per state
+  (`public.client_states`); what each gate needs is `app.client_gates` only, and a new requirement goes there with a
+  case in `tests/59_client_registry.sql`. A scope follows its client's status in its state (`scopes_a1b_client_gate`).
+  Another state's State Manager sees the shared identity only (`app.client_identity`). Test numbers are fake and
+  format-valid (`ZZZC…`); never a real company's.
 - **Packs go in cartons; an order sets them aside; Reports to is a rule** (migration 58, Veda 16 Oct 2026, G24). A
   carton is made only by the packing save (`app.make_cartons` from `app.make_packs`, when the pack type has
   `packs_per_carton`); never insert, delete or renumber one; it is opened only by `app.void_pack`. What an order takes is

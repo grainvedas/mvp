@@ -60,6 +60,7 @@ export function Crops() {
         shelf_life_by_material: shelfLifeMap(shelfTyped).map } : {}),
       thresholds: Object.fromEntries(Object.entries(e.thresholds ?? {}).filter(([, v]) => v !== null && v !== undefined && !Number.isNaN(v))),
       shelf_life_days: e.shelf_life_days ?? null,                                    // migration 50: the packs' best-before
+      apeda_scheduled: !!e.apeda_scheduled,                                           // migration 64: the client's RCMC for its export
       // a crop is of his state: a new one, and one with no state yet (which this save sets, once)
       ...(!e.state_id && mine && mine.length > 0 ? { state_id: mine[0] } : {}) };
     if (e.id) await q(supabase.from('crops').update(row).eq('id', e.id).select()); else await q(supabase.from('crops').insert(row).select());
@@ -130,6 +131,7 @@ function CropCard({ c, stateName, lang, yes, no, defs, onEdit, admin, states, on
         <dt>{t('crops.c_gap')}</dt><dd>{c.gap_items?.length ? c.gap_items.map((g) => `${g.label}${g.required ? ' *' : ''}`).join(' · ') : '—'}</dd>
         <dt>{t('crops.c_chain')}</dt><dd data-testid="crop-chain">{c.recommended_chain?.length ? c.recommended_chain.map(label).join(' → ') : '—'}</dd>
         <dt>{t('crops.f_docs')}</dt><dd>{c.export_docs?.length ? c.export_docs.join(' · ') : '—'}</dd>
+        <dt>{t('crops.apeda_short')}</dt><dd data-testid="crop-apeda-shown">{c.apeda_scheduled ? t('common.yes') : t('common.no')}</dd>
         {'gi_crop' in c && <><dt>{t('crops.c_gi')}</dt><dd data-testid="crop-gi-crop">{c.gi_crop
           ? `${t('common.yes')}${(c.gi_districts ?? []).length ? ` · ${(c.gi_districts ?? []).join(', ')}` : ''}${(c.gi_blocks ?? []).length ? ` (${(c.gi_blocks ?? []).join(', ')})` : ''}`
           : t('crops.not_gi')}</dd></>}
@@ -329,6 +331,7 @@ function CropForm({ edit, setEdit, keys, typed, setTyped, defs, stateLabel, sett
         <div key={i} className="row"><input aria-label={t('crops.f_docs')} value={d} onChange={(e) => set({ export_docs: (edit.export_docs ?? []).map((x, j) => (j === i ? e.target.value : x)) })} style={{ flex: 1 }} />
           <button className="secondary" onClick={() => set({ export_docs: (edit.export_docs ?? []).filter((_, j) => j !== i) })}>✕</button></div>))}
       <button className="secondary" onClick={() => set({ export_docs: [...(edit.export_docs ?? []), ''] })} data-testid="doc-add">{t('crops.add_doc')}</button>
+      <label className="row small"><input type="checkbox" checked={!!edit.apeda_scheduled} onChange={(e) => set({ apeda_scheduled: e.target.checked })} data-testid="crop-apeda" /> {t('crops.apeda')}</label>
 
       <div className={`alert ${miss.length ? 'warn' : 'ok'}`} data-testid="crop-form-ready">{miss.length ? t('crops.lacks', { what: miss.join(', ') }) : t('crops.will_be_ready')}</div>
       <ErrorBox error={error} />

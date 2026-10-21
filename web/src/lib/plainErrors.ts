@@ -285,6 +285,21 @@ export const PLAIN_RULES: PlainRule[] = [
   { re: /shipment: scan or type the codes of the packs loaded/i, key: 'err.sh_codes' },
   { re: /shipment: the packs loaded weigh ([\d.]+) kg, the shipment ([\d.]+) kg/i, key: 'err.sh_codes_kg', vars: ['packs', 'kg'] },   // migration 62
   // migration 63 (Part D): closing a scope and the season report
+  // migration 64: the client registry
+  { re: /already registered with GrainVeda/i, key: 'err.client_registered' },
+  { re: /belongs to another business in the registry/i, key: 'err.client_number_taken' },
+  { re: /after the client is Active its .* is changed by the admin/i, key: 'err.client_after_active' },
+  { re: /^(.*: )?PAN: /i, key: 'err.client_pan' },
+  { re: /^(.*: )?GSTIN: /i, key: 'err.client_gstin' },
+  { re: /^(.*: )?(CIN|LLPIN|FSSAI licence|IEC|RCMC|Registration number): (\d|3 |21 |10 |14 |3 letters|the number)/i, key: 'err.client_number' },
+  { re: /Diagnostic needs gates 1 and 2|Active needs every gate|KYC: first the gates|not every gate is complete/i, key: 'err.client_gates' },
+  { re: /a scope is prepared once the client is in Diagnostic/i, key: 'err.scope_client_prospect' },
+  { re: /the client is not Active in this state/i, key: 'err.scope_client_not_active' },
+  { re: /an export scope .*needs the client's (IEC|APEDA RCMC)/i, key: 'err.scope_client_iec' },
+  { re: /diagnostic order: its date|Master Services Agreement: the signed|Consent Addendum: the signed|: its expiry date/i, key: 'err.client_doc' },
+  { re: /(details|documents) are (filled|added) by the State Manager of this state|KYC tick is the State Manager's|moved by that state's State Manager|created by the State Manager of the state|typed by the client's State Manager/i, key: 'err.client_sm_only' },
+  { re: /approved by the admin|national identity is changed by the admin|the admin's queue/i, key: 'err.client_admin_only' },
+  { re: /declining: a reason of 10|a reason of 10 characters or more/i, key: 'err.client_reason' },
   { re: /close: the checklist is not clear/i, key: 'err.close_not_clear' },
   { re: /a close of this scope is already requested/i, key: 'err.close_requested' },
   { re: /the Client Manager of the scope requests its close/i, key: 'err.close_cm_only' },
