@@ -236,7 +236,6 @@ tr.clickable { cursor: pointer; } tbody tr:hover td { background: var(--g50); }
 .crop-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 12px; margin-bottom: var(--gap); }
 .crop-card .kv { margin: 8px 0; }
 .sub-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 8px 0; }
-.row.wrap { flex-wrap: wrap; }
 .scope-card { border-left: 4px solid var(--grey-border); } .scope-card.active { border-left-color: var(--g400); }
 @media (min-width: 900px) { .stats { grid-template-columns: repeat(4, 1fr); } }
 
@@ -582,3 +581,14 @@ button.stat:focus-visible { outline: 3px solid var(--g500); outline-offset: 2px;
 .sys-checks li { padding: 2px 0; }
 .sys-checks li.ok > span { color: var(--green); }
 .sys-checks li.not > span { color: var(--red); font-weight: 600; }
+/* migration 63 (Part D): the closing check, the report versions, the verify page's hashes */
+.checklist, .reports { list-style: none; margin: 0; padding: 0; }
+.checklist > li, .reports > li { padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.checklist > li:last-child, .reports > li:last-child { border-bottom: 0; }
+.checklist ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.checklist textarea { width: 100%; }
+.dv-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.dv-hash { word-break: break-all; overflow-wrap: anywhere; }
+.checklist > li, .reports > li { align-items: stretch; text-align: left; }
+.checklist .row, .reports .row { justify-content: flex-start; }
+.report-files { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }

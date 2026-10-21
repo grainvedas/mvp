@@ -200,8 +200,12 @@ test('The crop registry: a ready crop, the wizard, the farmer\'s practice, Procu
   await expect(page.locator('li', { hasText: 'removed the crop' }).filter({ hasText: NOTREADY })).toBeVisible();
   await expect(page.locator('li', { hasText: 'retired the crop' }).filter({ hasText: NAME })).toBeVisible();
   await signOut(page);
-  // the Client Manager closes the test scope: its seats end with it (the demo operators hold their five scopes again)
+  // the Client Manager ends the test scope's seats (the demo operators hold their five scopes again). Since migration 63 a
+  // scope closes only through its request and the State Manager's confirmation (e2e/phase35), as phase27 does here
   await signIn(page, USERS.cm);
-  expect((await (await apiAs(page)).update('scopes', `id=eq.${scope}`, { status: 'closed' })).ok).toBe(true);
+  const cmApi = await apiAs(page);
+  for (const a of await cmApi.rows('assignments', `scope_id=eq.${scope}&active=eq.true`) as { id: string }[])
+    expect((await cmApi.rpc('end_assignment', { p_assignment: a.id, p_reason: 'e2e phase14: the test scope is done' })).ok).toBe(true);
+  expect(await cmApi.rows('assignments', `scope_id=eq.${scope}&active=eq.true`)).toHaveLength(0);
   await signOut(page);
 });

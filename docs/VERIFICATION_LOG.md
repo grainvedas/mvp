@@ -2996,3 +2996,66 @@ CREATE-USER PASSED; restore drill after the whole suite HR documents 4 of 5 (as 
 RESTORE DRILL PASSED; fresh start passed. Release script `staging-shipped-packs.cmd` (type `PACKS`): its S1b, rule and
 after queries run on the local stack (`functions=new codes_rule=yes form_field=yes packs: released=424 old_data=0
 not_released=1354 void=3`; `rule62=OK`).
+
+## 21 October 2026, 10:47 IST: release 4 on staging (`staging-shipped-packs.cmd`)
+
+Veda ran it. S0 (62 waiting, 170 app and function files the tested ones), S1 pushed `20261106000100_shipped_packs_release.sql`,
+S1b `functions=new codes_rule=yes form_field=yes packs: released=60 old_data=534 not_released=219 void=0
+b0001_0150=old_data`, S2 smoke 59/60 (statement logging standing), the rules in place,
+`leaks=0 people=7 tables=44 calls=12180 clients=3`, `shipments_with_codes=2 shipments_without_codes=5`, ledger audit NO
+FINDINGS (287 blocks), S3 pushed 30924c2 (35 files). `RESULT: SHIPPED PACKS ON STAGING`. Record:
+`release-evidence\staging-shipped-packs-20261021-104757.log`. The new app (`index-3JUhdIcZ.js`) live. Run sheet (Claude,
+the built-in browser, nobody signed in, 527 px): row 1 passed (`/p/TCUP-KNM-KH26-B0001-0150`: "Released, serials not
+recorded (old data)", no "Genuine pack"); row 2 passed against the corrected wording ("190 packs, packed 16 Oct 2026" and
+the old-data line; no sideways scroll). The run sheet had said "no 190 packs line", which is not what default (a) and
+`tests/57` (§3: `n` = 4 with `old_data`) build: the old-data packs count as released, said as old data. Rows 3–6 need
+Lucky signed in.
+Rows 3–6, 21 Oct (Lucky signed in by Veda; Claude drove the built-in browser; Veda approved each record saved). Row 3:
+the season export of Bansi through the same server call (no file downloaded; one Audit line as Lucky): batches
+`B0001` 190 packs, all "codes not recorded (old data)"; `TCUP-2026-KNM-001` 160 old data; `B0003` 44 not yet released;
+of TCUP KH26 GKP: 184 old data. **Passed.** Rows 5–6 on the pending practice shipment `TCUP-KNM-KH26-BNS-SH-0003` (40 packs
+of `B0003` in cartons C0001 and C0002, codes recorded on 17 Oct): QR Activation, verified by Lucky ("same person, next
+stage", marked in the ledger), the summary "Packs that go live with this seal: 40 (batch TCUP-KNM-KH26-B0003). Not yet
+released: 4.", sealed `GV-291D5A0C5425`; `/p/TCUP-KNM-KH26-B0003-0040` "Genuine pack, sealed record" (no farmer's
+name), `/p/TCUP-KNM-KH26-B0003-0041` (carton C0003, not shipped) "Packed, not yet released", no sideways scroll at 527
+px. **Passed.** Row 4 not done on staging: every staging scope asks stage details, so Commercial sells by packs and a
+sale by the kilogram is not offered there (the form was opened and left; nothing saved). Veda: leave the kilogram path to
+the tests (`tests/57` §2, `e2e/phase34`). **Release 4's run sheet done** (row 4 by the tests).
+
+
+## 21 October 2026: release 5 (migrations 63a and 63, close a scope and the season report), local stack
+
+Veda's combined brief, Part D, with the closing check of E2.1 and E2.5 and the plan's defaults; "ok continue".
+`20261107000090_close_scope_events.sql` (the ledger's new kinds of block, alone because a new enum value is not usable
+in the transaction that adds it) and `20261107000100_close_scope_season_report.sql`: `scope_closures`, `reports`,
+`lot_closures.kind` and `closure_id`, the bucket `reports`; `app.close_checklist`, `app.request_close`,
+`app.decide_close_request`, `app.confirm_close`, `app.reopen_scope`, `app.closed_scope_guard` (trigger `a01_closed_scope`
+on 18 tables), `app.season_report_data`, `app.issue_report`, `app.generate_interim_report`, `app.register_report_file`,
+`app.public_document`, `app.withdraw_report`, `app.reports_issued`; the scopes' guard, the mass balance, the exports and
+the lot's trace replaced. New `tests/58_close_scope_report.sql`, 57 checks: every blocker listed (a lot to verify, a
+sample at the lab, an open flag, kilograms left, an export shipment without delivery and a balance difference made
+under `replica` as old data, packs never released); a request refused while a blocker is open or a reason is short;
+nobody but the Client Manager requests, nobody but the State Manager of the state confirms, never the requester; the
+confirmation writes the write-off (its own block, counted apart in the balance: sold 5 kg ≤ procured 180 kg), closes,
+issues `GV-SR-000001`; after the close a record, a flag, a void, a setting are refused and a recall is not; the
+shareable copy has no farmer's name and no price, the internal one has both; files stored once; reopen, interim, close
+again: version 2, version 1 Superseded; a report withdrawn; the billing count; the client's login reads, downloads and
+closes nothing. `tests/14` now expects a plain close to be refused; `tests/50` fills `scope_closures`; `tests/08` lists
+the new functions. Every `tests/NN_*.sql`: **2,465 checks, no failure**; controls **12 of 12** (among them: a scope
+closed by a plain update, a balance difference that does not block, an export shipment without delivery that does not
+block, a file stored twice). `tests/remote_smoke.sql` row `close scope report` (61 rows): OK on 63, MISSING on 62;
+`tests/remote_ledger_audit.sql` knows the new blocks (NO FINDINGS on a database after test 58).
+The app: the scope dashboard's Season report card (the check, the answers, request / confirm / decline / withdraw /
+reopen, interim, the files per copy, versions, close history), `/d/<reference>`, the admin's "Season reports issued";
+the PDF made in the browser (pdf-lib, fontkit, Noto Sans Devanagari: the Hindi shaped, checked by eye on the sample
+PDFs), the Excel file one sheet per section; a lazy chunk, kept out of the service worker's precache. Unit **719** (new
+`release63.test.tsx` 13), tsc clean. `tests/run_local.sh`: ALL TESTS PASSED. The whole e2e suite on the local stack:
+99 of 101 at first, two faults of the tests, not of the app: `phase14` closed its test scope by a plain update (refused
+now, as it should be; it now ends the scope's seats with `end_assignment`, as `phase27` does), and `phase35` looked for
+the files 10 s after the click while the browser was still making them (now it waits for the eight files). Re-run:
+on a fresh demo stack the whole suite **101 of 101** (new `phase35` at 527 px: a lot to verify blocks; 100 kg written off with a reason, 9 characters refused; requested by the Client Manager, confirmed by the State Manager; 8 files made and stored; the downloaded Hindi PDF's SHA-256 on `/d/<reference>`, "Valid"; tcup downloads the internal Excel and is offered no close; reopened, an interim report, the final still Valid).. The built app 14; REMOTE RLS PASSED (193); CREATE-USER PASSED (95); restore drill after the whole suite HR
+documents 4 of 5 (as in releases 9, 10 and 4), on a fresh stack after `phase22`, `phase29`, `phase34`, `phase35` (6 of 6)
+RESTORE DRILL PASSED; fresh start passed. The release script's hashes take a font or an image as its bytes (the
+first binary files of the app). Release script `staging-close-scope-report.cmd` (type `REPORTS`): its S1b, rule and
+after queries run on a local database after test 58 (`tables=new functions=new guard=yes bucket=yes closed_scopes=1
+reports=3`; `rule63=OK`).

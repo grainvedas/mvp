@@ -51,9 +51,9 @@ download folder; Claude reads them there only if you say so.
 | # | Who | Do | Expect |
 |---|---|---|---|
 | 1 | anyone, private window | `/p/TCUP-KNM-KH26-B0001-0150` | "Released, serials not recorded (old data)", not "Genuine pack" |
-| 2 | anyone, private window | `/verify/GV-8B1E15E15317` | "This lot's packs were released before shipments recorded their codes (old data)." and no "190 packs" line |
+| 2 | anyone, private window | `/verify/GV-8B1E15E15317` | "190 packs, packed 16 Oct 2026" with, below it, "This lot's packs were released before shipments recorded their codes (old data)." (default (a): the 190 count as released, as old data; corrected 21 Oct, this row first said "no 190 packs line") |
 | 3 | Lucky (Client Manager) | The TCUP scope's dashboard → "Season export, Excel (shareable)" → Batches | the columns Packs, Released, Released, codes not recorded (old data), Not yet released, Voided; `B0001`: 190 packs, all under "codes not recorded (old data)" |
-| 4 | Lucky, holding Commercial, Shipment and QR in a practice scope (as release 7's checks) | A packed lot: Record Commercial Clearance **by the kilogram** (say 5 kg of 1 kg packs) → Record Shipment | "Pack codes loaded" is asked, also where the scope asks no details; "Add a range" From the first code To the fourth: refused in plain words ("The packs loaded weigh 4 kg; the shipment is 5 kg …"); To the fifth: saved |
+| 4 | Lucky, holding Commercial, Shipment and QR in a practice scope (as release 7's checks) | A packed lot: Record Commercial Clearance **by the kilogram** (say 5 kg of 1 kg packs) → Record Shipment | "Pack codes loaded" is asked, also where the scope asks no details; "Add a range" From the first code To the fourth: refused in plain words ("The packs loaded weigh 4 kg; the shipment is 5 kg …"); To the fifth: saved | (21 Oct: not possible on staging, where every scope asks details and Commercial sells by packs; left to the tests)
 | 5 | Lucky (QR) | That shipment → the release summary | "Packs that go live with this seal: 5 (batch …). Not yet released: …" → read, seal |
 | 6 | anyone, private window | `/p/<one of the five codes>`, then `/p/<the sixth code of that batch>` | the first "Genuine pack, sealed record"; the second "Packed, not yet released" (this is the Done check of `B0001-0150`, on a batch shipped now) |
 

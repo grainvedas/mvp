@@ -37,7 +37,7 @@ export interface TraceStep {
   same_person?: boolean;
   /** migration 61 (E2.2): what the record's kilograms became; (E2.5) its closure as floor loss */
   parts?: { in: number; out: number; by_products: number; other: number; floor_loss: number; transit_in: number; transit_up: number } | null;
-  closure?: { kg: number; at: string; reason: string; by: string | null } | null;
+  closure?: { kg: number; at: string; reason: string; by: string | null; /** migration 63 */ kind?: 'floor_loss' | 'written_off' } | null;
 }
 export interface Trace { footprint_id: string; generated_at: string; steps: TraceStep[];
   /** migration 59: each reading's unit (A3); "practice_old_data" for a scope with records of before system batch codes (A8) */
@@ -111,7 +111,7 @@ export function LotTrace() {
               {s.farmer && <><dt>{t('trace.farmer')}</dt><dd><span className="no-print">{s.farmer.name} · </span>{s.farmer.village} <span className="mono small">{s.farmer.code}</span></dd></>}
               <dt>{t('trace.qty')}</dt><dd>{kg(s.qty_in_kg)} → {kg(s.qty_out_kg)}
                 {partsLine(s.parts, s.stage, t) && <span className="small muted" data-testid="trace-parts"> · {partsLine(s.parts, s.stage, t)}</span>}</dd>
-              {s.closure && <><dt>{t('trace.closure_label')}</dt><dd data-testid="trace-closure">{t('trace.closure', { kg: kg(s.closure.kg), date: dateTime(s.closure.at) })}
+              {s.closure && <><dt>{t('trace.closure_label')}</dt><dd data-testid="trace-closure">{t(s.closure.kind === 'written_off' ? 'trace.written_off' : 'trace.closure', { kg: kg(s.closure.kg), date: dateTime(s.closure.at) })}
                 <span className="no-print"> · {s.closure.by ?? '—'}</span> · “{s.closure.reason}”</dd></>}
               <dt>{t('trace.recorded')}</dt><dd>{dateTime(capturedAt(s).at)}<span className="no-print"> · {s.created_by ?? '—'}</span>
                 {capturedAt(s).sentLater && <span className="muted small"> · {t('record.sent_later', { at: dateTime(s.created_at) })}</span>}</dd>

@@ -68,7 +68,7 @@ describe('C2/E2.5 · the season\'s Summary is the mass balance', () => {
   const text = (s: unknown[][]) => s.map((r) => (r ?? []).map((c) => (c as { value?: unknown } | null)?.value ?? '').join('|')).join('\n');
   it('each stage: in, out, by-products, floor loss, closed, went on, left, difference; a difference in red', () => {
     const { sheets } = seasonSheets(season, T);
-    expect(text(sheets[1])).toContain('|250|247|0|0|3|0|4|238|0|5');
+    expect(text(sheets[1])).toContain('|250|247|0|0|3|0|4|0|238|0|5');
     const row = sheets[1][1] as ({ value: unknown; color?: string } | null)[];
     expect(row.at(-1)).toMatchObject({ value: 5, color: '#B42318' });
     expect((sheets[1][2] as ({ color?: string } | null)[]).at(-1)?.color).toBeUndefined();

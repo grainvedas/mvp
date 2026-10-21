@@ -21,6 +21,7 @@ export interface JourneyExport extends ExportTable { kind: 'journey'; lot: { cod
  *  samples and water + floor loss + lost in transit + closed as floor loss + left; any difference is shown. */
 export interface StageBalance { stage: string; pos: number; records: number; pending: number; verified: number; kg_in: number; kg_out: number;
   by_products_kg: number; other_kg: number; floor_loss_kg: number; transit_loss_kg: number; closed_kg: number; handed_on_kg: number; left_kg: number;
+  /** migration 63: written off at the scope's close */ written_off_kg?: number;
   difference_kg: number; balanced: boolean; last: boolean }
 export type SeasonStage = StageBalance;
 export interface SeasonExport extends ExportTable { kind: 'season'; summary: SeasonStage[];
@@ -55,7 +56,7 @@ const OPTION_KEYS = new Set(['line_clearance', 'polish', 'condition', 'delivered
 export function cellValue(key: string, v: V, t: T): Cell {
   if (v === null || v === undefined) return null;
   if (typeof v === 'object') return JSON.stringify(v);
-  if (key === 'stage') return v === 'floor_loss_closure' ? t('exp.closure_line') : t(`stage.${v}`, undefined, humanise(String(v)));
+  if (key === 'stage') return v === 'floor_loss_closure' ? t('exp.closure_line') : v === 'written_off' ? t('exp.written_off_line') : t(`stage.${v}`, undefined, humanise(String(v)));
   if (key === 'best_before' && v === 'not_recorded') return t('exp.bb_old');
   if (key === 'collection_point' && v === 'farm') return t('opt.farm');
   if (key === 'market') return t(`exp.mkt.${v}`, undefined, String(v));
@@ -113,10 +114,10 @@ export function seasonSheets(e: SeasonExport, t: T) {
   const diff = (x: SeasonStage) => (x.balanced ? cell(Number(x.difference_kg)) : { value: Number(x.difference_kg), color: '#B42318', fontWeight: 'bold' as const });
   const summary = [
     [t('exp.s.stage'), t('exp.s.records'), t('exp.s.pending'), t('exp.s.verified'), t('exp.c.qty_in_kg'), t('exp.c.qty_out_kg'), t('exp.s.by_products'),
-     t('exp.s.other'), t('exp.s.floor_loss'), t('exp.s.transit'), t('exp.s.closed'), t('exp.s.handed_on'), t('exp.s.left'), t('exp.s.difference')].map(bold),
+     t('exp.s.other'), t('exp.s.floor_loss'), t('exp.s.transit'), t('exp.s.closed'), t('exp.s.written_off'), t('exp.s.handed_on'), t('exp.s.left'), t('exp.s.difference')].map(bold),
     ...e.summary.map((x) => [cell(`${x.pos}. ${t(`stage.${x.stage}`, undefined, humanise(x.stage))}`), cell(x.records), cell(x.pending), cell(x.verified),
       cell(Number(x.kg_in)), cell(Number(x.kg_out)), cell(Number(x.by_products_kg)), cell(Number(x.other_kg)), cell(Number(x.floor_loss_kg)),
-      cell(Number(x.transit_loss_kg)), cell(Number(x.closed_kg)), cell(Number(x.handed_on_kg)), cell(Number(x.left_kg)), diff(x)]),
+      cell(Number(x.transit_loss_kg)), cell(Number(x.closed_kg)), cell(Number(x.written_off_kg ?? 0)), cell(Number(x.handed_on_kg)), cell(Number(x.left_kg)), diff(x)]),
     [cell(t('exp.s.balance_note'))],
     [],
     [bold(t('exp.s.totals'))],

@@ -495,6 +495,20 @@ select 'shipped packs',            case when to_regprocedure('app.pack_release(t
                                       then 'NOT OK (a pack''s release, the Shipment codes rule or its form field are not as migration 62 left them)'
                                       else 'OK a pack goes live only with a sealed shipment that carries it; shipments of before say "serials not recorded"; every shipment of a packed lot gives its codes' end
 union all
+select 'close scope report',       case when to_regclass('public.scope_closures') is null or to_regclass('public.reports') is null
+                                        or to_regprocedure('app.confirm_close(uuid)') is null
+                                      then 'MISSING (push migration 63)'
+                                      when not has_function_privilege('anon', 'app.public_document(text)', 'execute')
+                                        or has_function_privilege('anon', 'app.report_content(uuid, text)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.issue_report(uuid, boolean, uuid)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.season_report_data(uuid, boolean)', 'execute')
+                                        or has_table_privilege('authenticated', 'public.reports', 'select')
+                                        or (select count(*) from pg_trigger where tgname = 'a01_closed_scope') <> 18
+                                        or position('app.scope_close' in pg_get_functiondef('app.scopes_guard()'::regprocedure)) = 0
+                                        or (to_regclass('storage.buckets') is not null and not exists (select 1 from storage.buckets where id = 'reports'))
+                                      then 'NOT OK (the close, the reports or their read rules are not as migration 63 left them)'
+                                      else 'OK a scope closes through its request and confirmation, read only after; reports issued, verified by reference' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

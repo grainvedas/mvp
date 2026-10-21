@@ -241,7 +241,7 @@ export interface FootprintDetail {
   packs?: { batch_code: string | null; packed: number; void: number; prints: number; best_before: string | null } | null;
   /** migration 53: the lab's verdict per market profile of the scope; a closed lot; the net weight check of a packing record */
   profile_verdicts?: { code: string; name: string; version: number; verdict: 'pass' | 'fail' | 'pending'; failed: string[]; missing: string[] }[];
-  closure?: { floor_loss_kg: number; reason: string; closed_at: string; closed_by_name: string | null } | null;
+  closure?: { floor_loss_kg: number; reason: string; closed_at: string; closed_by_name: string | null; /** migration 63 */ kind?: 'floor_loss' | 'written_off' } | null;
   net_weight?: { needed: boolean; check: null | { serials: string[]; weights: Record<string, { g: number; size_g: number; allowed_short_g: number; ok: boolean }> | null;
     result: 'pass' | 'fail' | null; checked_at: string | null } } | null;
   delivery?: Delivery | null;

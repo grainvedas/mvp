@@ -16,12 +16,15 @@
     "e2e:acceptance": "playwright test -c playwright.acceptance.config.ts"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "@supabase/supabase-js": "^2.117.2",
+    "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.4",
     "read-excel-file": "^5.8.8",
+    "regenerator-runtime": "^0.14.1",
     "write-excel-file": "^2.3.10"
   },
   "devDependencies": {

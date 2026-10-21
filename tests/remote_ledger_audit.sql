@@ -80,6 +80,28 @@ with blocks as (
             then not exists (select 1 from public.app_users u where u.id::text = l.payload->>'user_id')
           else exists (select 1 from public.footprints f where f.id = l.footprint_id)                           -- a manager acting at a stage
         end
+      -- migration 63 (Part D): a scope's close requested, decided, confirmed, reopened; a write-off at the close; a report issued,
+      -- its files stored (their SHA-256 as the table holds them), a report withdrawn
+      when 'scope_close_request' then exists (select 1 from public.scope_closures c where c.id::text = l.payload->>'closure_id' and c.scope_id = l.scope_id
+                                                and (l.payload->>'act' = 'requested' and c.requested_by = l.actor
+                                                     or l.payload->>'act' in ('withdrawn', 'declined') and c.status = l.payload->>'act' and c.decided_by = l.actor))
+      when 'scope_close'    then exists (select 1 from public.scope_closures c where c.id::text = l.payload->>'closure_id' and c.status = 'confirmed'
+                                           and c.decided_by = l.actor and c.version::text = l.payload->>'version')
+      when 'scope_reopen'   then exists (select 1 from public.scope_closures c where c.id::text = l.payload->>'closure_id' and c.reopened_by = l.actor)
+                                 or (l.payload->>'closure_id' is null and exists (select 1 from public.scopes s where s.id = l.scope_id))
+      when 'write_off'      then exists (select 1 from public.lot_closures lc where lc.footprint_id = l.footprint_id and lc.kind = 'written_off'
+                                           and lc.closure_id::text = l.payload->>'closure_id' and lc.floor_loss_kg = (l.payload->>'kg')::numeric)
+      when 'report'         then case
+          when l.payload->>'act' = 'issued'
+            then exists (select 1 from public.reports r where r.id::text = l.payload->>'report_id' and r.ref = l.payload->>'ref'
+                           and r.data_hash = l.payload->>'data_hash' and r.issued_by = l.actor)
+          when l.payload->>'act' = 'file'
+            then exists (select 1 from public.reports r where r.id::text = l.payload->>'report_id'
+                           and r.files->(concat_ws('_', l.payload->>'format', l.payload->>'lang', l.payload->>'copy'))->>'sha256' = l.payload->>'sha256')
+          when l.payload->>'act' = 'withdrawn'
+            then exists (select 1 from public.reports r where r.id::text = l.payload->>'report_id' and r.status = 'withdrawn' and r.withdrawn_by = l.actor)
+          else false
+        end
       else false end as has_counterpart
   from public.ledger l
 ),

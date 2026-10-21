@@ -1,0 +1,1161 @@
+{
+    "head": {
+        "id": "114c2302-7360-4368-87bc-2002b9ff8692",
+        "ref": "GV-SR-000001",
+        "final": true,
+        "status": "valid",
+        "version": 1,
+        "scope_id": "00000000-0000-4000-8000-000000000405",
+        "data_hash": "fc3ecf54e53e2d0234f9f6397da9ba1f136e581f8ce160b690786bf5ac9fba70",
+        "issued_at": "2026-10-21T06:34:39.970356+00:00",
+        "issued_by": "UP State Manager",
+        "issued_to": "GrainVeda (Prasaadam trade scope)",
+        "period_to": "2026-10-21",
+        "period_from": "2026-10-21",
+        "withdrawn_at": null,
+        "superseded_at": "2026-10-21T06:34:39.970356+00:00",
+        "superseded_by": null,
+        "withdrawn_reason": null
+    },
+    "internal": {
+        "qr": {
+            "batches": [
+                {
+                    "held": 25,
+                    "void": 0,
+                    "old_data": 0,
+                    "released": 5,
+                    "batch_code": "PRSDM-KNM-KH26-B0001"
+                }
+            ],
+            "releases": [
+            ],
+            "copy_flags": [
+            ],
+            "scans_by_city": [
+            ]
+        },
+        "copy": "internal",
+        "chain": [
+            {
+                "pos": 1,
+                "flags": [
+                ],
+                "stage": "procurement",
+                "records": 2,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "Procurement Op (field)"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "QC Technician"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 2,
+                "flags": [
+                ],
+                "stage": "qc",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "QC Technician"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "Mill Operator"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 3,
+                "flags": [
+                ],
+                "stage": "milling",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "Mill Operator"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "Sorting Operator"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 4,
+                "flags": [
+                ],
+                "stage": "packing",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "Sorting Operator"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "Commercial Manager"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 5,
+                "flags": [
+                    {
+                        "code": "PRSDM-KNM-KH26-BSTA-CM-0001",
+                        "kind": "flag",
+                        "text": "buyer asked about the bag weight",
+                        "status": "open"
+                    }
+                ],
+                "stage": "commercial",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "Commercial Manager"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "Shipment Operator"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 6,
+                "flags": [
+                ],
+                "stage": "shipment",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "Shipment Operator"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "QR Sealer"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 7,
+                "flags": [
+                ],
+                "stage": "qr_activation",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "QR Sealer"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "QR Sealer"
+                ],
+                "manager_records": [
+                ]
+            }
+        ],
+        "cover": {
+            "crop": "Kalanamak rice",
+            "state": "Uttar Pradesh",
+            "client": "GrainVeda (Prasaadam trade scope)",
+            "gi_tag": "GI 280",
+            "season": "KH26",
+            "status": "closed",
+            "data_note": null,
+            "districts": [
+                "Siddharthnagar"
+            ],
+            "geography": "Basti mill",
+            "gi_earned": false,
+            "period_to": "2026-10-21",
+            "scope_code": "BSTA",
+            "client_code": "PRSDM",
+            "period_from": "2026-10-21",
+            "record_price": true,
+            "delivery_model": null
+        },
+        "sales": [
+            {
+                "kg": 5.000,
+                "on": "2026-10-21",
+                "code": "PRSDM-KNM-KH26-BSTA-CM-0001",
+                "buyer": "Delhi Wholesale",
+                "packs": "5 × 1 kg pouch",
+                "market": "domestic",
+                "country": null,
+                "currency": "INR",
+                "order_no": "PO-63-1",
+                "incoterms": null,
+                "shipments": [
+                    {
+                        "kg": 5.000,
+                        "pod": "not_needed",
+                        "code": "PRSDM-KNM-KH26-BSTA-SH-0001",
+                        "bl_no": null,
+                        "sealed": "GV-82AD9A8ED4DA",
+                        "invoice_no": "INV-63",
+                        "destination": "Delhi",
+                        "received_kg": null,
+                        "container_no": null,
+                        "delivered_on": null,
+                        "dispatch_date": "2026-10-20",
+                        "transit_loss_kg": null
+                    }
+                ],
+                "total_value": 1950.00,
+                "price_per_kg": 390.00
+            }
+        ],
+        "units": {
+            "broken_pct": "%",
+            "moisture_pct": "%",
+            "foreign_matter_pct": "%"
+        },
+        "ledger": {
+            "blocks": 46,
+            "last_hash": "98d8e27bd50c841071a1ee5d0ef9e6f65d3f7782ad4fa2c262cc3003a8388f8c",
+            "first_hash": "69a80f977659aa8bbaa6233d16acac0c3a7745bfc413d1a7a208f79c0ce6236a",
+            "last_check": null
+        },
+        "origin": {
+            "gi_pct": 0.0,
+            "farmers": 2,
+            "villages": [
+                {
+                    "kg": 130.000,
+                    "pct": 72.2,
+                    "farmers": 1,
+                    "village": "Bansi",
+                    "district": "Siddharthnagar"
+                },
+                {
+                    "kg": 50.000,
+                    "pct": 27.8,
+                    "farmers": 1,
+                    "village": "Naugarh",
+                    "district": "Siddharthnagar"
+                }
+            ],
+            "farmer_list": [
+                {
+                    "kg": 130.000,
+                    "code": "PRSDM-F-0001",
+                    "lots": 1,
+                    "name": "Ram Achal",
+                    "village": "Bansi",
+                    "district": "Siddharthnagar"
+                },
+                {
+                    "kg": 50.000,
+                    "code": "PRSDM-F-0004",
+                    "lots": 1,
+                    "name": "Geeta Kumari",
+                    "village": "Naugarh",
+                    "district": "Siddharthnagar"
+                }
+            ],
+            "farm_verified_pct": 100.0
+        },
+        "balance": {
+            "check": {
+                "ok": true,
+                "sold_kg": 5.000,
+                "procured_kg": 180.000
+            },
+            "stages": [
+                {
+                    "pos": 1,
+                    "last": false,
+                    "kg_in": 180.000,
+                    "stage": "procurement",
+                    "kg_out": 180.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 2,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 2,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 130.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 50.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 2,
+                    "last": false,
+                    "kg_in": 130.000,
+                    "stage": "qc",
+                    "kg_out": 129.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 1.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 129.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 0.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 3,
+                    "last": false,
+                    "kg_in": 129.000,
+                    "stage": "milling",
+                    "kg_out": 80.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 30.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 3.000,
+                    "by_products_kg": 46.000,
+                    "written_off_kg": 50.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 4,
+                    "last": false,
+                    "kg_in": 30.000,
+                    "stage": "packing",
+                    "kg_out": 30.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 5.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 25.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 5,
+                    "last": false,
+                    "kg_in": 5.000,
+                    "stage": "commercial",
+                    "kg_out": 5.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 5.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 0.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 6,
+                    "last": false,
+                    "kg_in": 5.000,
+                    "stage": "shipment",
+                    "kg_out": 5.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 5.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 0.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 7,
+                    "last": true,
+                    "kg_in": 5.000,
+                    "stage": "qr_activation",
+                    "kg_out": 5.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 5.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 0.000,
+                    "transit_loss_kg": 0.000
+                }
+            ],
+            "milling": {
+                "in_kg": 129.000,
+                "bran_kg": 6,
+                "husk_kg": 30,
+                "records": 1,
+                "broken_kg": 10,
+                "head_rice_kg": 80,
+                "floor_loss_kg": 3.000
+            },
+            "differences": 0,
+            "written_off_kg": 125.000
+        },
+        "closure": {
+            "note": "season over",
+            "answers": {
+                "kg": [
+                    {
+                        "id": "f39ac8ee-f4ab-4833-97a5-b296f75043a8",
+                        "kg": 50,
+                        "code": "PRSDM-KNM-KH26-BSTA-P-0002",
+                        "reason": "the farmer took this lot back unsold"
+                    },
+                    {
+                        "id": "928d5fa5-504d-4611-9c99-6117bfa9d94f",
+                        "kg": 50,
+                        "code": "PRSDM-KNM-KH26-BSTA-M-0001",
+                        "reason": "head rice kept for the next season's seed trial"
+                    },
+                    {
+                        "id": "c41e9391-d20f-455b-b879-d17c95a0762c",
+                        "kg": 25,
+                        "code": "PRSDM-KNM-KH26-BSTA-PK-0001",
+                        "reason": "packs given out as samples to buyers"
+                    }
+                ],
+                "pod": [
+                ],
+                "flags": [
+                    {
+                        "id": "152ba4b0-6bba-476d-8320-57aef0b90c80",
+                        "kg": null,
+                        "code": "PRSDM-KNM-KH26-BSTA-CM-0001",
+                        "reason": "carried over: the buyer will reweigh at Delhi"
+                    }
+                ],
+                "packs": [
+                    {
+                        "held": 25,
+                        "reason": "samples to buyers, not for sale",
+                        "batch_code": "PRSDM-KNM-KH26-B0001"
+                    }
+                ],
+                "balance": [
+                ]
+            },
+            "version": 1,
+            "written_off": [
+                {
+                    "kg": 50.000,
+                    "code": "PRSDM-KNM-KH26-BSTA-M-0001",
+                    "stage": "milling",
+                    "reason": "Written off at close: head rice kept for the next season's seed trial"
+                },
+                {
+                    "kg": 50.000,
+                    "code": "PRSDM-KNM-KH26-BSTA-P-0002",
+                    "stage": "procurement",
+                    "reason": "Written off at close: the farmer took this lot back unsold"
+                },
+                {
+                    "kg": 25.000,
+                    "code": "PRSDM-KNM-KH26-BSTA-PK-0001",
+                    "stage": "packing",
+                    "reason": "Written off at close: packs given out as samples to buyers"
+                }
+            ],
+            "confirmed_at": "2026-10-21T06:34:39.970356+00:00",
+            "confirmed_by": "UP State Manager",
+            "requested_at": "2026-10-21T06:34:39.970356+00:00",
+            "requested_by": "Prasaadam Client Manager"
+        },
+        "packing": [
+            {
+                "last": "PRSDM-KNM-KH26-B0001-0030",
+                "void": 0,
+                "first": "PRSDM-KNM-KH26-B0001-0001",
+                "packs": 30,
+                "by_size": "30 × 1 kg pouch",
+                "packing": "PRSDM-KNM-KH26-BSTA-PK-0001",
+                "packed_on": "2026-10-21",
+                "batch_code": "PRSDM-KNM-KH26-B0001",
+                "net_weight": null,
+                "wastage_kg": 0.000,
+                "best_before": "2027-10-21",
+                "wastage_pct": 0.00
+            }
+        ],
+        "quality": [
+            {
+                "on": "2026-10-21",
+                "lab": "Gorakhpur Grain Lab",
+                "code": "PRSDM-KNM-KH26-BSTA-QC-0001",
+                "files": null,
+                "export": "pass",
+                "sample": null,
+                "accepted": null,
+                "domestic": "pass",
+                "readings": {
+                    "broken_pct": 2,
+                    "moisture_pct": 11.8,
+                    "foreign_matter_pct": 0.2
+                },
+                "report_no": "GGL/2026/63",
+                "report_date": "2026-10-21",
+                "lab_accreditation": "TC-5521"
+            }
+        ],
+        "headline": {
+            "qc": [
+                {
+                    "lots": 1,
+                    "failed": 0,
+                    "market": "domestic",
+                    "passed": 1,
+                    "pending": 0,
+                    "accepted": 0,
+                    "pass_pct": 100.0
+                },
+                {
+                    "lots": 1,
+                    "failed": 0,
+                    "market": "export",
+                    "passed": 1,
+                    "pending": 0,
+                    "accepted": 0,
+                    "pass_pct": 100.0
+                }
+            ],
+            "scans": 0,
+            "gi_pct": 0.0,
+            "farmers": 2,
+            "recalls": 0,
+            "sold_kg": 5.000,
+            "villages": 2,
+            "packed_kg": 30.000,
+            "copy_flags": 0,
+            "packs_held": 25,
+            "shipped_kg": 5.000,
+            "procured_kg": 180.000,
+            "sealed_lots": 1,
+            "packs_released": 5,
+            "farm_verified_pct": 100.0,
+            "packs_released_old": 0
+        },
+        "open_items": {
+            "flags": [
+                {
+                    "code": "PRSDM-KNM-KH26-BSTA-CM-0001",
+                    "kind": "flag",
+                    "text": "buyer asked about the bag weight"
+                }
+            ],
+            "pending": 0,
+            "lab_hold": 0,
+            "packs_held": 25,
+            "awaiting_pod": [
+            ]
+        }
+    },
+    "shareable": {
+        "qr": {
+            "batches": [
+                {
+                    "held": 25,
+                    "void": 0,
+                    "old_data": 0,
+                    "released": 5,
+                    "batch_code": "PRSDM-KNM-KH26-B0001"
+                }
+            ],
+            "releases": [
+            ],
+            "copy_flags": [
+            ],
+            "scans_by_city": [
+            ]
+        },
+        "copy": "shareable",
+        "chain": [
+            {
+                "pos": 1,
+                "flags": [
+                ],
+                "stage": "procurement",
+                "records": 2,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "Procurement Op (field)"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "QC Technician"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 2,
+                "flags": [
+                ],
+                "stage": "qc",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "QC Technician"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "Mill Operator"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 3,
+                "flags": [
+                ],
+                "stage": "milling",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "Mill Operator"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "Sorting Operator"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 4,
+                "flags": [
+                ],
+                "stage": "packing",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "Sorting Operator"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "Commercial Manager"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 5,
+                "flags": [
+                    {
+                        "code": "PRSDM-KNM-KH26-BSTA-CM-0001",
+                        "kind": "flag",
+                        "text": "buyer asked about the bag weight",
+                        "status": "open"
+                    }
+                ],
+                "stage": "commercial",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "Commercial Manager"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "Shipment Operator"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 6,
+                "flags": [
+                ],
+                "stage": "shipment",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "Shipment Operator"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "QR Sealer"
+                ],
+                "manager_records": [
+                ]
+            },
+            {
+                "pos": 7,
+                "flags": [
+                ],
+                "stage": "qr_activation",
+                "records": 1,
+                "returns": [
+                ],
+                "warnings": 0,
+                "recorded_by": [
+                    "QR Sealer"
+                ],
+                "same_person": 0,
+                "verified_by": [
+                    "QR Sealer"
+                ],
+                "manager_records": [
+                ]
+            }
+        ],
+        "cover": {
+            "crop": "Kalanamak rice",
+            "state": "Uttar Pradesh",
+            "client": "GrainVeda (Prasaadam trade scope)",
+            "gi_tag": "GI 280",
+            "season": "KH26",
+            "status": "closed",
+            "data_note": null,
+            "districts": [
+                "Siddharthnagar"
+            ],
+            "geography": "Basti mill",
+            "gi_earned": false,
+            "period_to": "2026-10-21",
+            "scope_code": "BSTA",
+            "client_code": "PRSDM",
+            "period_from": "2026-10-21",
+            "record_price": true,
+            "delivery_model": null
+        },
+        "sales": [
+            {
+                "kg": 5.000,
+                "on": "2026-10-21",
+                "code": "PRSDM-KNM-KH26-BSTA-CM-0001",
+                "buyer": "Delhi Wholesale",
+                "packs": "5 × 1 kg pouch",
+                "market": "domestic",
+                "country": null,
+                "currency": null,
+                "order_no": "PO-63-1",
+                "incoterms": null,
+                "shipments": [
+                    {
+                        "kg": 5.000,
+                        "pod": "not_needed",
+                        "code": "PRSDM-KNM-KH26-BSTA-SH-0001",
+                        "bl_no": null,
+                        "sealed": "GV-82AD9A8ED4DA",
+                        "invoice_no": "INV-63",
+                        "destination": "Delhi",
+                        "received_kg": null,
+                        "container_no": null,
+                        "delivered_on": null,
+                        "dispatch_date": "2026-10-20",
+                        "transit_loss_kg": null
+                    }
+                ],
+                "total_value": null,
+                "price_per_kg": null
+            }
+        ],
+        "units": {
+            "broken_pct": "%",
+            "moisture_pct": "%",
+            "foreign_matter_pct": "%"
+        },
+        "ledger": {
+            "blocks": 46,
+            "last_hash": "98d8e27bd50c841071a1ee5d0ef9e6f65d3f7782ad4fa2c262cc3003a8388f8c",
+            "first_hash": "69a80f977659aa8bbaa6233d16acac0c3a7745bfc413d1a7a208f79c0ce6236a",
+            "last_check": null
+        },
+        "origin": {
+            "gi_pct": 0.0,
+            "farmers": 2,
+            "villages": [
+                {
+                    "kg": 130.000,
+                    "pct": 72.2,
+                    "farmers": 1,
+                    "village": "Bansi",
+                    "district": "Siddharthnagar"
+                },
+                {
+                    "kg": 50.000,
+                    "pct": 27.8,
+                    "farmers": 1,
+                    "village": "Naugarh",
+                    "district": "Siddharthnagar"
+                }
+            ],
+            "farmer_list": null,
+            "farm_verified_pct": 100.0
+        },
+        "balance": {
+            "check": {
+                "ok": true,
+                "sold_kg": 5.000,
+                "procured_kg": 180.000
+            },
+            "stages": [
+                {
+                    "pos": 1,
+                    "last": false,
+                    "kg_in": 180.000,
+                    "stage": "procurement",
+                    "kg_out": 180.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 2,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 2,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 130.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 50.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 2,
+                    "last": false,
+                    "kg_in": 130.000,
+                    "stage": "qc",
+                    "kg_out": 129.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 1.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 129.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 0.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 3,
+                    "last": false,
+                    "kg_in": 129.000,
+                    "stage": "milling",
+                    "kg_out": 80.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 30.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 3.000,
+                    "by_products_kg": 46.000,
+                    "written_off_kg": 50.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 4,
+                    "last": false,
+                    "kg_in": 30.000,
+                    "stage": "packing",
+                    "kg_out": 30.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 5.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 25.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 5,
+                    "last": false,
+                    "kg_in": 5.000,
+                    "stage": "commercial",
+                    "kg_out": 5.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 5.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 0.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 6,
+                    "last": false,
+                    "kg_in": 5.000,
+                    "stage": "shipment",
+                    "kg_out": 5.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 5.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 0.000,
+                    "transit_loss_kg": 0.000
+                },
+                {
+                    "pos": 7,
+                    "last": true,
+                    "kg_in": 5.000,
+                    "stage": "qr_activation",
+                    "kg_out": 5.000,
+                    "left_kg": 0.000,
+                    "pending": 0,
+                    "records": 1,
+                    "balanced": true,
+                    "other_kg": 0.000,
+                    "verified": 1,
+                    "closed_kg": 0.000,
+                    "handed_on_kg": 5.000,
+                    "difference_kg": 0.000,
+                    "floor_loss_kg": 0.000,
+                    "by_products_kg": 0.000,
+                    "written_off_kg": 0.000,
+                    "transit_loss_kg": 0.000
+                }
+            ],
+            "milling": {
+                "in_kg": 129.000,
+                "bran_kg": 6,
+                "husk_kg": 30,
+                "records": 1,
+                "broken_kg": 10,
+                "head_rice_kg": 80,
+                "floor_loss_kg": 3.000
+            },
+            "differences": 0,
+            "written_off_kg": 125.000
+        },
+        "closure": {
+            "note": "season over",
+            "answers": {
+                "kg": [
+                    {
+                        "id": "f39ac8ee-f4ab-4833-97a5-b296f75043a8",
+                        "kg": 50,
+                        "code": "PRSDM-KNM-KH26-BSTA-P-0002",
+                        "reason": "the farmer took this lot back unsold"
+                    },
+                    {
+                        "id": "928d5fa5-504d-4611-9c99-6117bfa9d94f",
+                        "kg": 50,
+                        "code": "PRSDM-KNM-KH26-BSTA-M-0001",
+                        "reason": "head rice kept for the next season's seed trial"
+                    },
+                    {
+                        "id": "c41e9391-d20f-455b-b879-d17c95a0762c",
+                        "kg": 25,
+                        "code": "PRSDM-KNM-KH26-BSTA-PK-0001",
+                        "reason": "packs given out as samples to buyers"
+                    }
+                ],
+                "pod": [
+                ],
+                "flags": [
+                    {
+                        "id": "152ba4b0-6bba-476d-8320-57aef0b90c80",
+                        "kg": null,
+                        "code": "PRSDM-KNM-KH26-BSTA-CM-0001",
+                        "reason": "carried over: the buyer will reweigh at Delhi"
+                    }
+                ],
+                "packs": [
+                    {
+                        "held": 25,
+                        "reason": "samples to buyers, not for sale",
+                        "batch_code": "PRSDM-KNM-KH26-B0001"
+                    }
+                ],
+                "balance": [
+                ]
+            },
+            "version": 1,
+            "written_off": [
+                {
+                    "kg": 50.000,
+                    "code": "PRSDM-KNM-KH26-BSTA-M-0001",
+                    "stage": "milling",
+                    "reason": "Written off at close: head rice kept for the next season's seed trial"
+                },
+                {
+                    "kg": 50.000,
+                    "code": "PRSDM-KNM-KH26-BSTA-P-0002",
+                    "stage": "procurement",
+                    "reason": "Written off at close: the farmer took this lot back unsold"
+                },
+                {
+                    "kg": 25.000,
+                    "code": "PRSDM-KNM-KH26-BSTA-PK-0001",
+                    "stage": "packing",
+                    "reason": "Written off at close: packs given out as samples to buyers"
+                }
+            ],
+            "confirmed_at": "2026-10-21T06:34:39.970356+00:00",
+            "confirmed_by": "UP State Manager",
+            "requested_at": "2026-10-21T06:34:39.970356+00:00",
+            "requested_by": "Prasaadam Client Manager"
+        },
+        "packing": [
+            {
+                "last": "PRSDM-KNM-KH26-B0001-0030",
+                "void": 0,
+                "first": "PRSDM-KNM-KH26-B0001-0001",
+                "packs": 30,
+                "by_size": "30 × 1 kg pouch",
+                "packing": "PRSDM-KNM-KH26-BSTA-PK-0001",
+                "packed_on": "2026-10-21",
+                "batch_code": "PRSDM-KNM-KH26-B0001",
+                "net_weight": null,
+                "wastage_kg": 0.000,
+                "best_before": "2027-10-21",
+                "wastage_pct": 0.00
+            }
+        ],
+        "quality": [
+            {
+                "on": "2026-10-21",
+                "lab": "Gorakhpur Grain Lab",
+                "code": "PRSDM-KNM-KH26-BSTA-QC-0001",
+                "files": null,
+                "export": "pass",
+                "sample": null,
+                "accepted": null,
+                "domestic": "pass",
+                "readings": {
+                    "broken_pct": 2,
+                    "moisture_pct": 11.8,
+                    "foreign_matter_pct": 0.2
+                },
+                "report_no": "GGL/2026/63",
+                "report_date": "2026-10-21",
+                "lab_accreditation": "TC-5521"
+            }
+        ],
+        "headline": {
+            "qc": [
+                {
+                    "lots": 1,
+                    "failed": 0,
+                    "market": "domestic",
+                    "passed": 1,
+                    "pending": 0,
+                    "accepted": 0,
+                    "pass_pct": 100.0
+                },
+                {
+                    "lots": 1,
+                    "failed": 0,
+                    "market": "export",
+                    "passed": 1,
+                    "pending": 0,
+                    "accepted": 0,
+                    "pass_pct": 100.0
+                }
+            ],
+            "scans": 0,
+            "gi_pct": 0.0,
+            "farmers": 2,
+            "recalls": 0,
+            "sold_kg": 5.000,
+            "villages": 2,
+            "packed_kg": 30.000,
+            "copy_flags": 0,
+            "packs_held": 25,
+            "shipped_kg": 5.000,
+            "procured_kg": 180.000,
+            "sealed_lots": 1,
+            "packs_released": 5,
+            "farm_verified_pct": 100.0,
+            "packs_released_old": 0
+        },
+        "open_items": {
+            "flags": [
+                {
+                    "code": "PRSDM-KNM-KH26-BSTA-CM-0001",
+                    "kind": "flag",
+                    "text": "buyer asked about the bag weight"
+                }
+            ],
+            "pending": 0,
+            "lab_hold": 0,
+            "packs_held": 25,
+            "awaiting_pod": [
+            ]
+        }
+    }
+}

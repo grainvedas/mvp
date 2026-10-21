@@ -72,6 +72,7 @@ begin
   insert into public.warehouse_bags_out (footprint_id, scope_id, out_on, bags, recorded_by) values (p_fp, p_scope, current_date, 1, p_user);
   insert into public.qr_seals (footprint_id, qr_code, sealed_by, ledger_hash) values (p_fp, 'GV-ISO' || p_tag, p_user, repeat('b', 64));
   insert into public.qc_profile_verdicts (footprint_id, profile_id, code, name, version, verdict) values (p_fp, gen_random_uuid(), 'iso', 'iso', 1, 'pass');
+  insert into public.scope_closures (scope_id, client_id, requested_by, status) values (p_scope, p_client, p_user, 'withdrawn');   -- migration 63
 end $f$;
 set local session_replication_role = replica;
 select pg_temp.fill('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000499', '00000000-0000-4000-8000-000000000699', '00000000-0000-4000-8000-000000000599', '00000000-0000-4000-8000-000000000312', 'D2');

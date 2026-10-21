@@ -26,6 +26,12 @@ insert into allowed values
   ('anon', 'environment'), ('authenticated', 'environment'), ('authenticated', 'lot_markets'), ('authenticated', 'scope_activity'),
   ('authenticated', 'export_journey'), ('authenticated', 'export_season'), ('authenticated', 'may_internal_copy'),       -- migration 60
   ('authenticated', 'stage_balance'),                                                                                     -- migration 61
+  ('authenticated', 'close_checklist'), ('authenticated', 'request_close'), ('authenticated', 'decide_close_request'),       -- migration 63
+  ('authenticated', 'confirm_close'), ('authenticated', 'reopen_scope'), ('authenticated', 'generate_interim_report'),
+  ('authenticated', 'report_content'), ('authenticated', 'register_report_file'), ('authenticated', 'note_report_download'),
+  ('authenticated', 'scope_reports'), ('authenticated', 'scope_close_state'), ('authenticated', 'withdraw_report'),
+  ('authenticated', 'reports_issued'), ('authenticated', 'public_document'), ('anon', 'public_document'),
+  ('authenticated', 'may_read_report_file'), ('authenticated', 'may_write_report_object'),
   ('authenticated', 'client_waiting'), ('authenticated', 'client_farmers'), ('authenticated', 'doc_kind_word'),        -- migration 59
   ('authenticated', 'same_file_elsewhere'), ('authenticated', 'note_same_file'), ('authenticated', 'is_client_login'),
   ('authenticated', 'reset_login_allowed'), ('authenticated', 'report_client_error'), ('authenticated', 'check_ledger_now'),

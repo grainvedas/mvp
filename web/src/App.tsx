@@ -7,6 +7,7 @@ import { CrashCard, ErrorBoundary } from './shell/ErrorBoundary';
 import { PracticeStrip } from './shell/PracticeStrip';
 import { PublicVerify } from './pages/public/PublicVerify';
 import { PublicPack } from './pages/public/PublicPack';
+import { DocumentVerify } from './pages/public/DocumentVerify';
 
 const PrivateApp = lazy(() => import('./PrivateApp'));
 const InvitePage = lazy(() => import('./pages/public/Invite'));
@@ -21,6 +22,7 @@ export function App() {
           <Routes>
             <Route path="/verify/:code" element={<PublicVerify />} />
             <Route path="/p/:serial" element={<PublicPack />} />   {/* migration 50: one pack's own QR */}
+            <Route path="/d/:ref" element={<DocumentVerify />} />   {/* migration 63 (Part D3): "Verify this document" */}
             <Route path="/invite" element={<Suspense fallback={<main><Loading /></main>}><InvitePage /></Suspense>} />
             <Route path="/b" element={<Suspense fallback={<main><Loading /></main>}><BuyerView /></Suspense>} />
             <Route path="/*" element={<Suspense fallback={<main><Loading /></main>}><PrivateApp /></Suspense>} />

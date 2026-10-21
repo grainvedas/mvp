@@ -229,7 +229,7 @@ function ClosePanel({ r, mayAct, onDone }: { r: FootprintDetail; mayAct: boolean
   const f = r.footprint;
   const act = useAction();
   const [why, setWhy] = useState('');
-  if (r.closure) return <div className="card" data-testid="lot-closure"><p className="small">{t('cl.closed', { kg: kg(r.closure.floor_loss_kg), why: r.closure.reason, by: r.closure.closed_by_name ?? '—', at: dateTime(r.closure.closed_at) })}</p></div>;
+  if (r.closure) return <div className="card" data-testid="lot-closure"><p className="small">{t(r.closure.kind === 'written_off' ? 'cl.written_off' : 'cl.closed', { kg: kg(r.closure.floor_loss_kg), why: r.closure.reason, by: r.closure.closed_by_name ?? '—', at: dateTime(r.closure.closed_at) })}</p></div>;
   const left = Number(r.available_kg);
   if (!mayAct || f.status !== 'verified' || f.lot_closed || !(left > 0) || left > Math.max(Number(f.qty_out) * 0.02, 2)) return null;
   const close = () => act.run(async () => { await rpc('close_lot', { p_fp: f.id, p_reason: why.trim() }); onDone(); });

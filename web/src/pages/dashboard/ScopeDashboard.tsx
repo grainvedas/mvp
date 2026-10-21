@@ -11,6 +11,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { exportSeason, mayInternalCopy, seasonXlsx, stageBalance, type Copy, type StageBalance } from '../../lib/exports';
 import { date, dateTime, humanise, kg } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Loading } from '../../shell/ui';
+import { SeasonReport } from './SeasonReport';
 
 export interface PipeRow { stage: string; chain_pos: number; records: number; pending: number; verified: number; kg_out: number; kg_available: number }
 interface SealRow { qr_code: string; sealed_at: string; batch_codes: string[]; footprint_id: string;
@@ -47,7 +48,8 @@ export function MassBalance({ rows, stageLabel }: { rows: StageBalance[]; stageL
           n('dash.bal_in', b.kg_in), n('dash.bal_on', b.handed_on_kg),
           Number(b.by_products_kg) ? n('dash.bal_byp', b.by_products_kg) : '', Number(b.other_kg) ? n('dash.bal_other', b.other_kg) : '',
           Number(b.floor_loss_kg) ? n('dash.bal_loss', b.floor_loss_kg) : '', Number(b.transit_loss_kg) ? n('dash.bal_transit', b.transit_loss_kg) : '',
-          Number(b.closed_kg) ? n('dash.bal_closed', b.closed_kg) : '', n('dash.bal_left', b.left_kg),
+          Number(b.closed_kg) ? n('dash.bal_closed', b.closed_kg) : '', Number(b.written_off_kg ?? 0) ? n('dash.bal_written_off', b.written_off_kg ?? 0) : '',
+          n('dash.bal_left', b.left_kg),
         ].filter(Boolean);
         return (
           <li key={b.stage} data-testid="balance-row" data-stage={b.stage} data-balanced={b.balanced ? 'yes' : 'no'}>
@@ -102,6 +104,11 @@ export function ScopeDashboard() {
         </div>
         {internal.data === true && <p className="small muted no-print" data-testid="season-copies">{t('exp.copies_note')}</p>}
         <ErrorBox error={exp.error} />
+      </div>
+
+      <div className="card" data-testid="season-report-card">
+        <h2>{t('srep.title')}</h2>
+        <SeasonReport scopeId={scopeId} />
       </div>
 
       <div className="card">

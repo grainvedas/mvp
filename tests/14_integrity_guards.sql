@@ -267,8 +267,9 @@ begin
   perform t.staff(r.id);   -- migration 44
   update public.scopes set status = 'active', activated_at = now() - interval '50 days' where id = r.id returning * into r;
   perform t.ok(r.status = 'active' and r.activated_at = now(), 'S1 activation is stamped by the server');
-  update public.scopes set status = 'closed' where id = r.id returning * into r;
-  perform t.ok(r.status = 'closed', 'closing a scope at season end still works');
+  -- migration 63 (Part D1): a signed-in person closes a scope only through its close request (tests/58)
+  perform t.fails(format('update public.scopes set status = ''closed'' where id = %L', r.id), 'through its close request',
+                  'a scope is not closed by a plain update');
   perform t.as_service();
 end $$;
 rollback;

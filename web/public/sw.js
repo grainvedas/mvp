@@ -27,7 +27,8 @@ async function precache() {
     const m = await (await fetch('/asset-manifest.json', { cache: 'no-store' })).json();
     const files = new Set();
     for (const e of Object.values(m)) { files.add('/' + e.file); (e.css || []).forEach((f) => files.add('/' + f)); (e.assets || []).forEach((f) => files.add('/' + f)); }
-    await c.addAll([...files]);
+    // migration 63: the season report's writer and its fonts (about 1.3 MB) are for managers, online: not on every phone
+    await c.addAll([...files].filter((f) => !/\/assets\/(reportPdf|reportXlsx|reportFiles)-|noto-sans-devanagari/.test(f)));
   } catch { /* dev server: no manifest, runtime caching still works */ }
 }
 self.addEventListener('install', (e) => { e.waitUntil(precache().then(() => self.skipWaiting())); });

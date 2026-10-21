@@ -431,6 +431,18 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   Every shipment of a packed lot carries its codes (`v_packed` in `app.reconcile`: by packs or by the kilogram, whatever
   `stage_details_required`; by the kilogram the codes weigh what is shipped); the form's field is `when_packed`. A test
   that ships a packed lot gives its codes (`t.codes(packing, n, size)` in `tests/01_helpers.sql`).
+- **A scope closes through its request; a closed scope reads only; the season report is issued once** (migration 63,
+  the brief's Part D). The Client Manager requests (`app.request_close`) and the State Manager of the scope's state
+  confirms (`app.confirm_close`), never the requester; never set `scopes.status` to closed or back in any other way
+  (`scopes_guard` allows it only under `app.scope_close` / `app.scope_reopen`, set by those functions). What blocks the
+  close is `app.close_checklist_of` only; a new kind of open item goes there, with a case in
+  `tests/58_close_scope_report.sql`. A closed scope's tables are guarded by `a01_closed_scope` (`app.closed_scope_guard`):
+  a new table of a scope's records gets that trigger. A write-off is a `lot_closures` row of kind `written_off` with its
+  own `write_off` block, and counts apart in the mass balance. A report's data is `app.season_report_data` as issued
+  (kept in `reports`, never recomputed or edited); a new report replaces an old one only by superseding it; its files are
+  made in the browser from that data and stored by `app.register_report_file`. The words: "Verified traceability
+  statement: season report", the brief's footer, never "certificate" otherwise; the shareable copy carries no farmer's
+  name or phone and no price.
 - **Packs go in cartons; an order sets them aside; Reports to is a rule** (migration 58, Veda 16 Oct 2026, G24). A
   carton is made only by the packing save (`app.make_cartons` from `app.make_packs`, when the pack type has
   `packs_per_carton`); never insert, delete or renumber one; it is opened only by `app.void_pack`. What an order takes is
