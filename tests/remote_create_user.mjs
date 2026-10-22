@@ -177,13 +177,18 @@ r = await call(hr, { kind: 'viewer', client_id: prasaadam, display_name: `Buyer 
 ok(r.status === 403, 'HR cannot create a client login → 403', JSON.stringify(r));
 r = await call(cm, { kind: 'viewer', client_id: other, display_name: `Buyer ${suffix}`, email: `buyer${suffix}@example.test` });
 ok(r.status === 403, 'a Client Manager cannot create one for another client → 403', JSON.stringify(r));
+// migration 67 (Phase 3, A1): the creator says first what the account is; a Client Manager's viewer sees one state
+const UP = '00000000-0000-4000-8000-000000000001';
+const said = await as(cm).rpc('prepare_client_account', { p_client: prasaadam, p_kind: 'viewer', p_email: `buyer${suffix}@example.test`, p_reach: 'state', p_state: UP });
+ok(said.ok, 'the Client Manager says it is a viewer of Uttar Pradesh\'s scopes', JSON.stringify(said.data));
 r = await call(cm, { kind: 'viewer', client_id: prasaadam, display_name: `Buyer ${suffix}`, email: `buyer${suffix}@example.test` });
 ok(r.status === 201, 'the Client Manager creates the client\'s own login → 201', JSON.stringify({ status: r.status, error: r.data?.error }));
 const vid = r.data?.app_user_id;
 const vtok = await tryIn({ email: `buyer${suffix}@example.test`, password: r.data?.temporary_password });
 const vctx = vtok ? (await as(vtok).rpc('my_context')).data : null;
-ok(vctx?.user?.external === true && vctx.user.role === 'client_view' && vctx.scopes.length >= 7 && vctx.scopes.every((s) => !s.manage && s.whole),
-   'it signs in at once and reads every scope of that client, managing none', JSON.stringify(vctx?.user));
+ok(vctx?.user?.external === true && vctx.user.role === 'client_view' && vctx.user.client_account?.kind === 'viewer' && vctx.scopes.length >= 6
+     && vctx.scopes.every((s) => !s.manage && s.whole && s.state_id === UP),
+   'it signs in at once and reads every scope of that client in its state, managing none', JSON.stringify(vctx?.user));
 ok(((await svc.get('onboarding_tasks', `employee_id=eq.${vid}&select=id`)).data ?? []).length === 0, 'it has no checklist: it is not an employee');
 
 // ---------------------------------------------------------------------------------------------------------------

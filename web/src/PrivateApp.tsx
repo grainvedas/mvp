@@ -8,6 +8,7 @@ import { en } from './lib/i18n.en';
 import { hi } from './lib/i18n.hi';
 import { Layout } from './shell/Layout';
 import { ErrorBox, Loading } from './shell/ui';
+import { isClientLogin } from './lib/rights';
 import { Home } from './pages/Home';
 import { StagePage } from './engine/StagePage';
 import { RecordDetail } from './pages/records/RecordDetail';
@@ -56,7 +57,7 @@ export function AdminOnly({ children }: { children: ReactNode }) {
  *  database refuses its writes anyway). */
 export function NotForClientLogin({ children }: { children: ReactNode }) {
   const { ctx } = useAuth();
-  return ctx?.user?.external ? <Navigate to="/" replace /> : <>{children}</>;
+  return isClientLogin(ctx) ? <Navigate to="/" replace /> : <>{children}</>;      // migration 67: the client's own staff work here
 }
 
 /** HR's screens open only for HR (and the admin while the HR Admin seat is empty): brief 2.2. Anyone else goes home. */

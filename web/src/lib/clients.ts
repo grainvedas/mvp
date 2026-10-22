@@ -54,7 +54,9 @@ export interface ClientView { identity: Identity; shared_only: boolean; contact?
   states: StateRow[];
   may: { edit?: boolean; edit_states?: string[]; edit_identity?: boolean; edit_code?: boolean; set_pan?: boolean; approve?: boolean; full_numbers?: boolean; add_state?: boolean;
     /** migration 65: the reader's own states not yet the client's (Part C); status moves; the national documents; renewals */
-    add_states?: { id: string; name: string }[]; set_status?: boolean; national_docs?: boolean; renew?: boolean } }
+    add_states?: { id: string; name: string }[]; set_status?: boolean; national_docs?: boolean; renew?: boolean;
+    /** migration 67: the client's accounts card (the admin, the owner, the Client Manager) */
+    accounts?: boolean } }
 export interface PageRow { client_id: string; name: string; legal_name: string; code: string; pan_masked: string | null; pan_pending: boolean;
   own_brand: boolean; entity_type: EntityType; national_status: ClientStatus;
   states: { state_id: string; state: string; status: ClientStatus; legacy: boolean; awaiting_approval: boolean; progress: { done: number; of: number } | null }[] }

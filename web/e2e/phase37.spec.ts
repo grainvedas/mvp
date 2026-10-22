@@ -136,9 +136,15 @@ test('a state added to a client, its gates, the notice; suspended and resumed; t
     await expect(n).toBeVisible();
     await page.getByTestId('notices-read').click();
     await expect(n).toHaveCount(0);
+    // migration 67 (Phase 3, A1/A3): a renewal is the client's OWNER's act; the login of before is a viewer until the admin
+    // promotes it (tests/62 and e2e/phase39 cover the rule; here it is promoted as the brief allows)
+    const admin = await apiAs(page);
+    const who = await admin.rpc('client_accounts_of', { p_client: CLIENT });
+    const view = ((who.data as { accounts: { id: string; name: string; kind: string }[] }).accounts).find((a) => a.name === 'Prasaadam Client View');
+    if (view && view.kind === 'viewer') expect((await admin.rpc('make_client_owner', { p_user: view.id })).ok).toBe(true);
     await signOut(page);
 
-    // 5 · B5: the client's own login uploads a renewed MSA; Ram is told and accepts it
+    // 5 · B5: the client's own login (its owner) uploads a renewed MSA; Ram is told and accepts it
     await signIn(page, USERS.view);
     await page.goto(`/clients/${CLIENT}`);
     const f = page.getByTestId('renewal-form');

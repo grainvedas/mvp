@@ -21,6 +21,8 @@ import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { buildsScope, givesAssignments, myStateIds, oversees, seatsStateManagers } from '../../lib/rights';
 import { AccessBadges, Confirm, OrgLine, StatusBadge, TempPassword, WarningList, useStageName } from './shared';
 import { ReadyToAssign } from '../hr/Scale';
+import { NewClientAccount } from '../clients/ClientAccounts';
+import { clientAccounts } from '../../lib/clientAccounts';
 import { elsewhereLine, poolGroups, type Elsewhere } from '../../lib/setup';
 import { ScopeRequirementCard } from '../scopes/ScopeRequirement';
 import { BaseLocation, HrScopeNote, stateChoices, useHrScope } from '../hr/Geo';
@@ -102,29 +104,24 @@ export function Directory() {
   );
 }
 
-/** A client's own read-only login. Not an employee: made here by whoever manages the client, never by HR. */
+/** A client's own login (migration 67: a viewer of one state's scopes, or the client's own staff), made here by its Client
+ *  Manager, never by HR. Not an employee. The owner is the admin's to make, on the client's page. */
 function NewClientLogin({ clients, done }: { clients: Named[]; done: () => void }) {
   const { t } = useI18n();
-  const [f, setF] = useState({ client_id: '', display_name: '', email: '' });
-  const [made, setMade] = useState<{ who: string; pw: string } | null>(null);
-  const act = useAction();
-  useEffect(() => { if (!f.client_id && clients.length === 1) setF((s) => ({ ...s, client_id: clients[0].id })); }, [clients, f.client_id]);
-  const submit = (e: FormEvent) => { e.preventDefault(); void act.run(async () => {
-    const r = await callFunction<{ sign_in: string; temporary_password: string }>('create-user', { kind: 'viewer', ...f });
-    setMade({ who: r.sign_in, pw: r.temporary_password }); setF({ ...f, display_name: '', email: '' }); done();
-  }); };
+  const [client, setClient] = useState('');
+  useEffect(() => { if (!client && clients.length === 1) setClient(clients[0].id); }, [clients, client]);
+  const info = useAsync(() => client ? clientAccounts(client).catch(() => null) : Promise.resolve(null), [client]);
+  const pick = (
+    <Field label={t('lens.client')} htmlFor="cl-client"><select id="cl-client" value={client} onChange={(e) => setClient(e.target.value)} required>
+      <option value="">—</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>);
+  if (client && info.data) return <NewClientAccount client={client} info={info.data} done={done} title={t('people.new_client_login')}
+    label={t('people.new_client_login')} note={t('people.client_login_note')} before={pick} />;
   return (
-    <form className="card" onSubmit={submit} aria-label={t('people.new_client_login')}>
+    <form className="card" aria-label={t('people.new_client_login')} onSubmit={(e) => e.preventDefault()}>
       <h2 style={{ marginTop: 0 }}>{t('people.new_client_login')}</h2>
       <p className="muted small">{t('people.client_login_note')}</p>
-      {made && <TempPassword who={made.who} password={made.pw} />}
-      <div className="form-grid">
-        <Field label={t('lens.client')} htmlFor="cl-client"><select id="cl-client" value={f.client_id} onChange={(e) => setF({ ...f, client_id: e.target.value })} required>
-          <option value="">—</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-        <Field label={t('hr.f_name')} htmlFor="cl-name"><input id="cl-name" value={f.display_name} onChange={(e) => setF({ ...f, display_name: e.target.value })} required /></Field>
-        <Field label={t('hr.f_email')} htmlFor="cl-email"><input id="cl-email" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} required /></Field>
-      </div>
-      <ErrorBox error={act.error} /><button type="submit" disabled={act.busy}>{t('common.create')}</button>
+      <div className="form-grid">{pick}</div>
+      {info.loading && <Loading />}
     </form>
   );
 }

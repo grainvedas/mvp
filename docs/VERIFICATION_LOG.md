@@ -3331,3 +3331,71 @@ That check, taken out of the script and run with PowerShell 7.4 on the local cop
 - with one byte added to a font: `diff=1`, naming the font.
 
 The script parses cleanly.
+
+## 22 October 2026, 02:54 IST: wording fixes on staging (`staging-wording-fixes.cmd`)
+
+Veda ran the corrected script. Its record is `release-evidence\staging-wording-fixes-20261022-025410.log`.
+
+- **S0 OK:** the practice project answered `staging`, the 190 app and function files were the tested ones, no
+  migration was waiting, the functions were current, and the phrase was typed.
+- **S1 OK:** pushed `5632b4c` (10 files). `RESULT: WORDING FIXES ON STAGING`.
+
+Checked by Claude afterwards, as Lucky:
+
+- Staging serves the new bundle `index-C3xlB20m.js`. Its dictionary has `sp.title` "Same person, next stage" and
+  `sp.partners_title` "Sourcing partners", and the admin overview uses `ctype.*`.
+- At 527 px, the Bansi scope's page shows the partners card as "Sourcing partners" and the roster line as "same
+  person, next stage". Nothing scrolls sideways.
+- Not seen on screen: Ram's overview card and the admin's overview "FPO". Those need their sign-ins. The bundle
+  carries both.
+
+## 22 October 2026: Phase 3 release 1, client accounts (migration 67), on the local stack
+
+Veda: "ok continue" (Phase 3, with the five defaults given: existing scopes Managed; the admin's owner as one logged
+act; the evidence pack's PDF drawn in the browser; `/verified/<client-code>`; a second state on staging later).
+Found while planning: Phase 2's B4 (the delivery model, the GI authorised-user number) had not been built; it is in
+this release.
+
+- **Database.** `tests/62_client_accounts.sql`: **77** checks, written for this release. **18 of 18** negative controls were
+  caught (`controls67.py`: each breaks one rule of migration 67 on a copy of the template).
+  - One control was first counted as missed. It was caught by an earlier assertion than the one named, so its expected
+    assertion was corrected.
+  - Every database test on a rebuilt template: **2,757**, no failure.
+  - Older tests changed for the new rule, each with a comment:
+    - `tests/08`: the new functions are on the allowlist;
+    - `tests/25`: the Client Manager says first what the login is;
+    - `tests/55` and `tests/58`: the demo client login is now a viewer, so the owner's allowance is needed for internal
+      copies; `tests/55` also checks that it is refused without it;
+    - `tests/60`: the renewal is the owner's act;
+    - `tests/remote_create_user.mjs`: the Client Manager's viewer sees one state.
+  - `tests/run_local.sh`: ALL TESTS PASSED (with the upgrade path).
+  - The release script's read-back on the template:
+    - `tables=new closed=yes functions=new triggers=yes logins_without_account=0`;
+    - `rule67=OK`;
+    - `leaks=0 people=15 tables=44 calls=1545`.
+  - The smoke check: **65** rows; only the standing ones not OK.
+- **Unit tests: 752.** The new `release67.test.tsx` has 9 tests. The type check is clean.
+- **e2e: 104 of 105** in the whole suite.
+  - `phase35` failed: it expected the demo client login to download the season report's internal copy, which a viewer
+    may no longer do. The test now checks the shareable copy and that no internal button is offered.
+  - On a fresh stack, `phase22`, `phase29` and `phase34`–`phase39` passed **10 of 10**, the corrected `phase35` and
+    the new `phase39` included.
+  - `phase37`: the admin promotes the demo login to owner before the renewal step.
+  - `phase8` and `phase39` passed again after a last layout change (9 of 9).
+- **Other checks.**
+  - The built app: 14 of 14.
+  - REMOTE RLS PASSED (193).
+  - CREATE-USER PASSED (96). The first run had 5 failures from the test of before (no "say first"); the test was
+    corrected and run again on a demo stack.
+  - Restore drill:
+    - after the whole suite: HR documents 4 of 5 (standing, as in every release);
+    - on a fresh stack: RESTORE DRILL PASSED.
+  - Fresh start: passed.
+- **Pictures at 390 and 1366 px.** The client page's Client accounts card (as the admin and as the Client Manager),
+  "How this scope is run", and People → Client logins. Nothing is wider than the screen. One fix was made after
+  looking: an account's badges and buttons are kept together on a wide screen.
+- **Words.** Every new word is in English and Hindi. The words helper now refuses to replace an existing key unless
+  that key is named (a run with `sp.title` refused, files untouched).
+- **Release script.** `staging-client-accounts.cmd` (`scripts/staging_client_accounts.ps1`, phrase `ACCOUNTS`) parses
+  cleanly under PowerShell 7.4. Its tested-files check was taken out and run on this copy: all tested files match and
+  193 app files, `diff=0`. Not yet run; it waits for Veda's say-so.

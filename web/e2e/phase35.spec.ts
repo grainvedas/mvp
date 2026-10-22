@@ -104,16 +104,18 @@ test('close a scope: the check, the request, the confirmation, the final report 
   await expect(page.getByTestId('dv-files')).toContainText(sha);
   await expectNoSideScroll(page);
 
-  // the client's own login: downloads, both copies; offered no close and no reopen
+  // the client's own login (a viewer since migration 67: the shareable copy; the internal one only if its owner allows
+  // it, tests/62 and tests/58): downloads; offered no close and no reopen
   await signIn(page, USERS.view);
   await page.goto(`/dashboard/${S}`);
   await expect(card(page).getByTestId('report-row').first()).toHaveAttribute('data-ref', ref);
   await expect(card(page).getByTestId('close-open')).toHaveCount(0);
   await expect(card(page).getByTestId('reopen-open')).toHaveCount(0);
   await expect(card(page).getByTestId('interim-go')).toHaveCount(0);
+  await expect(card(page).getByTestId('report-row').first().getByTestId('file-xlsx_en_internal')).toHaveCount(0);
   const dl2 = page.waitForEvent('download');
-  await card(page).getByTestId('report-row').first().getByTestId('file-xlsx_en_internal').click();
-  expect((await dl2).suggestedFilename()).toBe(`grainveda-season-report-${ref}-internal-en.xlsx`);
+  await card(page).getByTestId('report-row').first().getByTestId('file-xlsx_en_shareable').click();
+  expect((await dl2).suggestedFilename()).toBe(`grainveda-season-report-${ref}-shareable-en.xlsx`);
   await signOut(page);
 
   // the State Manager reopens with a reason; the Client Manager makes an interim report

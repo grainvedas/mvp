@@ -9,6 +9,7 @@
 // client's own login uploads for its State Manager to accept.
 // Every rule is the server's (tests/59_client_registry.sql, tests/60_client_states_status.sql).
 import { useMemo, useState, type FormEvent } from 'react';
+import { ClientAccountsCard } from './ClientAccounts';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { q } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
@@ -192,6 +193,7 @@ export function ClientPage() {
         {!!d.may.add_states?.length && <div className="card"><AddStates client={idn.client_id} states={d.may.add_states} after={v.reload} /></div>}
         {d.states.map((s) => <StateCard key={s.state_id} d={d} s={s} reload={v.reload} />)}
         {(d.may.renew || d.may.set_status || d.may.approve) && <Renewals d={d} reload={v.reload} />}
+        {d.may.accounts && <ClientAccountsCard client={idn.client_id} />}                {/* migration 67 (Phase 3, A1) */}
       </>}
     </div>
   );

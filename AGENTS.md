@@ -474,6 +474,19 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   never by a screen. Buyers are linked to the registry only by `app.link_buyer` (trigger) into the closed
   `buyer_entities`: never read it on a screen or in an export. `scopes.entry_point` accepts only `farmer_procurement`
   until the handoff is designed. A case for any new rule here in `tests/61_sourcing_partners_hooks.sql`.
+- **A client account is an owner, a viewer or the client's own staff; one rule decides its writes** (migration 67,
+  Phase 3 Parts A and B, with Phase 2's B4). What a client account may write is `app.client_may` only, asked by the
+  trigger of every client-login guard (`app.client_login_reads_only`); a new owner's act names itself inside its own
+  definer function (`app.client_act`), a new table of a stage's work goes into `app.client_table_act`. An account is made
+  only by saying first what it is (`app.prepare_client_account`, then create-user as before); its status, reach and
+  internal copies change only through their functions. A viewer sees what it reaches (`app.account_reaches` in
+  `app.views_scope_row`): a new read of a client's data by a client account asks it (or `app.account_states`,
+  `app.account_sees_farmer`). The client's staff hold stages only on a Hybrid or Self-run scope of their client
+  (`app.client_operator_for` in `app.stage_refusal`); their records are `footprints.client_staff` and are verified by
+  GrainVeda only. `scopes.delivery_model` and the GI authorised user change only through `app.set_scope_delivery` /
+  `app.set_scope_gi_user`. A case for any new rule here in `tests/62_client_accounts.sql`. The screens ask
+  `isClientLogin` (an owner or a viewer: no stage page), `isClientOperator`, `isClientOwner` (`lib/rights.ts`), never
+  `external` alone.
 - **Packs go in cartons; an order sets them aside; Reports to is a rule** (migration 58, Veda 16 Oct 2026, G24). A
   carton is made only by the packing save (`app.make_cartons` from `app.make_packs`, when the pack type has
   `packs_per_carton`); never insert, delete or renumber one; it is opened only by `app.void_pack`. What an order takes is

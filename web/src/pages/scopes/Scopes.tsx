@@ -1,6 +1,7 @@
 // S7 scope list · S8 scope wizard (season + place → crop → chain with live problems → people) · scope view
 // Identity layer (6 Oct 2026): a scope has its own state (a client may work in several); the People step gives stages
 // to people from the pool HR has made (pages/people: RosterEditor) and no longer creates anybody.
+import { DELIVERY_MODELS, saveGiUser, setDeliveryModel, type DeliveryModel } from '../../lib/clientAccounts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { rpc, q } from '../../lib/api';
@@ -22,6 +23,8 @@ interface ScopeRow { id: string; client_id: string; crop_id: string; season_code
   /** migration 48 (E4): in the scope's record numbers */ short_code?: string | null;
   /** migration 50 (C5): the lab record names the lab, the report and attaches it (set before activation) */ qc_report_required?: boolean;
   state_id?: string; season_end?: string | null;
+  /** migration 67 (Phase 2, B4): how the scope is run; the client's GI authorised-user number and its certificate */
+  delivery_model?: DeliveryModel; gi_user_no?: string | null; gi_user_file?: string | null;
   /** migration 55 (C3): a stored lot is inspected every so many days (its Client Manager, any time) */ warehouse_inspection_days?: number;
   /** migration 52 (C1): Procurement records price and payment; asks where, the GPS and who delivered. Changed at any time. */
   record_price?: boolean; procurement_details_required?: boolean;
@@ -146,6 +149,7 @@ export function ScopeWizard() {
         <p><strong>{t('ov.c_client')}:</strong> {clients.data?.find((c) => c.id === s.client_id)?.name ?? '—'} · <strong>{t('lens.state')}:</strong> {states.data?.find((x) => x.id === s.state_id)?.name ?? '—'}</p>
         <p><strong>Chain:</strong> {s.chain.map((x) => defs.data?.find((d) => d.stage_type === x)?.label ?? humanise(x)).join(' → ')}</p>
         <p className="small"><Link to={`/scopes/${s.id}/roster`}>{t('roster.title')}</Link>{s.status !== 'draft' && <> · <Link to={`/dashboard/${s.id}`}>{t('dash.open')}</Link></>}</p>
+        <ScopeDelivery s={s} gi={!!crops.data?.find((c) => c.id === s.crop_id)?.gi_crop} manage={false} onSaved={(x) => existing.setData(x)} />
         <h3>{t('wizard.step4')}</h3>
         <RosterEditor scopeId={s.id} />
       </div>}
@@ -191,6 +195,7 @@ export function ScopeWizard() {
       {frozen && <div className="alert info">{t('wizard.activate_warning')}</div>}
       {s && s.chain.includes('procurement') && <ProcurementSettings s={s} onSaved={(x) => existing.setData(x)} />}
       {s && s.chain.includes('procurement') && <ScopePartners scopeId={s.id} manage={buildsScope(ctx, s.id) && s.status !== 'closed'} />}
+      {s && <div className="card"><ScopeDelivery s={s} gi={!!crop?.gi_crop} manage={buildsScope(ctx, s.id) && s.status !== 'closed'} onSaved={(x) => existing.setData(x)} /></div>}
       {s && s.chain.some((x) => x === 'milling' || x === 'qc' || x === 'packing') && <StageSettings s={s} onSaved={(x) => existing.setData(x)} />}
 
       {step === 1 && !frozen && (
@@ -423,4 +428,52 @@ function StageSettings({ s, onSaved }: { s: ScopeRow; onSaved: (x: ScopeRow) => 
       </>}
       <ErrorBox error={act.error} />
     </div>);
+}
+
+/** Migration 67 (Phase 2, B4): how this scope is run (Managed, Hybrid, Self-run) and, for a GI crop, the client's GI
+ *  authorised-user number with its certificate. Set by the scope's Client Manager; everyone who reads the scope sees it. */
+function ScopeDelivery({ s, gi, manage, onSaved }: { s: ScopeRow; gi: boolean; manage: boolean; onSaved: (x: ScopeRow) => void }) {
+  const { t } = useI18n();
+  const act = useAction();
+  const model = s.delivery_model ?? 'managed';
+  const [m, setM] = useState<DeliveryModel>(model);
+  const [why, setWhy] = useState('');
+  const [no, setNo] = useState(s.gi_user_no ?? '');
+  const [file, setFile] = useState<File | null>(null);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { setM(s.delivery_model ?? 'managed'); setNo(s.gi_user_no ?? ''); }, [s.delivery_model, s.gi_user_no]);
+  const needsWhy = s.status !== 'draft' && m !== model;
+  const save = () => void act.run(async () => {
+    let x = s;
+    if (m !== model) x = await setDeliveryModel(s.id, m, needsWhy ? why : null) as ScopeRow;
+    if (gi && ((no.trim() || null) !== (s.gi_user_no ?? null) || file)) x = await saveGiUser(s.id, s.client_id, no.trim() || null, file) as ScopeRow;
+    onSaved({ ...s, ...x }); setWhy(''); setFile(null); setSaved(true);
+  });
+  return (
+    <div data-testid="scope-delivery">
+      <h3 style={{ marginTop: 0 }}>{t('sd.title')}</h3>
+      {!manage ? (
+        <dl className="kv">
+          <dt>{t('sd.model')}</dt><dd data-testid="sd-model">{t(`sd.${model}`)}</dd>
+          {gi && <><dt>{t('sd.gi_user')}</dt><dd data-testid="sd-gi">{s.gi_user_no ?? t('sd.gi_none')}{s.gi_user_file ? ` · ${t('sd.file_on_record')}` : ''}</dd></>}
+        </dl>
+      ) : (<>
+        <Field label={t('sd.model')} htmlFor="sd-model">
+          <select id="sd-model" value={m} onChange={(e) => { setM(e.target.value as DeliveryModel); setSaved(false); }} data-testid="sd-model-pick">
+            {DELIVERY_MODELS.map((x) => <option key={x} value={x}>{t(`sd.${x}`)}</option>)}</select></Field>
+        {needsWhy && <Field label={t('sd.reason')} htmlFor="sd-why"><input id="sd-why" value={why} onChange={(e) => setWhy(e.target.value)} data-testid="sd-why" /></Field>}
+        {gi && <>
+          <Field label={t('sd.gi_user')} hint={t('sd.gi_user_hint')} htmlFor="sd-gi"><input id="sd-gi" value={no} maxLength={40} onChange={(e) => { setNo(e.target.value); setSaved(false); }} data-testid="sd-gi-no" /></Field>
+          <Field label={t('sd.gi_file')} htmlFor="sd-gi-file"><input id="sd-gi-file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)} data-testid="sd-gi-file" />
+            {s.gi_user_file && <span className="small muted"> {t('sd.file_on_record')}</span>}</Field>
+        </>}
+        <ErrorBox error={act.error} />
+        <div className="row" style={{ gap: 8 }}>
+          <button type="button" disabled={act.busy || (needsWhy && why.trim().length < 10)} onClick={save} data-testid="sd-save">{t('sd.save')}</button>
+          {saved && !act.error && <span className="small" data-testid="sd-saved">{t('sd.saved')}</span>}
+        </div>
+      </>)}
+    </div>
+  );
 }

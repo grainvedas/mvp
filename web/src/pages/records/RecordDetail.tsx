@@ -8,10 +8,10 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { useAuth } from '../../auth/AuthProvider';
 import { kg, date, dateTime, humanise, num, shortHash, todayIST } from '../../lib/format';
-import { oversees, managesScope, isStateManager, isClientLogin } from '../../lib/rights';
+import { oversees, managesScope, isStateManager, isClientLogin, isClientOwner } from '../../lib/rights';
 import { type Footprint, type FootprintDetail, type QualityParam, type StageForm, type Withdrawal } from '../../lib/types';
 import { Badge, ErrorBox, Loading, Field, plainText } from '../../shell/ui';
-import { uploadEvidence } from '../../engine/evidence';
+import { uploadClientAcceptance, uploadEvidence } from '../../engine/evidence';
 import { ErrorOrSameFile, useDupReason } from '../../engine/DupFile';
 import { EVIDENCE_ACCEPT } from '../../engine/widgets';
 import { ComputedRows, EnteredRows, capturedAt, paramName } from '../../engine/values';
@@ -67,7 +67,8 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
       <h1 className="mono">{t('record.title', { code: f.footprint_code })}</h1>
       {r.data_note === 'practice_old_data' && <div className="alert warn" data-testid="old-data">{t('scope.old_data')}</div>}
       <div className="card">
-        <div className="row"><Badge value={f.status} />{f.lot_closed && <Badge value="closed" label={t('record.lot_closed')} />}{f.grade && <Badge value="verified" label={t('record.grade', { grade: f.grade })} />}</div>
+        <div className="row"><Badge value={f.status} />{f.lot_closed && <Badge value="closed" label={t('record.lot_closed')} />}
+          {f.client_staff && <span className="badge lens" data-testid="client-staff" title={t('record.client_staff_note')}>{t('record.client_staff')}</span>}{f.grade && <Badge value="verified" label={t('record.grade', { grade: f.grade })} />}</div>
         <dl className="kv" style={{ marginTop: 12 }}>
           <dt>{t('record.stage')}</dt><dd>{t(`stage.${f.stage_type}`, undefined, r.stage_label)}</dd>
           {r.farmer && <><dt>{t('record.farmer')}</dt><dd>{r.farmer.name} <span className="mono">{r.farmer.farmer_code}</span>{r.farmer.state_farmer_code && <> · <span className="mono" data-testid="record-state-farmer">{r.farmer.state_farmer_code}</span></>} · {r.farmer.village}</dd></>}
@@ -128,9 +129,11 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
         && me.role !== 'client_view' && !watch && <BillOfLadingPanel f={f} onDone={reload} />}
       {f.stage_type === 'shipment' && <DeliveryPanel r={r} mayAct={me.role !== 'client_view' && !watch} onDone={reload} />}
       {/* migration 56 (Part F): a sale or a shipment shared with its buyer, by the managers of its scope */}
-      {(f.stage_type === 'commercial' || f.stage_type === 'shipment') && boss && !watch && (f.status === 'pending' || f.status === 'verified')
+      {(f.stage_type === 'commercial' || f.stage_type === 'shipment') && (boss || isClientOwner(ctx, f.client_id)) && !watch && (f.status === 'pending' || f.status === 'verified')
         && <BuyerSharePanel fp={f.id} code={f.footprint_code} />}
       {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && !watch && <FinishSeal f={f} onDone={reload} />}
+      {/* migration 67 (Phase 3, A1): the client's owner uploads its written acceptance to the lab record */}
+      {f.stage_type === 'qc' && isClientOwner(ctx, f.client_id) && <AcceptancePanel f={f} has={r.attachments.some((a) => a.label === 'acceptance')} onDone={reload} />}
       {r.attachments.length > 0 && <Attachments detail={r} />}
       {me.role !== 'client_view' && !watch && f.status !== 'superseded' && <AddEvidence f={f} onDone={reload} />}
       <Flags detail={r} onChange={reload} canResolve={boss} canRaise={!isClientLogin(ctx)} />
@@ -725,6 +728,25 @@ function Flags({ detail, onChange, canResolve, canRaise }: { detail: FootprintDe
         </div>
       )}
       <ErrorBox error={act.error} />
+    </div>
+  );
+}
+
+/** Migration 67 (A1): the client's owner attaches its written acceptance (an export release of a lot that did not meet
+ *  the market's limits). GrainVeda's manager decides the release; the acceptance only lets him. */
+function AcceptancePanel({ f, has, onDone }: { f: Footprint; has: boolean; onDone: () => void }) {
+  const { t } = useI18n();
+  const act = useAction();
+  const [file, setFile] = useState<File | null>(null);
+  return (
+    <div className="card" data-testid="acceptance-panel">
+      <h2>{t('acc.title')}</h2>
+      <p className="small muted">{t('acc.note')}</p>
+      {has && <p className="small" data-testid="acceptance-on-file"><Badge value="verified" label={t('acc.on_file')} /></p>}
+      <Field label={t('acc.upload')} htmlFor="acc-file"><input id="acc-file" type="file" accept={EVIDENCE_ACCEPT} onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
+      <ErrorBox error={act.error} />
+      <button type="button" disabled={!file || act.busy} data-testid="acceptance-upload"
+        onClick={() => void act.run(async () => { await uploadClientAcceptance(f, file!); setFile(null); onDone(); })}>{t('acc.upload')}</button>
     </div>
   );
 }

@@ -273,8 +273,12 @@ select t.ok((select status = 'onboarding' and active and join_date = current_dat
 select t.as_user(t.u('17'));
 select t.fails(format($q$ select app.suspend_person(%L, 'x') $q$, t.u('04')), 'cannot suspend', 'client login: HR does not manage it');
 select t.as_user(t.u('03'));
+-- migration 67: the creator says first what the account is (a viewer of one state's scopes, made by the Client Manager)
+select app.prepare_client_account('00000000-0000-4000-8000-000000000201', 'viewer', 'buyer@client.in', 'state', '00000000-0000-4000-8000-000000000001');
 insert into fx (k, id) values ('viewer', app.add_client_viewer('00000000-0000-4000-8000-000000000201', 'Buyer Desk', 'buyer@client.in'));
-select t.fails($q$ select app.add_client_viewer('00000000-0000-4000-8000-000000000202', 'Other', 'other@client.in') $q$, 'do not manage this client', 'client login: only for a client you manage');
+select t.fails($q$ select app.prepare_client_account('00000000-0000-4000-8000-000000000202', 'viewer', 'other@client.in', 'state', '00000000-0000-4000-8000-000000000001') $q$,
+               'made by the client''s owner or its Client Manager', 'client login: only for a client you manage');
+select t.fails($q$ select app.add_client_viewer('00000000-0000-4000-8000-000000000202', 'Other', 'other@client.in') $q$, 'say first what it is', 'client login: not without saying what it is');
 select app.suspend_person(pg_temp.f('viewer'), 'left the client');
 select t.as_service();
 select t.ok((select external and status = 'suspended' and role = 'client_view' and system_role = 'operational' from public.app_users where id = pg_temp.f('viewer'))

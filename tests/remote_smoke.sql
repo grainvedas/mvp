@@ -559,6 +559,24 @@ select 'sourcing and hooks',       case when to_regclass('public.scope_partners'
                                       then 'NOT OK (the partners, the farm-verified flag, the buyers'' link or the entry point are not as migration 66 left them)'
                                       else 'OK sourcing partners on scopes; the season across clients; farm-verified before GI; buyers linked to the registry, unseen' end
 union all
+select 'client accounts',          case when to_regclass('public.client_accounts') is null or to_regprocedure('app.client_may(text, uuid, uuid)') is null
+                                        or to_regprocedure('app.set_scope_delivery(uuid, text, text)') is null
+                                      then 'MISSING (push migration 67)'
+                                      when has_table_privilege('authenticated', 'public.client_accounts', 'select')
+                                        or has_table_privilege('authenticated', 'public.client_account_scopes', 'select')
+                                        or has_table_privilege('authenticated', 'public.client_account_intents', 'select')
+                                        or has_function_privilege('authenticated', 'app.client_may(text, uuid, uuid)', 'execute')
+                                        or has_function_privilege('anon', 'app.prepare_client_account(uuid, text, text, text, uuid, uuid[], boolean)', 'execute')
+                                        or not exists (select 1 from pg_trigger where tgname = 'footprints_a05_client_staff')
+                                        or not exists (select 1 from pg_trigger where tgname = 'scopes_a1f_settings')
+                                        or not exists (select 1 from pg_trigger where tgname = 'assignments_z1_client_account')
+                                        or position('client_may' in pg_get_functiondef('app.client_login_reads_only()'::regprocedure)) = 0
+                                        or position('account_reaches' in pg_get_functiondef('app.views_scope_row(uuid, uuid)'::regprocedure)) = 0
+                                        or position('client_internal_ok' in pg_get_functiondef('app.may_internal_copy(uuid)'::regprocedure)) = 0
+                                        or (xpath('/row/n/text()', query_to_xml('select count(*) as n from public.app_users u join public.assignments a on a.employee_id = u.id and a.active and a.lens = ''client'' and a.op_role = ''client_viewer'' where u.external and not exists (select 1 from public.client_accounts ca where ca.user_id = u.id)', false, true, '')))[1]::text <> '0'
+                                      then 'NOT OK (the client accounts, their closed tables, the one rule or a client login without its account are not as migration 67 left them)'
+                                      else 'OK client owners, viewers and staff; one rule for their writes; a viewer sees what it reaches; scopes have their delivery model' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

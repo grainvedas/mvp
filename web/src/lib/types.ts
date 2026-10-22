@@ -100,6 +100,8 @@ export interface StageForm {
 
 export interface Footprint {
   id: string;
+  /** migration 67 (Phase 3, A2.5): recorded by the client's own staff (the server's mark); GrainVeda verifies it */
+  client_staff?: boolean;
   footprint_code: string;
   client_id: string;
   scope_id: string;
@@ -182,12 +184,18 @@ export interface MyAssignment {
   state_id: string | null; state_name: string | null; stages: StageType[]; posting: string | null; season_code: string | null;
   ends_on: string | null; label: string;
 }
+export type ClientAccountKind = 'owner' | 'viewer' | 'operator';
+export interface ClientAccountSelf {
+  kind: ClientAccountKind; client_id: string; client_name: string; reach: 'client' | 'state' | 'scopes'; internal_copies: boolean; status: string;
+}
 export interface MyContext {
   user: null | {
     id: string; role: Role; display_name: string; email: string | null; phone: string | null;
     client_id: string | null; client_name: string | null; state_ids: string[];
     /** Absent on a server before migration 32: treated as an active operational person with no extra rights. */
     system_role?: SystemRole; status?: EmployeeStatus; external?: boolean; join_date?: string | null; can?: Can;
+    /** Migration 67 (Phase 3, A1): the signed-in client account, if this is one: an owner, a viewer or the client's own staff. */
+    client_account?: ClientAccountSelf | null;
   };
   slots: Slot[];
   scopes: ScopeSummary[];

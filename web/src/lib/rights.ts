@@ -54,4 +54,13 @@ export const myClientAccounts = (ctx: Ctx): string[] => oversees(ctx) ? [] :
 
 /** Migration 59 (B1, Veda's brief of 19 Oct 2026): the client's own login reads only. No stage page, no "Work in this
  *  scope", no flag, no file: the database refuses every write from it (trigger client_login_reads_only). */
-export const isClientLogin = (ctx: Ctx) => !!ctx?.user?.external;
+export const isClientLogin = (ctx: Ctx) => !!ctx?.user?.external && ctx?.user?.client_account?.kind !== 'operator';
+
+/** Migration 67 (Phase 3, A1): the client's own staff (an operator): records and verifies at its stages on a Hybrid or
+ *  Self-run scope of its client, as GrainVeda's operators do; reads nothing else of the client. */
+export const isClientOperator = (ctx: Ctx) => !!ctx?.user?.external && ctx?.user?.client_account?.kind === 'operator';
+
+/** Migration 67 (A1): the client's owner (of this client): shares with buyers, uploads its acceptance and renewals,
+ *  invites viewers. The server's rule is app.client_may; this only keeps buttons from people it would refuse. */
+export const isClientOwner = (ctx: Ctx, clientId?: string | null) => !!ctx?.user?.external && ctx?.user?.client_account?.kind === 'owner'
+  && ctx?.user?.client_account?.status === 'active' && (!clientId || ctx?.user?.client_account?.client_id === clientId);

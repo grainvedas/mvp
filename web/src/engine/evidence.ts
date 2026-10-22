@@ -34,3 +34,16 @@ export async function uploadEvidence(rec: Pick<Footprint, 'id' | 'client_id' | '
   }
   return path;
 }
+
+/** Migration 67 (Phase 3, A1): the client's owner uploads its written acceptance to a lab record. The file goes where any
+ *  evidence of that record goes; the server's own act (app.add_client_acceptance) records it with its label. */
+export async function uploadClientAcceptance(rec: Pick<Footprint, 'id' | 'client_id' | 'scope_id'>, file: File) {
+  if (file.size > MAX_EVIDENCE_BYTES) throw new Error(`file is larger than ${MAX_EVIDENCE_BYTES / 1024 / 1024} MB`);
+  const hash = await sha256Hex(file);
+  const ext = (file.name.split('.').pop() ?? 'pdf').toLowerCase().replace(/[^a-z0-9]/g, '') || 'pdf';
+  const path = `${rec.client_id}/${rec.scope_id}/${rec.id}/${hash.slice(0, 16)}.${ext}`;
+  const up = await supabase.storage.from('evidence').upload(path, file, { contentType: file.type || 'application/pdf', upsert: false });
+  if (up.error && !/already exists|duplicate/i.test(up.error.message)) throw new Error(up.error.message);
+  await rpc('add_client_acceptance', { p_fp: rec.id, p_path: path, p_sha256: hash });
+  return path;
+}

@@ -87,6 +87,7 @@ do $$ declare v uuid; begin
     ('00000000-0000-4000-8000-000000000c13', '00000000-0000-4000-8000-000000000c13', 'ABC Exim (login)', 'owner.abc65@example.com', true) returning id into v;
   insert into fx values ('OWN', v);
   insert into public.assignments (employee_id, lens, op_role, client_id) values (v, 'client', 'client_viewer', pg_temp.f('ABC'));
+  update public.client_accounts set kind = 'owner' where user_id = v;     -- migration 67: the client's owner uploads renewals (made by the admin: tests/62)
 end $$;
 select t.ok((select status = 'active' from public.client_states where client_id = pg_temp.f('ABC') and state_id = pg_temp.f('UP')), '0: ABC Exim is Active in Uttar Pradesh');
 

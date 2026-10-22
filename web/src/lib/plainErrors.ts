@@ -285,6 +285,27 @@ export const PLAIN_RULES: PlainRule[] = [
   { re: /shipment: scan or type the codes of the packs loaded/i, key: 'err.sh_codes' },
   { re: /shipment: the packs loaded weigh ([\d.]+) kg, the shipment ([\d.]+) kg/i, key: 'err.sh_codes_kg', vars: ['packs', 'kg'] },   // migration 62
   // migration 63 (Part D): closing a scope and the season report
+  // migration 67: client accounts, the scope's delivery model and GI authorised user, client staff
+  { re: /delivery model: set by the scope's Client Manager|GI authorised user: set by the scope's Client Manager|delivery model and GI authorised user: set/i, key: 'err.sd_who' },
+  { re: /delivery model: say why it changes/i, key: 'err.sd_reason' },
+  { re: /delivery model: the client's own staff still hold stages here/i, key: 'err.sd_staff' },
+  { re: /GI authorised user: only for a GI crop/i, key: 'err.gi_only' },
+  { re: /GI authorised user: (the registration number|the number with its file)/i, key: 'err.gi_number' },
+  { re: /a client owner is made by the admin/i, key: 'err.ca_owner_admin' },
+  { re: /a client owner is made once the client's first Active is approved|an active viewer is promoted to owner/i, key: 'err.ca_owner_active' },
+  { re: /a viewer is made by the client's owner or its Client Manager/i, key: 'err.ca_viewer_who' },
+  { re: /a viewer made by the Client Manager sees one state's scopes/i, key: 'err.ca_cm_state' },
+  { re: /viewer: (choose at least one scope|only this client's scopes|one of the client's states)/i, key: 'err.ca_scopes' },
+  { re: /only the client's owner allows internal copies/i, key: 'err.ca_internal' },
+  { re: /a client operator is made by the client's Client Manager/i, key: 'err.ca_operator_who' },
+  { re: /client account: say first what it is/i, key: 'err.ca_say_first' },
+  { re: /this account is managed by whoever made it/i, key: 'err.ca_manage' },
+  { re: /a removed account stays removed/i, key: 'err.ca_removed' },
+  { re: /an owner's acts are paused/i, key: 'err.ca_paused' },
+  { re: /a record made by the client's own staff is verified by GrainVeda/i, key: 'err.ca_staff_verify' },
+  { re: /the client's own staff hold stages only on a Hybrid or Self-run scope/i, key: 'err.ca_operator_scope' },
+  { re: /the client's acceptance is attached to the lab record/i, key: 'err.acc_lab' },
+  { re: /the client's acceptance is uploaded by its owner/i, key: 'err.acc_owner' },
   // migration 66: sourcing partners, the farmer's client, the entry point
   { re: /this farmer is not registered with this scope's client/i, key: 'err.farmer_other_client' },
   { re: /procured through: one of this scope's sourcing partners/i, key: 'err.procured_through' },

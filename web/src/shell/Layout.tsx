@@ -13,7 +13,7 @@ import { stageIcon } from '../engine/icons';
 import { Notices } from './Notices';
 import { CrashCard, ErrorBoundary } from './ErrorBoundary';
 import { ScopeProvider, shownScope, useScope, useWide, worksInOneScope } from './scope';
-import { myClientAccounts, oversees } from '../lib/rights';
+import { isClientLogin, myClientAccounts, oversees } from '../lib/rights';
 import { rpc } from '../lib/api';
 import { useAsync } from '../lib/useAsync';
 
@@ -163,7 +163,8 @@ export const groupedMenu = (ctx: Parameters<typeof oversees>[0]): Menu | null =>
 export const initials = (name: string) => name.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
 /** The word shown beside a person's name: the system role when it is one of the seats, else the summary role. */
-export function roleWord(me: { role: Role; system_role?: string; status?: string; external?: boolean }, t: (k: string, v?: Record<string, string | number>, f?: string) => string): string {
+export function roleWord(me: { role: Role; system_role?: string; status?: string; external?: boolean; client_account?: { kind: string } | null }, t: (k: string, v?: Record<string, string | number>, f?: string) => string): string {
+  if (me.external && me.client_account?.kind) return t(`ca.role.${me.client_account.kind}`);       // migration 67: owner, viewer, client staff
   if (me.system_role && me.system_role !== 'operational' && me.system_role !== 'admin') return t(`sysrole.${me.system_role}`);
   if (!me.external && (me.status === 'invited' || me.status === 'onboarding')) return t('pstatus.onboarding');
   return t(`role.${me.role}`, undefined, humanise(me.role));
@@ -205,7 +206,7 @@ function Frame() {
   const shown = shownScope(scopes, current, pathname);
   // Operations: the stages of that scope. Whoever reads it whole gets its chain; whoever holds stages there, those.
   // migration 59 (B1): the client's own login gets no stage pages (it reads its scopes through the dashboard)
-  const stages = !shown || !me || me.external ? [] : !shown.whole
+  const stages = !shown || !me || isClientLogin(ctx) ? [] : !shown.whole                  // migration 67: the client's own staff get their stages
     ? ctx!.slots.filter((s) => s.scope_id === shown.id).map((s) => s.stage_type)
     : shown.status === 'draft' ? [] : shown.chain;
   const single = worksInOneScope(scopes);                  // only holds stages: one scope at a time, no "Overall"

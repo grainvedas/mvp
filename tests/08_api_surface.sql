@@ -44,6 +44,11 @@ insert into allowed values
   ('authenticated', 'register_sourcing_partner'), ('authenticated', 'sourcing_partners'), ('authenticated', 'set_scope_partner'),   -- migration 66
   ('authenticated', 'remove_scope_partner'), ('authenticated', 'scope_partners'), ('authenticated', 'set_farmer_member'),
   ('authenticated', 'scope_farmer_members'), ('authenticated', 'farmer_member'),
+  ('authenticated', 'set_scope_delivery'), ('authenticated', 'set_scope_gi_user'), ('authenticated', 'prepare_client_account'),   -- migration 67
+  ('authenticated', 'set_client_account_status'), ('authenticated', 'set_client_viewer'), ('authenticated', 'set_viewer_internal'),
+  ('authenticated', 'make_client_owner'), ('authenticated', 'client_accounts_of'), ('authenticated', 'add_client_acceptance'),
+  ('authenticated', 'client_may_evidence'), ('authenticated', 'may_write_scope_doc'), ('authenticated', 'may_read_scope_doc'),   -- the store's rules (about the caller)
+  ('authenticated', 'client_owner_check'),                                                                                        -- the buyer links' read rule (about the caller)
   ('authenticated', 'client_waiting'), ('authenticated', 'client_farmers'), ('authenticated', 'doc_kind_word'),        -- migration 59
   ('authenticated', 'same_file_elsewhere'), ('authenticated', 'note_same_file'), ('authenticated', 'is_client_login'),
   ('authenticated', 'reset_login_allowed'), ('authenticated', 'report_client_error'), ('authenticated', 'check_ledger_now'),

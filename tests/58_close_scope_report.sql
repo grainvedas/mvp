@@ -12,6 +12,7 @@
 -- QR (07). 03 the Client Manager of client 201; 02 the State Manager of UP; 04 the client's login; 01 the admin.
 begin;
 select t.as_service();
+update public.client_accounts set internal_copies = true where user_id = t.u('04');   -- migration 67: the client's owner allowed its viewer internal copies (tests/62)
 create temp table fx (k text primary key, id uuid);
 grant select, insert, update on fx to authenticated, anon;
 create or replace function pg_temp.f(p text) returns uuid language sql stable as $$ select id from fx where k = p $$;

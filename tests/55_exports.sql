@@ -100,6 +100,9 @@ select t.ok((select pg_temp.cell(e, pg_temp.c('P'), 'farmer_name') = to_jsonb((s
             'C2: the farmer''s name, the price paid and its reference, who recorded each step');
 select t.ok(app.may_internal_copy(t.scope('05')), 'C4: the Client Manager may take the internal copy');
 select t.as_user(t.u('04'));
+select t.ok(not app.may_internal_copy(t.scope('05')), 'C4: a client viewer takes no internal copy until the client''s owner allows it (migration 67)');
+select t.as_service(); update public.client_accounts set internal_copies = true where user_id = t.u('04');   -- the owner's act (tests/62)
+select t.as_user(t.u('04'));
 select t.ok((select e->>'copy' = 'internal' from (select app.export_journey(pg_temp.f('K'), 'internal') e) x) and app.may_internal_copy(t.scope('05')),
             'C4: so may the client''s own login');
 select t.as_user(t.u('01'));
