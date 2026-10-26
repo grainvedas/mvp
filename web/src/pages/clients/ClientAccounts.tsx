@@ -126,7 +126,8 @@ function ReachPicker({ info, reach, setReach, state, setState, scopes, setScopes
           {shown.map((s) => (
             <label key={s.id} className="check" style={{ minHeight: 0 }}>
               <input type="checkbox" checked={scopes.includes(s.id)}
-                onChange={(e) => setScopes(e.target.checked ? [...scopes, s.id] : scopes.filter((x) => x !== s.id))} />{s.label}</label>))}
+                onChange={(e) => setScopes(e.target.checked ? [...scopes, s.id] : scopes.filter((x) => x !== s.id))} />{s.label}
+              {s.status !== 'active' && <span className="muted small" data-testid="ca-scope-status"> ({t(`cv.st.${s.status}`, undefined, s.status)})</span>}</label>))}   {/* migration 68 (item 65) */}
         </fieldset>)}
     </div>
   );

@@ -17,7 +17,7 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
 import { date, dateTime } from '../../lib/format';
 import { useAuth } from '../../auth/AuthProvider';
-import { isStateManager, myStateIds, oversees } from '../../lib/rights';
+import { isClientLogin, isStateManager, myStateIds, oversees } from '../../lib/rights';
 import { Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import {
   ENTITY_TYPES, NATIONAL_DOCS, PAN_LETTER, addClientState, addDocument, clientExpiries, clientRenewals, clientView, clientsPage,
@@ -172,6 +172,7 @@ function SharedIdentity({ id }: { id: ClientView['identity'] }) {
 // ── the record ───────────────────────────────────────────────────────────────────────────────────────────────────────
 export function ClientPage() {
   const { id = '' } = useParams();
+  const ctx = useAuth()?.ctx ?? null;                       // migration 68: which portfolio link (the page is also shown outside the frame in tests)
   const { t } = useI18n();
   const v = useAsync(() => clientView(id), [id]);
   const d = v.data;
@@ -183,6 +184,7 @@ export function ClientPage() {
       <p><Link to="/clients">← {t('clients.title')}</Link></p>
       <h1>{idn.name} <span className="mono small">{idn.code}</span></h1>
       <div className="row wrap" style={{ gap: 6 }}><StatusBadge s={idn.status} /><Flags panPending={idn.pan_pending} ownBrand={idn.own_brand} /></div>
+      {!d.shared_only && <p className="no-print"><Link to={isClientLogin(ctx) ? '/portfolio' : `/portfolio/${idn.client_id}`} data-testid="open-portfolio">{t('cv.open')}</Link></p>}   {/* migration 68 */}
       {idn.own_brand && <p className="small" data-testid="own-brand-note">{t('cl.own_brand_note')}</p>}
       {d.shared_only ? (
         <div className="card"><SharedIdentity id={idn} /><p className="small muted" data-testid="shared-only">{t('cl.shared_only')}</p>

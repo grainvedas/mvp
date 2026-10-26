@@ -48,6 +48,8 @@ insert into allowed values
   ('authenticated', 'set_client_account_status'), ('authenticated', 'set_client_viewer'), ('authenticated', 'set_viewer_internal'),
   ('authenticated', 'make_client_owner'), ('authenticated', 'client_accounts_of'), ('authenticated', 'add_client_acceptance'),
   ('authenticated', 'client_may_evidence'), ('authenticated', 'may_write_scope_doc'), ('authenticated', 'may_read_scope_doc'),   -- the store's rules (about the caller)
+  ('authenticated', 'client_portfolio'), ('authenticated', 'client_scope_detail'), ('authenticated', 'client_across'),   -- migration 68
+  ('authenticated', 'export_client_view'),
   ('authenticated', 'client_owner_check'),                                                                                        -- the buyer links' read rule (about the caller)
   ('authenticated', 'client_waiting'), ('authenticated', 'client_farmers'), ('authenticated', 'doc_kind_word'),        -- migration 59
   ('authenticated', 'same_file_elsewhere'), ('authenticated', 'note_same_file'), ('authenticated', 'is_client_login'),

@@ -19,6 +19,7 @@ import { FarmerRegister } from './pages/farmers/FarmerRegister';
 import { ScopeList, ScopeWizard } from './pages/scopes/Scopes';
 import { Crops, OpenFlags, States } from './pages/admin/Admin';
 import { ClientPage, Clients, NewClient } from './pages/clients/Clients';   // migration 64: the client registry
+import { PortfolioPage, ScopeView } from './pages/clients/Portfolio';   // migration 68: what client users see
 import { SetupLists } from './pages/setup/SetupLists';
 import { AddJoiner, JoinerPage, Templates } from './pages/hr/Hr';
 import { ImportJoiners, JoinersList, Openings } from './pages/hr/Scale';
@@ -124,6 +125,9 @@ function Private() {
         <Route path="clients" element={<Clients />} />
         <Route path="clients/new" element={<NewClient />} />
         <Route path="clients/:id" element={<ClientPage />} />
+        <Route path="portfolio" element={<PortfolioPage />} />   {/* migration 68: what client users see */}
+        <Route path="portfolio/scope/:scopeId" element={<ScopeView />} />
+        <Route path="portfolio/:clientId" element={<PortfolioPage />} />
         <Route path="states" element={<AdminOnly><States /></AdminOnly>} />
         <Route path="crops" element={<Crops />} />
         <Route path="setup" element={<SetupLists />} />   {/* migration 51: the set-up lists (Part B) */}

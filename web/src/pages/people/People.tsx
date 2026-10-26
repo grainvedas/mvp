@@ -88,7 +88,7 @@ export function Directory() {
             <tr key={p.id} data-testid="person-row">
               <td><Link to={`/people/${p.id}`}><strong>{p.name}</strong></Link><OrgLine org={p.org} /><div className="small muted">{p.email ?? p.phone ?? ''}</div></td>
               <td><StatusBadge status={p.status} />{!p.has_login && <> <Badge value="draft" label={t('people.no_login')} /></>}</td>
-              <td><AccessBadges systemRole={p.system_role} assignments={p.assignments} elsewhere={p.elsewhere} unassigned={p.unassigned && !p.external} /></td>
+              <td><AccessBadges systemRole={p.system_role} assignments={p.assignments} elsewhere={p.elsewhere} unassigned={p.unassigned && !p.external} clientAccount={p.client_account} /></td>
               <td>{(p.assignable ?? (givesAssignments(ctx) && !p.external && p.system_role !== 'admin' && ['invited', 'onboarding', 'active'].includes(p.status) && p.id !== ctx?.user?.id)) &&
                 <Link className="btn secondary" to={`/people/${p.id}/assign`} aria-label={`${t('assign.title')}: ${p.name}`}>{t('assign.title')}</Link>}</td>
             </tr>))}</tbody>
@@ -127,7 +127,7 @@ function NewClientLogin({ clients, done }: { clients: Named[]; done: () => void 
 }
 
 // ── one assignment, as a card ───────────────────────────────────────────────────────────────────────────────────────
-function AssignmentCard({ a, changed }: { a: AssignmentInfo; changed: () => Promise<unknown> }) {
+function AssignmentCard({ a, changed, clientKind }: { a: AssignmentInfo; changed: () => Promise<unknown>; /** migration 68 (item 65) */ clientKind?: string }) {
   const { t } = useI18n();
   const stage = useStageName();
   const { ctx } = useAuth();
@@ -155,7 +155,7 @@ function AssignmentCard({ a, changed }: { a: AssignmentInfo; changed: () => Prom
   return (
     <div className={`assignment${a.active ? '' : ' ended'}`} data-testid={a.active ? 'assignment' : 'assignment-ended'}>
       <div className="row">
-        <div><span className={`badge ${lensTone[a.lens]}`}>{t(`lens.${a.lens}`)}</span> <strong>{a.label}</strong> <span className="muted small">{t(`oprole.${a.op_role}`)}</span></div>
+        <div><span className={`badge ${lensTone[a.lens]}`}>{t(`lens.${a.lens}`)}</span> <strong>{a.label}</strong> <span className="muted small" data-testid="assignment-role">{a.op_role === 'client_viewer' && clientKind ? t(`ca.role.${clientKind}`) : t(`oprole.${a.op_role}`)}</span></div>
         {a.active && a.can_end && !mode && <div className="row">
           {a.lens === 'scope' && <button type="button" className="secondary small-btn" onClick={() => begin('stages')}>{t('assign.change_stages')}</button>}
           {a.lens === 'scope' && <button type="button" className="secondary small-btn" onClick={() => begin('move')}>{t('assign.move')}</button>}
@@ -289,9 +289,9 @@ export function ProfilePage() {
         <div className="card axis grants" data-testid="axis-assignments">
           <h2>{me.external ? '2' : '4'} · {t('axis.assignments')} <span className="axis-note">{t('axis.grants')}</span></h2>
           {x.assignments.length === 0 && x.elsewhere === 0 && <p className="muted" data-testid="no-assignments">{t('people.unassigned_long')}</p>}
-          {x.assignments.map((a) => <AssignmentCard key={a.id} a={a} changed={p.reload} />)}
+          {x.assignments.map((a) => <AssignmentCard key={a.id} a={a} changed={p.reload} clientKind={me.client_account?.kind} />)}
           {x.elsewhere > 0 && <p className="small muted" data-testid="elsewhere">{t('people.elsewhere_long', { n: x.elsewhere })}</p>}
-          {x.history.length > 0 && <><div className="section-title">{t('assign.history')}</div>{x.history.map((a) => <AssignmentCard key={a.id} a={a} changed={p.reload} />)}</>}
+          {x.history.length > 0 && <><div className="section-title">{t('assign.history')}</div>{x.history.map((a) => <AssignmentCard key={a.id} a={a} changed={p.reload} clientKind={me.client_account?.kind} />)}</>}
         </div>
       </div>
     </div>

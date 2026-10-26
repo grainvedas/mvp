@@ -243,6 +243,7 @@ function OverallHome() {
         <Stat value={pipes.data ? String(sum((x) => x.completed)) : '…'} label={t('home.kpi_qr')} sub={t('home.kpi_qr_sub')} />
       </div>
       {client && <ClientWaitingCards />}
+      {client && <p data-testid="home-portfolio"><Link className="btn secondary" to="/portfolio">{t('cv.open')}</Link></p>}   {/* migration 68 */}
       <h2 className="section-title">{t('home.scopes')}</h2>
       {scopes.length === 0 ? <Empty /> : (
         <div className="scope-cards">{scopes.map((s) => {
@@ -317,8 +318,10 @@ function ScopeHome({ scope }: { scope: ScopeChoice }) {
         <>
           <div className="stats" data-testid="stats">
             <Stat value={pipe.data ? kg(f.procured) : '…'} label={t('home.kpi_procured')} sub={t('home.kpi_procured_sub')} />
-            <Stat value={pipe.data && slots.data ? String(queueTotal) : '…'} label={t(watch ? 'ov.attention' : 'home.kpi_queue')}
-              sub={queue.length > 0 ? t('home.kpi_needs_sub') : t('home.all_clear')} />
+            {client   // migration 68 (item 65): a client account acts on nothing here: what it shipped, not a queue
+              ? <Stat value={pipe.data ? (by('shipment') ? kg(by('shipment')!.kg_out) : '—') : '…'} label={t('cv.c.shipped_kg')} sub={t('cv.shipped_sub')} />
+              : <Stat value={pipe.data && slots.data ? String(queueTotal) : '…'} label={t(watch ? 'ov.attention' : 'home.kpi_queue')}
+                  sub={queue.length > 0 ? t('home.kpi_needs_sub') : t('home.all_clear')} />}
             <Stat value={pipe.data ? (f.yieldPct === null ? '—' : `${f.yieldPct} %`) : '…'} label={t('home.kpi_yield')} sub={t('home.kpi_yield_sub')} />
             <Stat value={pipe.data ? String(f.completed) : '…'} label={t('home.kpi_completed')} sub={t('home.kpi_completed_sub')} />
           </div>

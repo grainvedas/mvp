@@ -20,10 +20,14 @@ export interface DirectoryPerson {
   assignments: AssignmentInfo[]; elsewhere: number; unassigned: boolean;
   /** migration 44: the server says whether "Assign" is offered on this person */
   assignable?: boolean;
+  /** migration 68 (item 65): what a client account is */
+  client_account?: ClientAccountTag | null;
 }
+/** Migration 68 (item 65): a client account's kind, status and client, where a person is listed. */
+export interface ClientAccountTag { kind: 'owner' | 'viewer' | 'operator'; status: 'active' | 'suspended' | 'removed'; client_name: string }
 export interface Profile {
   identity: { id: string; name: string; email: string | null; phone: string | null; status: EmployeeStatus; external: boolean;
-    join_date: string | null; created_at: string; has_login: boolean };
+    join_date: string | null; created_at: string; has_login: boolean; /** migration 68 (item 65) */ client_account?: ClientAccountTag | null };
   org: OrgFacts; system_role: SystemRole; assignments: AssignmentInfo[]; history: AssignmentInfo[]; elsewhere: number;
   exits: { exit_date: string; reason: string | null }[];
   can: { assign: boolean; suspend: boolean; reinstate: boolean; offboard: boolean; rehire: boolean; reset_login: boolean; set_role: boolean; hr_record: boolean };

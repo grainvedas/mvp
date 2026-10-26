@@ -285,6 +285,10 @@ export const PLAIN_RULES: PlainRule[] = [
   { re: /shipment: scan or type the codes of the packs loaded/i, key: 'err.sh_codes' },
   { re: /shipment: the packs loaded weigh ([\d.]+) kg, the shipment ([\d.]+) kg/i, key: 'err.sh_codes_kg', vars: ['packs', 'kg'] },   // migration 62
   // migration 63 (Part D): closing a scope and the season report
+  // migration 68 (Phase 3, release 2): the client's views and their exports
+  { re: /not allowed to (read this client's portfolio|read this scope|export this scope|export this client's views)/i, key: 'err.cv_not_allowed' },
+  { re: /the internal copy is for the people of this client/i, key: 'err.cv_internal' },
+  { re: /a view is the portfolio, one scope, the farmers or across scopes/i, key: 'err.cv_view' },
   // migration 67: client accounts, the scope's delivery model and GI authorised user, client staff
   { re: /delivery model: set by the scope's Client Manager|GI authorised user: set by the scope's Client Manager|delivery model and GI authorised user: set/i, key: 'err.sd_who' },
   { re: /delivery model: say why it changes/i, key: 'err.sd_reason' },

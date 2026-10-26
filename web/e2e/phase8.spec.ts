@@ -356,7 +356,7 @@ test.describe('at a desk', () => {
     await form.getByRole('button', { name: 'Create' }).click();
     await expect(form.getByTestId('temp-password')).toContainText(buyer);
     const temp = (await form.getByTestId('temp-password').textContent())!.match(/: (Gv-[A-Za-z0-9_-]+) —/)![1];
-    await expect(person(page, `Buyer ${u}`).getByTestId('access-badges')).toHaveText('Client login (read-only): GrainVeda (Prasaadam trade scope)');
+    await expect(person(page, `Buyer ${u}`).getByTestId('access-badges')).toHaveText('Client viewer (read-only): GrainVeda (Prasaadam trade scope)');   // migration 68 (item 65): what the account is
     await signOut(page);
     await signInWith(page, buyer, temp);
     await setOwnPassword(page, `Buyer-${u}`);

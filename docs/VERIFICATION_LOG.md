@@ -3399,3 +3399,140 @@ this release.
 - **Release script.** `staging-client-accounts.cmd` (`scripts/staging_client_accounts.ps1`, phrase `ACCOUNTS`) parses
   cleanly under PowerShell 7.4. Its tested-files check was taken out and run on this copy: all tested files match and
   193 app files, `diff=0`. Not yet run; it waits for Veda's say-so.
+
+## 22 October 2026, morning IST: client accounts on staging (`staging-client-accounts.cmd`)
+
+Veda's run, her pasted summary:
+
+- **S0 OK.** Tools, tested files, the practice project with migration 67 waiting; `ACCOUNTS` typed.
+- **S1 OK.** `20261111000100_client_accounts.sql` pushed.
+- **S1b OK** (read only):
+  - `tables=new closed=yes functions=new triggers=yes logins_without_account=0`;
+  - `accounts: TCUP=viewer/client/active`: today's client login is a viewer of the whole client;
+  - `delivery: managed=6`: every scope is Managed.
+- **S2 OK.**
+  - Smoke 64 of 65; the one not OK is the standing statement logging.
+  - One client and another: `leaks=0 people=7 tables=45 calls=14626`.
+  - Ledger audit: no findings (348 blocks).
+- **S3 OK.** The app was pushed, head 3fd1531 (35 files).
+- **RESULT: CLIENT ACCOUNTS ON STAGING.**
+
+Claude, in the browser pane afterwards, confirmed that Vercel serves the new app: the bundle calls
+`prepare_client_account` and has the new words. The run sheet's checks follow.
+
+### The run sheet's checks, so far (Claude, in the browser pane at 527 px)
+
+- **Row 6 (Lucky).** Bansi → How this scope is run → Hybrid, with a reason → "Saved."; the database reads `hybrid`.
+- **Row 7 (Lucky).** People → Client logins → Client staff "Practice Staff Bansi" (practice email) → a temporary password
+  shown once. The staff are offered on each of Bansi's eight stages, not on gkp's (Managed).
+- **Row 8.** Not done (optional).
+- **Row 10 (Lucky).** Bansi back to Managed with a reason → "Saved." (the staff held no stage).
+- **Row 1 (the admin).** Client accounts lists tcup as Viewer, "Every scope of the client"; the form offers an owner only.
+- **Row 2 (the admin).** "Practice Owner TCUP" made → listed as Owner, a temporary password shown once.
+- **Row 6's Audit log** (as the admin): both changes, with their reasons: "Managed → Hybrid", then "Hybrid → Managed".
+- **Found:**
+  1. The owner's temporary password was lost: Claude left the page before it was noted. The admin has no "Reset
+     password" for a client login (`app.reset_login_allowed`: for a client login, only those who manage the client,
+     i.e. the Client Manager or State Manager). Veda, 22 Oct: "its ok, client manager will look after client login
+     procedure". The rule stands as it is; the Client Manager resets client logins, the owner's included.
+  2. People → Client logins: the client staff's row shows nothing under "What gives them access" (tcup's says "Client
+     login (read-only)").
+  3. The owner's person page reads "Client login (read-only)" for its client assignment: wrong for an owner.
+- **Row 3 (the owner).** The owner's Client accounts card: it may act on the viewer tcup, not on the client staff (the
+  Client Manager's) nor on itself. A viewer "Practice Viewer Bansi", Sees: Chosen scopes, Bansi → listed "Chosen
+  scopes: Kalanamak Rice · KH26 · Bansi"; a temporary password shown once (Veda noted it).
+- **Row 5 (the owner).** TCUP-KNM-KH26-BNS-SH-0004 → Share with the buyer → a link "made by Practice Owner TCUP",
+  30 days; revoked with a reason → "Revoked 22 Oct 2026, 11:27 am IST". No other button on the record for the owner.
+- **Row 9 (the owner, then the viewer), done before row 4 to save a sign-in.** Suspended with a reason → "Suspended"
+  and the reason on its row. The viewer, signed in: "This sign-in opens nothing"; read as the viewer, 0 scopes,
+  records, farmers and clients, the closed tables refused, `my_context` empty. The owner resumed it → Active again.
+- **Row 4 (the viewer).** One scope only (Bansi; no picker, as there is one), the read-only note, the Farmers page with
+  Bansi's farmers only (TCUP-F-0005, of Siddharthnagar district, is there by its Bansi procurement record
+  TCUP-KNM-KH26-BNS-P-0005). The stage page sends it back to its dashboard; the client page has no Client accounts
+  card and no button. Read as the viewer: `scopes` = Bansi only; `create_buyer_link` refused (42501).
+- **More found** (item 65 in `docs/FIX_LIST.md`, all wording or display; every rule held):
+  4. A suspended client account is told "…Ask HR"; a client account has no HR.
+  5. The viewer's form offers the closed scope "Practice godown (test)" without saying it is closed.
+  6. A read-only viewer's dashboard shows "My action queue … to act on".
+- **Result.** Rows 1–7, 9 and 10 as the run sheet expects; row 8 (optional) not done. Practice accounts left on
+  staging: Practice Owner TCUP (owner), Practice Viewer Bansi (viewer of Bansi), Practice Staff Bansi (client staff,
+  no stage). Bansi is Managed again.
+
+## 26 October 2026: Phase 3 release 2, client views and exports (migration 68), on the local stack
+
+Veda: "release 2 next proceed" (Phase 3 Parts C and E4; the defaults said in the plan: who reads, prices only with the
+internal copy, "in process" and "open lab results" as defined there; item 65's five small things in this release).
+
+- **Database.** `tests/63_client_views.sql`: **48** checks, written for this release, in eight sections (the portfolio's
+  figures on a chain made for the test, in two states; who reads it; one scope; across scopes and prices; the farmers;
+  the exports and the Audit log; item 65; the isolation probe). **17 of 17** negative controls were caught
+  (`controls68.py`).
+  - Five controls were first counted as missed: three were caught by an earlier assertion than the one named (made
+    more precise), one (a phone in a farmer's row) could not leak, the export's columns being a fixed list (replaced by
+    "a viewer reads every farmer", with the assertion made exact: the one farmer who sold into Basti mill), one had a
+    broken replacement.
+  - Every database test on a rebuilt template: **2,805**, no failure. `tests/08` names the four new entry points.
+  - `tests/run_local.sh`: ALL TESTS PASSED (with the upgrade path).
+  - The release script's read-back and rules on the local stack: `functions=new closed=yes people=yes`, `rule68=OK`; the
+    smoke check **66** rows, `client views` OK.
+- **Found while checking: the isolation probe's false leak.** On the stack after the whole e2e suite the probe said
+  `leaks=1 what=table:assignments`: an e2e joiner whose only assignment had ended read his own ended assignment, and
+  the probe counts a person's clients from his active assignments only. It was his own row, not another client's; but
+  the release script stops on any leak. Migration 68 now counts a person's own rows (`employee_id` or `user_id` his) as
+  his own; `tests/63` §8 and a control; the probe on the same stack: `leaks=0 people=18 tables=44 calls=1590`.
+- **Unit tests: 768.** The new `release68.test.tsx` has 16 tests; `identity.test.ts`: the admin's menu does not offer the
+  Portfolio (a client account's entry). The type check is clean.
+- **e2e.** The whole suite: **105 of 106**.
+  - `phase8` expected "Client login (read-only)" on a client login's badge; item 65 makes it "Client viewer
+    (read-only)". The expectation was changed; `phase8` passed 8 of 8.
+  - The new `phase40` (527 px): the client login's Portfolio from its menu, one scope, across scopes, the farmers, the
+    downloads (file names, the shareable footer, no phone, no Name column), another client's portfolio refused (403), the
+    admin's internal copy from the client's page, the Audit log's line. Passed on a fresh stack and after the suite.
+  - On a fresh stack, `phase8` run after `phase22` to `phase40` failed once: it counts six scope badges on the QC
+    Technician, and the scope closures of `phase36` and `phase37` end some of his stages. Run with `phase40` only on a
+    fresh stack: 9 of 9. Order of the tests, not this release.
+- **Other checks.** The built app 14 of 14; REMOTE RLS PASSED (193); CREATE-USER PASSED (96). Restore drill: after the
+  whole suite, HR documents 5 of 6 (standing, as in every release); on a fresh stack: RESTORE DRILL PASSED (twice).
+  Fresh start: passed.
+- **Pictures at 390 and 1366 px.** The client login's Portfolio, one scope, across scopes, its home; the admin's across
+  scopes (internal) and the client's page; the Client Manager's People → Client logins. Changes made after looking: the
+  figures two to a row on a phone and four on a laptop (each was two lines in one column: a scope was 24 lines), the
+  tabs wrap (a fixed row cut "Across scopes"), batches as a list (a table too wide at 390), shorter pipeline headings.
+- **Words.** Every new word in English and Hindi (186 keys); one existing key reworded on purpose (`signin.no_role`,
+  named in REPLACE). The Audit log now names a download ("downloaded an export: the client's view, …").
+- **Release script.** `staging-client-views.cmd` (`scripts/staging_client_views.ps1`, phrase `VIEWS`) parses cleanly
+  under PowerShell 7.4. Its tested-files check, taken out and run on this copy: all tested files match, 196 app files,
+  `diff=0`. Not yet run; it waits for Veda's say-so.
+
+## 26 October 2026, 17:03 IST: `staging-client-views.cmd` stopped at S2 (Veda's run)
+
+- **S0 OK; S1 OK** (`20261112000100_client_views.sql` pushed); **S1b OK**: `functions=new closed=yes people=yes
+  scopes_in_views: AGTX=2, TCUP=4, UKE=1 accounts: operator=1, owner=1, viewer=2`.
+- **S2**: smoke 65 of 66 (statement logging standing), `rule68=OK`. Then the full isolation probe was cancelled by the
+  query limit: `57014: canceling statement due to statement timeout` (in `app.scope_farmer_members`, called by the probe).
+  The app was not pushed; the database has migration 68 (new functions only; the old app works as before).
+- **Why.** The probe reads every table and calls every function as each person bound to a client. On 22 Oct it took
+  about 77 s on staging (from the run record's file times); with the practice accounts and records since, it ran past
+  the 2-minute limit the project's queries have. Nothing in the probe's answer was reached; the smoke check's quicker
+  isolation row was OK.
+- **Change.** The script now sets a limit of its own for that one read-only query (`set statement_timeout = '15min'`
+  before it, as Supabase's guidance for long queries says). Read back on the local stack: `iso: leaks=0 people=18
+  tables=44 calls=2862`. Run the script again: it does not push 68 twice (S1 is skipped), and S2 runs the probe.
+
+## 26 October 2026, 17:25 IST: `staging-client-views.cmd` stopped at S2 again (Veda's run); migration 69
+
+- **S0 OK** (waiting: nothing); **S1 NOT RUN** (68 already pushed); **S1b OK** (as at 17:03).
+- **S2**: the whole probe, with its own query limit of 15 minutes, was cut by the web gateway: `unexpected status 524`
+  (about 100 s). The query limit was not the only one; a single query cannot run longer than that through the project's
+  query endpoint. The app was not pushed.
+- **Change: migration 69** (`20261112000200_isolation_probe_parts`, additive: one function made from the probe's own
+  text): `app.isolation_probe_part(part, parts)`. Each person's tables are read in one part, each function is called in
+  one part as every kind of person; together the parts are exactly the whole probe. The script expects 69 waiting (68
+  too if it is), reads it back in S1b (`probe_parts=yes`), and runs S2's check in 8 parts, adding up their answers; any
+  leak in any part stops it.
+- **Tests.** `tests/64_isolation_probe_parts.sql`: **12** checks (the parts' calls and own rows add up to the whole's;
+  each person's tables in one part; a planted leak caught by a part; a part out of range refused; not for the app's
+  people). **5 of 5** controls caught (`controls69.py`). Every database test on a rebuilt template: **2,817**;
+  `run_local.sh`: ALL TESTS PASSED. The script parses; S2's loop and the waiting rule run in PowerShell against the local
+  stack: 8 parts, the largest 17 % of the calls, together `leaks=0 people=18 tables=44 calls=2862` (the whole probe's
+  calls on the same data); waiting 68+69 or 69 alone accepted, anything else refused.

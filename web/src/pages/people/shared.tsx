@@ -6,7 +6,7 @@ import { rpc, sha256Hex } from '../../lib/api';
 import { toAppError } from '../../lib/errors';
 import { useI18n } from '../../lib/i18n';
 import { humanise } from '../../lib/format';
-import { lensTone, safeFileName, statusTone, type AssignmentInfo, type OrgFacts, type Warning } from '../../lib/people';
+import { lensTone, safeFileName, statusTone, type AssignmentInfo, type ClientAccountTag, type OrgFacts, type Warning } from '../../lib/people';
 import type { EmployeeStatus, StageType, SystemRole } from '../../lib/types';
 import { Badge } from '../../shell/ui';
 import { inSentence } from '../../lib/requirements';
@@ -24,8 +24,8 @@ export function useStageName() {
 }
 
 /** One coloured badge per thing that grants access: the system role (when it is not plain "operational") and each assignment. */
-export function AccessBadges({ systemRole, assignments, elsewhere, unassigned }:
-  { systemRole: SystemRole; assignments: AssignmentInfo[]; elsewhere: number; unassigned: boolean }) {
+export function AccessBadges({ systemRole, assignments, elsewhere, unassigned, clientAccount }:
+  { systemRole: SystemRole; assignments: AssignmentInfo[]; elsewhere: number; unassigned: boolean; /** migration 68 (item 65) */ clientAccount?: ClientAccountTag | null }) {
   const { t } = useI18n();
   const stage = useStageName();
   return (
@@ -34,8 +34,11 @@ export function AccessBadges({ systemRole, assignments, elsewhere, unassigned }:
       {assignments.map((a) => (
         <span key={a.id} className={`badge ${lensTone[a.lens]}${a.lapsed ? ' lapsed' : ''}`} title={t(`oprole.${a.op_role}`)}>
           {a.lens === 'scope' ? `${a.label}: ${a.stages.length ? a.stages.map(stage).join(', ') : t('oprole.export_manager')}`
-            : `${t(`oprole.${a.op_role}`)}: ${a.label}`}{a.lapsed ? ` (${t('assign.lapsed')})` : ''}
+            : `${a.op_role === 'client_viewer' && clientAccount ? t(`ca.role.${clientAccount.kind}`) : t(`oprole.${a.op_role}`)}: ${a.label}`}{a.lapsed ? ` (${t('assign.lapsed')})` : ''}
         </span>))}
+      {/* migration 68 (item 65): the client's own staff hold no client view: say what they are until a stage gives them more */}
+      {clientAccount?.kind === 'operator' && <span className={`badge ${lensTone.client}`} data-testid="client-staff-badge">{t('ca.role.operator')}: {clientAccount.client_name}</span>}
+      {clientAccount && clientAccount.status !== 'active' && <span className="badge pending" data-testid="client-account-status">{t(`ca.status.${clientAccount.status}`)}</span>}
       {elsewhere > 0 && <span className="badge draft" data-testid="elsewhere">{t('people.elsewhere', { n: elsewhere })}</span>}
       {unassigned && systemRole === 'operational' && <span className="badge pending" data-testid="unassigned">{t('people.unassigned')}</span>}
     </span>

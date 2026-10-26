@@ -592,3 +592,12 @@ button.stat:focus-visible { outline: 3px solid var(--g500); outline-offset: 2px;
 .checklist > li, .reports > li { align-items: stretch; text-align: left; }
 .checklist .row, .reports .row { justify-content: flex-start; }
 .report-files { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+
+/* migration 68: the portfolio's figures, two to a row on a phone, four on a laptop; each scope under a rule */
+.cv-figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; margin: 8px 0 0; }
+.cv-fig { display: flex; flex-direction: column; min-width: 0; border-top: 1px solid var(--border); padding-top: 4px; }
+.cv-fig span { font-size: .8rem; color: var(--muted); overflow-wrap: anywhere; }
+.cv-fig strong { font-variant-numeric: tabular-nums; }
+.cv-scope + .cv-scope, .cv-group + .cv-group { border-top: 2px solid var(--border); padding-top: 10px; }
+.cv-scope h3, .cv-group h3 { margin: 0 0 2px; }
+@media (min-width: 900px) { .cv-figs { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

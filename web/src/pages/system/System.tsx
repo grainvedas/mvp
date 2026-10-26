@@ -106,6 +106,9 @@ function Detail({ l }: { l: AuditLine }) {
     d.previous ? t('audit.previous', { name: String(d.previous) }) : '', Array.isArray(d.fields) ? (d.fields as string[]).join(', ') : '', typeof d.on === 'boolean' ? (d.on ? t('seats.code_on') : t('seats.code_off')) : '',
     // migration 42: a farmer's practice for a crop (how many answered); the crop a removal or retirement was about
     d.crop ? `${String(d.crop)}${typeof d.filled === 'number' ? ` ${t('audit.gap_filled', { n: d.filled, of: Number(d.of ?? 0) })}` : ''}` : '',
+    // migration 68: a download says which export, which view and which copy
+    l.action === 'export_downloaded' && d.kind ? [t(`audit.export_kind.${String(d.kind)}`, undefined, String(d.kind)), d.view ? t(`cv.title.${String(d.view)}`, undefined, String(d.view)) : '',
+      d.copy ? t(`exp.copy_${String(d.copy)}`, undefined, String(d.copy)) : ''].filter(Boolean).join(', ') : '',
   ].filter(Boolean);
   return <>{bits.join(' · ')}</>;
 }
@@ -139,7 +142,7 @@ export function AuditLog() {
           <li key={l.id} className={l.flagged ? 'flagged' : ''} data-testid={l.flagged ? 'audit-flagged' : 'audit-line'} data-action={l.action}>
             <div><strong>{l.actor_name}</strong>{l.actor_role && l.actor_role !== 'operational' ? <span className="muted small"> ({t(`sysrole.${l.actor_role}`)})</span> : null}
               {' '}{t(`audit.${l.action}`, undefined, humanise(l.action))}{' '}
-              {l.target ? <Link to={l.action.startsWith('crop_') ? '/crops' : l.action.startsWith('farmer_') ? `/farmers/${l.target}` : `/people/${l.target}`}>{l.target_name ?? '—'}</Link> : null}
+              {l.target && l.action !== 'export_downloaded' ? <Link to={l.action.startsWith('crop_') ? '/crops' : l.action.startsWith('farmer_') ? `/farmers/${l.target}` : `/people/${l.target}`}>{l.target_name ?? '—'}</Link> : null}
               {l.flagged && <> <Badge value="open" label={t(`audit.flag_${l.action}`, undefined, t('audit.flag'))} /></>}</div>
             <div className="small"><Detail l={l} /></div>
             <div className="when">{dateTime(l.at)}</div>

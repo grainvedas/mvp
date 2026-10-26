@@ -237,7 +237,7 @@ describe('the menu follows what the server says a person may do', () => {
   });
   it('the admin has every entry; the old Users page is gone from the menu', () => {
     const admin = links({ role: 'admin', can: { admin: true, hr: true, hr_admin: true, assign: true, state_lens: true } });
-    expect(admin).toEqual(NAV.filter((n) => n.to !== '/onboarding' && n.to !== '/help').map((n) => n.to));   // a joiner's two entries
+    expect(admin).toEqual(NAV.filter((n) => n.to !== '/onboarding' && n.to !== '/help' && n.to !== '/portfolio').map((n) => n.to));   // a joiner's two entries; a client account's own (migration 68: the admin opens a client's from its page)
     expect(NAV.map((n) => n.to)).not.toContain('/users');
   });
   it('every menu entry has its words in both languages', () => {

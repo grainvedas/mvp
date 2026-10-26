@@ -474,6 +474,19 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   never by a screen. Buyers are linked to the registry only by `app.link_buyer` (trigger) into the closed
   `buyer_entities`: never read it on a screen or in an export. `scopes.entry_point` accepts only `farmer_procurement`
   until the handoff is designed. A case for any new rule here in `tests/61_sourcing_partners_hooks.sql`.
+- **What a client account sees is one function per view, and its export is made from that same data** (migration 68,
+  Phase 3 Parts C and E4). The portfolio, one scope, across scopes and the farmers are `app.client_portfolio`,
+  `app.client_scope_detail`, `app.client_across` (and `app.cv_farmers_data`); their export is `app.export_client_view`,
+  which builds its tables from the same `app.cv_*_data` functions (so a later API reads the same thing) and writes each
+  download in the Audit log. Who reads is `app.cv_may_scope` / `app.cv_may_client` (an owner or a viewer within its
+  reach, never the client's own staff; GrainVeda's people who see the scope whole); prices and farmers' names only
+  when `app.cv_internal_scope` / `app.cv_internal_client` say so, and then the data function is called with
+  "internal": never pass "internal" from anywhere else, and keep the `cv_*_data` functions closed to `authenticated`.
+  A new figure goes into `app.cv_scope_figures` with a case in `tests/63_client_views.sql`; a new column of an export
+  into the list in `app.export_client_view` (a shareable copy's list never names a price or a farmer's name).
+  The release scripts' isolation check runs `app.isolation_probe_part(part, 8)` (migration 69), not the whole
+  `app.isolation_probe`: the whole runs past the project's query and gateway limits on staging. A change to the probe
+  goes into both (the part is made from the whole's text), with a case in `tests/64_isolation_probe_parts.sql`.
 - **A client account is an owner, a viewer or the client's own staff; one rule decides its writes** (migration 67,
   Phase 3 Parts A and B, with Phase 2's B4). What a client account may write is `app.client_may` only, asked by the
   trigger of every client-login guard (`app.client_login_reads_only`); a new owner's act names itself inside its own

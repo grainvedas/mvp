@@ -577,6 +577,20 @@ select 'client accounts',          case when to_regclass('public.client_accounts
                                       then 'NOT OK (the client accounts, their closed tables, the one rule or a client login without its account are not as migration 67 left them)'
                                       else 'OK client owners, viewers and staff; one rule for their writes; a viewer sees what it reaches; scopes have their delivery model' end
 union all
+select 'client views',             case when to_regprocedure('app.client_portfolio(uuid)') is null or to_regprocedure('app.export_client_view(text, uuid, uuid, text)') is null
+                                      then 'MISSING (push migration 68)'
+                                      when has_function_privilege('anon', 'app.client_portfolio(uuid)', 'execute')
+                                        or has_function_privilege('anon', 'app.export_client_view(text, uuid, uuid, text)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.cv_scope_data(uuid, boolean)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.cv_across_data(uuid, boolean)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.cv_farmers_data(uuid, boolean)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.cv_portfolio_data(uuid)', 'execute')
+                                        or position('account_reaches' in pg_get_functiondef('app.cv_may_scope(uuid)'::regprocedure)) = 0
+                                        or position('export_downloaded' in pg_get_functiondef('app.export_client_view(text, uuid, uuid, text)'::regprocedure)) = 0
+                                        or position('client_account' in pg_get_functiondef('app.people_page(jsonb)'::regprocedure)) = 0
+                                      then 'NOT OK (the client views, their closed data functions or the export''s Audit log are not as migration 68 left them)'
+                                      else 'OK the portfolio, one scope, across scopes and the farmers; exports shareable or internal, each in the Audit log' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')
