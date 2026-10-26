@@ -29,6 +29,8 @@ export interface FieldDef {
   for_market?: string;
   /** migration 55: on the form only while another field of the same form has this value ({"market": "export"}) */
   shown_if?: Record<string, string>;
+  /** migration 70: off the form while another field of the form has a value (the order's fields, while a client order is chosen) */
+  hidden_if_set?: string;
   /** migration 54: on the form only where the lot has packs by type (with_packs), or only where it has none (hidden_when_packs) */
   with_packs?: boolean; hidden_when_packs?: boolean;
   /** migration 62 (E2.1): on the form, and required, wherever the lot is packed at all (Shipment: the pack codes loaded) */

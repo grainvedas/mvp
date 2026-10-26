@@ -141,6 +141,20 @@ function AcrossTab({ clientId, t }: { clientId: string; t: T }) {
   const d = a.data;
   return (
     <>
+      {(d.client_orders ?? []).length > 0 && (
+        <div className="card" data-testid="cv-client-orders">
+          <h2>{t('cv.t.client_orders')}</h2>
+          <p className="small muted">{t('cv.client_orders_what')}</p>
+          <ul className="stack" style={{ listStyle: 'none', padding: 0 }}>
+            {(d.client_orders ?? []).map((o) => (
+              <li key={o.id} className="cv-row" data-testid="cv-client-order">
+                <div><Link to={`/orders/${o.id}`} className="mono"><strong>{o.code}</strong></Link> · {o.buyer ?? '—'} · <span className="mono small">{o.order_no}</span></div>
+                <div className="small muted">{t(`exp.mkt.${o.market === 'domestic' ? 'domestic' : 'export'}`)}{o.destination_country ? ` · ${o.destination_country}` : ''}
+                  {o.invoice_no ? <> · {t('ord.invoice')} <span className="mono">{o.invoice_no}</span></> : ''}</div>
+                <div className="small">{t('ord.parts_line', { parts: o.parts, scopes: o.scopes })} · {t('cv.order_line', { kg: kg(o.qty_kg), shipped: kg(o.shipped_kg) })}</div>
+              </li>))}
+          </ul>
+        </div>)}
       <div className="card" data-testid="cv-orders">
         <h2>{t('cv.t.orders')}</h2>
         {d.orders.length === 0 ? <Empty /> : (
@@ -148,9 +162,11 @@ function AcrossTab({ clientId, t }: { clientId: string; t: T }) {
             {d.orders.map((o) => (
               <div key={o.code} className="cv-row" data-testid="cv-order">
                 <div><strong>{o.buyer ?? '—'}</strong> · <span className="mono small">{o.order_no ?? o.code}</span></div>
-                <div className="small muted">{o.scope} · {date(o.on)} · {t(`exp.mkt.${o.market}`, undefined, o.market ?? '')}{o.destination_country ? ` · ${o.destination_country}` : ''}</div>
+                <div className="small muted">{o.scope} · {date(o.on)} · {t(`exp.mkt.${o.market}`, undefined, o.market ?? '')}{o.destination_country ? ` · ${o.destination_country}` : ''}
+                  {o.client_order && <> · {t('cv.part_of', { code: o.client_order })}</>}</div>
                 <div className="small">{t('cv.order_line', { kg: kg(o.qty_kg), shipped: kg(o.shipped_kg) })}
-                  {d.internal && o.price_per_kg != null && <span data-testid="cv-price"> · {t('cv.price_line', { price: num(o.price_per_kg), currency: o.currency ?? '', total: num(o.total_value) })}</span>}</div>
+                  {d.internal && o.price_per_kg != null && <span data-testid="cv-price"> · {o.currency ? t('cv.price_line', { price: num(o.price_per_kg), currency: o.currency, total: num(o.total_value) })
+                    : t('cv.price_line_nocur', { price: num(o.price_per_kg), total: num(o.total_value) })}</span>}</div>
               </div>))}
           </div>)}
         {!d.internal && d.orders.length > 0 && <p className="small muted">{t('cv.no_prices')}</p>}

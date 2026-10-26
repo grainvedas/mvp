@@ -367,3 +367,13 @@ update public.stage_definitions d
  where d.stage_type = 'procurement'
    and exists (select 1 from jsonb_array_elements(d.form_schema) f where f->>'key' = 'collection_point_id')
    and not exists (select 1 from jsonb_array_elements(d.form_schema) f where f->>'key' = 'procured_through');
+
+-- Migration 70 (Phase 3, Part D): "Part of a client order" first on the Commercial form; the order's fields hide while one
+-- is chosen (the same edit as the migration, so a database built from nothing has it).
+update public.stage_definitions d
+   set form_schema = '[{"key": "client_order_id", "type": "client_order", "label": "Part of a client order (optional)", "section": "buyer", "required": false}]'::jsonb
+       || (select jsonb_agg(case when f->>'key' in ('buyer_id', 'buyer', 'market', 'market_code', 'destination_country', 'order_no')
+                                 then f || '{"hidden_if_set": "client_order_id"}'::jsonb else f end order by n)
+             from jsonb_array_elements(d.form_schema) with ordinality as x(f, n))
+ where d.stage_type = 'commercial'
+   and not exists (select 1 from jsonb_array_elements(d.form_schema) f where f->>'key' = 'client_order_id');

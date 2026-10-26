@@ -73,6 +73,9 @@ begin
   insert into public.qr_seals (footprint_id, qr_code, sealed_by, ledger_hash) values (p_fp, 'GV-ISO' || p_tag, p_user, repeat('b', 64));
   insert into public.qc_profile_verdicts (footprint_id, profile_id, code, name, version, verdict) values (p_fp, gen_random_uuid(), 'iso', 'iso', 1, 'pass');
   insert into public.scope_closures (scope_id, client_id, requested_by, status) values (p_scope, p_client, p_user, 'withdrawn');   -- migration 63
+  insert into public.client_orders (code, client_id, crop_id, buyer_id, market, market_code, order_no, created_by)          -- migration 70
+    values ('ORD-ISO-' || p_tag, p_client, (select crop_id from public.scopes where id = p_scope),
+            (select id from public.buyers where client_id = p_client order by created_at limit 1), 'domestic', 'domestic', 'PO-ISO-' || p_tag, p_user);
 end $f$;
 set local session_replication_role = replica;
 select pg_temp.fill('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000499', '00000000-0000-4000-8000-000000000699', '00000000-0000-4000-8000-000000000599', '00000000-0000-4000-8000-000000000312', 'D2');

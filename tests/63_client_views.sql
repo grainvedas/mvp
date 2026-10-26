@@ -255,9 +255,9 @@ select t.fails(format($$select app.export_client_view('scope', null, %L, 'intern
 select t.fails($$select app.export_client_view('everything', '00000000-0000-4000-8000-000000000201')$$, 'a view is the portfolio', '6: four views only');
 select t.fails($$select app.export_client_view('portfolio', '00000000-0000-4000-8000-000000000201', null, 'secret')$$, 'shareable or an internal copy', '6: two copies only');
 select t.ok((select e->>'copy' = 'shareable' and pg_temp.col(e, 'orders', 'price_per_kg') is null and pg_temp.col(e, 'orders', 'buyer') is not null
-                    and jsonb_array_length(pg_temp.tab(e, 'orders')->'rows') = 1 and (select count(*) from jsonb_array_elements(e->'tables')) = 6
+                    and jsonb_array_length(pg_temp.tab(e, 'orders')->'rows') = 1 and (select count(*) from jsonb_array_elements(e->'tables')) = 7
                from (select app.export_client_view('across', '00000000-0000-4000-8000-000000000201') e) x),
-            '6: across scopes, shareable by default: six tables, the order without its price');
+            '6: across scopes, shareable by default: seven tables (with the client orders, migration 70), the order without its price');
 select t.ok((select (pg_temp.tab(e, 'scopes')->'rows'->0->>pg_temp.col(e, 'scopes', 'procured_kg'))::numeric = 130
                     and jsonb_array_length(pg_temp.tab(e, 'scopes')->'rows') = 1
                from (select app.export_client_view('portfolio', '00000000-0000-4000-8000-000000000201') e) x),

@@ -50,6 +50,9 @@ insert into allowed values
   ('authenticated', 'client_may_evidence'), ('authenticated', 'may_write_scope_doc'), ('authenticated', 'may_read_scope_doc'),   -- the store's rules (about the caller)
   ('authenticated', 'client_portfolio'), ('authenticated', 'client_scope_detail'), ('authenticated', 'client_across'),   -- migration 68
   ('authenticated', 'export_client_view'),
+  ('authenticated', 'client_order_choices'), ('authenticated', 'client_order_new'), ('authenticated', 'client_order_invoice'),   -- migration 70
+  ('authenticated', 'client_order_cancel'), ('authenticated', 'client_orders_list'), ('authenticated', 'client_order_detail'),
+  ('authenticated', 'client_orders_open_for'), ('authenticated', 'order_of_part'),
   ('authenticated', 'client_owner_check'),                                                                                        -- the buyer links' read rule (about the caller)
   ('authenticated', 'client_waiting'), ('authenticated', 'client_farmers'), ('authenticated', 'doc_kind_word'),        -- migration 59
   ('authenticated', 'same_file_elsewhere'), ('authenticated', 'note_same_file'), ('authenticated', 'is_client_login'),
@@ -93,7 +96,7 @@ insert into allowed values
   ('authenticated', 'save_farmer_gap'), ('authenticated', 'crop_registry'), ('authenticated', 'remove_crop'), ('authenticated', 'retire_crop'),
   ('authenticated', 'correct_crop_state'),
   -- migration 43: the farmer register (the register, a possible duplicate's open list and its decision)
-  ('authenticated', 'farmer_register'), ('authenticated', 'open_duplicates'), ('authenticated', 'mark_not_duplicate'),
+  ('authenticated', 'farmer_register'), ('authenticated', 'mark_not_duplicate'),   -- open_duplicates: closed by migration 70
   -- migration 44: the roster's pool and the activation check, the State Manager's step 2 with his choice, a farmer's change
   -- with its reason, the State Manager's acceptance, the farmer's history; the rules' helpers about the caller
   ('authenticated', 'roster_pool'), ('authenticated', 'activation_missing'), ('authenticated', 'verify_farmer_state'),

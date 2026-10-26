@@ -474,6 +474,18 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   never by a screen. Buyers are linked to the registry only by `app.link_buyer` (trigger) into the closed
   `buyer_entities`: never read it on a screen or in an export. `scopes.entry_point` accepts only `farmer_procurement`
   until the handoff is designed. A case for any new rule here in `tests/61_sourcing_partners_hooks.sql`.
+- **One order across scopes is a client order; its parts are ordinary Commercial records** (migration 70, Phase 3 Part
+  D). `public.client_orders` holds the buyer, market, order number and the one invoice; it is written only by
+  `app.client_order_new` / `app.client_order_invoice` / `app.client_order_cancel` (who: `app.may_make_order`, never a
+  client account). A part is a Commercial record whose payload names `client_order_id`: `app.reconcile` calls
+  `app.order_part_payload`, which writes the order's buyer, market and number into the part and refuses it unless the
+  scope, the client's state (Active), the batch's market (QC or acceptance) and its GI and farm-verified status (those
+  of the order's other parts) allow it; a shipment of a part goes through `app.order_shipment_payload` (the order's
+  invoice, the only one). Never write a part's buyer, market or number from a screen, and never add a second invoice
+  path. Who reads which section: `app.order_scope_seen`; prices: `app.order_price_seen`. The evidence pack of release 4
+  takes its sections from `app.client_order_detail`. Cases in `tests/65_client_orders.sql`. (Migration 70 also closed
+  `app.open_duplicates` to the app's people: a farmer's possible duplicates name other clients' farmers, so they are
+  read only inside the database, by `app.farmer_register` and the Farmer ID's rule.)
 - **What a client account sees is one function per view, and its export is made from that same data** (migration 68,
   Phase 3 Parts C and E4). The portfolio, one scope, across scopes and the farmers are `app.client_portfolio`,
   `app.client_scope_detail`, `app.client_across` (and `app.cv_farmers_data`); their export is `app.export_client_view`,

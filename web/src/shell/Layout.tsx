@@ -21,11 +21,13 @@ type Section = 'overview' | 'registry' | 'people' | 'system';
 /** What the menu needs to know about the person. `can` comes from the server (identity layer); the role is the summary. */
 export interface NavWho { role: Role; can: Can; farmerSlot: boolean; joiner: boolean; employee: boolean; /** not yet marked as joined */ joining?: boolean;
   /** saves waiting on this phone (the outbox) */ outbox?: boolean;
-  /** migration 68: a client's owner or viewer (its portfolio) */ clientReader?: boolean }
+  /** migration 68: a client's owner or viewer (its portfolio) */ clientReader?: boolean;
+  /** migration 70: reads client orders (Commercial somewhere, a manager, or a client's owner or viewer) */ orders?: boolean }
 export const NAV: { to: string; key: string; icon: string; section: Section; show: (w: NavWho) => boolean }[] = [
   { to: '/', key: 'nav.home', icon: '📊', section: 'overview', show: () => true },
   { to: '/onboarding', key: 'nav.onboarding', icon: '✅', section: 'overview', show: (w) => w.joiner },
   { to: '/portfolio', key: 'nav.portfolio', icon: '💼', section: 'overview', show: (w) => !!w.clientReader },   // migration 68
+  { to: '/orders', key: 'nav.orders', icon: '🧾', section: 'overview', show: (w) => !!w.orders },   // migration 70: orders across scopes
   { to: '/help', key: 'menu.help', icon: '💬', section: 'overview', show: (w) => !!w.joining },   // B5: help for someone not yet joined
   { to: '/farmers', key: 'nav.farmers', icon: '👨‍🌾', section: 'registry', show: (w) => w.role !== 'operator' || w.farmerSlot },
   { to: '/scopes', key: 'nav.scopes', icon: '🎯', section: 'registry', show: (w) => w.role !== 'operator' },
@@ -65,6 +67,7 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Re
     watch: [
       { to: '/', key: 'menu.overview', icon: '📊' },
       { to: '/pipeline', key: 'menu.pipeline', icon: '🔀' },
+      { to: '/orders', key: 'nav.orders', icon: '🧾' },                     // migration 70
       { to: '/state', key: 'nav.state', icon: '🗺' },
       { to: '/flags', key: 'nav.flags', icon: '🚩' },
     ],
@@ -100,6 +103,7 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Re
     watch: [
       { to: '/', key: 'menu.overview', icon: '📊' },
       { to: '/pipeline', key: 'menu.pipeline', icon: '🔀' },
+      { to: '/orders', key: 'nav.orders', icon: '🧾' },                     // migration 70
       { to: '/flags', key: 'nav.flags', icon: '🚩' },
     ],
     audit: [
@@ -132,6 +136,7 @@ export const ROLE_MENUS: { admin: Record<Heading, MenuItem[]>; state_manager: Re
     ],
     scopes: [
       { to: '/scopes', key: 'nav.scopes', icon: '🎯' },
+      { to: '/orders', key: 'nav.orders', icon: '🧾' },                     // migration 70: orders across scopes
       { to: '/setup', key: 'menu.setup', icon: '🗂' },                      // migration 51: his client's lists
     ],
     farmers: [
@@ -198,7 +203,9 @@ function Frame() {
   const who: NavWho | null = me ? { role: me.role, can, farmerSlot, employee: !me.external,
     joiner: !me.external && ((ctx?.onboarding?.open ?? 0) > 0 || me.status === 'invited' || me.status === 'onboarding'),
     joining: !me.external && (me.status === 'invited' || me.status === 'onboarding'), outbox: box.items.length > 0,
-    clientReader: isClientLogin(ctx) && !!me.client_account } : null;
+    clientReader: isClientLogin(ctx) && !!me.client_account,
+    orders: isClientLogin(ctx) ? !!me.client_account && me.client_account.kind !== 'operator'
+      : !!ctx?.slots.some((s) => s.stage_type === 'commercial') || ['admin', 'state_manager', 'client_manager'].includes(me.role) } : null;
   const visible = NAV.filter((n) => who && n.show(who));
   // HR's badge on Requirements: the new lines of her states (migration 46); read again on each page change
   const reqs = useAsync(() => can.hr ? rpc<{ new: number }>('hr_requirement_counts').catch(() => null) : Promise.resolve(null), [can.hr, pathname]);

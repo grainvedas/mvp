@@ -29,6 +29,7 @@ import { cached, isNetworkError } from '../offline/cache';
 import { enqueue, discard, getOutboxItem, insertOnce, type OutboxItem } from '../offline/outbox';
 import { useOnline } from '../offline/useOutbox';
 import { useAuth } from '../auth/AuthProvider';
+import { orderOfPart } from '../lib/orders';   // migration 70
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 /** How long the maths step waits for the server before working the numbers out on the phone (dead link). */
@@ -442,16 +443,37 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
   const online = useOnline();
   // migration 54 (C7, C8): what the lot this record is made from decides: the order's market (Shipment: its papers) and
   // whether it has packs by type (the packs are chosen, not the kilograms)
+  const [values, setValues] = useState<Record<string, FieldValue>>(() =>
+    draft ? (draft.values as Record<string, FieldValue>) : initialValues(form, source, editing ?? replaces ?? null));
+  // migration 70 (Phase 3, D): a part of a client order is recorded as the stage details ask (the order's buyer and number,
+  // the packs by type), whatever the scope's setting: the server reconciles it so
+  const orderChosen = typeof values.client_order_id === 'string' && values.client_order_id !== '';
   const lotRuled = form.stage.form_schema.some((fd) => fd.for_market || fd.with_packs || fd.hidden_when_packs || fd.when_packed);
   const lotId = source?.id ?? editing?.prev_footprint_id ?? replaces?.prev_footprint_id ?? undefined;
   const [lot, setLot] = useState<{ market: string | null; packs: boolean; packed?: boolean }>({ market: null, packs: false });
+  // migration 70 (Phase 3, D): a shipment of a part of a client order carries the order's one invoice (the server fills it in)
+  const partId = form.stage.stage_type === 'shipment' ? lotId : undefined;
+  const [partOrder, setPartOrder] = useState<{ code: string; invoice_no: string | null } | null>(null);
+  useEffect(() => {
+    if (!partId) { setPartOrder(null); return; }
+    let live = true;
+    void cached(`order_of_part:${partId}`, () => orderOfPart(partId)).then((o) => {
+      if (!live) return;
+      setPartOrder(o ?? null);
+      if (o?.invoice_no) setValues((s) => (s.invoice_no ? s : { ...s, invoice_no: o.invoice_no as string }));
+    }).catch(() => undefined);
+    return () => { live = false; };
+  }, [partId]);
+  // a part, and its shipment, as the details ask (the shipment's papers of its market)
+  const asDetails = orderChosen || !!partOrder;
+  const rulesScope = useMemo(() => (asDetails ? { ...form.scope, stage_details_required: true } : form.scope), [form.scope, asDetails]);
   useEffect(() => {
     if (!lotRuled || !lotId) return;
     let live = true;
     void (async () => {
       const known = (source?.id === lotId ? source.computed : null) as Record<string, unknown> | null;
       const c = known ?? (await cached(`lot_computed:${lotId}`, async () => ((await q(supabase.from('footprints').select('computed').eq('id', lotId).single())) as unknown as { computed: Record<string, unknown> | null }).computed).catch(() => null));
-      const packs = form.scope.stage_details_required === true
+      const packs = form.scope.stage_details_required === true || asDetails                         // migration 70: a part takes packs
         ? (await cached(`packs_left:${lotId}`, () => rpc<PackLeft[]>('packs_left', { p_fp: lotId })).catch(() => [])).length > 0 : false;
       // migration 62 (E2.1): is the order's lot packed at all (any pack of its batch not void)? Then the codes are asked
       const packed = form.stage.form_schema.some((fd) => fd.when_packed)
@@ -461,12 +483,10 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
     })();
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lotId, lotRuled]);
+  }, [lotId, lotRuled, asDetails]);
   // migration 50 (C5): the lab report's fields are required where the scope asks for the report
-  const lotFields = useMemo(() => withLotRules(withScopeRules(form.stage.form_schema, form.scope), lot), [form, lot]);
+  const lotFields = useMemo(() => withLotRules(withScopeRules(form.stage.form_schema, rulesScope), lot), [form, lot, rulesScope]);
   const stateId = ctx?.scopes.find((x) => x.scope_id === form.scope.id)?.state_id;
-  const [values, setValues] = useState<Record<string, FieldValue>>(() =>
-    draft ? (draft.values as Record<string, FieldValue>) : initialValues(form, source, editing ?? replaces ?? null));
   // migration 55: a field shown only for a value of another (a domestic order has no export market, country or Incoterms)
   const fields = useMemo(() => withValueRules(lotFields, values), [lotFields, values]);
   // migration 52: a correction of a lot whose price was recorded opens with that price and payment (kept apart from the record)
@@ -695,6 +715,8 @@ function RecordForm({ form, source, editing, onAnother, draft, replaces, onNew }
         : t('engine.sign_banner_last', { name: ctx?.user?.display_name ?? '' })}</div>}
       {gated && <MarketVerdict m={markets} />}
       {source && <p className="muted">{t('engine.source_lot')} <span className="mono">{source.footprint_code}</span> · {kg(source.qty_out)}</p>}
+      {partOrder && <div className={`alert ${partOrder.invoice_no ? 'info' : 'warn'}`} data-testid="part-order-note">
+        {partOrder.invoice_no ? t('ord.ship_invoice', { code: partOrder.code, invoice: partOrder.invoice_no }) : t('ord.ship_no_invoice', { code: partOrder.code })}</div>}
       {unsupported.length > 0 && <div className="alert warn">{t('engine.widget_missing')} ({unsupported.map((f) => f.label).join(', ')})</div>}
       <form onSubmit={(e) => { e.preventDefault(); if (preview?.ok) setReviewing(true); }} aria-label={form.stage.label}>
         <fieldset disabled={reviewing} style={{ border: 'none', padding: 0, margin: 0 }}>

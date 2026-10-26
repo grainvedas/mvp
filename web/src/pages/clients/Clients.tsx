@@ -184,7 +184,8 @@ export function ClientPage() {
       <p><Link to="/clients">← {t('clients.title')}</Link></p>
       <h1>{idn.name} <span className="mono small">{idn.code}</span></h1>
       <div className="row wrap" style={{ gap: 6 }}><StatusBadge s={idn.status} /><Flags panPending={idn.pan_pending} ownBrand={idn.own_brand} /></div>
-      {!d.shared_only && <p className="no-print"><Link to={isClientLogin(ctx) ? '/portfolio' : `/portfolio/${idn.client_id}`} data-testid="open-portfolio">{t('cv.open')}</Link></p>}   {/* migration 68 */}
+      {!d.shared_only && <p className="no-print"><Link to={isClientLogin(ctx) ? '/portfolio' : `/portfolio/${idn.client_id}`} data-testid="open-portfolio">{t('cv.open')}</Link>
+        {' · '}<Link to={isClientLogin(ctx) ? '/orders' : `/orders?client=${idn.client_id}`} data-testid="open-orders">{t('ord.open')}</Link></p>}   {/* migration 68; 70: its orders */}
       {idn.own_brand && <p className="small" data-testid="own-brand-note">{t('cl.own_brand_note')}</p>}
       {d.shared_only ? (
         <div className="card"><SharedIdentity id={idn} /><p className="small muted" data-testid="shared-only">{t('cl.shared_only')}</p>

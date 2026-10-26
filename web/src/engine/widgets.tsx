@@ -11,6 +11,7 @@ import { gpsProblem, parseGps } from '../lib/setup';
 import { rpc } from '../lib/api';
 import { PackCodes, codeLines, normCode } from './PackCodes';
 import { OrderCartons } from './OrderCartons';
+import { ClientOrderPicker } from './ClientOrderPicker';
 
 export type FieldValue = string | boolean | string[] | Record<string, string> | File | null;
 export interface WidgetProps {
@@ -33,11 +34,12 @@ export interface WidgetProps {
 export const SUPPORTED = new Set(['number', 'integer', 'number[3]', 'text', 'select', 'date', 'boolean', 'attachment', 'readings', 'farmer',
   'breakdown', 'packets[]', 'footprint[]', 'collection_point', 'gps',
   'mill', 'lab', 'packing_unit', 'qc_sample', 'sku_packs',
-  'buyer', 'market_profile', 'order_packs', 'serials', 'order_cartons', 'partner']);   // migration 66: "Procured through"   // migration 58: the cartons an order chooses                                // migration 54: Commercial and Shipment                         // migration 53: Milling, QC, Packing   // migration 52: where the lot was weighed, and its GPS
+  'buyer', 'market_profile', 'order_packs', 'serials', 'order_cartons', 'partner', 'client_order']);   // migration 70: a part of a client order
+    // migration 66: "Procured through"   // migration 58: the cartons an order chooses                                // migration 54: Commercial and Shipment                         // migration 53: Milling, QC, Packing   // migration 52: where the lot was weighed, and its GPS
 
 /** Field types that take the whole width of a two-column form (lists, pickers, files, groups of inputs). */
 export const FULL_WIDTH = new Set(['number[3]', 'attachment', 'readings', 'farmer', 'breakdown', 'packets[]', 'footprint[]', 'boolean', 'gps',
-  'qc_sample', 'sku_packs', 'order_packs', 'serials', 'order_cartons']);
+  'qc_sample', 'sku_packs', 'order_packs', 'serials', 'order_cartons', 'client_order']);
 
 /** Consecutive fields with the same `section` form one block of the form; a registry without sections gives one block. */
 export function groupSections(fields: FieldDef[]): { section: string | null; fields: FieldDef[] }[] {
@@ -155,6 +157,8 @@ export function Widget(p: WidgetProps) {
     case 'buyer':
       return <ListPicker id={id} name={field.key} value={(value as string) ?? ''} onChange={(v) => onChange(v)} cacheKey={`buyers:${p.clientId}`}
         load={async () => (await listRows('buyers', 'id,name,country', 'client_id', p.clientId)).map((m) => ({ id: m.id, label: `${m.name} · ${m.country}` }))} />;
+    case 'client_order':   // migration 70 (Phase 3, D): a part of an order drawing on several scopes
+      return <ClientOrderPicker id={id} scopeId={p.scopeId} sourceId={p.sourceId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
     case 'market_profile':
       return <MarketProfilePicker id={id} sourceId={p.sourceId} value={(value as string) ?? ''} onChange={(v) => onChange(v)} />;
     case 'order_packs':
@@ -560,7 +564,9 @@ export function withLotRules(fields: FieldDef[], lot: { market?: string | null; 
 /** Migration 55: a field marked `shown_if` is on the form only while another field of the form has that value (a
  *  domestic order does not show the export market, the destination country or the Incoterms). */
 export function withValueRules(fields: FieldDef[], values: Record<string, unknown>): FieldDef[] {
-  return fields.filter((f) => !f.shown_if || Object.entries(f.shown_if).every(([k, v]) => values[k] === v));
+  return fields.filter((f) => !f.shown_if || Object.entries(f.shown_if).every(([k, v]) => values[k] === v))
+    // migration 70: the order's own fields (buyer, market, number) hide while a client order is chosen: the server writes them
+    .filter((f) => !f.hidden_if_set || !values[f.hidden_if_set]);
 }
 
 /** The pack codes typed or scanned, one per line (or separated by commas or spaces), in the order given. */

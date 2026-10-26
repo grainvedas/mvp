@@ -591,6 +591,23 @@ select 'client views',             case when to_regprocedure('app.client_portfol
                                       then 'NOT OK (the client views, their closed data functions or the export''s Audit log are not as migration 68 left them)'
                                       else 'OK the portfolio, one scope, across scopes and the farmers; exports shareable or internal, each in the Audit log' end
 union all
+select 'client orders',            case when to_regclass('public.client_orders') is null or to_regprocedure('app.client_order_detail(uuid)') is null
+                                      then 'MISSING (push migration 70)'
+                                      when not exists (select 1 from pg_class where oid = 'public.client_orders'::regclass and relrowsecurity)
+                                        or has_table_privilege('authenticated', 'public.client_orders', 'insert')
+                                        or has_table_privilege('authenticated', 'public.client_orders', 'update')
+                                        or has_function_privilege('anon', 'app.client_order_detail(uuid)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.order_part_payload(jsonb, public.footprints, public.scopes)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.may_make_order(uuid, uuid)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.open_duplicates(uuid)', 'execute')
+                                        or position('order_part_payload' in pg_get_functiondef('app.reconcile(public.footprints, public.scopes)'::regprocedure)) = 0
+                                        or position('order_shipment_payload' in pg_get_functiondef('app.reconcile(public.footprints, public.scopes)'::regprocedure)) = 0
+                                        or not exists (select 1 from pg_trigger where tgname = 'zz_change_log' and tgrelid = 'public.client_orders'::regclass)
+                                        or not exists (select 1 from public.stage_definitions d, jsonb_array_elements(d.form_schema) f
+                                                        where d.stage_type = 'commercial' and f->>'key' = 'client_order_id')
+                                      then 'NOT OK (the client orders, their closed rules, the part''s checks, the Commercial form or the closed duplicates are not as migration 70 left them)'
+                                      else 'OK one order across scopes: the parts'' rules, one invoice, read by who reaches each scope' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

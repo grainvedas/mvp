@@ -109,6 +109,9 @@ function Detail({ l }: { l: AuditLine }) {
     // migration 68: a download says which export, which view and which copy
     l.action === 'export_downloaded' && d.kind ? [t(`audit.export_kind.${String(d.kind)}`, undefined, String(d.kind)), d.view ? t(`cv.title.${String(d.view)}`, undefined, String(d.view)) : '',
       d.copy ? t(`exp.copy_${String(d.copy)}`, undefined, String(d.copy)) : ''].filter(Boolean).join(', ') : '',
+    // migration 70: a client order's number and invoice (the reason of a cancel is above)
+    l.action.startsWith('client_order_') ? [d.order_no ? t('audit.order_no', { no: String(d.order_no) }) : '',
+      d.invoice_no ? t('audit.invoice_no', { no: String(d.invoice_no) }) : ''].filter(Boolean).join(', ') : '',
   ].filter(Boolean);
   return <>{bits.join(' · ')}</>;
 }
@@ -142,7 +145,8 @@ export function AuditLog() {
           <li key={l.id} className={l.flagged ? 'flagged' : ''} data-testid={l.flagged ? 'audit-flagged' : 'audit-line'} data-action={l.action}>
             <div><strong>{l.actor_name}</strong>{l.actor_role && l.actor_role !== 'operational' ? <span className="muted small"> ({t(`sysrole.${l.actor_role}`)})</span> : null}
               {' '}{t(`audit.${l.action}`, undefined, humanise(l.action))}{' '}
-              {l.target && l.action !== 'export_downloaded' ? <Link to={l.action.startsWith('crop_') ? '/crops' : l.action.startsWith('farmer_') ? `/farmers/${l.target}` : `/people/${l.target}`}>{l.target_name ?? '—'}</Link> : null}
+              {l.target && l.action.startsWith('client_order_') ? <Link to={`/orders/${l.target}`} className="mono">{String((l.detail as Record<string, unknown>).code ?? l.target_name ?? '—')}</Link>   /* migration 70 */
+                : l.target && l.action !== 'export_downloaded' ? <Link to={l.action.startsWith('crop_') ? '/crops' : l.action.startsWith('farmer_') ? `/farmers/${l.target}` : `/people/${l.target}`}>{l.target_name ?? '—'}</Link> : null}
               {l.flagged && <> <Badge value="open" label={t(`audit.flag_${l.action}`, undefined, t('audit.flag'))} /></>}</div>
             <div className="small"><Detail l={l} /></div>
             <div className="when">{dateTime(l.at)}</div>

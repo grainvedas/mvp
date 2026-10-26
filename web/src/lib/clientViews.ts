@@ -40,10 +40,12 @@ export interface ScopeDetail {
   people: { stage: string; name: string; client_staff: boolean }[];
 }
 
-export interface Order { code: string; scope_id: string; scope: string; on: string; buyer: string | null; market: string | null; destination_country: string | null;
+export interface Order { code: string; client_order?: string | null; scope_id: string; scope: string; on: string; buyer: string | null; market: string | null; destination_country: string | null;
   order_no: string | null; qty_kg: number; shipped_kg: number; status: string; price_per_kg?: number | null; currency?: string | null; total_value?: number | null }
 export interface Across {
   client: ClientHead; may_internal: boolean; internal: boolean; orders: Order[];
+  /** migration 70: the client orders with a part in the scopes the reader reaches */
+  client_orders?: ClientOrderRow[];
   buyers: { buyer: string; orders: number; qty_kg: number; shipped_kg: number }[];
   scans_by_city: { city: string | null; region: string | null; country: string | null; scans: number; last_at: string }[];
   copy_flags: { serial: string; kind: string; status: string; raised_at: string; scope: string }[];
@@ -51,6 +53,8 @@ export interface Across {
   outputs: { ref: string; kind: string; final: boolean; version: number; status: string; issued_at: string; scope: string }[];
 }
 
+export interface ClientOrderRow { id: string; code: string; order_no: string; buyer: string | null; market: string; destination_country: string | null;
+  invoice_no: string | null; status: string; scopes: number; parts: number; qty_kg: number; shipped_kg: number; created_at: string }
 export interface ExportTableC { key: string; columns: string[]; rows: V[][] }
 export interface ClientExport { kind: 'client_view'; view: View; copy: Copy; generated_at: string; generated_by: string | null;
   client: { name: string; code: string | null }; scope: (ScopeDetail['head'] & { label: string }) | null; units: Record<string, string>; tables: ExportTableC[] }
@@ -87,7 +91,12 @@ export function cvValue(key: string, v: V, t: T): Cell {
 /** Pure: a table of an export in the reader's language. */
 export function cvTable(tb: ExportTableC, t: T): { title: string; header: string[]; rows: Cell[][] } {
   return { title: t(`cv.t.${tb.key}`, undefined, humanise(tb.key)), header: tb.columns.map((c) => cvColumn(c, t)),
-    rows: tb.rows.map((r) => r.map((v, i) => cvValue(tb.columns[i], v, t))) };
+    rows: tb.rows.map((r) => r.map((v, i) => {
+      // item 67 (2): a price recorded before the currency was asked says so (never "220" with no currency)
+      const pi = tb.columns.indexOf('price_per_kg');
+      if (tb.columns[i] === 'currency' && (v === null || v === '') && pi >= 0 && r[pi] !== null && r[pi] !== '') return t('cv.currency_unknown');
+      return cvValue(tb.columns[i], v, t);
+    })) };
 }
 
 /** Pure: the footer of a copy (the internal one says who it is for and not to forward it; both say the download is logged). */

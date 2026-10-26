@@ -3536,3 +3536,102 @@ internal copy, "in process" and "open lab results" as defined there; item 65's f
   `run_local.sh`: ALL TESTS PASSED. The script parses; S2's loop and the waiting rule run in PowerShell against the local
   stack: 8 parts, the largest 17 % of the calls, together `leaks=0 people=18 tables=44 calls=2862` (the whole probe's
   calls on the same data); waiting 68+69 or 69 alone accepted, anything else refused.
+
+## 26 October 2026, 17:53 IST: client views on staging (`staging-client-views.cmd`, third run)
+
+Veda's run, her pasted summary:
+- **S0 OK** (waiting: `20261112000200_isolation_probe_parts.sql`); **S1 OK** (69 pushed).
+- **S1b OK**: `functions=new closed=yes people=yes probe_parts=yes scopes_in_views: AGTX=2, TCUP=4, UKE=1 accounts:
+  operator=1, owner=1, viewer=2`.
+- **S2 OK**:
+  - smoke 65 of 66 (statement logging standing); the new rules in place, the change log intact;
+  - one client and another, in 8 parts: `leaks=0 people=12 tables=45 calls=43884` (three times the calls of 22 Oct,
+    which is why the whole probe could no longer run in one query);
+  - after: owners=1 viewers=2 client_staff=1; ledger audit NO FINDINGS (376 blocks, 77 records, 8 seals, 15 evidence
+    files); NO LOGIN WITHOUT A PERSON; FUNCTIONS DEPLOYED AND CURRENT.
+- **S3 OK**: pushed, head 8987f17 (32 files). **RESULT: CLIENT VIEWS ON STAGING.**
+
+Claude, in the browser pane afterwards: Vercel serves the new app (its bundle calls `client_portfolio` and has the new
+words). The run sheet's checks follow.
+
+### The run sheet's checks (Claude, in the browser pane at 527 px, each person signing in), 26 Oct, 18:15–18:50 IST
+
+- **Row 1 (tcup).** The menu's Portfolio: totals 5,579.8 kg procured, 4 scopes; "Uttar Pradesh · Kalanamak Rice"; Bansi,
+  gkp, Siddharthnagar, the closed practice godown; Bansi's procured 2,347.2 kg as on its dashboard; no "Copy" choice.
+- **Row 2 (tcup).** Download Excel (Veda: "download ok"): the export call answered 200; the shareable copy has the
+  scopes (4), by state and crop (1), the total. The internal copy refused (403). (The first click left no trace that
+  could be read; it was clicked again, so the file may be saved twice.)
+- **Row 3 (tcup).** Bansi: the pipeline (8 stages; 2,347.2 kg procured), 4 lots (all live), batches, 5 QC records with
+  their market verdicts, 6 documents, the season report GV-SR-000001, the people by name only. Download CSV:
+  `grainveda-scope-KH26-Bansi-shareable.csv`; its data has the 7 tables, the people's columns stage, name, client staff;
+  no phone, no price.
+- **Row 4 (tcup).** Across scopes: 8 orders with their buyer and kilograms, no price; scans by city (Delhi, 29); no
+  recall (none on staging: the run sheet's "recalled" example cannot be seen there; `tests/63` covers it); the two
+  season reports.
+- **Row 5 (Practice Viewer Bansi).** Bansi only (1 group, 1 scope); the farmers' shareable copy: TCUP-F-0001, 0002,
+  0004, 0005 (those who sold into Bansi), no Name column, no phone; the internal copy and gkp's view refused (403).
+  Checked without saving a file.
+- **Row 6 (Practice Owner TCUP).** The Copy choice offered; prices on the screen (PRACTICE-ORD-1022: 150 INR/kg, 8,700
+  INR); the internal copy: 200, price, currency and total, made by "Practice Owner TCUP". Checked without saving a file.
+- **Row 7 (the admin).** Test Client UP → Portfolio and exports: the same portfolio, the internal copy offered. The
+  Audit log: a line for every export asked for ("… downloaded an export: the client's view, Across scopes, Internal
+  copy"), the checks made without saving a file included (each asked the server for the export); the refused ones not.
+- **Row 8 (Lucky).** People → Client logins: "Client owner: Test Client UP", "Client staff: Test Client UP", "Client
+  viewer (read-only): Test Client UP"; the owner's page: "Client owner".
+- **Found** (item 67 in `docs/FIX_LIST.md`):
+  1. QC per market: older QC records keep their lab in "Lab reference" (`lab_ref`), which the view does not show: their
+     lab reads "—".
+  2. Four older orders have a price and no currency (recorded before the currency was asked): "220 /kg" with no currency.
+  3. Lucky (Client Manager) is offered "End" on the owner's client assignment; ending it would take away the owner's
+     access although owners are the admin's to make. A question for Veda (the Client Manager looks after client logins,
+     22 Oct).
+
+## 26 October 2026: Phase 3 release 3, client orders (migration 70), on the local stack
+
+Veda: "proceed" (Phase 3 Part D, with item 67's (1) and (2); the plan sent that day: the client order made by whoever
+holds Commercial in one of the client's scopes of the crop, its Client or State Manager, or the admin; each scope's part
+at Commercial; one invoice; cancel only without parts; item 67 (3) left as it is).
+
+- **Database.** `tests/65_client_orders.sql`: **64** checks in ten sections (making an order and who may; a part from
+  Uttar Pradesh and a part from Assam of one order, the order's buyer, market and number written over the form's; the
+  parts refused: another client's order, another crop, a cancelled order, the client not Active in Assam, a batch that
+  failed the export market, a batch not farm-verified; one invoice for both states, another refused, none yet refused,
+  fixed once shipped; the order's page by scope for the admin, Basti mill's Commercial, the owner, the viewer of Basti
+  mill, another client's people and the public; cancelling; the client's views and their export; item 67 (1); the
+  Commercial form's offer and the grants; the duplicates fix). **19 of 19** negative controls caught (`controls70.py`);
+  68's 17 and 69's 5 again on the new template.
+  - Four controls were first counted as missed: two were caught by an earlier assertion than the one named (named
+    again), one ("another client's order") was also refused by the buyer check (the assertion now names the order's own
+    words), one ("a client account makes orders") needed both of its guards removed to show.
+  - Every database test on a rebuilt template: **2,881**, no failure. `tests/08` names the eight new entry points (and no
+    longer `open_duplicates`); `tests/50` gives `client_orders` a row of each client; `tests/63` counts seven tables in
+    the export of Across scopes.
+  - `tests/run_local.sh`: ALL TESTS PASSED (with the upgrade path), twice.
+  - The release script's read-back and rules on the local stack: `table=new functions=new rules=yes form=yes views=yes`,
+    `rule70=OK` (the change log's 72 tables); the smoke check **67** rows, `client orders` OK.
+  - The probe in parts: 1,635 calls on the test template against 69's 1,590, the same time (25 s and 24 s).
+- **Found while checking: the farmer register's duplicates (P3-DUP).** On the stack after the whole e2e suite (238
+  people) the probe's part 6 said `leaks=6 what=function:open_duplicates` (as a Client Manager, a client login, an
+  operator). `app.open_duplicates(farmer)` answered anyone signed in with the names, Farmer IDs and client of the farmers
+  sharing that farmer's phone in his state, another client's included. No screen calls it. Migration 70 closes it to the
+  app's people (the farmer register and the Farmer ID's rule read it inside the database); `tests/65` §10 and a control;
+  the same part on the same stack: `leaks=0`. Staging's probe of 26 Oct had `leaks=0` (no such pair there).
+- **A part in a scope that does not ask the stage details** (found while writing `phase41`): the server reconciles a part
+  as the details ask (its buyer from the order, the packs by type), so the form now does the same once an order is
+  chosen, and so does the Shipment of a part; without it the form asked kilograms and the server refused.
+- **Unit tests: 779.** The new `release70.test.tsx` has 11; four menu tests name Client orders in the admin's, the State
+  Manager's and the Client Manager's menus. The type check is clean.
+- **e2e.** The whole suite on a fresh stack: **107 of 107** (33.9 min), with the new `phase41` (527 px): Commercial makes
+  a client order from his menu, records Basti mill's part by choosing it (Market, Buyer and Order number leave the form;
+  the packs stay), the record names the order, the order's page has Basti mill's section, the Shipment form says the
+  order's invoice; the client's own login lists the order under Across scopes and opens it with nothing to change. After
+  the duplicates fix, on a fresh stack: `phase10`, `phase15` (the farmer register's duplicate) and `phase41`, 6 of 6.
+- **Other checks.** The built app 14 of 14; REMOTE RLS PASSED (193); CREATE-USER PASSED (96). Restore drill: after a few
+  e2e tests, HR documents 2 of 3 (standing); on a fresh stack: RESTORE DRILL PASSED. Fresh start: passed.
+- **Pictures at 390 and 1366 px.** The list, the new order's form, an order's page, the client's Across scopes: nothing
+  to change.
+- **Words.** Every new word in English and Hindi (94 keys), the refusals in plain words; the Audit log names a client
+  order's acts and links to the order. No existing key replaced.
+- **Release script.** `staging-client-orders.cmd` (`scripts/staging_client_orders.ps1`, phrase `ORDERS`) parses cleanly
+  under PowerShell 7.4. Its tested-files check, taken out and run on this copy: all tested files match, 200 app files,
+  `diff=0`. Not yet run; it waits for Veda's say-so.

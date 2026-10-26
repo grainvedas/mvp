@@ -28,7 +28,7 @@ describe('the admin has two jobs', () => {
     expect(HEADINGS).toEqual(['watch', 'audit', 'master', 'access', 'me']);
     const who = (hr: boolean) => ({ role: 'admin', farmerSlot: false, joiner: false, employee: true, can: { ...NO_RIGHTS, admin: true, oversee: true, hr } }) as NavWho;
     const shown = (hr: boolean) => HEADINGS.flatMap((h) => ROLE_MENUS.admin[h].filter((m) => !m.show || m.show(who(hr))).map((m) => m.to));
-    expect(ROLE_MENUS.admin.watch.map((m) => m.to)).toEqual(['/', '/pipeline', '/state', '/flags']);
+    expect(ROLE_MENUS.admin.watch.map((m) => m.to)).toEqual(['/', '/pipeline', '/orders', '/state', '/flags']);   // migration 70: client orders
     expect(ROLE_MENUS.admin.audit.map((m) => m.to)).toEqual(['/system/ledger', '/system/audit', '/health', '/system/safeguards']);   // migration 45
     expect(ROLE_MENUS.admin.master.map((m) => m.to)).toEqual(['/states', '/clients', '/crops', '/setup', '/scopes', '/farmers']);
     expect(ROLE_MENUS.admin.me.map((m) => m.to)).toEqual(['/account', '/guide', '/help']);

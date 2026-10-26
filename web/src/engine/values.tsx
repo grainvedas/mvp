@@ -16,14 +16,14 @@ const ORDER = ['net_kg', 'moisture_avg', 'moisture_min', 'moisture_max', 'varian
   'sample_code', 'lab', 'lab_kind', 'packing_unit', 'wastage_pct',
   'clean_kg', 'reject_kg', 'reject_reasons', 'grade_split', 'yield_pct', 'bran_kg', 'loss_kg', 'expected_out_kg',
   'water_removed_kg', 'grain_loss_kg', 'pop_rate_pct', 'weight_yield_pct', 'foreign_matter_kg', 'water_uptake_kg',
-  'spoilage_kg', 'packed_kg', 'wastage_kg', 'batch_code', 'sample_qty_kg', 'forwarding_kg', 'market', 'buyer',
+  'spoilage_kg', 'packed_kg', 'wastage_kg', 'batch_code', 'sample_qty_kg', 'forwarding_kg', 'client_order', 'market', 'buyer',   // migration 70: its order
   'buyer_country', 'order_no', 'market_code', 'market_name', 'destination_country', 'sale_route', 'packs',     // migration 54: Commercial
   'units',                                                                                                     // migration 58: what the order set aside
   'invoice_no', 'serials_count', 'cartons_count', 'container_no', 'bl_pending',                                // migration 54: Shipment (58: cartons)
   'transit_loss_kg', 'final_kg', 'grade'];
 /** Worked-out values kept for the system, not shown: the buyer's row id (his name and country are shown), the export
  *  market's code (its name is shown: seen on the record page at 390 px, the two lines said the same). */
-const NOT_SHOWN = new Set(['buyer_id', 'market_code']);
+const NOT_SHOWN = new Set(['buyer_id', 'market_code', 'client_order_id']);   // migration 70: the order by its code
 
 export function orderedComputed(computed: Record<string, unknown> | null | undefined): [string, unknown][] {
   const rank = (k: string) => { const i = ORDER.indexOf(k); return i < 0 ? ORDER.length : i; };
@@ -94,6 +94,7 @@ export function showEntered(fd: FieldDef | undefined, key: string, v: unknown, t
   if (type === 'date' && typeof v === 'string') return fmtDate(v);
   if (type === 'collection_point') return v === 'farm' ? t('cp.at_farm') : t('cp.a_point');   // its name is with the worked-out values
   if (type === 'mill' || type === 'packing_unit' || type === 'lab' || type === 'qc_sample' || type === 'buyer') return t(`pick.${type}`);    // migration 53: likewise
+  if (type === 'client_order') return t('pick.client_order');                                                              // migration 70
   if (type === 'partner') return t('pick.partner');                                                                        // migration 66
   if (type === 'serials' && Array.isArray(v)) return t('ship.codes_n', { n: v.length });                                   // migration 54
   if (type === 'gps' && typeof v === 'object' && !Array.isArray(v)) { const g = v as { lat?: unknown; lng?: unknown }; return `${String(g.lat ?? '')}, ${String(g.lng ?? '')}`; }
@@ -123,7 +124,7 @@ export function EnteredRows({ payload: raw, fields, stage, params, computed, t }
   // the name of what was picked from a list, from the record's worked-out values (migration 53: the mill, the packing
   // unit, the lab, the sample)
   const NAME_OF: Record<string, string> = { collection_point: 'collection_point', mill: 'mill', packing_unit: 'packing_unit', lab: 'lab', qc_sample: 'sample_code',
-    buyer: 'buyer', market_profile: 'market_name' };
+    buyer: 'buyer', market_profile: 'market_name', client_order: 'client_order' };   // migration 70: the order's code
   const named = (f: FieldDef) => {
     const k = NAME_OF[f.type];
     if (!k || (f.type === 'collection_point' && payload[f.key] === 'farm')) return null;
