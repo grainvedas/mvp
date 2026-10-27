@@ -1,10 +1,14 @@
 # THE FRESH START OF THE PRACTICE SYSTEM (staging): empties it and leaves one admin, the way a pilot starts.
-# Decision: Veda, 6 October 2026 ("clean all the data, so that I can start fresh"; only the admin stays).
+# Decision: Veda, 6 October 2026 ("clean all the data, so that I can start fresh"; only the admin stays); again 27 October
+# 2026, after Phase 3 ("after completing phase 3 we can start fresh and diagnose each step"). Rebuilt for 78 migrations.
 #
 # What goes:  every person, state, crop, client, scope, farmer, record, verdict, seal, flag, ledger block, audit line
-#             and counter; every login; every stored file (evidence photos, HR documents).
-# What stays: the rules (migrations), the 16 stage definitions, the standard joining checklist, the server functions,
-#             the app, and the mark "practice system".
+#             and counter; every client, account, order, report, evidence pack and showcase; every login; every stored
+#             file (evidence photos, HR documents, reference files, reports and packs, clients' documents).
+# What stays: the rules (migrations), the 17 stage definitions, the joining checklists the migrations wrote, the 9
+#             departments and the quality parameter library, the server functions, the app, the daily rounds, and the
+#             mark "practice system". Report and pack reference numbers run on (never given twice).
+# Afterwards: the daily outside copy of the ledger is restarted (F7: staging.csv renamed on the branch ledger-anchors).
 # NOT REVERSIBLE. A copy of the rows is written to backups\fresh-start-<time>\ first (plain JSON, to look things up
 # in; it cannot be loaded back). There is no other backup of this project.
 #
@@ -13,7 +17,7 @@
 # It asks once, in words, before anything is removed. It refuses: any project but the staging one named below; a
 # project that says it is production; a database with migrations still to push; files that are not the tested ones.
 # Options:  -AdminEmail <address>  -AdminName <one word>  (the first admin; default grainvedas+admin@gmail.com, Veda)
-#           -NoGit   do not commit and push the new files at the end
+#           -NoGit   do not commit and push the new files at the end, and do not restart the outside copy (F7)
 # It can be run again after a stop. Once the system holds one admin and nothing else, a further run removes nothing
 # and asks nothing: it only repeats the checks and the commit.
 # The record of the run: release-evidence\staging-fresh-start-<time>.log (git-ignored). It reads no .env file and
@@ -96,10 +100,10 @@ function Hash-Text([string]$path) {
   $script:Hash = (($sha.ComputeHash($utf8.GetBytes($t)) | ForEach-Object { $_.ToString('x2') }) -join '')
 }
 # One line that says what is in the system: read from the database itself, before and after.
-$countSql = "select 'now: people=' || (select count(*) from public.app_users) || ' logins=' || (select count(*) from auth.users) || ' states=' || (select count(*) from public.states) || ' crops=' || (select count(*) from public.crops) || ' clients=' || (select count(*) from public.clients) || ' scopes=' || (select count(*) from public.scopes) || ' farmers=' || (select count(*) from public.farmers) || ' records=' || (select count(*) from public.footprints) || ' seals=' || (select count(*) from public.qr_seals) || ' ledger=' || (select count(*) from public.ledger) || ' audit=' || (select count(*) from public.audit_log) || ' admins=' || (select count(*) from public.app_users where system_role = 'admin' and status = 'active') || ' stage_definitions=' || (select count(*) from public.stage_definitions) || ' checklist_tasks=' || (select count(*) from public.template_tasks t join public.onboarding_templates o on o.id = t.template_id where o.is_default) || ' audit_guard=' || (select case when tgenabled = 'O' then 'on' else 'OFF' end from pg_trigger where tgname = 'audit_log_no_truncate') || ' end' as result;"
+$countSql = "select 'now: people=' || (select count(*) from public.app_users) || ' logins=' || (select count(*) from auth.users) || ' states=' || (select count(*) from public.states) || ' crops=' || (select count(*) from public.crops) || ' clients=' || (select count(*) from public.clients) || ' scopes=' || (select count(*) from public.scopes) || ' farmers=' || (select count(*) from public.farmers) || ' records=' || (select count(*) from public.footprints) || ' seals=' || (select count(*) from public.qr_seals) || ' ledger=' || (select count(*) from public.ledger) || ' audit=' || (select count(*) from public.audit_log) || ' admins=' || (select count(*) from public.app_users where system_role = 'admin' and status = 'active') || ' stage_definitions=' || (select count(*) from public.stage_definitions) || ' checklist_tasks=' || (select count(*) from public.template_tasks t join public.onboarding_templates o on o.id = t.template_id where o.is_default) || ' departments=' || (select count(*) from public.departments) || ' param_library=' || (select count(*) from public.quality_param_library) || ' ledger_guards=' || (select case when count(*) filter (where tgenabled <> 'O') = 0 then 'on' else 'OFF' end from pg_trigger where tgname in ('ledger_no_truncate', 'change_log_no_truncate')) || ' audit_guard=' || (select case when tgenabled = 'O' then 'on' else 'OFF' end from pg_trigger where tgname = 'audit_log_no_truncate') || ' end' as result;"
 function Read-Counts() {
   $script:Counts = @{}
-  $m = [regex]::Match($script:Out, 'now: (.*?) end')
+  $m = [regex]::Match($script:Out, 'now: (.*?) end(?!\w)')
   if (-not $m.Success) { return }
   foreach ($pair in ($m.Groups[1].Value -split '\s+')) {
     $kv = $pair -split '=', 2
@@ -125,16 +129,18 @@ foreach ($tool in @('node', 'git')) {
 Run "$sb --version"
 if ($script:Code -ne 0) { Stop-Run 'F0' 'supabase --version failed' }
 
-# The files that do the removing must be the ones that were rehearsed on 6 October 2026 (local stack: emptied, one
-# admin put back, then the first day of a pilot through the screens up to a sealed lot).
+# The files that do the removing and the checking must be the ones rehearsed on the local stack on 27 October 2026
+# (emptied, one admin put back, the checks of F5, then the first day of a pilot through the screens up to a sealed lot).
 $tested = [ordered]@{
-  'scripts/fresh_start/empty_staging.sql' = '3ded2a88c5c550093e616c2e5364ad4d3ec4538ea8ab7ab871e5fbd0b8a3c941'
+  'scripts/fresh_start/empty_staging.sql' = '5c8958eaaff7f53bec765d2dc714215070bf21c1ce0c0c402a07f345c7fd1225'
   'scripts/fresh_start/export_rows.mjs' = 'df20c44b1df6fa998c0ae56c830f90b3b878c4ef5e8a95d4bf328823d7dab3ce'
-  'scripts/fresh_start/clear_logins_and_files.mjs' = 'ee076f96fca5a3f295b0e0e083f4fbdd13e1307eec85a904c4ada96a6024ab72'
+  'scripts/fresh_start/clear_logins_and_files.mjs' = '10166911bbb28ba664028fc9fb031ca71fa29c956645d157b466302b8658cd69'
   'scripts/bootstrap_admin.mjs' = 'fa32a16a249955dd9719acde0f5eab732c3da4ec7705e2ae61c7ffea307c4917'
   'scripts/lib/env.mjs' = 'a9c0b9a30647e1443d37da26a7b445313ba4ac78c40e01ec6e436e5e54869ee2'
-  'tests/remote_smoke.sql' = '66e069c427f83c7666a042280e565a9c9744744fd866423222cb6acd242d7dad'
-  'tests/remote_ledger_audit.sql' = '7f51601f01166f33145cefdd13ef92009c0390edf337c1c5167646e5d820f8d5'
+  'tests/remote_smoke.sql' = '01201d3bd886be00c3c4346e188afc607c8a0cd9d1ac7fdc127d40928cf87d75'
+  'tests/remote_ledger_audit.sql' = 'd8428bf2dbd427f352ebeaf4863a34829a3be3e66bd06d3c7a057348e7df56ed'
+  'scripts/check_logins.mjs' = '167f25e9358e44f6c8bcf529520d92d16437585cf0b07c6941ca050d2dcc4224'
+  'scripts/check_functions.mjs' = '7d86813aee68319d0f1506aaf447a56fd7be4ebb88d07eda0746943521ce9e3d'
 }
 $changed = @()
 foreach ($path in $tested.Keys) {
@@ -220,11 +226,13 @@ $zero = $true
 foreach ($k in @('states', 'crops', 'clients', 'scopes', 'farmers', 'records', 'seals')) { if ($c[$k] -ne '0') { $zero = $false } }
 foreach ($k in @('people', 'ledger', 'audit', 'admins')) { if ($c[$k] -ne '0') { $zero = $false } }
 if (-not $zero) { Stop-Run 'F2' 'the database is not empty after the emptying step (read the line "now: ..." above)' }
-if ($c['stage_definitions'] -ne '16' -or $c['checklist_tasks'] -ne '9') { Stop-Run 'F2' "the stage definitions or the joining checklist are not as expected (stage_definitions=$($c['stage_definitions']), checklist_tasks=$($c['checklist_tasks']))" }
-if ($c['audit_guard'] -ne 'on') { Stop-Run 'F2' 'the guard of the audit log was left switched off' }
+# The parameter library: the 11 tests of migration 51, and each test a crop of that day already used (staging has 12:
+# Kalanamak's own 'moisture'; 27 Oct 2026, the first run stopped here on an exact 11). Nothing but migrations writes it.
+if ($c['stage_definitions'] -ne '17' -or $c['checklist_tasks'] -ne '9' -or $c['departments'] -ne '9' -or [int]('0' + $c['param_library']) -lt 11) { Stop-Run 'F2' "the lists the rules read are not as expected (stage_definitions=$($c['stage_definitions']) of 17, checklist_tasks=$($c['checklist_tasks']) of 9, departments=$($c['departments']) of 9, param_library=$($c['param_library']), at least 11)" }
+if ($c['audit_guard'] -ne 'on' -or $c['ledger_guards'] -ne 'on') { Stop-Run 'F2' 'a guard of the audit log, the ledger or the change log was left switched off' }
 $script:Emptied = $true
-Say '  ok  the database holds no person, state, crop, client, scope, farmer or record; 16 stage definitions and the checklist are there; the audit guard is on'
-Mark 'F2' 'OK' 'database emptied (0 people, 0 records, 0 ledger blocks, 0 audit lines); 16 stage definitions and the standard checklist kept; audit guard on'
+Say '  ok  the database holds no person, state, crop, client, scope, farmer or record; 17 stage definitions, the checklists, 9 departments and the parameter library are there; the guards are on'
+Mark 'F2' 'OK' 'database emptied (0 people, 0 records, 0 ledger blocks, 0 audit lines); 17 stage definitions, the checklists, 9 departments, the parameter library kept; guards on'
 
 # ---------------------------------------------------------------------------------------------------------------
 # F3  the logins and the stored files
@@ -234,8 +242,8 @@ Say '== F3  logins and stored files'
 Run 'node scripts/fresh_start/clear_logins_and_files.mjs --empty-staging'
 if ($script:Code -ne 0 -or $script:Out -notmatch 'LOGINS AND FILES REMOVED') { Stop-Run 'F3' 'logins or stored files were not all removed' }
 $n = [regex]::Match($script:Out, 'logins removed: (\d+)').Groups[1].Value
-Say "  ok  $n logins removed; the two stores are empty"
-Mark 'F3' 'OK' "$n logins removed; stores evidence and hr-docs empty"
+Say "  ok  $n logins removed; the five stores are empty"
+Mark 'F3' 'OK' "$n logins removed; stores evidence, hr-docs, reference, reports, client-docs empty"
 
 # ---------------------------------------------------------------------------------------------------------------
 # F4  the first admin
@@ -261,21 +269,26 @@ $oneAdmin = ($c['people'] -eq '1') -and ($c['logins'] -eq '1') -and ($c['admins'
 if (-not $oneAdmin) { Stop-Run 'F5' 'the system does not hold exactly one person, one login, one admin and nothing else (read the line "now: ..." above)' }
 Say '  ok  one person, one login, one active admin, nothing else'
 
-$checks = @('extensions', 'schema app', 'tables (15)', 'RLS on every table', 'stage_definitions (16)', 'ledger guard trigger',
+$checks = @('extensions', 'schema app', 'tables (15)', 'RLS on every table', 'stage_definitions (17)', 'ledger guard trigger',
   'footprint triggers', 'ledger chain intact', 'seed: Kalanamak crop', 'environment', 'demo data', 'api surface closed',
   'auth.uid mapping', 'public journey rpc', 'phase 3 objects', 'phase 4 objects', 'phase 4 triggers', 'ledger read by stage',
   'direct writes closed', 'evidence in the ledger', 'public page data', 'capture time, verdict preview',
   'a new client can be read back', 'identity layer objects', 'people moved to assignments', 'the two seats',
-  'manager rules ask about the scope', 'people written only by their actions', 'once-a-day sign-in code', 'the admin oversees', 'nightly ledger check')
+  'manager rules ask about the scope', 'people written only by their actions', 'once-a-day sign-in code', 'the admin oversees',
+  'joiner HR data', 'onboarding at scale', 'hr by geography', 'HR holds no seat', 'state manager rules', 'crop registry', 'farmer register', 'rules and farmer ids', 'production safeguards', 'requirements', 'farmer corrections', 'operator template', 'trust numbers', 'packs and release', 'setup lists', 'procurement batch', 'milling qc packing', 'commercial shipment', 'warehouse', 'buyer link scans', 'client isolation', 'people public page packs', 'cartons people choices', 'fixes and client reads only', 'exports', 'export corrections', 'shipped packs', 'close scope report', 'client registry', 'client status', 'sourcing and hooks', 'client accounts', 'client views', 'client orders', 'evidence pack', 'showcase and lifetime', 'statement logging', 'reminder round', 'client lifetime round', 'nightly ledger check')
 Run "$sb db query --linked -f tests/remote_smoke.sql"
 if ($script:Code -ne 0) { Stop-Run 'F5' 'the smoke check could not be run' }
 $text = $script:Out
 $at = @{}
-foreach ($x in $checks) { $at[$x] = $text.IndexOf($x, [System.StringComparison]::Ordinal) }
+# A check's name is found only in the first column of the table (the start of a cell, then the cell's end), never inside
+# another row's result: "hr by geography" says "... HR holds no seat" (13 Oct 2026: the first run stopped on that).
+foreach ($x in $checks) {
+  $m = [regex]::Match($text, '(?m)(?<=^[ \t]*[\u2502|][ \t]*)' + [regex]::Escape($x) + '(?=[ \t]*[\u2502|])')
+  if ($m.Success) { $at[$x] = $m.Index } else { $at[$x] = -1 }
+}
 $missing = @($checks | Where-Object { $at[$_] -lt 0 })
-# One row says how the project is set up, not what this run did: whether the nightly check is scheduled (pg_cron).
-# Not OK there is shown and listed, and does not stop the run.
-$standing = @('nightly ledger check')
+# Two rows say how the project is set up, not what this run did: whether pg_cron schedules the nightly check and the reminders.
+$standing = @('statement logging', 'reminder round', 'client lifetime round', 'nightly ledger check')
 $bad = @(); $warn = @(); $okCount = 0
 $present = @($checks | Where-Object { $at[$_] -ge 0 } | Sort-Object { $at[$_] })
 for ($i = 0; $i -lt $present.Count; $i++) {
@@ -291,7 +304,7 @@ for ($i = 0; $i -lt $present.Count; $i++) {
   $first = ($first -replace '[^A-Za-z0-9).]+$', '')
   if ($seg -cmatch '^OK\b') { $okCount++ } elseif ($standing -contains $x) { $warn += "$x = $first" } else { $bad += "$x = $first" }
 }
-Say "  smoke rows read: $($present.Count) of 31, OK: $okCount"
+Say "  smoke rows read: $($present.Count) of 70, OK: $okCount"
 foreach ($w in $warn) { Say "  NOT OK (standing, does not stop): $w" }
 foreach ($b in $bad) { Say "  NOT OK: $b" }
 if ($missing.Count -gt 0) { Stop-Run 'F5' ("smoke rows not found in the output: " + ($missing -join ', ')) }
@@ -306,7 +319,7 @@ if ($script:Out -notmatch 'NO LOGIN WITHOUT A PERSON') { Stop-Run 'F5' "'NO LOGI
 Run 'node scripts/check_functions.mjs'
 $fn = 'FUNCTIONS DEPLOYED AND CURRENT'
 if ($script:Out -notmatch $fn) { $fn = 'NOT all current (read the lines above; not caused by the fresh start)' ; Say "  NOT OK (does not stop): the server functions are $fn" }
-$smokeNote = "smoke $okCount of 31 OK (fresh start, no demo data)"
+$smokeNote = "smoke $okCount of 70 OK (fresh start, no demo data)"
 if ($warn.Count -gt 0) { $smokeNote += '; NOT OK (standing): ' + ($warn -join ' ; ') }
 Say '  ok  smoke, ledger audit, logins'
 Mark 'F5' 'OK' "one person, one login, one admin; $smokeNote; $auditLine; NO LOGIN WITHOUT A PERSON; functions: $fn"
@@ -335,7 +348,7 @@ if ($NoGit) {
   if ($staged.Count -eq 0) { Say '  nothing new to commit' }
   else {
     $msg = Join-Path $evidence 'commit-message.txt'
-    [System.IO.File]::WriteAllText($msg, "Fresh start of the practice system: empty it, one admin, first-day test from nothing`n`nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`nClaude-Session: https://claude.ai/code/session_01VSgZRQeaqm6gr2gjyiknfF`n", $utf8)
+    [System.IO.File]::WriteAllText($msg, "Fresh start of the practice system (27 Oct 2026, after Phase 3): empty it, one admin; the fresh-start files rebuilt for 78 migrations`n`nVeda: ""after completing phase 3 we can start fresh and diagnose each step""; ""ok proceed"".`n`nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`nClaude-Session: https://claude.ai/code/session_01VSgZRQeaqm6gr2gjyiknfF`n", $utf8)
     Run 'git commit -F release-evidence/commit-message.txt'
     if ($script:Code -ne 0) { Stop-Run 'F6' 'git commit failed (the fresh start itself is complete)' }
   }
@@ -347,9 +360,46 @@ if ($NoGit) {
   Mark 'F6' 'OK' "pushed, head $head ($($staged.Count) files)"
 }
 
+# ---------------------------------------------------------------------------------------------------------------
+# F7  the daily outside copy of the ledger starts again (docs/PRODUCTION_SAFEGUARDS.md)
+# ---------------------------------------------------------------------------------------------------------------
+# The copy on the branch ledger-anchors holds the old ledger's fingerprints; against the emptied ledger it no longer
+# matches, by design. Renaming staging.csv there (it is kept, not deleted) lets the next daily run start a new one.
+Say ''
+Say '== F7  restart the daily outside copy of the ledger'
+if ($NoGit) {
+  Say '  NOT RUN: -NoGit (rename staging.csv on the branch ledger-anchors by hand)'
+  Mark 'F7' 'NOT RUN' 'switched off with -NoGit'
+} elseif (-not $script:WipeRan) {
+  Say '  NOT RUN: nothing was emptied in this run'
+  Mark 'F7' 'NOT RUN' 'nothing emptied in this run'
+} else {
+  Run 'git remote get-url origin'
+  $origin = ($script:Out -split "`n" | Where-Object { $_ -match '^(https://|git@)' } | Select-Object -First 1)
+  if (-not $origin) { Stop-Run 'F7' 'the address of the repository could not be read (the fresh start itself is complete; rename staging.csv on ledger-anchors by hand)' }
+  $anchorDir = "release-evidence/anchors-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+  Run "git clone --quiet --depth 5 --branch ledger-anchors $($origin.Trim()) $anchorDir"
+  if ($script:Code -ne 0) { Stop-Run 'F7' 'the branch ledger-anchors could not be fetched (the fresh start itself is complete; rename staging.csv there by hand)' }
+  if (-not (Test-Path (Join-Path $root "$anchorDir/staging.csv"))) {
+    Say '  staging.csv is not on the branch (already renamed): nothing to do'
+    Mark 'F7' 'OK' 'no staging.csv on ledger-anchors: the next daily run starts a new copy'
+  } else {
+    $keptAs = "staging-before-$(Get-Date -Format 'yyyy-MM-dd').csv"
+    Run "git -C $anchorDir mv staging.csv $keptAs"
+    if ($script:Code -ne 0) { Stop-Run 'F7' 'staging.csv could not be renamed (the fresh start itself is complete)' }
+    Run "git -C $anchorDir -c user.name=GrainVeda -c user.email=grainvedas@gmail.com commit --quiet -m ""ledger anchors: staging emptied (fresh start); the earlier copy kept as $keptAs [skip ci]"""
+    if ($script:Code -ne 0) { Stop-Run 'F7' 'the rename could not be committed (the fresh start itself is complete)' }
+    Run "git -C $anchorDir push --quiet origin ledger-anchors"
+    if ($script:Code -ne 0) { Stop-Run 'F7' 'the rename could not be pushed (the fresh start itself is complete; rename staging.csv on ledger-anchors by hand)' }
+    Say "  ok  staging.csv kept as $keptAs on ledger-anchors; the next daily run starts a new copy"
+    Mark 'F7' 'OK' "staging.csv kept as $keptAs on ledger-anchors; the daily copy starts again"
+  }
+}
+
 Summary
 Say ''
 Say "The practice system is empty. Sign in as $AdminEmail with the temporary password in .env.admin-login,"
 Say 'set your own password, then delete that file. .env.demo-logins is of no use any more (those logins are gone).'
+Say 'Then the first day, step by step, with Claude: docs/RUNSHEET_fresh_start.md, Part 2.'
 Say 'RESULT: FRESH START DONE'
 exit 0

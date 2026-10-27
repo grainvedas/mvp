@@ -52,7 +52,9 @@ if (failed || logins.length > 0) { console.error('NOT ALL LOGINS REMOVED. Run th
 
 // 2. stored files: evidence photos and HR documents
 let bad = 0;
-for (const bucket of ['evidence', 'hr-docs']) {
+// the five stores: evidence photos, HR documents, reference files (market profiles' sources, migration 51), reports
+// and evidence packs (migrations 63, 71), clients' documents (migration 64)
+for (const bucket of ['evidence', 'hr-docs', 'reference', 'reports', 'client-docs']) {
   const e = await fetch(`${cfg.url}/storage/v1/bucket/${bucket}/empty`, { method: 'POST', headers, body: '{}' });
   const text = await e.text();
   if (!e.ok) {

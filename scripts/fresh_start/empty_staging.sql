@@ -1,8 +1,10 @@
 -- GrainVeda: EMPTY THE PRACTICE SYSTEM, to start it the way a pilot starts: with nothing in it.
 -- Removes every person, state, crop, client, scope, farmer, record, verdict, seal, flag, ledger block, audit line,
--- counter and joining file entry. Keeps: the rules themselves (the migrations), the 16 stage definitions, the joining
--- checklists the migrations wrote (the standard one and, since migration 38, one per role), and the mark that says
--- which system this is.
+-- counter and joining file entry. Keeps: the rules themselves (the migrations), the 17 stage definitions, the joining
+-- checklists the migrations wrote (the standard one and, since migration 38, one per role), the departments migration 58
+-- wrote and the quality parameter library of migration 51 (both are lists the rules read; a department a person added
+-- goes), and the mark that says which system this is. The reference numbers of reports and evidence packs (sequences
+-- report_ref_seq, ep_ref_seq) run on: a reference once printed is never given to another document.
 -- NOT REVERSIBLE. Refuses on production. Logins and stored files are not in this database's reach: they are removed
 -- by scripts/fresh_start/clear_logins_and_files.mjs.
 -- Run it only through scripts/staging_fresh_start.ps1, which checks the project, copies the rows out first, and puts
@@ -11,7 +13,7 @@ begin;
 
 do $$
 declare
-  keep text[] := array['app_meta', 'stage_definitions', 'onboarding_templates', 'template_tasks'];
+  keep text[] := array['app_meta', 'stage_definitions', 'onboarding_templates', 'template_tasks', 'departments', 'quality_param_library'];
   list text;
   link record;
 begin
@@ -19,7 +21,7 @@ begin
     raise exception 'refused: this project says it is "%", not staging. Nothing was removed.', app.environment();
   end if;
 
-  -- Every table of the public schema except the four above: a table added by a later migration is emptied too,
+  -- Every table of the public schema except the six above: a table added by a later migration is emptied too,
   -- unless it is added to "keep". TRUNCATE names them all at once, so the links between them do not get in the way.
   select string_agg(format('public.%I', c.relname), ', ' order by c.relname) into list
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -61,6 +63,10 @@ begin
   delete from public.template_tasks where template_id in (select id from public.onboarding_templates where not is_default and created_by is not null);
   delete from public.onboarding_templates where not is_default and created_by is not null;
   update public.onboarding_templates set created_by = null where created_by is not null;
+  -- The departments migration 58 wrote stay (none of them made by a person); one a person added goes. The change log
+  -- (emptied above) gets these lines as its first.
+  perform set_config('app.change_path', 'fresh start of the practice system', true);
+  delete from public.departments where created_by is not null;
 
   for link in select * from fresh_start_links loop
     execute format('alter table %s add constraint %I %s', link.tab, link.conname, link.def);
@@ -85,6 +91,8 @@ select 'fresh start: people=' || (select count(*) from public.app_users)
     || ' audit=' || (select count(*) from public.audit_log)
     || ' stage_definitions=' || (select count(*) from public.stage_definitions)
     || ' checklist_tasks=' || (select count(*) from public.template_tasks)
+    || ' departments=' || (select count(*) from public.departments)
+    || ' param_library=' || (select count(*) from public.quality_param_library)
     || ' audit_guard=' || (select case when tgenabled = 'O' then 'on' else 'OFF' end from pg_trigger where tgname = 'audit_log_no_truncate')
     || ' ledger_guards=' || (select case when count(*) filter (where tgenabled <> 'O') = 0 then 'on' else 'OFF' end
                               from pg_trigger where tgname in ('ledger_no_truncate', 'change_log_no_truncate'))

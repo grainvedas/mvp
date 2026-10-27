@@ -1,83 +1,101 @@
 # Fresh start of the practice system, and the first day after it
 
-Decision: Veda, 6 October 2026: "clean all the data, so that I can start fresh", with only the admin left in it.
-The practice system (staging, `mvp-beta-one.vercel.app`) had filled up with the demo client, six demo scopes, 31
-people from the demo seeds and from testing. A pilot starts with none of that. This run-sheet empties the practice
-system and then walks through the first day the way the pilot will be set up: everything made in the app.
+Decisions: Veda, 6 October 2026 ("clean all the data, so that I can start fresh"; only the admin stays), and again on
+27 October 2026, after Phase 3: "after completing phase 3 we can start fresh and diagnose each step"; "ok proceed".
+The practice system (staging, `mvp-beta-one.vercel.app`) holds the test clients, scopes, people, lots, packs, reports
+and pages of three weeks of releases. A pilot starts with none of that. Part 1 empties it; Part 2 is the first day,
+walked step by step with Claude, every step diagnosed into `docs/FIX_LIST.md`.
 
 It stays the **practice** system: the green strip stays, and the real pilot later gets its own production project
 (`docs/RUNSHEET_phase5.md` part F, decisions G2 to G5). Nothing here marks the project as production.
 
-## Part 1 — empty it (about 3 minutes, one double-click)
+## Part 1: empty it (about 5 minutes, one double-click)
 
 Double-click **`staging-fresh-start.cmd`** in the repository root (or run
-`powershell -ExecutionPolicy Bypass -File scripts\staging_fresh_start.ps1`).
+`powershell -ExecutionPolicy Bypass -File scripts\staging_fresh_start.ps1`). Rebuilt on 27 October 2026 for 78
+migrations and rehearsed on the local stack (`docs/VERIFICATION_LOG.md`).
 
 | Step | What it does | It stops if |
 |---|---|---|
-| F0 | Checks the tools, that the seven files it uses are the rehearsed ones, that the folder is linked to the practice project `zogkrhgzatplarimbmxk`, that the project answers `staging`, that no migration is waiting. Shows what is in the system and **asks you to type `EMPTY STAGING`** | any check fails, or anything else is typed. Nothing is removed |
+| F0 | Checks the tools; that the nine files it uses are the rehearsed ones; that the folder is linked to the practice project `zogkrhgzatplarimbmxk`, the project answers `staging` and no migration is waiting. Shows what is in the system and **asks you to type `EMPTY STAGING`** | any check fails, or anything else is typed. Nothing is removed |
 | F1 | Copies every row of every table to `backups\fresh-start-<time>\` as JSON (git-ignored) | a table cannot be read. Nothing is removed |
-| F2 | Empties the database in one transaction (`scripts/fresh_start/empty_staging.sql`), then reads the counts back | the transaction fails (nothing is removed), or something is left |
-| F3 | Removes every login and empties the two file stores (`evidence`, `hr-docs`) | a login or a file is left. Run it again |
+| F2 | Empties the database in one transaction (`scripts/fresh_start/empty_staging.sql`), then reads the counts back | the transaction fails (nothing is removed), something is left, a list the rules read is not as the migrations wrote it, or a guard was left off |
+| F3 | Removes every login and empties the five file stores (`evidence`, `hr-docs`, `reference`, `reports`, `client-docs`) | a login or a file is left. Run it again |
 | F4 | Makes the first admin, `grainvedas+admin@gmail.com`; the temporary password goes to `.env.admin-login` (git-ignored, not shown) | the admin is not made. Run it again |
-| F5 | Reads back: exactly one person, one login, one admin; smoke check 30 rows; ledger audit; logins; server functions | any of them is not as expected |
+| F5 | Reads back: exactly one person, one login, one admin; smoke check **70** rows (`statement logging` stands; "fresh start, no demo data"); ledger audit; logins; server functions | any of them is not as expected |
 | F6 | Commits and pushes the new files (the app itself has not changed) | git shows a `.env` file |
+| F7 | Restarts the daily outside copy of the ledger: `staging.csv` on the branch `ledger-anchors` is kept as `staging-before-<date>.csv`, so the next daily run starts a new copy (`docs/PRODUCTION_SAFEGUARDS.md`) | the branch cannot be fetched or pushed (the fresh start itself is complete; rename it by hand) |
 
 Last line: `RESULT: FRESH START DONE` or `RESULT: STOPPED`. The record is
 `release-evidence\staging-fresh-start-<time>.log`. A second run on an already empty system removes nothing and asks
 nothing: it repeats the checks.
 
 **What goes:** every person, state, crop, client, scope, farmer, record, verdict, seal, flag, ledger block, audit
-line and counter; every login; every stored file.
-**What stays:** the rules (all the migrations: 33 on 6 October), the 16 stage definitions, the standard joining checklist (8 tasks),
-the four server functions, the app, the nightly ledger check, the mark "practice system".
-**It cannot be undone.** The JSON copy is for looking things up; it cannot be loaded back, and this project has no
-other backup (no `pg_dump` on the computer, no paid plan). What it holds was demo and test data.
+line, change-log line and counter; every client account, order, season report, evidence pack, buyer link and showcase;
+every login; every stored file.
+**What stays:** the rules (all 78 migrations), the 17 stage definitions, the joining checklists the migrations wrote
+(the standard one and one per role), the 9 departments and the quality parameter library (lists the rules read), the
+server functions, the app, the daily rounds (pg_cron), the mark "practice system". A department a person added goes.
+**Reference numbers run on:** the next season report and evidence pack get the next numbers (GV-SR-…, GV-EP-…), never
+one already printed. Lot, batch and pack codes start again per client code; a practice label printed before the fresh
+start can match a new practice pack with the same client code.
+**It cannot be undone.** The JSON copy is for looking things up; it cannot be loaded back. What it holds was practice
+data.
 
-**What no longer works on staging afterwards, until demo data is loaded again** (seeds 02 to 06 and
-`scripts/create_demo_logins.mjs` would bring it back; do that only on purpose):
-- the demo sign-ins of `.env.demo-logins` (that file is of no use any more);
-- `node tests/remote_rls.mjs --t1` (Phase 4 step A9, Phase 5 step D12) and the acceptance suite T1 to T5 against
-  staging: both sign in as the demo people. They still run on the local stack and in CI;
-- part E of `docs/RUNSHEET_phase5.md` as written (it names demo people). Part 2 below replaces its set-up; its
-  steps 3 to 15 can then be done with the people you make.
+**What no longer works on staging afterwards:** every sign-in except the admin's (tcup, Lucky, Ram, the practice
+owner and viewers: their logins are gone); the buyer links already sent; the showcase page `/verified/TCUP` and its
+badge ("No showcase page" until a client's owner approves one again); verify pages of the old reports and packs. The
+release scripts still run (they check the rules, not the data).
 
 Never run it against production: it refuses a project that says "production", and it refuses every project but the
 one named in it.
 
-## Part 2 — the first day, in the app (about 50 minutes)
+## Part 2: the first day, step by step (with Claude)
 
-**In Veda's order (10 October 2026, decisions G15 and G16), once migrations 35 and 36 are on staging** (`docs/RUNSHEET_admin_two_jobs.md`,
-`docs/RUNSHEET_hr_admin_joined.md`).
-With migration 34 only, step 5 is the admin's (People & access → the State Manager → Assign → State); before
-migration 34, the admin still does everything and the order of 6 October applies (in git history). This is the path
-`web/e2e-fresh/fresh_start.spec.ts` walks on the local stack, from the same empty state to a sealed lot. Laptop. Each
-new person gets a temporary password shown **once** on the screen where they are made (no mail is sent): note it and
-hand it over.
+Each person signs in themselves in the browser pane; Claude drives the screens at phone width (527 px) and, after each
+step, writes down what was slow, unclear, wrong in Hindi or blocked (FIX_LIST, a class Veda sets). Each new person gets
+a temporary password shown **once** on the screen where they are made (no mail is sent): note it and hand it over.
+This is the order `web/e2e-fresh/fresh_start.spec.ts` walks on the local stack (rehearsed 27 Oct from the same
+emptied state to a sealed lot and its public page).
 
 | # | Who | Do | Expect |
 |---|---|---|---|
-| 1 | You (admin) | Open the app. Sign in with `grainvedas+admin@gmail.com` and your password | **Platform overview**: the role guide ("You have two jobs…"), "Setting up: 0 of 3 done", empty cards and charts, no error anywhere |
-| 2 | Admin | **States** → name `Uttar Pradesh`, code `UP` → Create | Listed with `UP`. The checklist says 1 of 3 |
-| 3 | Admin | **HR · Joiners → Add joiner**: the person who will run HR; System role **HR**; a phone (required since migration 37). Save, note the password. Then **Access → Seats** → Appoint: that person (shown as "name (HR)") → Appoint → confirm. Seats now says she has not joined yet: **Open the joiner page** → **Mark as joined** (migration 36: the admin marks only the HR Admin seat holder as joined) | Back on Seats: "… has joined as HR Admin". 2 of 3. A flagged line in the audit log. **HR · Joiners leaves your menu**: from now on HR adds people |
-| 4 | HR Admin | Signs in, sets a password. **Add joiner** for everyone (each with a phone): the State Manager, the Client Manager, one person per stage. **Mark as joined** on each | The form has no client, scope or stage field. Each is Active and Unassigned |
-| 5 | HR Admin | Still signed in: **People & access** → the State Manager → **Assign** → State `Uttar Pradesh` → Give | One choice only, **A state**. The admin's checklist then says 3 of 3 ("The HR Admin seats a State Manager") |
-| 6 | State Manager | Signs in, sets a password. **Crops** → Create: name `Kalanamak rice`, code `KNM`, GI tag `GI 280`, origin. **+ limit** three times: `moisture_pct` / Moisture / `%` / at most / 13 / 12; `broken_pct` / Broken grains / 5 / 3; `foreign_matter_pct` / Foreign matter / 1 / 0.5. Tick the processing stages. Save | Listed with `KNM`. Open it again: 0.5 is still 0.5 |
-| 7 | State Manager | **Clients** → Onboard a client: name, code (2 to 6 capitals, e.g. `PRSDM`), type, state `Uttar Pradesh` → Create. Then **People & access** → the Client Manager → **Assign** → tab **A client's account** → the client → Give | The client is listed; the assignment is listed |
-| 8 | Client Manager | Signs in, sets a password. **Scopes → New**: geography, state, crop, chain → Save draft → a person at each stage → **Activate scope** | "Draft", then all stages covered, then "Active" |
-| 9 | Client Manager | **Farmers → New farmer** (state: Uttar Pradesh) → **Save and verify** | The farmer is under "Ready to verify", "Waiting for the State Manager of Uttar Pradesh" |
-| 10 | State Manager | **Farmers** → Ready to verify: the row shows the village, district, state and who verified it first → **Location verified — issue Farmer ID** | The first Farmer ID: `<client code>-F-0001` |
-| 11 | Stage people | Each signs in, sets a password, and records: buy, test, seal | Lot code `<client>-KNM-<season>-P-0001`; the lab's verdict against the limits of step 6; a QR code `GV-…` and its public page |
-| 12 | Admin | **Overview**: the last 12 weeks, the client (read-only, Exit), a scope; **Pipeline**; **Ledger** | "Procured, last 4 weeks" and "QR issued" count the lot; the client card counts it too; the pipeline runs Procurement → … → QR seal; the ledger lists every block, newest first |
+| 1 | Admin | Sign in with the temporary password, set your own | Platform overview of an empty system, "Setting up: 0 of 3 done", no error |
+| 2 | Admin | **States** → `Uttar Pradesh`, `UP` | 1 of 3 |
+| 3 | Admin | **HR · Joiners → Add joiner** (System role HR, a phone) → **Seats** → appoint the HR Admin → her joiner page → **Mark as joined** | "… has joined as HR Admin"; 2 of 3; HR · Joiners leaves the admin's menu |
+| 4 | HR Admin | Own password. **Add joiner** for the State Manager, the Client Manager and one person per stage (base state Uttar Pradesh); **Mark as joined** each | Active, Unassigned |
+| 5 | HR Admin | **People & access** → the State Manager → **Assign** → State `Uttar Pradesh` | 3 of 3 on the admin's checklist |
+| 6 | State Manager | Own password. **Crops**: Kalanamak rice (`KNM`, GI 280), unit, yield per acre, limits (moisture, broken grains, foreign matter), the recommended chain, the GI districts | "Ready" |
+| 7 | State Manager | **Places** (district, block, village) and **Labs** (the state's lab) | Listed |
+| 8 | State Manager | **Clients → Onboard**: PAN first (fake, format-valid), then the three gates with their documents → request Active | "Waiting for the admin's approval" |
+| 9 | Admin | **Approve** the client's first Active | Active in Uttar Pradesh |
+| 10 | State Manager | People & access → the Client Manager → **Assign** → the client's account | Listed |
+| 11 | Client Manager | Own password. The client's lists (collection points, mill, packing unit, buyers, pack types); **Scopes → New** (chain, markets, people at each stage) → **Activate** | "Active" |
+| 12 | Client Manager, then State Manager | **Farmers → New farmer** (village from the list, GPS, GI land) → verify; the State Manager verifies its location | The first Farmer ID |
+| 13 | Stage people | Each signs in: Procurement → (Collection Batch) → Milling → sample → QC with the lab report → Packing → Commercial → Shipment → QR seal | A lot code, the lab's verdict against step 6's limits, packs, a QR `GV-…` and its public page; the evidence pack issued at the seal |
+| 14 | Admin | Approves the client's owner; the owner signs in, previews and publishes the showcase page | `/verified/<code>` public, the badge "Verified by GrainVeda" |
+| 15 | Admin | **Overview**, **Pipeline**, **Ledger**, **Audit log** | Every step counted and listed |
 
-What the admin is no longer offered (and the database refuses): a farmer, a client, a crop, a scope, a roster, a
-record, a client's account, a State Manager's seat; HR acts and HR files once the HR Admin seat is filled; making an
-admin (break-glass only). There is no override.
+What the admin is not offered (and the database refuses): a farmer, a client, a crop, a scope, a roster, a record, a
+client's account, a State Manager's seat; HR acts once the HR Admin seat is filled; making an admin (break-glass
+only). There is no override.
 
 ## Rehearsed
 
-On the local stack, 6 October 2026 (`docs/VERIFICATION_LOG.md`): the script itself emptied a stack with the demo
-data, 19 logins and stored files; a second run removed nothing; then the first-day test ran from that state to a
-sealed lot and its public page. 26 scenarios with one thing wrong each stopped where they should. Not rehearsed
-anywhere: the run on the hosted project itself (Supabase's own login and file services instead of the stand-ins).
-The script's checks in F5 are what tells.
+- 6 October 2026, on the local stack: the first version (33 migrations).
+- 27 October 2026, on the local stack, the rebuilt script whole, with stand-ins only for the Supabase command line
+  (psql on the stack, shown as the CLI shows it) and git's `main`; the node scripts ran for real and the anchor branch
+  was a local copy:
+  - Typing the words in lower case stopped at F0 with nothing removed.
+  - The real run went from 19 people, 19 logins, 2 clients, 7 scopes, a sealed lot, 98 ledger blocks, two evidence
+    packs and a file in each of the five stores to one admin, then `RESULT: FRESH START DONE`.
+  - A second run removed nothing.
+  - The daily anchor job then started a new copy (`ANCHOR OK`).
+  - The first-day test passed from that state, to a sealed lot and its public page.
+
+- 27 October 2026, 17:08 IST, on staging: stopped at F2 after the emptying, on an exact count of the parameter library (12 on
+  staging, 11 in the rehearsal: migration 51 also copied the tests crops already used). The check now asks for at least
+  11; rehearsed from the same state (logins and files left, no admin): `RESULT: FRESH START DONE`.
+
+Not rehearsed anywhere: the run on the hosted project itself (Supabase's own login and file services instead of the
+stand-ins). The script's checks in F5 are what tells.

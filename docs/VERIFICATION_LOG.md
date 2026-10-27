@@ -3901,3 +3901,89 @@ Veda: "proceed with phase 3" (item 73, then the report back). No migration.
   STAGING`; with a migration waiting it stops at S0 ("This release pushes no migration; nothing was changed"). S1b's
   check with a published page (`published=1`) passes and a line with `functions=old` is refused.
 - Not yet run; it waits for Veda's say-so.
+
+## 27 October 2026, 16:09 IST: item 73 on staging (`staging-showcase-fixes.cmd`)
+
+Veda ran it: `RESULT: SHOWCASE FIXES ON STAGING`, head **86a19fc** (16 files).
+- S0: the practice project, environment staging, the tested files and 212 app and function files; nothing waiting; the
+  functions current; confirmed in words. S1 not run (no migration).
+- S1b: `table=new functions=new lifetime=yes round=scheduled published=1 ended_states=0 closed_clients=0`.
+- S2: smoke **69 of 70** (the standing `statement logging`); the rules in place, the change log intact; one client and
+  another `leaks=0 people=12 tables=46 calls=45540` in 8 parts; `showcases=1 published=1`; the ledger audit no
+  findings (401 blocks, 80 records, 9 seals, 15 evidence files); no login without a person; the functions current.
+- S3: the app pushed (86a19fc). Record: `release-evidence\staging-showcase-fixes-20261027-160900.log`.
+
+### The run sheet's checks (Claude, in the browser pane at 527 px), 27 Oct, afternoon
+
+- **Row 1.** `/verified/TCUP` (active): "Showcase · verified by GrainVeda" above the name. The new app served (the line
+  has its new test id).
+- **Row 4.** `/api/badge?c=TCUP` twenty times, each a new address: "Verified by GrainVeda" every time, cached 5 minutes;
+  no "Status unavailable".
+- **Row 3 (the admin).** The Audit log: the suspend and resume lines of 2:59 and 3:00 pm read "Client Status TCUP" with
+  their reasons and open Test Client UP's page (before: "—", a person page).
+- **Row 2 (the admin; Veda approved the suspension and resumption in words).** Uttar Pradesh suspended ("run sheet
+  check, item 73 (practice): paused wording"): the page "Showcase · GrainVeda" above the name, "verified by GrainVeda"
+  nowhere on it, the banner paused; the badge "Verification paused · Test Client UP · GrainVeda traceability".
+  Resumed ("… resumed"): "Showcase · verified by GrainVeda", the banner active, the badge "Verified by GrainVeda".
+- **Run sheet done: rows 1–4 as expected.** Left on staging: Uttar Pradesh active, TCUP's page published.
+- **Phase 3 closed** (Veda's combined brief, Phase 3: releases 1–5, migrations 67–72, and item 73).
+
+## 27 October 2026: the fresh start of the practice system, rebuilt (78 migrations) and rehearsed on the local stack
+
+Veda: "after completing phase 3 we can start fresh and diagnose each step"; "ok proceed". FIX_LIST K93.
+- **What changed since 6 October** (the first version, 33 migrations), found by building a database from the
+  migrations alone and listing what they write: besides the stage definitions (now 17) and the joining checklists,
+  migration 58 writes 9 departments and migration 51 the quality parameter library (11): the old emptying removed both,
+  and the smoke rows "setup lists" and "cartons people choices" then failed (seen on the local stack on 27 Oct). Both are
+  kept now; a department a person added goes. Three more file stores since (`reference`, `reports`, `client-docs`).
+  The reference numbers of season reports and evidence packs (two sequences outside the tables) run on: a reference
+  once printed is never given to another document.
+- **Files.** `scripts/fresh_start/empty_staging.sql` (keeps the two lists; its count line names them),
+  `scripts/fresh_start/clear_logins_and_files.mjs` (five stores), `scripts/staging_fresh_start.ps1` rebuilt from the
+  first version: the nine files it checks, F2's expectations (17, 9 tasks of the standard checklist, 9 departments, 11
+  parameters, every guard on), F5 the smoke check of 70 rows read as the release scripts read it, the reply's end read
+  as " end" not followed by a letter, and **F7**: the daily outside copy restarted (`staging.csv` kept as
+  `staging-before-<date>.csv` on the branch `ledger-anchors`, `docs/PRODUCTION_SAFEGUARDS.md`). It parses under
+  PowerShell 7.4.
+- **The emptying SQL on a database built from the migrations alone** (with a department added by a person): `people=0
+  … stage_definitions=17 checklist_tasks=45 departments=9 param_library=11 audit_guard=on ledger_guards=on
+  links_back=1`; the person's department gone.
+- **The script, whole, on the local stack**, with stand-ins only for the Supabase command line (psql on the stack, its
+  replies shown as the CLI shows them) and git's `main`; the node scripts ran for real; the anchor branch was a local
+  copy of `ledger-anchors`:
+  - lower-case words typed: stopped at F0, nothing removed;
+  - the real run on the stack with the demo people, phase42's sealed lot, its two evidence packs and their files, a
+    practice file in each of the five stores and a department a person added (19 people, 19 logins, 2 clients, 7
+    scopes, 98 ledger blocks): F1 983 rows of 102 tables copied; F2 emptied with the lists kept and the guards on; F3
+    19 logins removed, five stores empty; F4 the admin; F5 one person, one login, one admin, smoke **66 of 70** (the
+    four standing rows of a stack without pg_cron), ledger audit no findings, no login without a person; F7 the
+    anchor file renamed on the copy of the branch; `RESULT: FRESH START DONE`;
+  - read back apart from the script: the five stores 0 entries each; 1 person, 1 login (the admin); 9 departments, 11
+    parameters; the evidence-pack numbering runs on;
+  - the daily anchor job against the emptied stack, with no copy yet: `ANCHOR OK (staging): … today: ledger #1,
+    change log #4 (added)`;
+  - a second run: "already empty with one admin: nothing is removed", F7 not run, `RESULT: FRESH START DONE`.
+- **The first day from that state:** `web/e2e-fresh/fresh_start.spec.ts` **1 of 1** (state, HR seat, people, State
+  Manager, crop, client through its gates and the admin's approval, scope, farmer in two steps, lot, seal, the public
+  page, the admin's overview).
+- `docs/RUNSHEET_fresh_start.md` rewritten: Part 1 as the script now is; Part 2 the first day in today's order, to be
+  walked step by step with Veda. Not yet run on staging; it waits for Veda's say-so.
+
+## 27 October 2026, 17:08 IST: `staging-fresh-start.cmd` stopped at F2 (Veda's run)
+
+- F0 OK (before: 20 people, 20 logins, 4 clients, 8 scopes, 21 farmers, 80 records, 9 seals, 401 ledger blocks, 384
+  audit lines); F1 OK (5555 rows of 102 tables to `backups\fresh-start-20261027T113903Z`, the only copy of the old data).
+- F2: the emptying ran and committed as it should (`people=0 … stage_definitions=17 checklist_tasks=45 departments=9
+  param_library=12 audit_guard=on ledger_guards=on`). **The script's own check then stopped it**: it expected exactly 11
+  parameters in the library, and staging has 12. Migration 51 also copied into the library every test a crop already
+  used on that day; staging had Kalanamak with its own `moisture`, which became the 12th (marked as the same test as
+  `moisture_pct` by migration 52). The rehearsal built its database from the migrations with no crop at that point, so
+  it had 11. Nothing the rules read was lost.
+- Left on staging by the stop: the database empty; the 20 logins and the stored files still there (F3 not run); no
+  admin (F4 not run): nobody can sign in until the script is run again.
+- **Fixed in the script only** (F2 now asks for at least the 11 of migration 51). Rehearsed from staging's state, on the
+  local stack: the database emptied with 12 parameters, 19 logins and a file in each store left. The script as Veda ran
+  it stopped there the same way (the control). The fixed one ran: F0 to F7 OK, `RESULT: FRESH START DONE`; five stores
+  empty, one login; the first-day test then 1 of 1. Run it again: it asks again (the system is not yet "one admin and
+  nothing else"), copies what is left, empties again (nothing to remove), then logins, files, the admin, the checks and
+  the outside copy.
