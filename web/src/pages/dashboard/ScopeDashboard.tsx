@@ -12,6 +12,7 @@ import { exportSeason, mayInternalCopy, seasonXlsx, stageBalance, type Copy, typ
 import { date, dateTime, humanise, kg } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Loading } from '../../shell/ui';
 import { SeasonReport } from './SeasonReport';
+import { EvidencePacks } from '../records/EvidencePacks';
 
 export interface PipeRow { stage: string; chain_pos: number; records: number; pending: number; verified: number; kg_out: number; kg_available: number }
 interface SealRow { qr_code: string; sealed_at: string; batch_codes: string[]; footprint_id: string;
@@ -110,6 +111,7 @@ export function ScopeDashboard() {
         <h2>{t('srep.title')}</h2>
         <SeasonReport scopeId={scopeId} onChanged={() => { balance.reload(); flags.reload(); pipe.reload(); }} />
       </div>
+      <EvidencePacks kind="scope" id={scopeId} />
 
       <div className="card">
         <h2>{t('dash.balance')}</h2>

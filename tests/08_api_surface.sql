@@ -53,6 +53,7 @@ insert into allowed values
   ('authenticated', 'client_order_choices'), ('authenticated', 'client_order_new'), ('authenticated', 'client_order_invoice'),   -- migration 70
   ('authenticated', 'client_order_cancel'), ('authenticated', 'client_orders_list'), ('authenticated', 'client_order_detail'),
   ('authenticated', 'client_orders_open_for'), ('authenticated', 'order_of_part'),
+  ('authenticated', 'issue_evidence_pack'), ('authenticated', 'evidence_packs'),                                                 -- migration 71
   ('authenticated', 'client_owner_check'),                                                                                        -- the buyer links' read rule (about the caller)
   ('authenticated', 'client_waiting'), ('authenticated', 'client_farmers'), ('authenticated', 'doc_kind_word'),        -- migration 59
   ('authenticated', 'same_file_elsewhere'), ('authenticated', 'note_same_file'), ('authenticated', 'is_client_login'),

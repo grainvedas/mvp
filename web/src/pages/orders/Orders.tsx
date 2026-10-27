@@ -12,6 +12,7 @@ import { useI18n } from '../../lib/i18n';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { date, dateTime, kg } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
+import { EvidencePacks } from '../records/EvidencePacks';
 import {
   cancelOrder, giText, invoiceOk, kgLine, marketText, newOrder, orderChoices, orderDetail, ordersList, packsText, priceText, setOrderInvoice,
   type OrderChoice, type OrderDetail, type OrderPart,
@@ -171,6 +172,7 @@ export function OrderPage() {
           </ul>
         </div>))}
       {o.hidden_parts > 0 && <p className="small muted" data-testid="ord-hidden">{t('ord.hidden_parts', { n: o.hidden_parts })}</p>}
+      {o.sections.length > 0 && <EvidencePacks kind="order" id={o.id} />}
 
       {o.may_cancel && <CancelForm o={o} onDone={r.reload} t={t} />}
     </div>

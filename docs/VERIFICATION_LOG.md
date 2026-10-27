@@ -3635,3 +3635,84 @@ at Commercial; one invoice; cancel only without parts; item 67 (3) left as it is
 - **Release script.** `staging-client-orders.cmd` (`scripts/staging_client_orders.ps1`, phrase `ORDERS`) parses cleanly
   under PowerShell 7.4. Its tested-files check, taken out and run on this copy: all tested files match, 200 app files,
   `diff=0`. Not yet run; it waits for Veda's say-so.
+
+## 26 October 2026, 23:34 IST: client orders on staging (`staging-client-orders.cmd`)
+
+Veda's run: `RESULT: CLIENT ORDERS ON STAGING`, head 9efffb4 (36 files). S0: the tested files and 200 app files; only
+migration 70 waiting; functions current. S1: migration 70 pushed. S1b: `table=new functions=new rules=yes form=yes
+views=yes orders=0 commercial_scopes: AGTX=1, TCUP=2, UKE=1 active_states: AGTX=1, DMC1=1, TCUP=1, UKE=1`. S2: smoke 66
+of 67 OK (statement logging, standing); the rules in place, the change log intact; one client and another in 8 parts
+`leaks=0 people=12 tables=46 calls=44712`; ledger audit NO FINDINGS (376 blocks, 77 records, 8 seals, 15 evidence files);
+NO LOGIN WITHOUT A PERSON; FUNCTIONS DEPLOYED AND CURRENT. Vercel served the new bundle within minutes (its app chunk
+carries `client_order_detail`).
+
+### The run sheet's checks (Claude, in the browser pane at 527 px, each person signing in), 26–27 Oct
+
+- **Rows 1–7 (Lucky)**, the writes with Veda's yes:
+  - 1: Client orders in his menu; ORD-TCUP-0001 made (Open, Practice buyer (test), Domestic, PO-TEST-70, INV-TEST-70, no
+    part; "Cancel this order" offered).
+  - 2: Bansi → Commercial → PK-0001: the order offered under "Part of a client order"; chosen, "Buyer Practice buyer
+    (test) · Domestic · order PO-TEST-70 (from the order) · Invoice INV-TEST-70"; Buyer, Market and Order number left the
+    form, the packs stayed.
+  - 3: TCUP-KNM-KH26-BNS-CM-0005 saved (2 × 1 kg pouch, 2 kg); its record: Client order ORD-TCUP-0001, the order's buyer
+    and number.
+  - 4: the order's page: Bansi's section (Uttar Pradesh), the part, batch B0001, not shipped; no Cancel.
+  - 5: Lucky checked the part in at Shipment ("same person, next stage": allowed, marked in the ledger); the Shipment
+    form said "A part of client order ORD-TCUP-0001: one invoice for the whole order, INV-TEST-70", the invoice filled
+    in; TCUP-KNM-KH26-BNS-SH-0005 saved (codes B0001-0011 and -0012, UP53AB1234, LR-TEST-70). It waits for its loading
+    photo before it is verified (not added).
+  - 6: invoice INV-OTHER: refused before saving, "Client order ORD-TCUP-0001 has one invoice, INV-TEST-70."
+  - 7: the order's page: "INV-TEST-70 · fixed: a part has shipped", no invoice form.
+- **Row 8 (tcup):** Client orders in its menu; Portfolio → Across scopes: the card "Client orders" with ORD-TCUP-0001
+  (PO-TEST-70, invoice, 1 part in 1 scope), Bansi's order line "part of ORD-TCUP-0001", no price; the order opens with
+  Bansi's section, no price, nothing to change. Through the API as tcup: setting the invoice and cancelling refused
+  ("order not found"); `open_duplicates` refused (permission denied).
+- **Row 9 (the admin):** Client orders lists ORD-TCUP-0001; the Audit log: "Lucky made a client order ORD-TCUP-0001 ·
+  order PO-TEST-70, invoice INV-TEST-70", linking to the order.
+- No sideways scroll on any page at 527 px. Seen, not of this release (item 69): the part's record shows its market as
+  "domestic" (no word for the value); the batch reads "Not GI" (farm-verified, its farmers' districts not in the crop's
+  GI area on staging).
+
+## 27 October 2026: Phase 3 release 4, the evidence pack (migration 71), on the local stack
+
+Veda: "ok proceed further" (Phase 3 Part E1, with item 69 (1); the plan sent with release 3's report: a pack at each
+seal and on request, the shareable and internal copies, the PDF in English and Hindi with the verify QR and the JSON,
+one section per scope for a client order, the buyer link's copy, the billing count).
+
+- **Database.** `tests/66_evidence_pack.sql`: **52** checks in ten sections (a seal issues the shipment's pack and the
+  client order's, the second state's seal makes the order's version 2; the sections; the two copies: no farmer's name,
+  phone, price or internal ID in the shareable copy, the price internally only where the scope records prices; the
+  order's pack by scope with one invoice; a lot sealed without a shipment, a release on acceptance said as such; on
+  request by the Client Manager, not the QC technician, not Commercial, not a client account; who reads which pack and
+  copy, the client's scope view; the verify page; the files (PDF and JSON, who stores them, their SHA-256); the buyer
+  link's copy; the billing count; the season reports untouched; grants). **21 of 21** negative controls caught
+  (`controls71.py`); 70's 19 again on the new template.
+  - Found while writing the tests, changed before anything shipped: Commercial could issue a pack it could not read
+    (the issuer is now who reads the whole scope and runs it); an order's pack had no one who could store its files
+    (its scopes' Client and State Managers and the admin now may); the shareable copy carried the scope's id (now the
+    internal copy only); a pack's JSON had no place in the store (it is now a pack's file beside its PDFs).
+  - Every database test on a rebuilt template: **2,934**, no failure. `tests/05` reads the seal's block before the
+    pack's; `tests/08` names the two new entry points; the smoke check **68** rows, `evidence pack` OK.
+  - `tests/run_local.sh`: ALL TESTS PASSED (with the upgrade path).
+  - The release script's read-back and rules on the local stack: `columns=new functions=new seal=yes readers=yes
+    buyer=yes billing=yes`, `rule71=OK` (70's rules and the change log's 72 tables with it).
+- **Unit tests: 794.** The new `release71.test.tsx` has 15: the pack in the brief's words, its sections in order, the
+  copies, a release on acceptance, an order's pack by scope, Hindi throughout; the PDF A4 in both languages and the
+  same bytes each time it is drawn; the files and the JSON; the buyer's head gives the same document and JSON; the card;
+  the verify page; item 69 (1). `faults_oct4` now expects "Export". The type check and the build are clean.
+- **e2e.** The whole suite: **107 of 108**, then `phase5` 11 of 11 with item 69's word ("Export" for "export"), with the
+  new `phase42` (527 px): a domestic shipment sealed at QR issues its pack (no card for the QR operator); the Client
+  Manager finds version 1, stores its six files, downloads the PDF and the JSON (the JSON keeps the PDF's SHA-256); the
+  verify page says Valid with six files; version 2 on request, version 1 Superseded; the scope dashboard; the buyer's
+  page draws the PDF and its SHA-256 is the stored file's; the client's own login reads the packs, stores and makes
+  none; the admin's count.
+- **Other checks.** The built app 14 of 14; REMOTE RLS PASSED (193); CREATE-USER PASSED (96). The probe in 8 parts on
+  the stack after the suite: `leaks=0`, 236 people, 39,312 calls. On a fresh stack: RESTORE DRILL PASSED. Fresh start:
+  passed (its sealed lot issued its pack).
+- **The PDF, looked at.** A shipment's shareable pack (English, 3 pages) and an order's internal pack (Hindi, 5 pages):
+  the cover with the verify QR, the sections, the footer on every page; nothing cut at A4.
+- **Words.** Every new word in English and Hindi (117 keys, and 9 of the public verify page); one reworded on purpose
+  (`ov.reports_sub`: the packs counted).
+- **Release script.** `staging-evidence-pack.cmd` (`scripts/staging_evidence_pack.ps1`, phrase `PACKS`) parses cleanly
+  under PowerShell 7.4. Its tested-files check, taken out and run on this copy: all tested files match, 205 app files,
+  `diff=0`. Not yet run; it waits for Veda's say-so.

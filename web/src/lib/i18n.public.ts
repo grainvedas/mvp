@@ -192,6 +192,16 @@ export const enPublic: Record<string, string> = {
   'dv.c.internal': 'internal copy',
   'dv.how': 'A file is the one GrainVeda issued when its SHA-256 matches the line above.',
   'dv.footer': 'This statement records what GrainVeda verified under its published protocol. It is not a quality, residue or Geographical Indication certificate.',
+  // migration 71 (E1): an evidence pack's verify page
+  'dv.title_ep': 'Verified traceability statement: evidence pack',
+  'dv.ep': 'Evidence pack, version {n}',
+  'dv.of': 'Of',
+  'dv.kind_ep': 'Document',
+  'dv.of.lot': 'Sealed lot {code}',
+  'dv.of.shipment': 'Shipment {code}',
+  'dv.of.order': 'Client order {code}',
+  'dv.scopes': '{n} scopes',
+  'dv.f.json': 'JSON (the data)',
   // migration 65 (Part D): verification paused or ended; the lifetime rule
   'pv.verification_paused': 'Verification paused',
   'pv.verification_paused_note': 'GrainVeda has paused verification for this seller. What was released before stays as recorded.',
@@ -405,6 +415,16 @@ export const hiPublic: Record<string, string> = {
   'dv.c.internal': 'आंतरिक प्रति',
   'dv.how': 'कोई फ़ाइल वही है जो GrainVeda ने जारी की, जब उसका SHA-256 ऊपर की पंक्ति से मेल खाता है।',
   'dv.footer': 'यह विवरण दर्ज करता है कि GrainVeda ने अपने प्रकाशित प्रोटोकॉल के अंतर्गत क्या सत्यापित किया। यह गुणवत्ता, अवशेष या भौगोलिक संकेत (GI) का प्रमाणपत्र नहीं है।',
+  // migration 71 (E1): an evidence pack's verify page
+  'dv.title_ep': 'सत्यापित ट्रेसबिलिटी विवरण: सबूत पैक',
+  'dv.ep': 'सबूत पैक, संस्करण {n}',
+  'dv.of': 'किसका',
+  'dv.kind_ep': 'दस्तावेज़',
+  'dv.of.lot': 'सील किया गया लॉट {code}',
+  'dv.of.shipment': 'शिपमेंट {code}',
+  'dv.of.order': 'क्लाइंट ऑर्डर {code}',
+  'dv.scopes': '{n} स्कोप',
+  'dv.f.json': 'JSON (डेटा)',
   // migration 65 (Part D): verification paused or ended; the lifetime rule
   'pv.verification_paused': 'सत्यापन रुका हुआ है',
   'pv.verification_paused_note': 'GrainVeda ने इस विक्रेता के लिए सत्यापन रोक दिया है। पहले रिलीज़ हुआ जैसा दर्ज है वैसा ही रहता है।',

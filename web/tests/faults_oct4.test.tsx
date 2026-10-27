@@ -40,7 +40,7 @@ describe('worked-out values on the screens (items 6, 10, 11)', () => {
   it('text is shown as text: a batch code, a buyer, a market, a grade were printed as "NaN"', () => {
     for (const [k, v] of [['batch_code', 'KNM-KH26-B0142'], ['buyer', 'Amira Foods BV'], ['market', 'export'], ['grade', 'A']] as const) {
       expect(before(v), `before: ${k}`).toBe('NaN');
-      expect(showComputed(k, v, tEn)).toBe(v);
+      expect(showComputed(k, v, tEn)).toBe(k === 'market' ? 'Export' : v);   // item 69 (1): the market in words
     }
     expect(showComputed('market', 'export', tHi)).toBe('निर्यात');
   });

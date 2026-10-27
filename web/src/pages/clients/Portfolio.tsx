@@ -16,6 +16,7 @@ import { useAsync, useAction } from '../../lib/useAsync';
 import { date, dateTime, humanise, kg, num } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { Stat } from '../dashboard/parts';
+import { EvidencePacks } from '../records/EvidencePacks';
 import type { Copy } from '../../lib/exports';
 import { clientAcross, clientPortfolio, clientScopeDetail, cvCsv, cvXlsx, exportClientView, FIGURES, type Figures, type View } from '../../lib/clientViews';
 
@@ -242,6 +243,7 @@ export function ScopeView() {
   if (r.loading && !r.data) return <Loading />;
   if (!r.data) return <ErrorBox error={r.error} onRetry={r.reload} />;
   const d = r.data;
+  const seasonReports = d.reports.filter((x) => x.kind === 'season_report');   // migration 71: the packs have their own card
   const mine = ctx?.user?.client_account?.client_id === d.client.id;
   const stage = (s: string) => t(`stage.${s}`, undefined, humanise(s));
   return (
@@ -312,13 +314,15 @@ export function ScopeView() {
 
       <div className="card" data-testid="cv-reports">
         <h2>{t('cv.t.reports')}</h2>
-        {d.reports.length === 0 ? <Empty>{t('cv.no_outputs')}</Empty> : (
+        {seasonReports.length === 0 ? <Empty>{t('cv.no_outputs')}</Empty> : (
           <ul className="stack" style={{ listStyle: 'none', padding: 0 }}>
-            {d.reports.map((x) => (
+            {seasonReports.map((x) => (
               <li key={`${x.ref}-${x.version}`}><span className="mono">{x.ref}</span> · {t(`cv.kind.${x.kind}`, undefined, humanise(x.kind))} · v{x.version} · <Badge value={x.status} />
                 <div className="small muted">{dateTime(x.issued_at)}</div></li>))}
           </ul>)}
       </div>
+      {/* migration 71 (E1): the scope's evidence packs, each with its files (the internal copy where the account may read it) */}
+      <EvidencePacks kind="scope" id={scopeId} />
 
       <div className="card" data-testid="cv-people">
         <h2>{t('cv.t.people')}</h2>

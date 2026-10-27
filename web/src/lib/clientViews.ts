@@ -36,7 +36,7 @@ export interface ScopeDetail {
   qc: { code: string; status: string; tested_on: string | null; lab: string | null; report_no: string | null; report_date: string | null;
     domestic: string | null; export: string | null; accepted: boolean; decided: boolean }[];
   documents: { kind: string; what: string | null; status: string; record: string | null; on_file: boolean; at: string | null }[];
-  reports: { ref: string; kind: string; final: boolean; version: number; status: string; issued_at: string }[];
+  reports: { ref: string; kind: string; final: boolean; version: number; status: string; issued_at: string; /** migration 71 */ subject_kind?: string | null; subject?: string | null }[];
   people: { stage: string; name: string; client_staff: boolean }[];
 }
 

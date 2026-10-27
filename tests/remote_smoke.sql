@@ -608,6 +608,21 @@ select 'client orders',            case when to_regclass('public.client_orders')
                                       then 'NOT OK (the client orders, their closed rules, the part''s checks, the Commercial form or the closed duplicates are not as migration 70 left them)'
                                       else 'OK one order across scopes: the parts'' rules, one invoice, read by who reaches each scope' end
 union all
+select 'evidence pack',            case when to_regprocedure('app.issue_evidence_pack(text, uuid)') is null or to_regprocedure('app.evidence_packs(text, uuid)') is null
+                                      then 'MISSING (push migration 71)'
+                                      when not exists (select 1 from pg_trigger where tgname = 'qr_seals_z2_evidence_pack' and tgrelid = 'public.qr_seals'::regclass)
+                                        or not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'reports' and column_name = 'subject_kind')
+                                        or has_table_privilege('authenticated', 'public.reports', 'select')
+                                        or has_function_privilege('authenticated', 'app.ep_issue(text, uuid, uuid, boolean)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.ep_lot_data(uuid, boolean)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.ep_order_data(uuid, boolean)', 'execute')
+                                        or has_function_privilege('anon', 'app.evidence_packs(text, uuid)', 'execute')
+                                        or position('report_readable' in pg_get_functiondef('app.report_content(uuid, text)'::regprocedure)) = 0
+                                        or position('evidence_pack' in pg_get_functiondef('app.buyer_content(uuid)'::regprocedure)) = 0
+                                        or position('season_report' in pg_get_functiondef('app.issue_report(uuid, boolean, uuid)'::regprocedure)) = 0
+                                      then 'NOT OK (the evidence pack, its seal trigger, its closed data functions, its readers or the buyer link''s copy are not as migration 71 left them)'
+                                      else 'OK a pack at each seal and on demand: shareable or internal, versioned, in the ledger' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')

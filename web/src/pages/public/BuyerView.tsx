@@ -8,7 +8,8 @@
 // way in: a buyer's own sign-in can later open the same page (app.buyer_content).
 // Its own chunk (like the invite page): it brings the full dictionaries with it; the public verify page stays small.
 import { useEffect, useRef, useState } from 'react';
-import { registerDictionary, useI18n } from '../../lib/i18n';
+import { registerDictionary, translate, useI18n } from '../../lib/i18n';
+import { packJson, saveBlob, type PackData, type PackHead } from '../../lib/evidencePacks';
 import { en } from '../../lib/i18n.en';
 import { hi } from '../../lib/i18n.hi';
 import { rpc } from '../../lib/api';
@@ -44,6 +45,9 @@ export interface BuyerContent {
   origin: { villages: { village: string; district: string; share_pct: number }[]; farmers: number; shares_note: string };
   release: { status: string; reason?: string | null } | null; qr_code: string | null;
   files: { id: string; label: string; record: string; sha256: string; at: string }[];
+  /** migration 71 (E1): the shareable copy of the sale's evidence pack (its client order's, else its shipment's) */
+  evidence_pack?: { ref: string; version: number; issued_at: string; subject_kind: 'lot' | 'shipment' | 'order'; subject: string; status: 'valid' | 'superseded' | 'withdrawn';
+    issued_to: string; data_hash: string; auto: boolean; issued_by: string | null; data: PackData; files: Record<string, { sha256: string; bytes: number }> } | null;
 }
 type View = { state: 'loading' } | { state: 'gone' } | { state: 'error' } | { state: 'ok'; expires_at: string; content: BuyerContent; verification?: Verification | null };
 
@@ -58,6 +62,14 @@ export function readingText(key: string, v: number, units?: Record<string, strin
 export function evidencePack(c: BuyerContent, expires: string): string {
   return JSON.stringify({ evidence_pack: 'GrainVeda', made: new Date().toISOString(), link_expires: expires, ...c,
     files: c.files.map((f) => ({ label: f.label, record: f.record, sha256: f.sha256, added: f.at })) }, null, 2);
+}
+
+/** Pure: the pack's head as the app's files are made from it (so the buyer's PDF and JSON are the files GrainVeda stored). */
+export function buyerPackHead(e: NonNullable<BuyerContent['evidence_pack']>): PackHead {
+  return { id: '', ref: e.ref, scope_id: '', final: true, version: e.version, status: e.status, issued_at: e.issued_at, issued_by: e.issued_by, issued_to: e.issued_to,
+    period_from: null, period_to: null, data_hash: e.data_hash, superseded_by: null, superseded_at: null, withdrawn_at: null, withdrawn_reason: null,
+    kind: 'evidence_pack', subject_kind: e.subject_kind, subject_id: '', subject_code: e.subject, scope_ids: [], auto: e.auto,
+    files: Object.fromEntries(Object.entries(e.files ?? {}).map(([k, v]) => [k, { ...v, at: '' }])) };
 }
 
 async function fileUrl(token: string, file: string): Promise<{ url?: string; problem?: string }> {
@@ -97,6 +109,19 @@ export default function BuyerView() {
     a.href = URL.createObjectURL(blob); a.download = `evidence-${c.code}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    void rpc('buyer_log', { p_token: token, p_what: 'evidence' }).catch(() => undefined);
+  };
+  const packFile = async (lang: 'en' | 'hi' | null) => {
+    const e = c.evidence_pack!;
+    const head = buyerPackHead(e);
+    const base = `grainveda-evidence-pack-${e.ref}-shareable`;
+    if (lang) {
+      const [{ packDocument }, { reportPdf }] = await Promise.all([import('../../lib/epModel'), import('../../lib/reportPdf')]);
+      const rd = packDocument(head, e.data, (k, x, f) => translate(lang, k, x, f), window.location.origin);
+      saveBlob(new Blob([(await reportPdf(rd, e.issued_at)) as unknown as ArrayBuffer], { type: 'application/pdf' }), `${base}-${lang}.pdf`);
+    } else {
+      saveBlob(new Blob([packJson(head, 'shareable', e.data, head.files ?? {}, `${window.location.origin}/d/${e.ref}`)], { type: 'application/json' }), `${base}.json`);
+    }
     void rpc('buyer_log', { p_token: token, p_what: 'evidence' }).catch(() => undefined);
   };
   const o = c.order;
@@ -167,6 +192,17 @@ export default function BuyerView() {
           <ol>{c.chain.map((x) => <li key={x.code}>{t(`stage.${x.stage}`, undefined, x.stage)} · <span className="mono small">{x.code}</span>{x.on ? ` · ${date(x.on)}` : ''}{x.verified ? ` · ${t('bv.checked')}` : ''}</li>)}</ol>
           {c.qr_code && <p><a href={`/verify/${encodeURIComponent(c.qr_code)}`} data-testid="bv-public">{t('bv.public_page')}</a></p>}
         </section>
+        {c.evidence_pack && (
+          <section className="card stack" data-testid="bv-pack">
+            <h2>{t('bv.pack_title')}</h2>
+            <p className="small">{t(`ep.of.${c.evidence_pack.subject_kind}`, { code: c.evidence_pack.subject })} · {t('ep.version', { n: c.evidence_pack.version })} · <span className="mono">{c.evidence_pack.ref}</span></p>
+            <div className="row">
+              <button className="secondary small" onClick={() => void packFile('en')} data-testid="bv-pack-pdf-en">{t('bv.pack_pdf')} English</button>
+              <button className="secondary small" onClick={() => void packFile('hi')} data-testid="bv-pack-pdf-hi">{t('bv.pack_pdf')} हिन्दी</button>
+              <button className="secondary small" onClick={() => void packFile(null)} data-testid="bv-pack-json">{t('ep.file_json')}</button>
+            </div>
+            <p className="small muted">{t('bv.pack_note')} <a href={`/d/${encodeURIComponent(c.evidence_pack.ref)}`} data-testid="bv-pack-verify">{t('rep.v.qr')}</a></p>
+          </section>)}
         <section className="card stack" data-testid="bv-files">
           <h2>{t('bv.files')}</h2>
           {c.files.length === 0 ? <p className="small muted">{t('bv.no_files')}</p> : c.files.map((f) => (

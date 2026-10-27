@@ -74,7 +74,7 @@ export interface PublicDocument { ref: string; kind: string; final: boolean; ver
   issued_to: string; period_from: string | null; period_to: string | null; crop: string; season: string; geography: string; state: string | null;
   superseded_by: string | null; superseded_at: string | null; withdrawn_at: string | null;
   files: { copy: Copy; format: Format; lang: Lang; sha256: string; bytes: number }[] }
-export interface IssuedRow { month: string; client: string; client_code: string | null; final: number; interim: number; total: number }
+export interface IssuedRow { month: string; client: string; client_code: string | null; final: number; interim: number; /** migration 71: the evidence packs issued (the billing count) */ evidence_packs?: number; total: number }
 
 export const closeChecklist = (scope: string, answers: Answers = {}) => rpc<Checklist>('close_checklist', { p_scope: scope, p_items: answers });
 export const closeState = (scope: string) => rpc<CloseState>('scope_close_state', { p_scope: scope });

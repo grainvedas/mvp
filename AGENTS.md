@@ -486,6 +486,16 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   takes its sections from `app.client_order_detail`. Cases in `tests/65_client_orders.sql`. (Migration 70 also closed
   `app.open_duplicates` to the app's people: a farmer's possible duplicates name other clients' farmers, so they are
   read only inside the database, by `app.farmer_register` and the Farmer ID's rule.)
+- **An evidence pack is a report the server issues; the browser only writes it down** (migration 71, Phase 3 Part E1).
+  A pack is a `public.reports` row of kind `evidence_pack` (`subject_kind` lot, shipment or order; `scope_ids`), made
+  only by `app.ep_issue`: at a seal (the trigger `qr_seals_z2_evidence_pack`, which never stops the seal) or on request
+  through `app.issue_evidence_pack` (who: `app.may_issue_pack`). Its data (`app.ep_lot_data`, `app.ep_order_data`) is
+  kept in both copies when issued: the shareable copy carries no farmer's name or phone, no price and no internal ID;
+  never add one, and never make a pack's content on a screen from live records. A new version supersedes the old;
+  nothing is rewritten. Who reads: `app.report_readable` / `app.report_internal_ok` (every scope of the pack). The PDF
+  is `lib/epModel.ts` drawn by `lib/reportPdf.ts`, deterministic (no clock, no random): the buyer's page and the stored
+  file must stay byte-identical, so pass the pack's own head and dates only. Season reports' versions and lists filter
+  `kind = 'season_report'`; keep that in any new report query. Cases in `tests/66_evidence_pack.sql`.
 - **What a client account sees is one function per view, and its export is made from that same data** (migration 68,
   Phase 3 Parts C and E4). The portfolio, one scope, across scopes and the farmers are `app.client_portfolio`,
   `app.client_scope_detail`, `app.client_across` (and `app.cv_farmers_data`); their export is `app.export_client_view`,

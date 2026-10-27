@@ -205,8 +205,8 @@ function ReportsIssued() {
       {r.loading && !r.data ? <Loading /> : <ErrorBox error={r.error} onRetry={() => void r.reload()} />}
       {r.data?.length === 0 && <Empty>{t('ov.reports_none')}</Empty>}
       {!!r.data?.length && <div className="table-wrap"><table data-testid="ov-reports-table">
-        <thead><tr><th>{t('ov.reports_month')}</th><th>{t('ov.reports_client')}</th><th>{t('ov.reports_final')}</th><th>{t('ov.reports_interim')}</th><th>{t('ov.reports_total')}</th></tr></thead>
-        <tbody>{r.data.map((x) => <tr key={`${x.month}-${x.client}`}><td>{x.month}</td><td>{x.client}</td><td className="num">{x.final}</td><td className="num">{x.interim}</td><td className="num">{x.total}</td></tr>)}</tbody>
+        <thead><tr><th>{t('ov.reports_month')}</th><th>{t('ov.reports_client')}</th><th>{t('ov.reports_final')}</th><th>{t('ov.reports_interim')}</th><th>{t('ov.reports_packs')}</th><th>{t('ov.reports_total')}</th></tr></thead>
+        <tbody>{r.data.map((x) => <tr key={`${x.month}-${x.client}`}><td>{x.month}</td><td>{x.client}</td><td className="num">{x.final}</td><td className="num">{x.interim}</td><td className="num" data-testid="ov-reports-packs">{x.evidence_packs ?? 0}</td><td className="num">{x.total}</td></tr>)}</tbody>
       </table></div>}
     </div>
   );

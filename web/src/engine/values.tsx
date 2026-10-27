@@ -70,6 +70,8 @@ export function showComputed(key: string, v: unknown, t: T): string {
   if (key === 'cartons_count' && typeof v === 'number') return t('units.cartons', { n: v });
   if (typeof v === 'number') return number(key, v);
   if (typeof v === 'boolean') return t(v ? 'common.yes' : 'common.no');
+  // item 69 (1): a sale's worked-out market ("domestic", "export") in the reader's words
+  if (key === 'market' && typeof v === 'string') return t(`exp.mkt.${v}`, undefined, t(`opt.${v}`, undefined, v));
   if (Array.isArray(v)) return v.length ? v.map((x) => row(x, t)).join(' · ') : '—';
   if (typeof v === 'object') {                             // grade split {A: 240, B: 80, C: 22}
     const parts = Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k} ${typeof x === 'number' ? kg(x) : String(x)}`);

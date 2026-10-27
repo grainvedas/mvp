@@ -76,7 +76,7 @@ test('Text values are shown as text and lists as words: review, arrival check an
   await expect(page.getByTestId('preview-ok')).toContainText('69 kg will be left on the source lot');
   await page.getByRole('button', { name: 'Review' }).click();
   await expect(review.locator('[data-computed="buyer"]')).toHaveText('Amira Foods BV');
-  await expect(review.locator('[data-computed="market"]')).toHaveText('export');
+  await expect(review.locator('[data-computed="market"]')).toHaveText('Export');                // item 69 (1): the market in words
   await noRawData(review);
   await page.getByLabel('I have checked these numbers against the lot').check();
   await page.getByRole('button', { name: 'Save record' }).click();

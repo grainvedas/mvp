@@ -34,7 +34,8 @@ begin
   seal := app.seal_lot(qr, t.u('07'));
   perform t.ok(seal.qr_code like 'GV-%', 'T1: sealed with QR code ' || seal.qr_code);
   perform t.ok((select status from public.footprints where id = qr) = 'verified', 'T1: QR footprint verified by the seal');
-  perform t.ok((select event from public.ledger order by seq desc limit 1) = 'seal', 'T1: seal block written');
+  perform t.ok((select event from public.ledger where event <> 'report' order by seq desc limit 1) = 'seal', 'T1: seal block written');
+  perform t.ok((select event from public.ledger order by seq desc limit 1) = 'report', 'T1: and after it the lot''s evidence pack (migration 71)');
   perform t.ok((select count(*) from public.ledger where footprint_id in (p, q, qr)) >= 5, 'T1: ≥ 5 ledger blocks across the lot');
   perform t.fails(format($q$ select app.seal_lot(%L, t.u('07')) $q$, qr), 'already sealed', 'T1: cannot seal twice');
   perform t.fails(format($q$ delete from public.qr_seals where footprint_id = %L $q$, qr), 'immutable', 'T1: seal immutable');

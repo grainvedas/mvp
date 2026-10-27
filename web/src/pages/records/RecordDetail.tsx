@@ -19,6 +19,7 @@ import { localiseForm } from '../../engine/localise';
 import { cached } from '../../offline/cache';
 import { lotPayment } from './Receipt';
 import { ForwardPanel } from '../trace/Forward';
+import { EvidencePacks } from './EvidencePacks';
 import { paymentProblem } from '../../engine/offlinePreview';
 import { SamplesPanel } from './Samples';
 import { WarehousePanel } from './Warehouse';
@@ -132,6 +133,10 @@ function RecordView({ r, reload }: { r: FootprintDetail; reload: () => void }) {
       {(f.stage_type === 'commercial' || f.stage_type === 'shipment') && (boss || isClientOwner(ctx, f.client_id)) && !watch && (f.status === 'pending' || f.status === 'verified')
         && <BuyerSharePanel fp={f.id} code={f.footprint_code} />}
       {f.stage_type === 'qr_activation' && f.status === 'pending' && !r.seal && me.role !== 'client_view' && !watch && <FinishSeal f={f} onDone={reload} />}
+      {/* migration 71 (E1): the evidence pack of a shipment, or of a sealed lot (its shipment's where it went out in one) */}
+      {f.stage_type === 'shipment' && f.status !== 'superseded' && f.status !== 'legacy' && <EvidencePacks kind="shipment" id={f.id} />}
+      {f.stage_type === 'qr_activation' && r.seal && (r.prev?.stage_type === 'shipment'
+        ? <EvidencePacks kind="shipment" id={r.prev.id} /> : <EvidencePacks kind="lot" id={f.id} />)}
       {/* migration 67 (Phase 3, A1): the client's owner uploads its written acceptance to the lab record */}
       {f.stage_type === 'qc' && isClientOwner(ctx, f.client_id) && <AcceptancePanel f={f} has={r.attachments.some((a) => a.label === 'acceptance')} onDone={reload} />}
       {r.attachments.length > 0 && <Attachments detail={r} />}
