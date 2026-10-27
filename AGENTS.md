@@ -496,6 +496,15 @@ decision. `docs/INTERFACE_GAP.md` is the list to choose from; faults are fixed w
   is `lib/epModel.ts` drawn by `lib/reportPdf.ts`, deterministic (no clock, no random): the buyer's page and the stored
   file must stay byte-identical, so pass the pack's own head and dates only. Season reports' versions and lists filter
   `kind = 'season_report'`; keep that in any new report query. Cases in `tests/66_evidence_pack.sql`.
+- **A client's public showcase and its lifetime are the server's** (migration 72, Phase 3 Parts E3, F, A4). What
+  `/verified/<code>` shows is `app.public_showcase` (null until `public.client_showcases` says published; written only by
+  `app.showcase_publish` / `app.showcase_unpublish`, whose rule is `app.may_publish_showcase`: the client's owner, the
+  admin for an own-brand client). Its data, `app.showcase_data`, carries no price, farmer's or buyer's name: never add
+  one, and never show a client's status as active on a page or a badge when `app.client_verification_all` says paused
+  or ended. The badge's drawing is in two places (`web/api/badge.js`, `web/src/lib/badge.ts`); change both, a test keeps
+  them the same. An ended client's accounts close by `app.client_accounts_closed` inside the account rules (not by the
+  round alone); a new rule that reads `client_accounts` for access must call it too. Cases in
+  `tests/67_showcase_lifetime.sql`.
 - **What a client account sees is one function per view, and its export is made from that same data** (migration 68,
   Phase 3 Parts C and E4). The portfolio, one scope, across scopes and the farmers are `app.client_portfolio`,
   `app.client_scope_detail`, `app.client_across` (and `app.cv_farmers_data`); their export is `app.export_client_view`,

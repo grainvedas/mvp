@@ -142,12 +142,13 @@ export interface Expiry { client_id: string; name: string; code: string; state_i
   expires_on: string; days_left: number; level: 'd60' | 'd15' | 'expired' }
 export const clientExpiries = () => rpc<Expiry[]>('client_expiries');
 export interface Notice { id: string; kind: string; client_id: string | null; state_id: string | null; created_at: string; read: boolean;
-  data: { client?: string; code?: string; state?: string | null; by?: string; reason?: string; national?: boolean; kind?: string } }
+  data: { client?: string; code?: string; state?: string | null; by?: string; reason?: string; national?: boolean; kind?: string; /** migration 72 */ on?: string } }
 export const myNotifications = () => rpc<Notice[]>('my_notifications');
 export const readNotifications = (ids: string[]) => rpc<number>('read_notifications', { p_ids: ids });
 /** The words of a notification ("ABC Exim added in Uttarakhand by …"). */
 export function noticeText(n: Notice, t: (k: string, v?: Record<string, string | number>) => string): string {
-  const v = { client: n.data.client ?? '', state: n.data.state ?? '', by: n.data.by ?? '', doc: n.data.kind ? t(`cdoc.${n.data.kind}`) : '' };
+  const v = { client: n.data.client ?? '', state: n.data.state ?? '', by: n.data.by ?? '', doc: n.data.kind ? t(`cdoc.${n.data.kind}`) : '',
+    on: n.data.on ? new Date(`${n.data.on}T12:00:00+05:30`).toLocaleDateString('en-IN', { dateStyle: 'medium', timeZone: 'Asia/Kolkata' }) : '' };
   const key = n.kind === 'client_renewal' ? 'note.client_renewal' : `note.${n.kind}${n.data.national ? '_all' : ''}`;
   return t(key, v) + (n.data.reason ? ` (${n.data.reason})` : '');
 }

@@ -12,6 +12,7 @@ import { DocumentVerify } from './pages/public/DocumentVerify';
 const PrivateApp = lazy(() => import('./PrivateApp'));
 const InvitePage = lazy(() => import('./pages/public/Invite'));
 const BuyerView = lazy(() => import('./pages/public/BuyerView'));   // migration 56 (Part F): a buyer's link
+const Showcase = lazy(() => import('./pages/public/Showcase'));     // migration 72 (E3): a client's showcase page
 
 export function App() {
   return (
@@ -25,6 +26,7 @@ export function App() {
             <Route path="/d/:ref" element={<DocumentVerify />} />   {/* migration 63 (Part D3): "Verify this document" */}
             <Route path="/invite" element={<Suspense fallback={<main><Loading /></main>}><InvitePage /></Suspense>} />
             <Route path="/b" element={<Suspense fallback={<main><Loading /></main>}><BuyerView /></Suspense>} />
+            <Route path="/verified/:code" element={<Suspense fallback={<main><Loading /></main>}><Showcase /></Suspense>} />
             <Route path="/*" element={<Suspense fallback={<main><Loading /></main>}><PrivateApp /></Suspense>} />
           </Routes>
         </BrowserRouter>

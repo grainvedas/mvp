@@ -14,6 +14,7 @@ interface Doc { ref: string; kind: string; final: boolean; version: number; stat
   period_from: string | null; period_to: string | null; crop: string; season: string; geography: string; state: string | null;
   superseded_by: string | null; superseded_at: string | null; withdrawn_at: string | null;
   /** migration 71 */ subject_kind?: 'lot' | 'shipment' | 'order' | null; subject?: string | null; scopes?: number;
+  /** migration 72 (F) */ expired?: boolean; verification?: { status: string; ended_on: string | null } | null;
   files: { copy: string; format: string; lang: string; sha256: string; bytes: number }[] }
 
 const day = (s: string | null) => (s ? new Date(s).toLocaleDateString('en-IN', { dateStyle: 'medium', timeZone: 'Asia/Kolkata' }) : '—');
@@ -30,7 +31,15 @@ export function DocumentVerify() {
       {d.loading && <Loading />}
       <ErrorBox error={d.error} onRetry={d.reload} />
       {!d.loading && !d.error && !doc && <div className="card" data-testid="dv-not-found"><h1>{t('dv.not_found')}</h1><p>{t('dv.not_found_text', { ref })}</p></div>}
-      {doc && (
+      {doc?.expired && (
+        <div className="card" data-testid="dv-expired">
+          <p className="small muted">{t('dv.what')}</p>
+          <h1>{t(doc.kind === 'evidence_pack' ? 'dv.title_ep' : 'dv.title')}</h1>
+          <p className="mono" data-testid="dv-ref">{doc.ref}</p>
+          <div className="alert info" role="status">{t('dv.expired', { date: day(doc.verification?.ended_on ?? null) })}</div>
+          <p className="small muted">{t('dv.footer')}</p>
+        </div>)}
+      {doc && !doc.expired && (
         <div className="card" data-testid="dv-doc">
           <p className="small muted">{t('dv.what')}</p>
           <h1>{t(pack ? 'dv.title_ep' : 'dv.title')}</h1>

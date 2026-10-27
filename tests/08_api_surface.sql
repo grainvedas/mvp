@@ -54,6 +54,8 @@ insert into allowed values
   ('authenticated', 'client_order_cancel'), ('authenticated', 'client_orders_list'), ('authenticated', 'client_order_detail'),
   ('authenticated', 'client_orders_open_for'), ('authenticated', 'order_of_part'),
   ('authenticated', 'issue_evidence_pack'), ('authenticated', 'evidence_packs'),                                                 -- migration 71
+  ('anon', 'public_showcase'), ('authenticated', 'public_showcase'), ('anon', 'showcase_badge'), ('authenticated', 'showcase_badge'),   -- migration 72
+  ('authenticated', 'showcase_publish'), ('authenticated', 'showcase_unpublish'), ('authenticated', 'showcase_of'),
   ('authenticated', 'client_owner_check'),                                                                                        -- the buyer links' read rule (about the caller)
   ('authenticated', 'client_waiting'), ('authenticated', 'client_farmers'), ('authenticated', 'doc_kind_word'),        -- migration 59
   ('authenticated', 'same_file_elsewhere'), ('authenticated', 'note_same_file'), ('authenticated', 'is_client_login'),

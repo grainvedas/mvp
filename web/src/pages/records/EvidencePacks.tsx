@@ -4,7 +4,7 @@
 // English and Hindi and the JSON, of the shareable copy, and of the internal copy for those who may read it. A stored
 // file is taken from the store (the download is in the Audit log); one not stored yet is drawn from the data the server
 // kept. Those who may store a pack's files store them, and their SHA-256 shows on "Verify this document".
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAsync, useAction } from '../../lib/useAsync';
 import { useI18n } from '../../lib/i18n';
@@ -40,6 +40,15 @@ function PackRow({ p, showSubject, onStored }: { p: PackHead & { may_store?: boo
     try { await makePackFiles(p, !!p.internal_ok, (n, of) => setProgress(t('ep.making', { n, m: of }))); }
     finally { setProgress(null); onStored(); }
   });
+  // item 71 (3): a client order's pack is made at a seal, often with no one of its managers there; its files are stored
+  // the first time one of them opens it, so its verify page lists them (a buyer's PDF then checks against it)
+  const auto = useRef(false);
+  useEffect(() => {
+    if (auto.current || p.subject_kind !== 'order' || !p.may_store || p.status !== 'valid' || missing.length === 0) return;
+    auto.current = true;
+    void store();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.id]);
   return (
     <li data-testid="pack-row" data-ref={p.ref} data-status={p.status} data-subject={p.subject_kind}>
       <div className="row">

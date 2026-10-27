@@ -623,6 +623,21 @@ select 'evidence pack',            case when to_regprocedure('app.issue_evidence
                                       then 'NOT OK (the evidence pack, its seal trigger, its closed data functions, its readers or the buyer link''s copy are not as migration 71 left them)'
                                       else 'OK a pack at each seal and on demand: shareable or internal, versioned, in the ledger' end
 union all
+select 'showcase and lifetime',    case when to_regclass('public.client_showcases') is null or to_regprocedure('app.public_showcase(text)') is null
+                                      then 'MISSING (push migration 72)'
+                                      when not exists (select 1 from pg_class where oid = 'public.client_showcases'::regclass and relrowsecurity)
+                                        or has_table_privilege('authenticated', 'public.client_showcases', 'select')
+                                        or has_function_privilege('authenticated', 'app.showcase_data(uuid)', 'execute')
+                                        or has_function_privilege('authenticated', 'app.client_lifetime_round()', 'execute')
+                                        or not has_function_privilege('anon', 'app.public_showcase(text)', 'execute')
+                                        or has_function_privilege('anon', 'app.showcase_of(uuid)', 'execute')
+                                        or position('client_accounts_closed' in pg_get_functiondef('app.my_client_account()'::regprocedure)) = 0
+                                        or position('client_accounts_closed' in pg_get_functiondef('app.account_reaches(uuid, uuid)'::regprocedure)) = 0
+                                        or position('output_expired' in pg_get_functiondef('app.public_document(text)'::regprocedure)) = 0
+                                        or not exists (select 1 from pg_trigger where tgname = 'zz_change_log' and tgrelid = 'public.client_showcases'::regclass)
+                                      then 'NOT OK (the showcase, its approval, its closed data, or the accounts'' and the outputs'' lifetime are not as migration 72 left them)'
+                                      else 'OK the showcase public only once its owner approved it; ended clients'' accounts and outputs close after their lifetime' end
+union all
 select 'statement logging',        case when exists (select 1 from pg_extension where extname = 'pgaudit')
                                         and exists (select 1 from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
                                                      where r.rolname = 'postgres' and array_to_string(s.setconfig, ',') ~ 'pgaudit\.log=[^,]*(write|all)')
@@ -635,6 +650,11 @@ union all
 select 'reminder round',          case when to_regclass('cron.job') is null then 'NO pg_cron: reminders are queued when HR opens the Joiners list'
                                       when (xpath('/row/n/text()', query_to_xml(
                                               'select count(*) as n from cron.job where jobname = ''grainveda-reminders''', false, true, '')))[1]::text::int = 1
+                                      then 'OK' else 'NOT SCHEDULED' end
+union all
+select 'client lifetime round',  case when to_regclass('cron.job') is null then 'NO pg_cron: the rules close the accounts on their own; no 30-day notice'
+                                      when (xpath('/row/n/text()', query_to_xml(
+                                              'select count(*) as n from cron.job where jobname = ''grainveda-client-lifetime''', false, true, '')))[1]::text::int = 1
                                       then 'OK' else 'NOT SCHEDULED' end
 union all
 select 'nightly ledger check',   case when to_regclass('cron.job') is null then 'NO pg_cron: see RUNSHEET_phase3 step 5'

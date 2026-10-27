@@ -38,6 +38,7 @@ import { Account } from './pages/Account';
 import { Labels } from './pages/public/Labels';
 import { PackLabels } from './pages/records/PackLabels';
 import { Receipt } from './pages/records/Receipt';
+import { ShowcasePreviewPage } from './pages/clients/ShowcaseCard';
 import { ScopeDashboard } from './pages/dashboard/ScopeDashboard';
 import { LotTrace } from './pages/trace/LotTrace';
 import { Outbox } from './offline/OutboxPage';
@@ -128,6 +129,7 @@ function Private() {
         <Route path="clients/:id" element={<ClientPage />} />
         <Route path="portfolio" element={<PortfolioPage />} />   {/* migration 68: what client users see */}
         <Route path="portfolio/scope/:scopeId" element={<ScopeView />} />
+        <Route path="portfolio/showcase/:clientId" element={<ShowcasePreviewPage />} />   {/* migration 72 (E3): the showcase's preview */}
         <Route path="portfolio/:clientId" element={<PortfolioPage />} />
         <Route path="orders" element={<OrdersPage />} />   {/* migration 70: one order drawing on several scopes */}
         <Route path="orders/:orderId" element={<OrderPage />} />

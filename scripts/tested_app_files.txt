@@ -1,5 +1,5 @@
-# Phase 3 release 4 (migration 71): the evidence pack; tested 27 Oct 2026 on the local stack
-# SHA-256 of the text with line ends as LF (a font or an image: its bytes). Read by scripts/staging_evidence_pack.ps1 (step S0). Do not edit by hand.
+# Phase 3 release 5 (migration 72): the showcase page and lifetime; tested 27 Oct 2026 on the local stack
+# SHA-256 of the text with line ends as LF (a font or an image: its bytes). Read by scripts/staging_showcase_lifetime.ps1 (step S0). Do not edit by hand.
 ad11e4e0ad6777fa9c689ab392cac74c19cb92c4d987580167f4b2e4b71cd26d  web/index.html
 617e7271fd45e5572060bfe5cc02058bfe11130d36174069859039bf6f733ccb  web/package-lock.json
 145ee7bcb166b4a16e19182e1023bc6b6e00ed24358046fb94e1cb6c41774296  web/package.json
@@ -21,12 +21,13 @@ d9eb7a5a0b8634a65e81b0cea626a12be2df5c3108dbe125e1a997e47065fdc5  supabase/funct
 c3b85c6d170e5d127e03c89baf9ee30e1eaea69f6598b02babc78408f62b33da  supabase/functions/ledger-check/index.ts
 0d82d87a432eb64e944ce7303c7f95cffbb058c14d099608e13f8cf576238f50  supabase/functions/reset-password/handler.ts
 f159f099fc530c723b939137feb02d39792f49c3aa3e6a973e1c82909fa137e0  supabase/functions/reset-password/index.ts
+64e31589aef26855fa612b0d85e41429ecb665882564d915a051c9b9839ce182  web/api/badge.js
 9323efffa3e1728b170743c32afa86ff57814402bddb310df0e71373f51d4e8e  web/api/scan.js
 c4db03cbdd1293eef532cab25c4b20c206470cba07237a2b576f99812c8ee485  web/public/icon.svg
 d9faae838b51cdf417d1e7dd3ac6f8ab8de5c010ce7bd30ee5be3138e4916012  web/public/manifest.webmanifest
 9878a560d5318c7619879f1afda9ee5206401d642faa1c61e868446600de13cd  web/public/sw.js
-4d30ce579a87f077f3f4a5f128016c3f87183ee319e183bc25d5aaefdd2d58dc  web/src/App.tsx
-6194334023b75bc006c3d175e6d8d8b91d972bf4f1ec19e4e8432153deea0669  web/src/PrivateApp.tsx
+1a381b29f806c397e889a9ded460e0accb3a2f33692ecd760f14c1b4eb85ea1e  web/src/App.tsx
+f878a5df32fbc1acd45ac04e7eb645c3d0fc677a9020ed768672ccb241c4959e  web/src/PrivateApp.tsx
 79c44862256af9a67fc23df7c45ae289e730c7f6d4f8fb8ef593bd3c314b6d6d  web/src/assets/fonts/OFL.txt
 f2c45dc8e9b6644845cb9468f09a6da34a9e458c23018e0b1f1ef06ee98f0f20  web/src/assets/fonts/noto-sans-devanagari-devanagari-400-normal.woff
 52773c9f27858e2dc811a0464737fe0e6e53c440cb5298c3f4fe7b891bda7a0b  web/src/assets/fonts/noto-sans-devanagari-devanagari-700-normal.woff
@@ -48,9 +49,10 @@ cdd2e93dddc61f2d0c67a572e95f9ab3f72d31146ff8f4a76bb288861fc454ae  web/src/engine
 adf47a2b3ac890db92cbbfaea5077f1e2505c677789b8e702bb6092cce7ba73f  web/src/engine/values.tsx
 e8e1bf87ebbdae9b2f649c6e368892d32f099eb1b3ba9899b72a5f675ce3cd9b  web/src/engine/widgets.tsx
 52004b549c2d98e66bb3657dd212cccaac71f3c7d42b7d8d56003ef45d350557  web/src/lib/api.ts
+cebc40a9b37b12d6833f53284ac2d948f203cd0687dedff6a09cbf29e8f34da8  web/src/lib/badge.ts
 0e8d2fd07f297059cdd3347cf0d0c3493cc72e8eed408110f5d58f13b08d9b09  web/src/lib/clientAccounts.ts
 14956f66b1f7659fca27903b26dae7b859c60a25ebd0b7426927ca33e3eeaf44  web/src/lib/clientViews.ts
-83893aa5b3662803618296e86f7aa4abbaf95f46ae1ab7ffd8bd71b0f4100ed6  web/src/lib/clients.ts
+0ce1d6393de5693c836d15df7b76f65cea934e7e2d0ee0069854e8045758c17a  web/src/lib/clients.ts
 1073544aa1d20431ce9ff25b1f4ee728496329f052e2cafdb837efad1b067454  web/src/lib/crops.ts
 c622615a0bf932fb7e03407398c976c241a17d8d016840483885e8ed1dc1d496  web/src/lib/csv.ts
 1e274e78f6645009d36335d17991fb9f4b976d8b39c517ed0ef8aa0110b98f65  web/src/lib/environment.ts
@@ -62,9 +64,9 @@ fe4961c2884f2908dc278bd495ff2e8d4341f0d420498df254a269f1fc126a2a  web/src/lib/ex
 c95b6e80ce5332d1d584b6799b2938dc0565172097017f832d442fca04a72993  web/src/lib/farmers.ts
 1aed1502485a3361c785eb8f5712bca25d22ae5943c86f676ea20d4345a8a549  web/src/lib/format.ts
 eea9f07ab6418d8caf92974c45aa0372ec7f560698dd5d571d5c0ef504cceec1  web/src/lib/gi.ts
-b811015c4e6788dc61abda0b0579dc893d3376aa850ef35fec64bcb2e55e3d8a  web/src/lib/i18n.en.ts
-d695a30c776f3d8f3a44c185f3999d47050e04c3fe367da2fe82ecf7e7ea39b6  web/src/lib/i18n.hi.ts
-e11a1b4366537bc0b82f176437490ca8f1d2b4f85c6c35b5d81563ca3b369d13  web/src/lib/i18n.public.ts
+c2c179c305252e85f7a0cb4a8bcc7b6f69f0e57686daff8a46327dfbd5135437  web/src/lib/i18n.en.ts
+4a5589ae18939b7ffad624673094c2c613cda4a5e4f74dc6c4fd06f6fd07fe43  web/src/lib/i18n.hi.ts
+c0cf66f0b347a29b03c2b025424036152b554abfdb75b2fef575373c36f28164  web/src/lib/i18n.public.ts
 6de6e8130b05021c691fe8a294c2e43d00ba7c5be9b8c5567df1e2849118195f  web/src/lib/i18n.tsx
 52812e432ee089d7a24250ddcf8cd894e3745dc3cd0056abdb94f2b15b16238c  web/src/lib/idNumbers.ts
 62233811fe5d295373d5a0e7c0093cd5c7b33da5cd09a947534b068866f031e0  web/src/lib/keptLogin.ts
@@ -80,6 +82,7 @@ bc8c66b7f3259952195db44428895decae5ea69255ad3dfdc7a360e5f27f2ef1  web/src/lib/re
 f72ccc944fc89babe61cf4d61896c048c1474d655e0af0268b5c1124079541ac  web/src/lib/rights.ts
 6b1fe2c620c2f66bb8c580891247f3f07b535bd621b3ed52dd95de2ae49fa900  web/src/lib/scale.ts
 e49b863d77b1fcc054ef95b1580bbcc3efdfce2069fa371273ad5fd5b2a536ae  web/src/lib/setup.ts
+7e154a0c935f9d7d1f67bf596b653c80b8310a8d08b1f7092ccfd1e7facad024  web/src/lib/showcase.ts
 e2d77b06a56474df8fb45f149879aa20c46521bfd3084f44f73420b9b007d464  web/src/lib/supabase.ts
 71197ed692ccc20b0bc2ce8a908a10cb33e381c330518601e88a4d9e71f19757  web/src/lib/types.ts
 34ce72fb8fb1379814d3932528b63c9139212b540d08689afbfe77e481babcc6  web/src/lib/useAsync.ts
@@ -103,7 +106,8 @@ d26504588ce7c58bb2fad32b5aaf397124f4653d56e0d936c2c48336b673edc1  web/src/pages/
 b40c62e8409d6b56cd17ba1097d8e9cbbfef9749ba366cd88cd6c3abfe68e604  web/src/pages/admin/charts.tsx
 2ac5b5aeda55d55d17e7219a294a28ace7215a6dfc5ca55d220a1bf0d9575995  web/src/pages/clients/ClientAccounts.tsx
 8bcd27a0aeea6c229543a516c64a71ebf6850c6b2803afb4f794ca32f2695290  web/src/pages/clients/Clients.tsx
-b978d0cc5773f8c796db5001fe7306855d8e5c6681509384f98f7d8403a39ce9  web/src/pages/clients/Portfolio.tsx
+b116ff599bc0567c3f7382f93c1b1e064730625bbff27b44a2761e6d0777a7da  web/src/pages/clients/Portfolio.tsx
+7c9db51b6f046241944787ab5c8b9639b8421639e698f50cc65d80987779d386  web/src/pages/clients/ShowcaseCard.tsx
 49bcb8b746a271ec0b8c1017bb4a73aaf45264b2af502ad4bc17dc2d9a186f58  web/src/pages/crops/CropRegistry.tsx
 45e6a0de0d3ecb6b152af007f31062dc52dcc670e37f44605620676ece2b55a8  web/src/pages/dashboard/ScopeDashboard.tsx
 c84ac1a9c9993aaa86da1295ff2fa0229b031ff1188782d23837b03d9329f323  web/src/pages/dashboard/SeasonReport.tsx
@@ -122,14 +126,15 @@ dd9ea6dfbec5d9afcd9c40db22eb525be0b6d53de61a765efe6d919b99507691  web/src/pages/
 a25fc5e404f4a774348ddb90f43fb4173c2bb7301a235d50b27b2fe2a12f60d9  web/src/pages/people/People.tsx
 36a7a9c9adea039e6dcb3616b29356bf72eadfe12fefb7c44274aae65b5d4c0f  web/src/pages/people/shared.tsx
 5a63738e65d26ada63304c1dcb02aac8e3e6b2fe4d1fcc992206451af4991888  web/src/pages/public/BuyerView.tsx
-8a683ce9a3ce80e549afe336830a93c584e281d26e9a728e72cf3868ccc29022  web/src/pages/public/DocumentVerify.tsx
+083f96abcacaa6f0a57ed7589344339479cbc2108de69d50d97847ea63012fd1  web/src/pages/public/DocumentVerify.tsx
 080170534811defbda900d7a8ab6038152755f70ea2c90600d7486dc45780d25  web/src/pages/public/Invite.tsx
 00c70c9113f9d2abe504777090200d7a9d26bb77c2c62b2f3665082589c1d21d  web/src/pages/public/Labels.tsx
 459721be8a8bc22ceb780db2b273fd8eaf0369247f9af24fb9e1e5b0e577a6e7  web/src/pages/public/PublicPack.tsx
 8357a36460badda7b4dddb7f9d89251ada6438267ed577c3c35678985d700796  web/src/pages/public/PublicVerify.tsx
+1704a2b6c5ff5e908463e4f391b6ed8cb468d42296da13f7ef4d7628cc05e7ff  web/src/pages/public/Showcase.tsx
 702509d3fae45fbc64e7abccd14c98848fad7c351473973b9f80faae53cb762e  web/src/pages/public/journey.ts
 8d305eff852e6969a0ac90483691515ba51310d196c94f9092162b66959c709c  web/src/pages/records/BuyerShare.tsx
-8aac596ca1ec35bf15612f34f4fe0f1339b683f4e36e6b9e983742270f23d07d  web/src/pages/records/EvidencePacks.tsx
+505efa0afad56649099592da8da9aa22a34d8bc66dbc96bfc6e91d1527d423f3  web/src/pages/records/EvidencePacks.tsx
 6490c3f337091ea93de906c58d0d78970e79afc86143a511dc1f0e003728f662  web/src/pages/records/PackLabels.tsx
 8ec813ab83df4c9f6e60ab46d33fdb6e7e9f6ed37ce2bed1f73f489e4b349f0d  web/src/pages/records/Receipt.tsx
 41a562d1cf66f20493445363d2fbc97a0a61107e9cc0cac5f089ba66d43698a0  web/src/pages/records/RecordDetail.tsx
@@ -143,7 +148,7 @@ fe44ebdae1681d28e0049aed23551f2f9c1dd2f157b9bbf5ddafe523f37a7779  web/src/pages/
 6c8c90b43c4adcb69c0b53202b2f56bb18607611d33ee07b50388b085ff39c39  web/src/pages/state/StateRequirements.tsx
 65627840bbda9734805c3241a671666a1c885d920f81c1a55f8f153fe9943041  web/src/pages/system/Ledger.tsx
 b4f7cb66fee91c844b5c7ecbf6b74d9683d5fea200cc3468913c3dc0982d0cfb  web/src/pages/system/Safeguards.tsx
-3228eb1650232ac9dc3f59fa6f341db7f6d010ac292b95c4cd449ba055d8aaef  web/src/pages/system/System.tsx
+ddc20b6cb492715f925e0ef1406e93f4bce7ff92ef2e19fdad7ad5e648f85500  web/src/pages/system/System.tsx
 18572f55af24c98a88ce6602f22e27e74ee0ddfa7421aa4f32213c8ce2401e45  web/src/pages/trace/Forward.tsx
 3a1ae3e5dddd5c7164423c0aea1a0056493134ca662a403c21524a48c1b83f11  web/src/pages/trace/LotTrace.tsx
 3139cab8b6edb763ee545d909dc3c78d1c33cf78a409a6a937b3981014b9a7aa  web/src/shell/ErrorBoundary.tsx
@@ -195,6 +200,7 @@ b9eec394f6000fbb114fdeee3bf00e69ba95658af322fe7c6342036f9de4523e  web/tests/rele
 2ccfe2062571e92ab6dae5e7a9fa9beec16df1e5b38c6fbf4abc1e289eae88e6  web/tests/release68.test.tsx
 4810835f83d6983ddc617f0379fede1c32a7ab4f9e92e0bf68e0b053c802dcf6  web/tests/release70.test.tsx
 a2d65c05a09e8a31ad503516b457d2df3cb3b12e1920d2aff9be303bc3a11c68  web/tests/release71.test.tsx
+c38d5cf8bbeb8fdb612731ff9c6412356ace70e5608da25e69be97aeefe81d9c  web/tests/release72.test.tsx
 2227a0a291895bb10c4c5dc854c4a474de9b8382dffe1a95975927a01fd74883  web/tests/requirements.test.ts
 3fc460d02375570d0d985290873efa3f487ae86daa7e52d23eb5dce34896a428  web/tests/rules_and_ids.test.ts
 c3b9c00010cdf47b46057acf8576d09ecfe103afecacedaf280d238b50ec8613  web/tests/safeguards.test.ts

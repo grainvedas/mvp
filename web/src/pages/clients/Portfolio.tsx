@@ -17,6 +17,7 @@ import { date, dateTime, humanise, kg, num } from '../../lib/format';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { Stat } from '../dashboard/parts';
 import { EvidencePacks } from '../records/EvidencePacks';
+import { ShowcaseCard } from './ShowcaseCard';
 import type { Copy } from '../../lib/exports';
 import { clientAcross, clientPortfolio, clientScopeDetail, cvCsv, cvXlsx, exportClientView, FIGURES, type Figures, type View } from '../../lib/clientViews';
 
@@ -131,6 +132,7 @@ function PortfolioTab({ d, t }: { d: NonNullable<Awaited<ReturnType<typeof clien
         <h2>{t('cv.download')}</h2>
         <ExportBar view="portfolio" client={d.client.id} scope={null} mayInternal={d.may_internal} />
       </div>
+      <ShowcaseCard clientId={d.client.id} />   {/* migration 72 (E3) */}
     </>
   );
 }

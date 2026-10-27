@@ -3716,3 +3716,118 @@ one section per scope for a client order, the buyer link's copy, the billing cou
 - **Release script.** `staging-evidence-pack.cmd` (`scripts/staging_evidence_pack.ps1`, phrase `PACKS`) parses cleanly
   under PowerShell 7.4. Its tested-files check, taken out and run on this copy: all tested files match, 205 app files,
   `diff=0`. Not yet run; it waits for Veda's say-so.
+
+## 27 October 2026, 09:33 IST: the evidence pack on staging (`staging-evidence-pack.cmd`)
+
+Veda ran it: `RESULT: EVIDENCE PACK ON STAGING`, head **de1ff2b** (33 files).
+- S0: the practice project, environment staging, the tested files and 205 app and function files; only migration 71
+  waiting; the functions current; confirmed in words.
+- S1: migration 71 pushed. S1b: `columns=new functions=new seal=yes readers=yes buyer=yes billing=yes season_reports=2
+  packs=0 sealed_lots=8` (the lots sealed before 71 have no pack; one is made on request).
+- S2: smoke **67 of 68** (the one not OK is the standing `statement logging`); the rules in place, the change log intact;
+  one client and another `leaks=0 people=12 tables=46 calls=44712`; `evidence_packs=0 pack_failures=0`; the ledger audit
+  no findings (380 blocks, 79 records, 8 seals, 15 evidence files); no login without a person; the functions current.
+- S3: the app pushed (de1ff2b). Record: `release-evidence\staging-evidence-pack-20261027-093300.log` (Veda's computer).
+
+### The run sheet's checks (Claude, in the browser pane at 527 px, each person signing in), 27 Oct, 09:50–10:30 IST
+
+Veda approved each save and seal in words first.
+- **Row 1 (Lucky).** QR Activation → `TCUP-KNM-KH26-BNS-SH-0005` (domestic, no loading photo needed; "same person, next
+  stage" said and marked): verified, the release summary read, sealed `GV-7FA853226C45`. The QR page shows no pack card.
+- **Row 2.** The shipment's record: Evidence packs, `GV-EP-000001`, version 1, Valid, "made at the seal"; both copies'
+  PDF English, PDF हिन्दी and JSON offered; "Store its files (6)". Before the seal the card said "No evidence pack yet"
+  and offered "Make an evidence pack".
+- **Row 3.** Stored its six files. The shareable PDF (English 32,729 bytes, 3 pages; Hindi 46,518 bytes) and the JSON
+  read back from the store through the logged download: the JSON carries both PDFs' SHA-256, no farmer list, no price,
+  no internal ID. Its data redrawn here gave the same two PDFs byte for byte (SHA-256 `1dd884aa…`, `61dbddb0…`); the
+  pages looked at: A4, the verify QR, the eight sections, the footer on every page, Hindi in Hindi.
+- **Row 4.** `/d/GV-EP-000001`: Valid; "Of: Shipment TCUP-KNM-KH26-BNS-SH-0005"; six files with their SHA-256, the
+  same as the files read back.
+- **Row 5.** `ORD-TCUP-0001`'s page: its pack `GV-EP-000002`, version 1, made at the same seal; the data: Bansi's
+  section (Uttar Pradesh), invoice `INV-TEST-70`, the part's shipment with 2 packs.
+- **Row 6.** "Make a new version" → `GV-EP-000003`, version 2, "made on request"; "Earlier versions (1)";
+  `/d/GV-EP-000001`: "Superseded · replaced by GV-EP-000003".
+- **Row 7.** A 7-day buyer link on SH-0005 (note "run sheet check, release 4 (practice)"). The buyer's page has
+  "Evidence pack": Client order ORD-TCUP-0001, version 1, `GV-EP-000002`; its PDF English (33,101 bytes) has the same
+  SHA-256 as Lucky's own copy of that pack (`96a61ac9…`); its JSON is the shareable copy, no farmer list, no price; the
+  page names no price. The order pack's files are not stored (only the shipment's were approved), so its verify page
+  lists no file yet.
+- **Row 8 (tcup).** Portfolio → KH26 Bansi: Evidence packs lists `GV-EP-000003` (Shipment …-SH-0005) and
+  `GV-EP-000002` (Client order ORD-TCUP-0001), version 1 under "Earlier versions (1)"; the shareable copy's files only;
+  no "Store", no "Make". The server refused tcup the internal copy (403, "the internal copy is for the people of this
+  scope…"), issuing a pack ("record not found"), storing a file (403) and the reports table (403).
+- **Row 9 (the admin).** Home → "Season reports issued": 2026-10, Test Client UP, final 1, interim 1, **evidence packs
+  3**, total 5. The Audit log lists "Evidence Pack Issued" (3), "Report Downloaded" (3), "Report Read", "Buyer Link
+  Created".
+- **Row 10.** CM-0005's and SH-0005's records: "Market: Domestic".
+- Every page at 527 px without a sideways scroll. **Run sheet done: rows 1–10 as expected**; small things seen are item 71.
+
+## 27 October 2026: Phase 3 release 5, the showcase page and the lifetime rule (migration 72), on the local stack
+
+Veda: "proceed" (Phase 3 Parts E3, F and A4, with item 71; the defaults sent on 27 Oct: the page's figures, the
+client's owner approves and unpublishes with a reason (the admin for an own-brand client), the status per state and on
+the banner, the host's badge; the lifetime the longer of best-before + 12 months and 24 months after the contract ended,
+enforced by the rules, the owner told 30 days before, a daily round, shortened only on a practice system; item 71's three
+changes).
+
+- **Database.** `tests/67_showcase_lifetime.sql`: **38** checks in seven sections (nothing public before it is approved;
+  who approves: the client's owner, not a viewer, the Client Manager or another client's owner, the admin for an own-brand
+  client, once, in the Audit log; the page's states, crops and seasons with their figures, own brand said, no price, no
+  farmer's name or phone, no buyer's name, a partner only where it agreed, a recall shown; suspended in a state and in
+  every state: "paused" on the state, the banner and the badge, the owner may unpublish but not approve; ended: "ended
+  on …", the accounts still read; the lifetime period, shortened as a practice system may: the notice once, the accounts
+  open nothing, the page and the outputs' verify pages say only that verification ended, the round marks the accounts
+  removed once, another client untouched, production never shortened; grants). **18 of 18** negative controls caught
+  (`controls72.py`); 71's 21 and 70's 19 again on the new template.
+  - Found while writing the tests, changed before anything shipped: a staff check matched the client's viewer (it now
+    excludes a client login); the end's notice is asked for within 30 days rather than on an exact day (months differ in
+    length).
+  - Every database test on a rebuilt template: **2,972**, no failure. `tests/08` names the five new entry points; the
+    smoke check **70** rows, `showcase and lifetime` OK; `client lifetime round` standing where pg_cron is absent (as on
+    the local stack).
+  - `tests/run_local.sh`: ALL TESTS PASSED (with the upgrade path), once `client lifetime round` was added to its
+    standing rows.
+  - The release script's read-back and rules on the local stack: `table=new functions=new lifetime=yes round=no_cron
+    published=0 ended_states=0 closed_clients=0` (staging, with pg_cron, says `round=scheduled`), `rule72=OK` (70's and
+    71's rules and the change log's 73 tables with it).
+- **Unit tests: 808.** The new `release72.test.tsx` has 14: the app and the host draw the same badge in both languages;
+  never "Verified" when the client is not, the end's date, own brand, names escaped; the snippet; the host's function
+  (its project from the host's own app, the badge from `app.showcase_badge`, anything else none); the page's content,
+  paused, ended and expired; the figures and the verify box; the card (approve after a confirmation, the badge and the
+  snippet, unpublish with a reason; a reader who may do nothing); an output's verify page after its lifetime; the
+  notice's date; item 71 (the Audit log's references, an order pack's files stored on first opening); every new word in
+  English and Hindi. The type check and the build are clean.
+- **e2e.** The whole suite: **108 of 109**; the new `phase43` (527 px) assumed a fresh stack (its page unpublished, the
+  client's login a viewer) and was made rerunnable and owner-aware; then 1 of 1 on the stack after the suite, and with
+  `phase42` on a fresh stack. It covers: nothing public; the admin previews and approves Prasaadam's page (own brand); the
+  public page with its figures, no price, no farmer's name, "Verify any pack" opening the verify page; suspended in every
+  state "Verification paused", resumed active; the client's login approves nothing; unpublished with a reason, nothing
+  public; the Audit log names the page.
+- **Other checks.** The built app 14 of 14; REMOTE RLS PASSED (193); CREATE-USER PASSED (96). The probe in 8 parts on
+  the stack after the suite: `leaks=0`, 236 people, 39,600 calls. On a fresh stack: RESTORE DRILL PASSED. Fresh start:
+  passed.
+- **Looked at, at 527 px.** The public page (active and paused), the Showcase card with the badge and its snippet: no
+  sideways scroll.
+- **Words.** Every new word in English and Hindi (28 keys, and 25 of the public pages; the badge's own in both); one
+  reworded on purpose (`ov.reports_title`: "Reports and evidence packs issued", item 71).
+- **Release script.** `staging-showcase-lifetime.cmd` (`scripts/staging_showcase_lifetime.ps1`, phrase `SHOWCASE`)
+  parses cleanly under PowerShell 7.4. Its tested-files check, taken out and run on this copy: all tested files match,
+  211 app files, `diff=0` (a changed file and a new one, tried, are named). Not yet run; it waits for Veda's say-so.
+
+## 27 October 2026, 12:50 IST: `staging-showcase-lifetime.cmd` stopped at S1b (Veda's run)
+
+- S0 OK (the practice project, environment staging, the tested files and 211 app and function files; only migration 72
+  waiting; the functions current; confirmed in words). S1: migration 72 pushed.
+- S1b read back exactly what migration 72 leaves: `table=new functions=new lifetime=yes round=scheduled published=0
+  ended_states=0 closed_clients=0`. **The script misread its own line**: it took the reply up to the first " end", and
+  the key `ended_states` begins with "end", so it compared only `... published=0` with what it expected and stopped.
+  Nothing was wrong with the database; the app was not pushed (the old app works as before).
+- **Fixed in the script** (not in the migration or the app; the tested files are unchanged): a reply ends at " end" not
+  followed by a letter, in S1b, the probe's parts and the read-back after them.
+- **Why the local checks missed it:** the release script's queries were run on the local stack, but not the script's
+  own reading of their replies. Now the whole script was run on the local stack with only the commands that reach
+  staging or git answered by stand-ins (the queries, the smoke check, the probe in 8 parts and the ledger audit ran on
+  the stack and were shown as the Supabase CLI shows them): `RESULT: SHOWCASE AND LIFETIME ON STAGING`, both as a first
+  run and as a run again with migration 72 already pushed (S1 skipped; S1b and S2 OK). The script parses cleanly; its
+  tested-files check still says 211 app files, `diff=0`.
+- Run it again: S0 says no migration is waiting and S1 is skipped.

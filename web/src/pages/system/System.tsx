@@ -94,6 +94,14 @@ export function Seats() {
 }
 
 /** What an audit line says, in a sentence. Unknown actions fall back to their name. */
+/** Pure (item 71 (2)): the reference a report's or an evidence pack's line is about, which opens its verify page. */
+export function refOf(l: { action: string; detail: unknown }): string | null {
+  const r = (l.detail as Record<string, unknown> | null)?.ref;
+  return (l.action.startsWith('report_') || l.action.startsWith('evidence_pack_')) && typeof r === 'string' && /^GV-(SR|EP)-\d{6}$/.test(r) ? r : null;
+}
+/** Pure: a line about a client as a whole (its showcase, its accounts closed after the lifetime period). */
+export const clientAct = (a: string) => a.startsWith('showcase_') || a === 'client_accounts_closed';
+
 function Detail({ l }: { l: AuditLine }) {
   const { t } = useI18n();
   const stage = useStageName();
@@ -146,6 +154,8 @@ export function AuditLog() {
             <div><strong>{l.actor_name}</strong>{l.actor_role && l.actor_role !== 'operational' ? <span className="muted small"> ({t(`sysrole.${l.actor_role}`)})</span> : null}
               {' '}{t(`audit.${l.action}`, undefined, humanise(l.action))}{' '}
               {l.target && l.action.startsWith('client_order_') ? <Link to={`/orders/${l.target}`} className="mono">{String((l.detail as Record<string, unknown>).code ?? l.target_name ?? '—')}</Link>   /* migration 70 */
+                : refOf(l) ? <Link to={`/d/${refOf(l)}`} className="mono" data-testid="audit-ref">{refOf(l)}</Link>   /* item 71 (2): a report's or a pack's reference */
+                : l.target && clientAct(l.action) ? <Link to={`/clients/${l.target}`} className="mono">{String((l.detail as Record<string, unknown>).code ?? l.target_name ?? '—')}</Link>   /* migration 72 */
                 : l.target && l.action !== 'export_downloaded' ? <Link to={l.action.startsWith('crop_') ? '/crops' : l.action.startsWith('farmer_') ? `/farmers/${l.target}` : `/people/${l.target}`}>{l.target_name ?? '—'}</Link> : null}
               {l.flagged && <> <Badge value="open" label={t(`audit.flag_${l.action}`, undefined, t('audit.flag'))} /></>}</div>
             <div className="small"><Detail l={l} /></div>
