@@ -9,6 +9,7 @@ import { dateTime, fromTo, humanise } from '../../lib/format';
 import type { AuditLine, Seat, Seats as SeatsData } from '../../lib/people';
 import { Badge, Empty, ErrorBox, Field, Loading } from '../../shell/ui';
 import { StatusBadge, useStageName } from '../people/shared';
+import { clientsPage, type PageRow } from '../../lib/clients';
 import { HrStatesCard } from '../hr/Geo';
 
 function SeatRow({ s }: { s: Seat }) {
@@ -99,8 +100,15 @@ export function refOf(l: { action: string; detail: unknown }): string | null {
   const r = (l.detail as Record<string, unknown> | null)?.ref;
   return (l.action.startsWith('report_') || l.action.startsWith('evidence_pack_')) && typeof r === 'string' && /^GV-(SR|EP)-\d{6}$/.test(r) ? r : null;
 }
-/** Pure: a line about a client as a whole (its showcase, its accounts closed after the lifetime period). */
-export const clientAct = (a: string) => a.startsWith('showcase_') || a === 'client_accounts_closed';
+/** Pure: a line about a client as a whole (its showcase, its accounts closed after the lifetime period; item 73: its
+ * registration, gates, documents, renewals and status, whose target is the client). */
+const CLIENT_LINES = new Set(['client_accounts_closed', 'client_activation_approved', 'client_activation_declined', 'client_activation_requested',
+  'client_created', 'client_details', 'client_document', 'client_identity', 'client_kyc', 'client_pan_set', 'client_renewal_accepted',
+  'client_renewal_declined', 'client_renewal_proposed', 'client_state_added', 'client_status']);
+export const clientAct = (a: string) => a.startsWith('showcase_') || CLIENT_LINES.has(a);
+/** Pure (item 73): the words a client's line shows: its code if the line has it, else the client's code from the list. */
+export const clientLabel = (l: { target: string | null; target_name: string | null; detail: unknown }, codes: Record<string, string>, fallback: string) =>
+  String((l.detail as Record<string, unknown> | null)?.code ?? (l.target ? codes[l.target] : undefined) ?? l.target_name ?? fallback);
 
 function Detail({ l }: { l: AuditLine }) {
   const { t } = useI18n();
@@ -137,6 +145,10 @@ export function AuditLog() {
     { p: { flagged, action: action || null, q: qq || null, limit: 50, offset: page * 50 } }), [flagged, action, qq, page]);
   const rows = list.data?.rows ?? [];
   const pages = Math.max(1, Math.ceil((list.data?.total ?? 0) / 50));
+  // item 73: the clients' codes, once, when a line is about a client (a reader who may not list clients gets "a client")
+  const wantCodes = rows.some((l) => l.target && clientAct(l.action));
+  const codeList = useAsync(async () => (wantCodes ? clientsPage().catch(() => [] as PageRow[]) : ([] as PageRow[])), [wantCodes]);
+  const codes: Record<string, string> = Object.fromEntries((codeList.data ?? []).map((c) => [c.client_id, c.code]));
   return (
     <div style={{ maxWidth: 900 }}>
       <div className="page-hd"><h1><span aria-hidden="true">📜 </span>{t('audit.title')}</h1><div className="sub">{t('audit.sub')}</div></div>
@@ -155,7 +167,7 @@ export function AuditLog() {
               {' '}{t(`audit.${l.action}`, undefined, humanise(l.action))}{' '}
               {l.target && l.action.startsWith('client_order_') ? <Link to={`/orders/${l.target}`} className="mono">{String((l.detail as Record<string, unknown>).code ?? l.target_name ?? '—')}</Link>   /* migration 70 */
                 : refOf(l) ? <Link to={`/d/${refOf(l)}`} className="mono" data-testid="audit-ref">{refOf(l)}</Link>   /* item 71 (2): a report's or a pack's reference */
-                : l.target && clientAct(l.action) ? <Link to={`/clients/${l.target}`} className="mono">{String((l.detail as Record<string, unknown>).code ?? l.target_name ?? '—')}</Link>   /* migration 72 */
+                : l.target && clientAct(l.action) ? <Link to={`/clients/${l.target}`} className="mono" data-testid="audit-client">{clientLabel(l, codes, t('audit.a_client'))}</Link>   /* migration 72; item 73 */
                 : l.target && l.action !== 'export_downloaded' ? <Link to={l.action.startsWith('crop_') ? '/crops' : l.action.startsWith('farmer_') ? `/farmers/${l.target}` : `/people/${l.target}`}>{l.target_name ?? '—'}</Link> : null}
               {l.flagged && <> <Badge value="open" label={t(`audit.flag_${l.action}`, undefined, t('audit.flag'))} /></>}</div>
             <div className="small"><Detail l={l} /></div>

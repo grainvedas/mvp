@@ -4,7 +4,8 @@
 // farmer's name; the card gives the badge and its snippet. Suspended in every state, the page says "Verification paused";
 // resumed, it does not. The client's viewer reads the card and approves nothing. Unpublished with a reason, nothing is
 // public. The Audit log names the page. Who approves for a client with an owner, recalls, partners, the lifetime period
-// and the outputs' verify pages after it are the database's (tests/67_showcase_lifetime.sql).
+// and the outputs' verify pages after it are the database's (tests/67_showcase_lifetime.sql). Item 73: the line above
+// the name says "verified" only while active; the client's status lines in the Audit log name it.
 import { test, expect } from '@playwright/test';
 import { signIn, signOut, expectNoSideScroll, apiAs, USERS } from './helpers';
 
@@ -63,9 +64,11 @@ test('the showcase page: approved by the admin for the own brand, public, paused
   await expect(visitor.getByTestId('sc-banner')).toHaveAttribute('data-status', 'paused');
   await expect(visitor.getByTestId('sc-banner')).toContainText('Verification paused');
   await expect(visitor.getByText('Verified by GrainVeda', { exact: true })).toHaveCount(0);
+  await expect(visitor.getByTestId('sc-eyebrow')).toHaveText('Showcase · GrainVeda');                     // item 73 (1)
   ok(await admin.rpc('client_set_status', { p_client: PRSDM, p_state: null, p_to: 'active', p_reason: 'e2e72: every state resumed' }));
   await visitor.goto('/verified/PRSDM');
   await expect(visitor.getByTestId('sc-banner')).toHaveAttribute('data-status', 'active');
+  await expect(visitor.getByTestId('sc-eyebrow')).toHaveText('Showcase · verified by GrainVeda');
   await signOut(page);
 
   // the client's own login: a viewer reads the card and approves nothing (phase39 makes it the client's owner when the
@@ -101,6 +104,8 @@ test('the showcase page: approved by the admin for the own brand, public, paused
   await page.goto('/system/audit');
   await expect(page.locator('[data-action="showcase_published"]').first()).toContainText('published the showcase page of');
   await expect(page.locator('[data-action="showcase_unpublished"]').first()).toContainText('PRSDM');
+  await expect(page.locator('[data-action="client_status"]').first().getByTestId('audit-client')).toHaveText('PRSDM');   // item 73 (3)
+  await expect(page.locator('[data-action="client_status"]').first().getByTestId('audit-client')).toHaveAttribute('href', `/clients/${PRSDM}`);
   await expectNoSideScroll(page);
   await signOut(page);
   await visitor.context().close();

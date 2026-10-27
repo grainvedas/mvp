@@ -4593,4 +4593,7 @@ export const en: Record<string, string> = {
   'audit.report_read': 'read the report',
   'audit.report_downloaded': 'downloaded a file of',
 
+  // item 73 (Phase 3 close-out): a client's line in the Audit log
+  'audit.a_client': 'a client',
+
 };

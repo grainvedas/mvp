@@ -194,6 +194,7 @@ export const enPublic: Record<string, string> = {
   'dv.footer': 'This statement records what GrainVeda verified under its published protocol. It is not a quality, residue or Geographical Indication certificate.',
   // migration 72 (E3, F): the showcase page; an output's verify page after its lifetime
   'sc.eyebrow': 'Showcase · verified by GrainVeda',
+  'sc.eyebrow_plain': 'Showcase · GrainVeda',   // item 73: while not active
   'sc.st.active': 'Verified by GrainVeda',
   'sc.paused_note': 'GrainVeda has paused verification for this client. What was released before stays as recorded.',
   'sc.ended_note': 'The figures below are as they stood when the contract ended.',
@@ -443,6 +444,7 @@ export const hiPublic: Record<string, string> = {
   'dv.footer': 'यह विवरण दर्ज करता है कि GrainVeda ने अपने प्रकाशित प्रोटोकॉल के अंतर्गत क्या सत्यापित किया। यह गुणवत्ता, अवशेष या भौगोलिक संकेत (GI) का प्रमाणपत्र नहीं है।',
   // migration 72 (E3, F): the showcase page; an output's verify page after its lifetime
   'sc.eyebrow': 'शोकेस · GrainVeda द्वारा सत्यापित',
+  'sc.eyebrow_plain': 'शोकेस · GrainVeda',
   'sc.st.active': 'GrainVeda द्वारा सत्यापित',
   'sc.paused_note': 'GrainVeda ने इस क्लाइंट के लिए सत्यापन रोक दिया है। पहले रिलीज़ हुआ जैसा दर्ज है वैसा ही रहता है।',
   'sc.ended_note': 'नीचे के आँकड़े वैसे हैं जैसे अनुबंध समाप्त होने पर थे।',

@@ -48,7 +48,7 @@ export function ShowcaseCard({ clientId }: { clientId: string }) {
         : <button onClick={() => setPanel('publish')} data-testid="sh-publish">{t('scw.publish')}</button>)}
       {x.may_unpublish && (panel === 'unpublish'
         ? <div className="stack" data-testid="sh-unpublish-panel">
-            <label className="stack small">{t('scw.why')}<textarea rows={2} maxLength={300} value={why} onChange={(e) => setWhy(e.target.value)} data-testid="sh-why" /></label>
+            <label className="stack small">{t('scw.why')}<textarea rows={2} maxLength={300} value={why} onChange={(e) => setWhy(e.target.value)} aria-label={t('scw.why')} data-testid="sh-why" /></label>
             <div className="row"><button className="danger" disabled={act.busy || why.trim().length < 5} data-testid="sh-unpublish-go"
               onClick={() => void act.run(async () => { await unpublishShowcase(clientId, why.trim()); setPanel('none'); setWhy(''); s.reload(); })}>{t('scw.unpublish_go')}</button>
               <button className="secondary" onClick={() => setPanel('none')}>{t('common.cancel')}</button></div></div>

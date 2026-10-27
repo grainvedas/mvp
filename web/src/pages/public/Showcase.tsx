@@ -29,7 +29,7 @@ export function ShowcaseView({ d, preview = false }: { d: ShowcaseData; preview?
     <div className="stack" data-testid="showcase" data-status={v?.status ?? 'none'}>
       {preview && <div className="alert info" role="status" data-testid="sc-preview">{t('sc.preview')}</div>}
       <section className="card">
-        <p className="small muted">{t('sc.eyebrow')}</p>
+        <p className="small muted" data-testid="sc-eyebrow">{t(v?.status === 'active' && !d.expired ? 'sc.eyebrow' : 'sc.eyebrow_plain')}</p>   {/* item 73: "verified" only while active */}
         <h1 data-testid="sc-name">{d.name}</h1>
         {d.own_brand && <p data-testid="sc-own-brand"><strong>{t('pv.own_brand')}</strong></p>}
         {d.expired ? (

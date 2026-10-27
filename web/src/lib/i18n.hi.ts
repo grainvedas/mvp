@@ -4714,4 +4714,7 @@ export const hi: Record<string, string> = {
   'audit.report_read': 'ने रिपोर्ट पढ़ी',
   'audit.report_downloaded': 'ने इसकी फ़ाइल डाउनलोड की',
 
+  // item 73 (Phase 3 close-out): a client's line in the Audit log
+  'audit.a_client': 'एक क्लाइंट',
+
 };

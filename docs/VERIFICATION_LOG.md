@@ -3831,3 +3831,73 @@ changes).
   run and as a run again with migration 72 already pushed (S1 skipped; S1b and S2 OK). The script parses cleanly; its
   tested-files check still says 211 app files, `diff=0`.
 - Run it again: S0 says no migration is waiting and S1 is skipped.
+
+## 27 October 2026, 12:57 IST: the showcase page and the lifetime rule on staging (`staging-showcase-lifetime.cmd`, run 2)
+
+Veda ran it again: `RESULT: SHOWCASE AND LIFETIME ON STAGING`, head **0fa86e0** (29 files).
+- S0: the practice project, environment staging, the tested files and 211 app and function files; nothing waiting
+  (migration 72 pushed in run 1); the functions current; confirmed in words. S1 not run.
+- S1b: `table=new functions=new lifetime=yes round=scheduled published=0 ended_states=0 closed_clients=0`.
+- S2: smoke **69 of 70** (the one not OK is the standing `statement logging`); the rules in place (70's, 71's, 72's), the
+  change log intact; one client and another `leaks=0 people=12 tables=46 calls=45540` in 8 parts; `showcases=0
+  published=0 evidence_packs=3 pack_failures=0`; the ledger audit no findings (395 blocks, 80 records, 9 seals, 15
+  evidence files); no login without a person; the functions current.
+- S3: the app pushed (0fa86e0); Vercel served it (the new routes answered). Record:
+  `release-evidence\staging-showcase-lifetime-20261027-125722.log` (Veda's computer).
+
+### The run sheet's checks (Claude, in the browser pane at 527 px, each person signing in), 27 Oct, afternoon (published 14:54, resumed 15:00 IST)
+
+Veda approved the publishing, the suspension and resumption, the unpublishing and the order pack's files in words first.
+- **Row 1.** `/verified/TCUP`: "No showcase page". The badge `/api/badge?c=TCUP`: "No showcase page" (the host found its
+  project from its own app).
+- **Row 2 (tcup).** Portfolio → Showcase page: "Not published", Preview only; the server answers `may_publish: false,
+  may_unpublish: false`. The preview: its banner "not public until the client's owner approves it"; no price.
+  Not tried: tcup publishing (had the server allowed it, the page would have gone public; `tests/67` covers it).
+  The admin, before: the same card, Preview only (TCUP has an owner).
+- **Row 3 (Practice Owner TCUP).** "Approve and publish" → the confirmation → Publish: "Published on 27 Oct 2026,
+  2:54 pm IST by Practice Owner TCUP"; the badge and the snippet (`/verified/TCUP`, `/api/badge?c=TCUP`).
+- **Row 4.** `/verified/TCUP`: Test Client UP; Uttar Pradesh "Verified by GrainVeda"; Kalanamak Rice · KH26: 5.58 t
+  traced, 3 villages, 4.8 % from the GI area and farm-verified (item 69: Bansi's farmers are outside the practice GI
+  area), lab pass rate 100 %. The public reply without a sign-in (494 bytes): no price, phone, buyer or farmer's name.
+  "Verify any pack" with `GV-7FA853226C45` opened the lot's page ("Origin verified"). In Hindi throughout (the state's
+  and the crop's names as recorded). No sideways scroll.
+- **Row 5.** The badge: "Verified by GrainVeda · Test Client UP", and in Hindi with `&l=hi`. Its first answer after the
+  publishing was still the cached "No showcase page" (cached 5 minutes, as designed).
+- **Row 7 (the owner, before row 6 to save a sign-in).** Unpublish with "run sheet check, release 5 (practice)": the
+  card "Unpublished on … by Practice Owner TCUP: …"; the public reply empty; the badge "No showcase page". Published
+  again at 2:56 pm.
+- **Row 6 (the admin).** Test Client UP → Uttar Pradesh → Suspend (a reason): the page's banner and its state
+  "Verification paused", the badge "Verification paused". Resume (a reason): the banner active, the state "Verified by
+  GrainVeda". Item 73 (1), (2): the line above the name still said "verified by GrainVeda" while paused; one badge just
+  after the resume said "No showcase page" (20 after it right).
+- **Row 8 (the admin).** The Audit log: "Practice Owner TCUP published the showcase page of TCUP" (twice),
+  "unpublished … 'run sheet check, release 5 (practice)'", each opening the client; the 12 lines of reports and packs
+  name their reference (`GV-EP-…`) and open its verify page. The suspend and resume lines carry their reasons (item 73
+  (3): they show "—").
+- **Row 9 (Lucky).** Before: `/d/GV-EP-000002` "Its files are still being made". `ORD-TCUP-0001`'s page: "Making the
+  pack's files: 3 of 6", then done, no click. After: six files with their SHA-256; the English shareable PDF's
+  (`96a61ac9…`) is the buyer's copy of release 4, byte for byte.
+- **Row 10 (the admin).** Home: "Reports and evidence packs issued".
+- **Run sheet done: rows 1–10 as expected**; small things seen are item 73.
+- **Left on staging:** TCUP's showcase page published (by Practice Owner TCUP); Uttar Pradesh active; GV-EP-000002's
+  six files stored.
+
+## 27 October 2026: Phase 3 close-out, FIX_LIST item 73 (the app only), on the local stack
+
+Veda: "proceed with phase 3" (item 73, then the report back). No migration.
+- **Unit tests: 814.** The new `release73.test.tsx` has 6: the badge says "verified" only while active, in both
+  languages, the app and the host drawing the same; the host draws "Status unavailable", `no-store`, when the database
+  does not answer or no project is found, and a status it reads as before (cached 5 minutes); the page's line above the
+  name; the client's Audit lines (which actions, the code from the list, "a client" otherwise); the reason box's name;
+  the new words in English and Hindi. **All six failed on release 5's files** (put back for the run), and pass on the
+  fix. The type check and the build are clean.
+- **e2e** on the rebuilt stack: phase8, phase10, phase12, phase14, phase40, phase43 **17 of 17**; `phase43` now also
+  checks the line above the name while paused and active and the suspend line naming PRSDM in the Audit log; phase42
+  1 of 1. The built app **14 of 14** (the public page 189 KB, 1.8 s on throttled 3G).
+- **Release script.** `staging-showcase-fixes.cmd` (`scripts/staging_showcase_fixes.ps1`, phrase `FIXES`), made from
+  release 5's script: no migration (S0 stops on any waiting), S1b reads migration 72 still in place and accepts a
+  published page. It parses under PowerShell 7.4; its tested-files check, taken out: 212 app files, `diff=0`. Run whole
+  on the local stack with stand-ins only for the commands that reach staging or git: `RESULT: SHOWCASE FIXES ON
+  STAGING`; with a migration waiting it stops at S0 ("This release pushes no migration; nothing was changed"). S1b's
+  check with a published page (`published=1`) passes and a line with `functions=old` is refused.
+- Not yet run; it waits for Veda's say-so.
